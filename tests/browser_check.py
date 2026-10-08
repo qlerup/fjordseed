@@ -37,6 +37,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
             page.get_by_role('button',name='Log ind').click()
             expect(page.locator('#new-torrent')).to_be_disabled()
+            expect(page.locator('#traffic-flow')).to_have_attribute('data-state','blocked')
             expect(page.locator('#connection')).not_to_be_visible()
             page.locator('.nav[href="#connection"]').click()
             expect(page.locator('#connection')).to_be_visible()
@@ -47,6 +48,9 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#profile').select_option('a'*32)
             page.locator('#connect').click()
             expect(page.locator('#new-torrent')).to_be_enabled()
+            expect(page.locator('#traffic-flow')).to_have_attribute('data-state','active')
+            expect(page.locator('#flow-vpn-icon img')).to_have_attribute('src','/static/flags/ps.svg')
+            assert page.locator('.flow-link i').first.evaluate("el=>getComputedStyle(el).animationName")=='flow-out'
             expect(page.locator('#public-address')).to_contain_text('Palæstina')
             page.locator('.nav[href="#torrents"]').click()
             expect(page.locator('#connection')).not_to_be_visible()
@@ -75,8 +79,13 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#connection')).to_be_visible()
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
             page.screenshot(path=str(root/'test-results/mobile-vpn.png'),full_page=True)
+            page.emulate_media(reduced_motion='reduce')
+            assert page.locator('.flow-link i').first.evaluate("el=>getComputedStyle(el).animationName")=='none'
+            page.emulate_media(reduced_motion='no-preference')
             page.locator('#stop').click()
             expect(page.locator('#new-torrent')).to_be_disabled()
+            expect(page.locator('#traffic-flow')).to_have_attribute('data-state','blocked')
+            assert page.locator('.flow-link i').first.evaluate("el=>getComputedStyle(el).animationName")=='none'
             assert not errors,errors
             browser.close()
     finally:server.shutdown()
