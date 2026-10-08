@@ -16,6 +16,7 @@ from hub import Hub, HubError
 from runtime import Runtime
 from qbit_rpc import share_policy
 from trackers import Trackers
+from torrent_meta import torrent_meta, magnet_meta
 from state import State, atomic
 
 
@@ -145,7 +146,25 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     @app.get('/api/status')
     def status():
         with state.lock:
-            return jsonify(runtime.status())
+            result = runtime.status()
+        for torrent in result.get('torrents',[]):
+            hashes=[torrent.get(k) for k in ('hash','infohash_v1','infohash_v2')]
+            torrent['benefits']=trackers.benefits.request({'hashes':hashes,'name':torrent.get('name','')}, priority=1)
+        return jsonify(result)
+
+    @app.post('/api/torrents/preview')
+    def preview_torrent():
+        magnet = request.form.get('magnet','').strip()
+        uploaded = request.files.get('torrent')
+        if bool(magnet) == bool(uploaded):
+            return jsonify(error='Vælg enten et magnetlink eller en torrentfil.'),400
+        try:
+            if uploaded and not uploaded.filename.lower().endswith('.torrent'):
+                raise ValueError('Vælg en .torrent-fil.')
+            meta = magnet_meta(magnet) if magnet else torrent_meta(uploaded.read(4*1024*1024+1))
+            return jsonify(trackers.benefits.request(meta, request.form.get('tracker_id','')))
+        except ValueError as exc:
+            return jsonify(error=str(exc)),400
 
     @app.post('/api/settings')
     def settings():
@@ -226,6 +245,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     if not testing:
         threading.Thread(target=worker, daemon=True).start()
         threading.Thread(target=trackers.run, args=(stop,), daemon=True).start()
+        threading.Thread(target=trackers.benefits.run, args=(stop,), daemon=True).start()
     return app
 
 

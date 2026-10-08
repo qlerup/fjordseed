@@ -6,7 +6,23 @@ function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;clear
 function error(selector,e){$(selector).textContent=e.message;$(selector).hidden=false;}
 async function api(url, options={}){const r=await fetch(url,{...options,headers:{'X-CSRF-Token':csrf,...options.headers}});if(r.status===401){location.href='/login';throw Error('Log ind igen.');}const d=await r.json();if(!r.ok)throw Error(d.error||'Handlingen kunne ikke udføres.');return d;}
 function size(n){n=Number(n)||0;for(const unit of ['B','KB','MB','GB','TB']){if(n<1024||unit==='TB')return n.toFixed(n<10?1:0)+' '+unit;n/=1024;}}
-function card(t){const row=node('article','torrent'),head=node('div','torrent-head');head.append(node('h3','',t.name));const actions=node('div','torrent-actions');for(const [action,label] of [['start','Start'],['stop','Pause'],['delete','Fjern']]){const b=node('button','secondary',label);b.type='button';b.disabled=!current.ready;b.setAttribute('aria-label',label+' '+t.name);b.onclick=async()=>{if(action==='delete'){deleting=t;$('#delete-name').textContent=t.name;$('#delete-error').hidden=true;$('#delete-dialog').showModal();return;}b.disabled=true;try{await api(`/api/torrents/${t.hash}/${action}`,{method:'POST'});await refresh();}catch(e){toast(e.message);}finally{b.disabled=false;}};actions.append(b);}head.append(actions);row.append(head,node('p','torrent-meta',`${(Number(t.progress)*100).toFixed(1)}% · ${size(t.size)} · ↓ ${size(t.dlspeed)}/s · ↑ ${size(t.upspeed)}/s · Ratio ${Number(t.ratio||0).toFixed(2)} · ${t.state}`));if(Number(t.ratio_limit)>=0&&t.ratio_limit!==undefined&&t.ratio_limit!==null){row.append(node('p','torrent-policy','Stop-ratio: '+t.ratio_limit+' \u00b7 '+(t.share_limit_action==='RemoveWithContent'?'Slet filer automatisk':'Behold filer')));}const p=node('progress','progress');p.max=1;p.value=t.progress;p.setAttribute('aria-label','Fremdrift for '+t.name);row.append(p);return row;}
+function benefitView(data){
+ const wrap=node('div','torrent-benefits');
+ if(!data||data.status!=='matched'){wrap.append(node('span','muted small',data?.message||'Trackerfordele ukendte'));return wrap;}
+ for(const match of data.matches||[]){
+  const group=node('div','benefit-group');group.append(node('span','benefit-tracker',match.tracker_name));
+  if(match.freeleech>0)group.append(node('span','benefit-badge',match.freeleech+' % Freeleech'));
+  if(match.double_upload===true)group.append(node('span','benefit-badge double','Dobbelt upload'));
+  if(match.featured)group.append(node('span','benefit-badge','Featured'));
+  if(match.internal)group.append(node('span','benefit-badge subtle','Internal'));
+  if(match.refundable)group.append(node('span','benefit-badge subtle','Refundable'));
+  if(match.freeleech===0&&match.double_upload===false&&!match.featured)group.append(node('span','muted small','Ingen freeleech eller dobbelt upload'));
+  if(match.freeleech===null||match.double_upload===null)group.append(node('span','muted small','Nogle fordele er ukendte'));
+  wrap.append(group);
+ }
+ return wrap;
+}
+function card(t){const row=node('article','torrent'),head=node('div','torrent-head');head.append(node('h3','',t.name));const actions=node('div','torrent-actions');for(const [action,label] of [['start','Start'],['stop','Pause'],['delete','Fjern']]){const b=node('button','secondary',label);b.type='button';b.disabled=!current.ready;b.setAttribute('aria-label',label+' '+t.name);b.onclick=async()=>{if(action==='delete'){deleting=t;$('#delete-name').textContent=t.name;$('#delete-error').hidden=true;$('#delete-dialog').showModal();return;}b.disabled=true;try{await api(`/api/torrents/${t.hash}/${action}`,{method:'POST'});await refresh();}catch(e){toast(e.message);}finally{b.disabled=false;}};actions.append(b);}head.append(actions);row.append(head,node('p','torrent-meta',`${(Number(t.progress)*100).toFixed(1)}% · ${size(t.size)} · ↓ ${size(t.dlspeed)}/s · ↑ ${size(t.upspeed)}/s · Ratio ${Number(t.ratio||0).toFixed(2)} · ${t.state}`));if(Number(t.ratio_limit)>=0&&t.ratio_limit!==undefined&&t.ratio_limit!==null){row.append(node('p','torrent-policy','Stop-ratio: '+t.ratio_limit+' \u00b7 '+(t.share_limit_action==='RemoveWithContent'?'Slet filer automatisk':'Behold filer')));}row.append(benefitView(t.benefits));const p=node('progress','progress');p.max=1;p.value=t.progress;p.setAttribute('aria-label','Fremdrift for '+t.name);row.append(p);return row;}
 function renderFlow(data){
  const state=data.ready?'active':'blocked',flow=$('#traffic-flow');
  flow.dataset.state=state;
@@ -27,7 +43,29 @@ $('#method-magnet').onclick=()=>chooseMethod('magnet');$('#method-file').onclick
 $('#new-torrent').onclick=()=>{$('#add-form').reset();chooseMethod('magnet');$('#add-error').hidden=true;$('#add-dialog').showModal();$('#magnet').focus();};
 document.querySelectorAll('.close').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 let pendingTorrent;
-$('#add-form').onsubmit=e=>{e.preventDefault();$('#add-error').hidden=true;try{const body=new FormData();const magnet=$('#magnet').value.trim();const file=$('#torrent-file').files[0];if(addMethod==='magnet'){if(!magnet.startsWith('magnet:?'))throw Error('Indtast et gyldigt magnetlink.');body.set('magnet',magnet);}else{if(!file||!file.name.toLowerCase().endsWith('.torrent'))throw Error('Vælg en .torrent-fil.');body.set('torrent',file);}pendingTorrent=body;$('#ratio-form').reset();$('#ratio-source').textContent=addMethod==='file'?file.name:'Torrent fra magnetlink';$('#ratio-error').hidden=true;$('#ratio-delete-notice').hidden=true;$('#add-dialog').close();$('#ratio-dialog').showModal();$('#ratio-limit').focus();}catch(e){error('#add-error',e);}};
+$('#add-form').onsubmit=e=>{e.preventDefault();$('#add-error').hidden=true;try{const body=new FormData();const magnet=$('#magnet').value.trim();const file=$('#torrent-file').files[0];if(addMethod==='magnet'){if(!magnet.startsWith('magnet:?'))throw Error('Indtast et gyldigt magnetlink.');body.set('magnet',magnet);}else{if(!file||!file.name.toLowerCase().endsWith('.torrent'))throw Error('Vælg en .torrent-fil.');body.set('torrent',file);}pendingTorrent=body;$('#ratio-form').reset();$('#ratio-source').textContent=addMethod==='file'?file.name:'Torrent fra magnetlink';$('#ratio-error').hidden=true;$('#ratio-delete-notice').hidden=true;$('#add-dialog').close();$('#ratio-dialog').showModal();prepareBenefits();$('#ratio-limit').focus();}catch(e){error('#add-error',e);}};
+let previewTimer,previewGeneration=0;
+function prepareBenefits(){
+ const select=$('#benefit-tracker');select.replaceChildren(node('option','','Find automatisk blandt mine trackere'));select.firstChild.value='';
+ for(const tracker of typeof trackerData==='undefined'?[]:trackerData){const option=node('option','',tracker.name);option.value=tracker.id;select.append(option);}
+ loadPreviewBenefits();
+}
+async function loadPreviewBenefits(){
+ clearTimeout(previewTimer);const generation=++previewGeneration;
+ $('#preview-benefits').replaceChildren(benefitView({status:'pending',message:'Slår trackerfordele op...'}));
+ async function check(){
+  if(!pendingTorrent||!$('#ratio-dialog').open||generation!==previewGeneration)return;
+  try{const body=new FormData();for(const [key,value] of pendingTorrent)if(key==='magnet'||key==='torrent')body.append(key,value);body.set('tracker_id',$('#benefit-tracker').value);
+   const result=await api('/api/torrents/preview',{method:'POST',body});
+   if(generation!==previewGeneration||!$('#ratio-dialog').open)return;
+   $('#preview-benefits').replaceChildren(benefitView(result));
+   if(result.status==='pending')previewTimer=setTimeout(check,2000);
+  }catch(e){if(generation===previewGeneration)$('#preview-benefits').replaceChildren(benefitView({status:'unknown',message:'Trackerfordele ukendte — '+e.message}));}
+ }
+ await check();
+}
+$('#benefit-tracker').onchange=loadPreviewBenefits;
+$('#ratio-dialog').addEventListener('close',()=>{clearTimeout(previewTimer);previewGeneration++;});
 $('#ratio-action').onchange=()=>$('#ratio-delete-notice').hidden=$('#ratio-action').value!=='delete';
 $('#ratio-dialog').addEventListener('cancel',e=>{if($('#ratio-save').disabled)e.preventDefault();});
 $('#ratio-back').onclick=()=>{$('#ratio-dialog').close();$('#add-dialog').showModal();};

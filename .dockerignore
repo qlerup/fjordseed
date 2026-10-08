@@ -7,6 +7,8 @@
 !qbit_rpc.py
 !qbit_worker.py
 !trackers.py
+!benefits.py
+!torrent_meta.py
 !templates/
 !templates/*.html
 !static/

@@ -9,6 +9,7 @@ import uuid
 import requests
 
 from state import atomic
+from benefits import Benefits
 
 PROVIDERS = {'nordicbytes': {'name':'NordicBytes', 'url':'https://nordicbytes.org/api/user'}}
 STAT_FIELDS = ('uploaded','downloaded','ratio','buffer','seeding','leeching','seedbonus',
@@ -25,6 +26,7 @@ class Trackers:
         self.lock = threading.RLock()
         self.cache = {}
         self.wake = threading.Event()
+        self.benefits = Benefits(self)
         if not self.path.exists():
             atomic(self.path, '[]')
         self.path.chmod(0o600)
@@ -81,10 +83,10 @@ class Trackers:
             self.cache.pop(ident, None)
 
     @staticmethod
-    def fetch(entry):
+    def read_json(entry, url, params=None):
         with requests.Session() as client:
             client.trust_env = False
-            with client.get(PROVIDERS[entry['provider']]['url'],
+            with client.get(url, params=params,
                     headers={'Authorization':'Bearer '+entry['api_key'], 'Accept':'application/json'},
                     timeout=(3,5), allow_redirects=False, stream=True) as response:
                 if response.status_code in (401,403):
@@ -99,6 +101,11 @@ class Trackers:
                     if len(raw) > 1024*1024:
                         raise TrackerError('Trackeren returnerede et for stort svar.')
                 data = json.loads(raw)
+        return data
+
+    @staticmethod
+    def fetch(entry):
+        data = Trackers.read_json(entry, PROVIDERS[entry['provider']]['url'])
         if not isinstance(data,dict) or not isinstance(data.get('stats'),dict):
             raise TrackerError('Trackeren returnerede et ukendt dataformat.')
         stats = {}
