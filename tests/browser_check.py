@@ -50,6 +50,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.get_by_role('button',name='Fjern Test Linux ISO').click()
             expect(page.get_by_text('Downloadede filer bevares.',exact=False)).to_be_visible()
             page.locator('#delete-dialog .close').click()
+            assert page.locator('.country-location img').first.evaluate('(img)=>img.complete && img.naturalWidth>0')
             page.screenshot(path=str(root/'test-results/desktop.png'),full_page=True)
             page.set_viewport_size({'width':390,'height':844})
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
