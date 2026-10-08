@@ -22,6 +22,24 @@ function benefitView(data){
  }
  return wrap;
 }
+function renderRatioPreview(data){
+ const target=$('#preview-ratio');target.replaceChildren();
+ if(data.status==='pending'){target.append(node('p','muted small','Beregner forventet tracker-ratio...'));return;}
+ const estimates=data.ratio_estimates||[];
+ if(!estimates.length){target.append(node('p','muted small','Forventet ratio er ukendt. Vælg en tracker med kontotal, og brug en torrentfil eller et magnetlink, der kan slås op.'));return;}
+ const number=n=>n===null?'Ukendt':Number(n).toLocaleString('da-DK',{maximumFractionDigits:6});
+ for(const estimate of estimates){
+  const section=node('div','ratio-estimate'+(estimate.warning?' ratio-warning':''));
+  section.append(node('strong','',estimate.tracker_name));
+  if(estimate.status!=='ok'){section.append(node('p','muted small',estimate.message));target.append(section);continue;}
+  section.append(node('p','ratio-value','Forventet tracker-ratio: '+(estimate.infinite?'∞':number(estimate.projected_ratio))),
+   node('p','muted small','Nuværende: '+number(estimate.current_ratio)+' · Torrent: '+size(estimate.torrent_size)+' · Tæller som download: '+size(estimate.charged_download)));
+  if(estimate.assumed_no_freeleech)section.append(node('p','muted small','Freeleech er ukendt. Beregningen tæller derfor hele downloadet.'));
+  if(estimate.warning){const warning=node('p','ratio-warning-text','Advarsel: din tracker-ratio bliver 0,5 eller lavere efter denne download.');warning.setAttribute('role','alert');section.append(warning);}
+  section.append(node('p','muted small','Baseret på kontotal fra '+new Date(estimate.updated_at*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})+'. Hele torrenten downloades; ny upload og andre igangværende downloads er ikke medregnet. Dobbelt upload giver først kredit, når du uploader.'));
+  target.append(section);
+ }
+}
 function card(t){const row=node('article','torrent'),head=node('div','torrent-head');head.append(node('h3','',t.name));const actions=node('div','torrent-actions');for(const [action,label] of [['start','Start'],['stop','Pause'],['delete','Fjern']]){const b=node('button','secondary',label);b.type='button';b.disabled=!current.ready;b.setAttribute('aria-label',label+' '+t.name);b.onclick=async()=>{if(action==='delete'){deleting=t;$('#delete-name').textContent=t.name;$('#delete-error').hidden=true;$('#delete-dialog').showModal();return;}b.disabled=true;try{await api(`/api/torrents/${t.hash}/${action}`,{method:'POST'});await refresh();}catch(e){toast(e.message);}finally{b.disabled=false;}};actions.append(b);}head.append(actions);row.append(head,node('p','torrent-meta',`${(Number(t.progress)*100).toFixed(1)}% · ${size(t.size)} · ↓ ${size(t.dlspeed)}/s · ↑ ${size(t.upspeed)}/s · Ratio ${Number(t.ratio||0).toFixed(2)} · ${t.state}`));if(Number(t.ratio_limit)>=0&&t.ratio_limit!==undefined&&t.ratio_limit!==null){row.append(node('p','torrent-policy','Stop-ratio: '+t.ratio_limit+' \u00b7 '+(t.share_limit_action==='RemoveWithContent'?'Slet filer automatisk':'Behold filer')));}row.append(benefitView(t.benefits));const p=node('progress','progress');p.max=1;p.value=t.progress;p.setAttribute('aria-label','Fremdrift for '+t.name);const progress=node('div','progress-caption');const fraction=Math.max(0,Math.min(1,Number(t.progress)||0));progress.append(node('strong','',(fraction*100).toFixed(1)+' %'),node('span','muted small',size(t.completed??Math.round((Number(t.size)||0)*fraction))+' af '+size(t.size)+' \u00b7 '+(fraction>=1?'Download færdig':eta(t.eta))));row.append(progress,p);if(t.rss_feed)row.append(node('p','torrent-policy','RSS: '+t.rss_feed));return row;}
 function eta(seconds){if(!Number.isFinite(Number(seconds))||Number(seconds)<0||Number(seconds)>=8640000)return 'Ukendt tid tilbage';seconds=Math.round(seconds);if(seconds<60)return seconds+' sek. tilbage';if(seconds<3600)return Math.ceil(seconds/60)+' min. tilbage';return Math.floor(seconds/3600)+' t. '+Math.ceil((seconds%3600)/60)+' min. tilbage';}
 function renderDownloadLists(data){
@@ -60,14 +78,16 @@ function prepareBenefits(){
 async function loadPreviewBenefits(){
  clearTimeout(previewTimer);const generation=++previewGeneration;
  $('#preview-benefits').replaceChildren(benefitView({status:'pending',message:'Slår trackerfordele op...'}));
+ renderRatioPreview({status:'pending'});
  async function check(){
   if(!pendingTorrent||!$('#ratio-dialog').open||generation!==previewGeneration)return;
   try{const body=new FormData();for(const [key,value] of pendingTorrent)if(key==='magnet'||key==='torrent')body.append(key,value);body.set('tracker_id',$('#benefit-tracker').value);
    const result=await api('/api/torrents/preview',{method:'POST',body});
    if(generation!==previewGeneration||!$('#ratio-dialog').open)return;
    $('#preview-benefits').replaceChildren(benefitView(result));
-   if(result.status==='pending')previewTimer=setTimeout(check,2000);
-  }catch(e){if(generation===previewGeneration)$('#preview-benefits').replaceChildren(benefitView({status:'unknown',message:'Trackerfordele ukendte — '+e.message}));}
+   renderRatioPreview(result);
+   if(result.status==='pending'||result.ratio_estimates?.some(e=>e.status==='pending'))previewTimer=setTimeout(check,2000);
+  }catch(e){if(generation===previewGeneration){$('#preview-benefits').replaceChildren(benefitView({status:'unknown',message:'Trackerfordele ukendte — '+e.message}));renderRatioPreview({status:'unknown'});}}
  }
  await check();
 }

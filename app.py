@@ -18,6 +18,7 @@ from qbit_rpc import share_policy
 from trackers import Trackers
 from torrent_meta import torrent_meta, magnet_meta
 from rss import Rss
+from benefits import ratio_estimate
 from state import State, atomic
 
 
@@ -168,7 +169,15 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             if uploaded and not uploaded.filename.lower().endswith('.torrent'):
                 raise ValueError('Vælg en .torrent-fil.')
             meta = magnet_meta(magnet) if magnet else torrent_meta(uploaded.read(4*1024*1024+1))
-            return jsonify(trackers.benefits.request(meta, request.form.get('tracker_id','')))
+            selected=request.form.get('tracker_id','')
+            result=trackers.benefits.request(meta,selected)
+            accounts={a['id']:a for a in trackers.public()['trackers']}
+            matches=result.get('matches',[])
+            if not matches and selected in accounts and result.get('status')!='pending':
+                matches=[{'tracker_id':selected,'tracker_name':accounts[selected]['name'],'freeleech':None}]
+            estimates=[ratio_estimate(m,accounts.get(m.get('tracker_id')),
+                meta.get('size') if meta.get('size') is not None else m.get('size')) for m in matches]
+            return jsonify({**result,'ratio_estimates':estimates})
         except ValueError as exc:
             return jsonify(error=str(exc)),400
 

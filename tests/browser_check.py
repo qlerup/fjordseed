@@ -114,7 +114,10 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('.nav[href="#torrents"]').click()
             expect(page.locator('#tracker-overview')).to_be_visible()
             expect(page.locator('#tracker-account-list')).to_contain_text('10 GB')
-            app.extensions['trackers'].benefits.request=lambda meta,selected='',priority=0: {'status':'matched','matches':[{'tracker_name':'Min NordicBytes-konto','freeleech':100,'double_upload':True,'featured':False,'internal':False,'refundable':False}]}
+            preview_match={'tracker_id':app.extensions['trackers'].entries()[0]['id'],
+                'tracker_name':'Min NordicBytes-konto','size':15*1024**3,'freeleech':100,
+                'double_upload':True,'featured':False,'internal':False,'refundable':False}
+            app.extensions['trackers'].benefits.request=lambda meta,selected='',priority=0: {'status':'matched','matches':[dict(preview_match)]}
             page.locator('#new-torrent').click()
             page.locator('#magnet').fill('magnet:?xt=urn:btih:'+'b'*40)
             page.locator('#add-save').click()
@@ -122,6 +125,21 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#ratio-dialog')).to_be_visible()
             expect(page.locator('#preview-benefits')).to_contain_text('100 % Freeleech')
             expect(page.locator('#preview-benefits')).to_contain_text('Dobbelt upload')
+            expect(page.locator('#preview-ratio')).to_contain_text('Forventet tracker-ratio: 2')
+            expect(page.locator('#preview-ratio .ratio-warning-text')).to_have_count(0)
+            preview_match['freeleech']=0
+            page.evaluate('loadPreviewBenefits()')
+            expect(page.locator('#preview-ratio')).to_contain_text('Forventet tracker-ratio: 0,5')
+            expect(page.locator('#preview-ratio [role="alert"]')).to_contain_text('0,5 eller lavere')
+            expect(page.locator('#ratio-save')).to_be_enabled()
+            page.screenshot(path=str(root/'test-results/desktop-ratio-warning.png'),full_page=True)
+            page.set_viewport_size({'width':390,'height':844})
+            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+            page.screenshot(path=str(root/'test-results/mobile-ratio-warning.png'),full_page=True)
+            page.set_viewport_size({'width':1440,'height':1000})
+            preview_match['freeleech']=100
+            page.evaluate('loadPreviewBenefits()')
+            expect(page.locator('#preview-ratio .ratio-warning-text')).to_have_count(0)
             app.extensions['runtime'].rpc.assert_not_called()
             page.locator('#ratio-limit').fill('2.5')
             page.screenshot(path=str(root/'test-results/desktop-ratio.png'),full_page=True)

@@ -87,4 +87,24 @@ def torrent_meta(raw):
         hashes.append(hashlib.sha1(encoded).hexdigest())
     if info.get(b'meta version')==2:
         hashes.append(hashlib.sha256(encoded).hexdigest())
-    return {'hashes':hashes,'name':name.decode('utf-8',errors='replace')[:200]}
+    size=None
+    lengths=[]
+    if type(info.get(b'length')) is int:
+        lengths=[info[b'length']]
+    elif isinstance(info.get(b'files'),list):
+        lengths=[entry.get(b'length') if isinstance(entry,dict) else None for entry in info[b'files']]
+    elif isinstance(info.get(b'file tree'),dict):
+        def visit(tree):
+            for key,value in tree.items():
+                if key==b'':
+                    lengths.append(value.get(b'length') if isinstance(value,dict) else None)
+                elif isinstance(value,dict):
+                    visit(value)
+                else:
+                    lengths.append(None)
+        visit(info[b'file tree'])
+    if lengths and all(type(length) is int and 0<=length<=2**63-1 for length in lengths):
+        total=sum(lengths)
+        if total<=2**63-1:
+            size=total
+    return {'hashes':hashes,'name':name.decode('utf-8',errors='replace')[:200],'size':size}

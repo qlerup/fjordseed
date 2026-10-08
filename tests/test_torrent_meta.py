@@ -11,7 +11,7 @@ def test_exact_original_info_bytes_and_no_announce_passkeys():
     info=b'd4:name11:example.iso6:lengthi4ee'
     raw=b'd8:announce28:https://example/passkey-test4:info'+info+b'e'
     meta=torrent_meta(raw)
-    assert meta=={'hashes':[hashlib.sha1(info).hexdigest()],'name':'example.iso'}
+    assert meta=={'hashes':[hashlib.sha1(info).hexdigest()],'name':'example.iso','size':4}
     assert 'passkey' not in str(meta)
 
 

@@ -1,10 +1,47 @@
 """Bounded asynchronous tracker lookups with exact hash verification."""
 import hashlib
 import itertools
+import math
 import queue
 import re
 import threading
 import time
+
+
+def byte_size(value):
+    if isinstance(value,str) and re.fullmatch('[0-9]{1,19}',value):
+        value=int(value)
+    return value if type(value) is int and 0<=value<=2**63-1 else None
+
+
+def ratio_estimate(match,account,size,now=None):
+    """Full download, no assumed future upload; never treat unknown discounts as free."""
+    result={'tracker_id':match.get('tracker_id'),'tracker_name':match.get('tracker_name'),
+            'status':'unknown','warning':False}
+    size=byte_size(size)
+    if size is None:
+        return {**result,'message':'Ratio kan ikke beregnes: torrentens størrelse er ukendt.'}
+    if not account or account.get('status')!='ok':
+        return {**result,'status':'pending' if account and account.get('status')=='pending' else 'unknown',
+                'message':'Ratio kan ikke beregnes: aktuelle kontotal mangler.'}
+    stamp=account.get('updated_at')
+    now=time.time() if now is None else now
+    if type(stamp) not in (int,float) or not math.isfinite(stamp) or not 0<=now-stamp<=600:
+        return {**result,'message':'Ratio kan ikke beregnes: kontotallene er for gamle.'}
+    stats=account.get('stats',{})
+    uploaded,downloaded=stats.get('uploaded'),stats.get('downloaded')
+    if any(type(n) not in (int,float) or not math.isfinite(n) or not 0<=n<=2**63-1 for n in (uploaded,downloaded)):
+        return {**result,'message':'Ratio kan ikke beregnes: upload/download-tal mangler.'}
+    free=match.get('freeleech')
+    known=type(free) in (int,float) and free in (0,25,50,75,100)
+    charged=size*(1-(free if known else 0)/100)
+    denominator=downloaded+charged
+    projected=uploaded/denominator if denominator>0 else None
+    return {**result,'status':'ok','torrent_size':size,'charged_download':charged,
+            'current_ratio':uploaded/downloaded if downloaded>0 else None,
+            'projected_ratio':projected,'infinite':denominator==0 and uploaded>0,
+            'warning':projected is not None and projected<=.5,'assumed_no_freeleech':not known,
+            'updated_at':stamp}
 
 
 class Benefits:
@@ -92,7 +129,8 @@ class Benefits:
                                 continue
                             ident=a.get('info_hash','')
                             if isinstance(ident,str) and ident.lower() in hashes:
-                                match={'tracker_id':entry['id'],'tracker_name':entry['name'],**self.flags(a)}
+                                match={'tracker_id':entry['id'],'tracker_name':entry['name'],
+                                       'size':byte_size(a.get('size')),**self.flags(a)}
                                 break
                         metadata=data.get('meta',{}) if isinstance(data,dict) else {}
                         cursor=metadata.get('next_cursor') if isinstance(metadata,dict) else None
