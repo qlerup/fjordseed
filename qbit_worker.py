@@ -26,7 +26,7 @@ def ready(root=Path('/vpn'), now=None, interfaces=None):
     port = int(status['public_port'])
     if not 1 <= port <= 65535 or port == 8080:
         raise ValueError('Invalid or conflicting port')
-    return port, status.get('public_ip', '')
+    return port, status.get('public_ip', ''), status.get('country', '')
 
 
 def configure(port, root=Path('/config')):
@@ -79,7 +79,7 @@ def run():
         while not STOP.is_set():
             status = {'ready':False, 'checked_at':time.time(), 'message':'Venter på beskyttet VPN-forbindelse.'}
             try:
-                port, address = ready()
+                port, address, country = ready()
                 # The Docker firewall is the primary kill switch. This independent
                 # gate also prevents restoring torrents into an unhealthy tunnel.
                 with __import__('requests').Session() as client:
@@ -106,7 +106,7 @@ def run():
                         call('app/setPreferences', {'json':json.dumps({'listen_port':port,'random_port':False,'upnp':False})})
                         if call('app/preferences').json().get('listen_port') != port:
                             raise ValueError('Port synchronization failed')
-                    status.update(ready=True, port=port, public_ip=address, message='qBittorrent kører gennem VPN.')
+                    status.update(ready=True, port=port, public_ip=address, country=country, message='qBittorrent kører gennem VPN.')
             except Exception:
                 stop_process(process)
                 process = None

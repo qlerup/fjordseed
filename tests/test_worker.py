@@ -16,7 +16,7 @@ def vpn(tmp_path):
 
 
 def test_health_interface_freshness_relay_and_port_gate(vpn):
-    assert ready(vpn,105,['lo','tun0']) == (45000,'203.0.113.5')
+    assert ready(vpn,105,['lo','tun0']) == (45000,'203.0.113.5','')
     for now,interfaces in [(120,['tun0']),(90,['tun0']),(105,['eth0'])]:
         with pytest.raises(ValueError):ready(vpn,now,interfaces)
     status=json.loads((vpn/'status.json').read_text())
@@ -56,7 +56,7 @@ def test_supervisor_terminates_running_client_when_vpn_fails(monkeypatch):
     stop.is_set.side_effect=[False,False,True]
     monkeypatch.setattr(qbit_worker,'STOP',stop)
     monkeypatch.setattr(qbit_worker.signal,'signal',Mock())
-    monkeypatch.setattr(qbit_worker,'ready',Mock(side_effect=[(40001,'203.0.113.1'),ValueError('VPN lost')]))
+    monkeypatch.setattr(qbit_worker,'ready',Mock(side_effect=[(40001,'203.0.113.1','France'),ValueError('VPN lost')]))
     monkeypatch.setattr(qbit_worker,'configure',Mock())
     monkeypatch.setattr(qbit_worker,'atomic',Mock())
     monkeypatch.setattr(qbit_worker,'call',Mock(return_value=Mock(json=lambda:{'current_network_interface':'tun0','upnp':False,'listen_port':40001})))

@@ -15,7 +15,7 @@ class Demo(FakeRuntime):
         result=super().status()
         result['profiles']=[{'id':'a'*32,'name':'Seedbox VPN','desired':True,'relay_enabled':False}]
         if self.state.get()['enabled']:
-            result.update(ready=True,message='VPN klar',public_ip='203.0.113.5',port=45001,version='5.2.1',
+            result.update(ready=True,message='VPN klar',public_ip='203.0.113.5',country='France',port=45001,version='5.2.1',
                 torrents=[{'hash':'b'*40,'name':'Test Linux ISO','progress':.42,'size':1234567890,'dlspeed':2000000,'upspeed':15000,'ratio':.1,'state':'downloading'}])
         return result
 
@@ -40,6 +40,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#profile').select_option('a'*32)
             page.locator('#connect').click()
             expect(page.locator('#new-torrent')).to_be_enabled()
+            expect(page.locator('#public-address')).to_contain_text('Frankrig')
             page.locator('#new-torrent').click()
             page.locator('#magnet').fill('magnet:?xt=urn:btih:'+'b'*40)
             page.locator('#add-save').click()
