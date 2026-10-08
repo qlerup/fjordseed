@@ -11,3 +11,5 @@
 @keyframes flow-out{0%{left:0;opacity:0}12%{opacity:.9}88%{opacity:.9}100%{left:calc(100% - 8px);opacity:0}}@keyframes flow-back{0%{left:calc(100% - 5px);opacity:0}12%{opacity:.6}88%{opacity:.6}100%{left:0;opacity:0}}
 @media(max-width:800px){.traffic-flow{padding:16px 12px}.flow-route{grid-template-columns:70px minmax(12px,1fr) 90px minmax(12px,1fr) 70px;margin-top:20px}.flow-header{font-size:10px}.flow-icon{width:46px;height:46px;border-radius:12px}.flow-link{margin-top:23px}.flow-node>span{font-size:9px}.flow-note{font-size:9px}}
 @media(prefers-reduced-motion:reduce){.traffic-flow .flow-link i,.traffic-flow .flow-link b{animation:none!important}.traffic-flow[data-state=active] .flow-link i:first-child{left:50%;opacity:.7}}
+
+.add-method{display:flex;gap:8px;margin-bottom:22px}.add-method button{flex:1}.add-method button[aria-pressed=true]{border-color:var(--green);background:#19332f;color:var(--green)}

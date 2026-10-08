@@ -60,6 +60,15 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#add-save').click()
             expect(page.locator('#add-dialog')).not_to_be_visible()
             assert app.extensions['runtime'].rpc.call_args.args[0]=='add'
+            assert set(app.extensions['runtime'].rpc.call_args.args[1])=={'magnet'}
+            page.locator('#new-torrent').click()
+            page.locator('#magnet').fill('magnet:?xt=urn:btih:'+'b'*40)
+            page.locator('#method-file').click()
+            expect(page.locator('#magnet')).not_to_be_visible()
+            page.locator('#torrent-file').set_input_files({'name':'sample.torrent','mimeType':'application/x-bittorrent','buffer':b'd4:infodee'})
+            page.locator('#add-save').click()
+            expect(page.locator('#add-dialog')).not_to_be_visible()
+            assert set(app.extensions['runtime'].rpc.call_args.args[1])=={'torrent'}
             page.get_by_role('button',name='Pause Test Linux ISO').click()
             page.get_by_role('button',name='Fjern Test Linux ISO').click()
             expect(page.get_by_text('Downloadede filer bevares.',exact=False)).to_be_visible()
