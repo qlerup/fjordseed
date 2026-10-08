@@ -79,3 +79,7 @@ Klientstyring følger [qBittorrents Web API](https://github.com/qbittorrent/qBit
 ## Seeding-ratio
 
 Efter valg af magnetlink eller torrentfil angives stop-ratio og filhandling i et separat trin, inden torrenten starter. qBittorrent gemmer reglerne pr. torrent og stopper selv ved den valgte ratio, også efter en genstart. Standardhandlingen bevarer filerne. Automatisk sletning skal vælges aktivt og fjerner både torrenten og dens downloadede filer. Ratio 0 stopper efter afsluttet download. Eksisterende torrents ændres ikke.
+
+## Trackerkonti
+
+Tilføj NordicBytes under Trackere med en API-nøgle, der må læse kontodata. Downloads viser trackerens samlede upload, download, ratio, buffer, seeding, bonuspoint og advarsler pr. konto. Disse tal kan afvige fra qBittorrents lokale tal og ratio. Kontodata hentes i baggrunden højst hvert femte minut samt efter ændring af opsætningen. Ved udfald vises senest hentede tal med tidspunkt og fejlstatus. Nøgler lagres i /data/trackers.json med rettigheder 0600, returneres aldrig til browseren og deles ikke med qBittorrent-containeren. Redigering med tomt nøglefelt bevarer den eksisterende nøgle. Fjernelse af tracker berører ikke torrents eller filer. Andre udbydere kræver en separat API-integration.

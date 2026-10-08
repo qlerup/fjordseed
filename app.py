@@ -15,6 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from hub import Hub, HubError
 from runtime import Runtime
 from qbit_rpc import share_policy
+from trackers import Trackers
 from state import State, atomic
 
 
@@ -32,7 +33,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         atomic(state.root/'initial-login.txt', password + '\n')
     runtime = runtime_factory(state)
     stop = threading.Event()
-    app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub)
+    trackers = Trackers(state.root)
+    app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers)
     failures, auth_lock = {}, threading.Lock()
     allowed_hosts = {'localhost','127.0.0.1'} | set(filter(None, os.environ.get('UI_ALLOWED_HOSTS','').split(',')))
 
@@ -156,6 +158,26 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         except Exception:
             return jsonify(error='FjordVPN kunne ikke kontaktes. Opdatér og start FjordVPN.'),503
 
+    @app.get('/api/trackers')
+    def tracker_status():
+        return jsonify(trackers.public())
+
+    @app.post('/api/trackers')
+    def save_tracker():
+        try:
+            ident = trackers.save(request.get_json(silent=True))
+            return {'ok':True,'id':ident}
+        except ValueError as exc:
+            return jsonify(error=str(exc)),400
+
+    @app.post('/api/trackers/<ident>/delete')
+    def delete_tracker(ident):
+        try:
+            trackers.remove(ident)
+            return {'ok':True}
+        except ValueError as exc:
+            return jsonify(error=str(exc)),400
+
     @app.post('/api/torrents')
     def add():
         try:
@@ -203,6 +225,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
 
     if not testing:
         threading.Thread(target=worker, daemon=True).start()
+        threading.Thread(target=trackers.run, args=(stop,), daemon=True).start()
     return app
 
 
