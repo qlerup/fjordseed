@@ -16,4 +16,14 @@ $('#new-torrent').onclick=()=>{$('#add-form').reset();$('#add-error').hidden=tru
 document.querySelectorAll('.close').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 $('#add-form').onsubmit=async e=>{e.preventDefault();$('#add-save').disabled=true;$('#add-error').hidden=true;try{const body=new FormData();const magnet=$('#magnet').value.trim();const file=$('#torrent-file').files[0];if(magnet)body.set('magnet',magnet);if(file)body.set('torrent',file);await api('/api/torrents',{method:'POST',body});$('#add-dialog').close();toast('Torrent tilføjet');await refresh();}catch(e){error('#add-error',e);}finally{$('#add-save').disabled=false;}};
 $('#delete-form').onsubmit=async e=>{e.preventDefault();$('#delete-save').disabled=true;try{await api(`/api/torrents/${deleting.hash}/delete`,{method:'POST'});$('#delete-dialog').close();await refresh();}catch(e){error('#delete-error',e);}finally{$('#delete-save').disabled=false;}};
-refresh();setInterval(refresh,4000);
+function showView(focus=false){
+ const vpn=location.hash==='#connection';
+ $('#connection').hidden=!vpn;$('#downloads-view').hidden=vpn;$('#new-torrent').hidden=vpn;
+ $('#breadcrumb').textContent='Seedbox / '+(vpn?'VPN-forbindelse':'Downloads');
+ $('#page-title').textContent=vpn?'Din VPN-forbindelse':'Dine downloads';
+ $('#page-description').textContent=vpn?'Vælg VPN-profil, og se seedboxens forbindelse og beskyttelse.':'qBittorrent samlet ét sted, med trafik gennem din VPN.';
+ document.querySelectorAll('.nav').forEach(link=>{const active=link.hash===(vpn?'#connection':'#torrents');link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
+ if(focus)$('#page-title').focus({preventScroll:true});
+}
+window.addEventListener('hashchange',()=>showView(true));
+showView();refresh();setInterval(refresh,4000);
