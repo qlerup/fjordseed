@@ -87,3 +87,11 @@ Tilføj NordicBytes under Trackere med en API-nøgle, der må læse kontodata. D
 ## Fordele pr. torrent
 
 Næste i torrentdialogen læser filens info-hash og navn (eller magnetlinkets btih/btmh), og viser opslaget ved seed-indstillingerne. Der foretages aldrig kald til announce-URLer fra filen. NordicBytes ignorerer de testede hash-filterparametre, så appen laver et afgrænset navneopslag og kræver et eksakt info-hash-match. Rene v2-filer bruger SHA-256; hybridfiler understøtter begge hashes. Manglende match eller API-adgang vises som ukendte fordele og blokerer ikke download. Opslag kører i baggrunden, caches fem minutter og begrænses til 50 resultater pr. side og tre sider pr. navnevariant. Torrentkort slås også op automatisk, når deres navn og hash er kendt. Featured-torrents behandles som 100 % freeleech og dobbelt upload efter [NordicBytes-definitionen i Prowlarr](https://github.com/Prowlarr/Indexers/blob/master/definitions/v11/nordicbytes.yml). Trackerfordele ændrer ikke den lokale ratio eller stopregel.
+
+## RSS-feeds og adskilte downloads
+
+Downloads viser manuelt tilføjede torrents. RSS-feeds har sin egen oversigt over feeds og deres torrents. Begge viser fremdrift, procent, resterende tid og hastigheder. RSS-torrents beholder deres oprindelse, selv hvis feedet fjernes.
+
+Hvert feed har en undermappe i den downloadplacering, der blev valgt i FjordHub, en stop-ratio og valg mellem at bevare filer eller automatisk slette torrent og filer. Tom mappe bruger hovedmappen. Et valgfrit titelfilter følger qBittorrents RSS-matchregler. Nye feeds er på pause; aktivér automatisk download for at hente matchende poster, inklusive eksisterende poster i feedet. Indstillingsændringer gælder nye downloads. Fjernelse af et feed bevarer eksisterende torrents og filer.
+
+qBittorrents indbyggede RSS-motor henter feeds og torrents gennem VPN-forbindelsen og gemmer seeding-reglerne pr. torrent. FjordSeed henter ikke RSS-adresser fra administrationscontaineren. RSS starter først, når reglerne er synkroniseret og VPN-kontrollen er bestået. Feed-adresser kan indeholde passkeys og gemmes med rettigheder 0600; de returneres ikke til browseren. Tomt adressefelt ved redigering bevarer den gemte adresse.

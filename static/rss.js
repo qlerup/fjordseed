@@ -1,0 +1,19 @@
+let rssFeeds=[],rssRoot='',rssBusy=false,rssLoading=false;
+function updateRssPath(){ $('#rss-path').textContent='Gemmes i '+rssRoot+($('#rss-folder').value.trim()?'/'+$('#rss-folder').value.trim():''); }
+function resetRssForm(){ $('#rss-form').reset();$('#rss-id').value='';$('#rss-url').required=true;$('#rss-url').placeholder='https://tracker.example/rss?...';$('#rss-cancel').hidden=true;$('#rss-form-title').textContent='Tilføj RSS-feed';$('#rss-delete-notice').hidden=true;$('#rss-error').hidden=true;updateRssPath(); }
+function rssFeedCard(feed){
+ const card=node('article','tracker-card'),head=node('div','tracker-card-heading');head.append(node('h3','',feed.name),node('span','badge'+(feed.status==='active'?' ready':''),{active:'Aktivt',paused:'På pause',pending:'Afventer VPN / synkronisering',error:'Feedfejl'}[feed.status]));
+ card.append(head,node('p','muted small',feed.host+' · '+feed.articles+' feedposter'),node('p','torrent-policy','Mappe: '+rssRoot+(feed.folder?'/'+feed.folder:'')+' · Stop-ratio: '+feed.ratio_limit+' · '+(feed.ratio_action==='delete'?'Slet filer automatisk':'Behold filer')));
+ if(feed.include)card.append(node('p','muted small','Titelfilter: '+feed.include));
+ if(feed.status==='error')card.append(node('p','error small','Feedet eller RSS-reglerne kunne ikke indlæses. Kontrollér RSS-adressen og VPN-status.'));
+ const actions=node('div','tracker-actions'),edit=node('button','secondary','Rediger'),remove=node('button','quiet','Fjern feed');edit.type=remove.type='button';
+ edit.onclick=()=>{ $('#rss-id').value=feed.id;$('#rss-name').value=feed.name;$('#rss-url').value='';$('#rss-url').required=false;$('#rss-url').placeholder='Gemt adresse — indtast kun for at udskifte';$('#rss-folder').value=feed.folder;$('#rss-ratio').value=feed.ratio_limit;$('#rss-action').value=feed.ratio_action;$('#rss-enabled').checked=feed.enabled;$('#rss-include').value=feed.include;$('#rss-cancel').hidden=false;$('#rss-form-title').textContent='Rediger RSS-feed';$('#rss-delete-notice').hidden=feed.ratio_action!=='delete';$('#rss-error').hidden=true;updateRssPath();$('#rss-name').focus(); };
+ remove.onclick=async()=>{ if(!confirm('Fjern '+feed.name+'? Eksisterende torrents og filer bevares.'))return;remove.disabled=true;try{await api('/api/rss/'+feed.id+'/delete',{method:'POST'});if($('#rss-id').value===feed.id)resetRssForm();await refreshRss();toast('Feedet er fjernet.');}catch(e){toast(e.message);}finally{remove.disabled=false;} };
+ actions.append(edit,remove);card.append(actions);return card;
+}
+async function refreshRss(){ if(rssLoading)return;rssLoading=true;try{const result=await api('/api/rss');rssFeeds=result.feeds;rssRoot=result.download_path;updateRssPath();$('#rss-feed-list').replaceChildren(...(rssFeeds.length?rssFeeds.map(rssFeedCard):[node('p','empty','Ingen RSS-feeds tilføjet endnu.')]));}catch(e){$('#rss-feed-list').replaceChildren(node('p','error',e.message));}finally{rssLoading=false;} }
+$('#rss-folder').oninput=updateRssPath;
+$('#rss-action').onchange=()=>$('#rss-delete-notice').hidden=$('#rss-action').value!=='delete';
+$('#rss-cancel').onclick=resetRssForm;
+$('#rss-form').onsubmit=async e=>{ e.preventDefault();if(rssBusy)return;rssBusy=true;$('#rss-save').disabled=true;$('#rss-error').hidden=true;try{await api('/api/rss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:$('#rss-id').value,name:$('#rss-name').value,url:$('#rss-url').value,folder:$('#rss-folder').value,ratio_limit:$('#rss-ratio').value,ratio_action:$('#rss-action').value,include:$('#rss-include').value,enabled:$('#rss-enabled').checked})});resetRssForm();await refreshRss();toast('Feedet er gemt. Synkroniseres når VPN og seedbox er klar.');}catch(e){error('#rss-error',e);}finally{rssBusy=false;$('#rss-save').disabled=false;} };
+refreshRss();setInterval(refreshRss,10000);

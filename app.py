@@ -17,6 +17,7 @@ from runtime import Runtime
 from qbit_rpc import share_policy
 from trackers import Trackers
 from torrent_meta import torrent_meta, magnet_meta
+from rss import Rss
 from state import State, atomic
 
 
@@ -35,7 +36,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     runtime = runtime_factory(state)
     stop = threading.Event()
     trackers = Trackers(state.root)
-    app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers)
+    rss = Rss(state.root)
+    app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers, rss=rss)
     failures, auth_lock = {}, threading.Lock()
     allowed_hosts = {'localhost','127.0.0.1'} | set(filter(None, os.environ.get('UI_ALLOWED_HOSTS','').split(',')))
 
@@ -147,7 +149,11 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     def status():
         with state.lock:
             result = runtime.status()
+        feeds=rss.entries()
         for torrent in result.get('torrents',[]):
+            tags={tag.strip() for tag in str(torrent.get('tags','')).split(',')}
+            torrent['rss_feed']=next((e['name'] for e in feeds if 'FjordSeed-RSS-'+e['id'] in tags),
+                'RSS-feed (fjernet)' if any(tag.startswith('FjordSeed-RSS-') for tag in tags) else None)
             hashes=[torrent.get(k) for k in ('hash','infohash_v1','infohash_v2')]
             torrent['benefits']=trackers.benefits.request({'hashes':hashes,'name':torrent.get('name','')}, priority=1)
         return jsonify(result)
@@ -180,6 +186,25 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     @app.get('/api/trackers')
     def tracker_status():
         return jsonify(trackers.public())
+
+    @app.get('/api/rss')
+    def rss_status():
+        return jsonify({**rss.public(),'download_path':str(getattr(runtime,'host_downloads','/downloads'))})
+
+    @app.post('/api/rss')
+    def save_rss():
+        try:
+            return {'ok':True,'id':rss.save(request.get_json(silent=True))}
+        except ValueError as exc:
+            return jsonify(error=str(exc)),400
+
+    @app.post('/api/rss/<ident>/delete')
+    def remove_rss(ident):
+        try:
+            rss.remove(ident)
+            return {'ok':True}
+        except ValueError as exc:
+            return jsonify(error=str(exc)),400
 
     @app.post('/api/trackers')
     def save_tracker():

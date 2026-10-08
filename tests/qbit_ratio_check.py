@@ -3,11 +3,13 @@
 Never run against a production qBittorrent profile or download directory.
 """
 import hashlib
+import json
 from pathlib import Path
 import subprocess
 import time
 
 import requests
+from rss import sync_rss
 
 
 def bencode(value):
@@ -51,6 +53,18 @@ def wait_for(check):
 
 try:
     wait_for(lambda:api('app/version').ok)
+    ident='a'*32
+    sync_rss([{'id':ident,'name':'Offline RSS rule','url':'https://fixture.example/rss',
+        'folder':'rss-fixture','enabled':False,'include':'Linux','ratio_limit':2.5,'ratio_action':'delete'}],api)
+    rule=api('rss/rules').json()['FjordSeed-'+ident]
+    params=rule['torrentParams']
+    assert params['save_path']=='/downloads/rss-fixture' and params['ratio_limit']==2.5, params
+    assert params['share_limit_action']=='RemoveWithContent', params
+    assert params['tags']==['FjordSeed-RSS-'+ident], params
+    assert rule['enabled'] is False and api('app/preferences').json()['rss_auto_downloading_enabled'] is False
+    print('PASS: native RSS rule retains folder, tag, ratio and automatic file action')
+    sync_rss([],api)
+    assert 'FjordSeed-'+ident not in api('rss/rules').json()
     for action in ('Stop','RemoveWithContent'):
         name=action.encode()+b'.bin'
         content=b'offline-ratio-fixture-'+name

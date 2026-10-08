@@ -1,5 +1,6 @@
 """Isolated UI test: fake runtime, no Docker or downloads."""
 from pathlib import Path
+import json
 import sys
 import tempfile
 import threading
@@ -17,6 +18,11 @@ class Demo(FakeRuntime):
         if self.state.get()['enabled']:
             result.update(ready=True,message='VPN klar',public_ip='203.0.113.5',country='PS',port=45001,version='5.2.1',
                 torrents=[{'hash':'b'*40,'name':'Test Linux ISO','progress':.42,'size':1234567890,'dlspeed':2000000,'upspeed':15000,'ratio':.1,'state':'downloading'}])
+            feeds=json.loads((self.state.root/'rss.json').read_text())
+            if feeds:
+                result['torrents'].append({'hash':'c'*40,'name':'RSS Linux release','progress':.6,
+                    'size':1000000000,'dlspeed':1000000,'upspeed':12000,'ratio':.2,'state':'downloading',
+                    'tags':'FjordSeed-RSS-'+feeds[0]['id'],'eta':400})
         return result
 
 
@@ -55,6 +61,34 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('.nav[href="#torrents"]').click()
             expect(page.locator('#connection')).not_to_be_visible()
             expect(page.locator('#downloads-view')).to_be_visible()
+            page.locator('.nav[href="#rss"]').click()
+            expect(page.locator('#rss-view')).to_be_visible()
+            expect(page.locator('#downloads-view')).not_to_be_visible()
+            page.locator('#rss-name').fill('Linux feed')
+            page.locator('#rss-url').fill('https://tracker.example/rss?passkey=fixture-secret')
+            page.locator('#rss-folder').fill('linux/releases')
+            page.locator('#rss-ratio').fill('3')
+            page.locator('#rss-save').click()
+            expect(page.locator('#rss-feed-list')).to_contain_text('Linux feed')
+            expect(page.locator('#rss-feed-list')).to_contain_text('Stop-ratio: 3')
+            page.evaluate('refresh()')
+            expect(page.locator('#rss-torrent-list')).to_contain_text('RSS Linux release')
+            expect(page.locator('#rss-torrent-list .progress')).to_have_js_property('value',.6)
+            expect(page.locator('#rss-torrent-list .progress-caption')).to_contain_text('60.0 %')
+            expect(page.locator('#rss-torrent-list')).not_to_contain_text('Test Linux ISO')
+            page.locator('#rss-feed-list').get_by_role('button',name='Rediger').click()
+            expect(page.locator('#rss-url')).to_have_value('')
+            page.locator('#rss-save').click()
+            expect(page.locator('#rss-feed-list')).to_contain_text('Linux feed')
+            page.screenshot(path=str(root/'test-results/desktop-rss.png'),full_page=True)
+            page.set_viewport_size({'width':390,'height':844})
+            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+            page.screenshot(path=str(root/'test-results/mobile-rss.png'),full_page=True)
+            page.set_viewport_size({'width':1440,'height':1000})
+            page.locator('.nav[href="#torrents"]').click()
+            expect(page.locator('#torrent-list')).to_contain_text('Test Linux ISO')
+            expect(page.locator('#torrent-list')).not_to_contain_text('RSS Linux release')
+            expect(page.locator('#torrent-list .progress')).to_have_js_property('value',.42)
             page.locator('.nav[href="#trackers"]').click()
             expect(page.locator('#trackers-view')).to_be_visible()
             expect(page.locator('#downloads-view')).not_to_be_visible()

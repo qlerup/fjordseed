@@ -43,7 +43,7 @@ def execute(action, data):
     if action == 'status':
         rows = call('torrents/info?limit=500').json()
         fields = ('hash','name','size','progress','dlspeed','upspeed','state','ratio','num_seeds','num_leechs','eta',
-                  'ratio_limit','share_limit_action','infohash_v1','infohash_v2')
+                  'ratio_limit','share_limit_action','infohash_v1','infohash_v2','completed','tags')
         return {'torrents':[{k:r.get(k) for k in fields} for r in rows],
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
                 'interface':prefs['current_network_interface'], 'version':call('app/version').text}

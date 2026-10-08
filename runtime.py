@@ -8,6 +8,7 @@ import uuid
 import docker
 
 from state import atomic
+from rss import write_snapshot
 
 OWNER = 'dk.fjordseed.owner'
 PROFILE = 'dk.fjordvpn.profile'
@@ -103,6 +104,7 @@ class Runtime:
                 child.remove()
 
     def reconcile(self):
+        write_snapshot(self.state.root,self.uid,self.gid)
         settings = self.state.get()
         if not settings['enabled']:
             self.stop()

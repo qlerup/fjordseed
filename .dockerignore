@@ -9,6 +9,7 @@
 !trackers.py
 !benefits.py
 !torrent_meta.py
+!rss.py
 !templates/
 !templates/*.html
 !static/
