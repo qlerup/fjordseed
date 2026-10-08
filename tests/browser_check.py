@@ -59,8 +59,16 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#magnet').fill('magnet:?xt=urn:btih:'+'b'*40)
             page.locator('#add-save').click()
             expect(page.locator('#add-dialog')).not_to_be_visible()
+            expect(page.locator('#ratio-dialog')).to_be_visible()
+            app.extensions['runtime'].rpc.assert_not_called()
+            page.locator('#ratio-limit').fill('2.5')
+            page.screenshot(path=str(root/'test-results/desktop-ratio.png'),full_page=True)
+            page.locator('#ratio-save').click()
+            expect(page.locator('#ratio-dialog')).not_to_be_visible()
             assert app.extensions['runtime'].rpc.call_args.args[0]=='add'
-            assert set(app.extensions['runtime'].rpc.call_args.args[1])=={'magnet'}
+            assert set(app.extensions['runtime'].rpc.call_args.args[1])=={'magnet','ratio_limit','ratio_action'}
+            assert app.extensions['runtime'].rpc.call_args.args[1]['ratio_limit']==2.5
+            assert app.extensions['runtime'].rpc.call_args.args[1]['ratio_action']=='keep'
             page.locator('#new-torrent').click()
             page.locator('#magnet').fill('magnet:?xt=urn:btih:'+'b'*40)
             for width in (1440,390):
@@ -78,7 +86,17 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#torrent-file').set_input_files({'name':'sample.torrent','mimeType':'application/x-bittorrent','buffer':b'd4:infodee'})
             page.locator('#add-save').click()
             expect(page.locator('#add-dialog')).not_to_be_visible()
-            assert set(app.extensions['runtime'].rpc.call_args.args[1])=={'torrent'}
+            expect(page.locator('#ratio-dialog')).to_be_visible()
+            page.locator('#ratio-action').select_option('delete')
+            expect(page.locator('#ratio-delete-notice')).to_be_visible()
+            page.set_viewport_size({'width':390,'height':844})
+            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+            page.screenshot(path=str(root/'test-results/mobile-ratio.png'),full_page=True)
+            page.locator('#ratio-save').click()
+            expect(page.locator('#ratio-dialog')).not_to_be_visible()
+            assert set(app.extensions['runtime'].rpc.call_args.args[1])=={'torrent','ratio_limit','ratio_action'}
+            assert app.extensions['runtime'].rpc.call_args.args[1]['ratio_action']=='delete'
+            page.set_viewport_size({'width':1440,'height':1000})
             page.get_by_role('button',name='Pause Test Linux ISO').click()
             page.get_by_role('button',name='Fjern Test Linux ISO').click()
             expect(page.get_by_text('Downloadede filer bevares.',exact=False)).to_be_visible()

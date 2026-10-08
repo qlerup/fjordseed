@@ -2,6 +2,7 @@
 import base64
 import io
 import json
+import math
 from pathlib import Path
 import re
 import sys
@@ -9,6 +10,20 @@ import sys
 import requests
 
 BASE = 'http://127.0.0.1:8080/api/v2/'
+
+
+def share_policy(data):
+    value = data.get('ratio_limit', -1)
+    action = data.get('ratio_action', 'keep')
+    try:
+        ratio = float(value)
+    except (TypeError, ValueError):
+        raise ValueError('Vælg en gyldig stop-ratio.') from None
+    if isinstance(value, bool) or not math.isfinite(ratio) or not (ratio == -1 or 0 <= ratio <= 10000):
+        raise ValueError('Stop-ratio skal være mellem 0 og 10000.')
+    if action not in ('keep', 'delete') or (action == 'delete' and ratio < 0):
+        raise ValueError('Vælg en stop-ratio og hvad der skal ske med filerne.')
+    return {'ratio_limit':ratio, 'ratio_action':action}
 
 
 def call(path, data=None, files=None):
@@ -27,19 +42,27 @@ def execute(action, data):
         raise RuntimeError('Unsafe qBittorrent network settings')
     if action == 'status':
         rows = call('torrents/info?limit=500').json()
-        fields = ('hash','name','size','progress','dlspeed','upspeed','state','ratio','num_seeds','num_leechs','eta')
+        fields = ('hash','name','size','progress','dlspeed','upspeed','state','ratio','num_seeds','num_leechs','eta',
+                  'ratio_limit','share_limit_action')
         return {'torrents':[{k:r.get(k) for k in fields} for r in rows],
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
                 'interface':prefs['current_network_interface'], 'version':call('app/version').text}
     if action == 'add':
+        policy = share_policy(data)
+        options = {'savepath':'/downloads', 'stopped':'false', 'ratioLimit':policy['ratio_limit'],
+                   'seedingTimeLimit':-1, 'inactiveSeedingTimeLimit':-1,
+                   'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] == 'delete' else 'Stop'}
         if data.get('magnet'):
-            response = call('torrents/add', {'urls':data['magnet'], 'savepath':'/downloads', 'stopped':'false'})
+            response = call('torrents/add', {**options, 'urls':data['magnet']})
         else:
             raw = base64.b64decode(data['torrent'], validate=True)
-            response = call('torrents/add', {'savepath':'/downloads', 'stopped':'false'},
+            response = call('torrents/add', options,
                             {'torrents':('upload.torrent', io.BytesIO(raw), 'application/x-bittorrent')})
         if response.text.strip() != 'Ok.':
-            raise ValueError('qBittorrent rejected torrent')
+            result = response.json()
+            if (result.get('failure_count', 0) or
+                    result.get('success_count', 0) + result.get('pending_count', 0) < 1):
+                raise ValueError('qBittorrent rejected torrent')
     elif action in ('start','stop','delete'):
         if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}', data.get('hash','')):
             raise ValueError('Invalid hash')

@@ -14,6 +14,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from hub import Hub, HubError
 from runtime import Runtime
+from qbit_rpc import share_policy
 from state import State, atomic
 
 
@@ -157,6 +158,10 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
 
     @app.post('/api/torrents')
     def add():
+        try:
+            policy = share_policy(request.form)
+        except ValueError as exc:
+            return jsonify(error=str(exc)),400
         magnet = request.form.get('magnet','').strip()
         uploaded = request.files.get('torrent')
         if bool(magnet) == bool(uploaded):
@@ -172,7 +177,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             if not raw or raw[:1] != b'd':
                 return jsonify(error='Torrentfilen er ugyldig.'),400
             payload = {'torrent':base64.b64encode(raw).decode()}
-        return invoke('add', payload)
+        return invoke('add', {**payload, **policy})
 
     @app.post('/api/torrents/<ident>/<action>')
     def torrent_action(ident, action):

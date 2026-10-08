@@ -15,3 +15,5 @@
 .add-method{display:flex;gap:8px;margin-bottom:22px}.add-method button{flex:1}.add-method button[aria-pressed=true]{border-color:var(--green);background:#19332f;color:var(--green)}
 
 #magnet-fields,#file-fields{min-height:122px}#magnet{height:80px;resize:none}
+
+.torrent-policy{color:var(--green);font-size:11px;margin:8px 0}#ratio-source{overflow-wrap:anywhere}

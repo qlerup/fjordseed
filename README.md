@@ -75,3 +75,7 @@ En rigtig end-to-end-test med Proton kræver en ny brugerleveret VPN-profil.
 
 Netværksmodellen følger [Gluetuns containerintegration](https://github.com/qdm12/gluetun-wiki/blob/main/setup/connect-a-container-to-gluetun.md).
 Klientstyring følger [qBittorrents Web API](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-%28qBittorrent-5.0%29).
+
+## Seeding-ratio
+
+Efter valg af magnetlink eller torrentfil angives stop-ratio og filhandling i et separat trin, inden torrenten starter. qBittorrent gemmer reglerne pr. torrent og stopper selv ved den valgte ratio, også efter en genstart. Standardhandlingen bevarer filerne. Automatisk sletning skal vælges aktivt og fjerner både torrenten og dens downloadede filer. Ratio 0 stopper efter afsluttet download. Eksisterende torrents ændres ikke.
