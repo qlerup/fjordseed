@@ -13,3 +13,5 @@
 @media(prefers-reduced-motion:reduce){.traffic-flow .flow-link i,.traffic-flow .flow-link b{animation:none!important}.traffic-flow[data-state=active] .flow-link i:first-child{left:50%;opacity:.7}}
 
 .add-method{display:flex;gap:8px;margin-bottom:22px}.add-method button{flex:1}.add-method button[aria-pressed=true]{border-color:var(--green);background:#19332f;color:var(--green)}
+
+#magnet-fields,#file-fields{min-height:122px}#magnet{height:80px;resize:none}

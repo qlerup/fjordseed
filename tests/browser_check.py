@@ -63,6 +63,16 @@ with tempfile.TemporaryDirectory() as folder:
             assert set(app.extensions['runtime'].rpc.call_args.args[1])=={'magnet'}
             page.locator('#new-torrent').click()
             page.locator('#magnet').fill('magnet:?xt=urn:btih:'+'b'*40)
+            for width in (1440,390):
+                page.set_viewport_size({'width':width,'height':1000})
+                page.locator('#method-magnet').click()
+                magnet_box=page.locator('#add-dialog').bounding_box()
+                page.locator('#method-file').click()
+                file_box=page.locator('#add-dialog').bounding_box()
+                assert abs(magnet_box['height']-file_box['height'])<1
+                assert abs(magnet_box['y']-file_box['y'])<1
+            page.screenshot(path=str(root/'test-results/mobile-add-file.png'),full_page=True)
+            page.set_viewport_size({'width':1440,'height':1000})
             page.locator('#method-file').click()
             expect(page.locator('#magnet')).not_to_be_visible()
             page.locator('#torrent-file').set_input_files({'name':'sample.torrent','mimeType':'application/x-bittorrent','buffer':b'd4:infodee'})
