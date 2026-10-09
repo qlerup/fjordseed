@@ -60,6 +60,25 @@ function seedingProgress(t) {
  const fraction = Math.min(1, Math.max(ratio / target, minutes ? seconds / (minutes * 60) : 0));
  return {ratio, target, seconds, minutes, fraction, active:['uploading','stalledUP','forcedUP'].includes(t.state)};
 }
+function torrentMetrics(t) {
+ const seed=seedingProgress(t),values=node('dl','torrent-metrics');
+ const number=n=>n.toLocaleString('da-DK',{maximumFractionDigits:2});
+ const fields=[['Download',size(t.dlspeed)+'/s'],['Upload',size(t.upspeed)+'/s'],
+  ['Ratio',number(seed.ratio)+' / '+number(seed.target)],
+  ['Seedtid',number(seed.seconds/3600)+(seed.minutes?' / '+number(seed.minutes/60):'')+' timer']];
+ for(const [label,value] of fields){const item=node('div');item.append(node('dt','',label),node('dd','',value));values.append(item);}
+ return values;
+}
+function torrentDetails(t) {
+ const details=node('div','torrent-details');details.append(benefitView(t.benefits));
+ if(t.ratio_limit!==undefined&&t.ratio_limit!==null&&Number(t.ratio_limit)>=0){
+  const seed=seedingProgress(t);
+  details.append(node('p','torrent-rule','Automatisk stop ved ratio '+seed.target.toLocaleString('da-DK')+
+   (seed.minutes?' eller '+(seed.minutes/60).toLocaleString('da-DK')+' timers seeding':'')+
+   '. '+(t.share_limit_action==='RemoveWithContent'?'Filer slettes automatisk.':'Filer beholdes.')));
+ }
+ return details;
+}
 function torrentProgress(t) {
  const fraction = Math.max(0, Math.min(1, Number(t.progress) || 0));
  const complete = fraction >= 1;
@@ -71,10 +90,7 @@ function torrentProgress(t) {
  caption.append(node('strong','',text),node('span','muted small',downloaded+' \u00b7 '+(complete?'Download f\u00e6rdig':eta(t.eta))));
  if (complete) {
   const status = node('div','seed-caption');
-  status.append(node('strong','seed-state',torrentStatus(t)),node('span','seed-values',
-   'Ratio '+seed.ratio.toLocaleString('da-DK',{maximumFractionDigits:2})+' / '+seed.target.toLocaleString('da-DK')+
-   ' \u00b7 '+(seed.seconds/3600).toLocaleString('da-DK',{maximumFractionDigits:1})+
-   (seed.minutes?' / '+(seed.minutes/60).toLocaleString('da-DK'):'')+' timers seeding'));
+  status.append(node('strong','seed-state',torrentStatus(t)));
   wrap.append(status);
   if(seed.fraction>=1)wrap.append(node('p','seed-complete','Seedingm\u00e5l opfyldt'));
  } else {
@@ -97,7 +113,7 @@ function torrentProgress(t) {
  }
  wrap.append(track);return wrap;
 }
-function card(t){const row=node('article','torrent'),head=node('div','torrent-head');head.append(node('h3','',t.name));const actions=node('div','torrent-actions');for(const [action,label] of [['start','Start'],['stop','Pause'],['delete','Fjern']]){const b=node('button','secondary',label);b.type='button';b.disabled=!current.ready;b.setAttribute('aria-label',label+' '+t.name);b.onclick=async()=>{if(action==='delete'){deleting=t;$('#delete-name').textContent=t.name;$('#delete-error').hidden=true;$('#delete-warning').hidden=t.seeding_requirement_met===true;$('#delete-warning').textContent=seedingWarning(t);$('#delete-dialog').showModal();return;}if(action==='stop'&&t.seeding_requirement_met!==true){stopping=t;$('#stop-name').textContent=t.name;$('#stop-warning').textContent=seedingWarning(t);$('#stop-error').hidden=true;$('#stop-dialog').showModal();return;}b.disabled=true;try{await api(`/api/torrents/${t.hash}/${action}`,{method:'POST'});await refresh();}catch(e){toast(e.message);}finally{b.disabled=false;}};actions.append(b);}head.append(actions);row.append(head,node('p','torrent-meta',`${(Number(t.progress)*100).toFixed(1)}% · ${size(t.size)} · ↓ ${size(t.dlspeed)}/s · ↑ ${size(t.upspeed)}/s · Ratio ${Number(t.ratio||0).toFixed(2)} · ${torrentStatus(t)}`));if(Number(t.ratio_limit)>=0&&t.ratio_limit!==undefined&&t.ratio_limit!==null){row.append(node('p','torrent-policy','Automatisk stop: ratio '+t.ratio_limit+' eller 48 timers seeding \u00b7 '+(t.share_limit_action==='RemoveWithContent'?'Slet filer automatisk':'Behold filer')));}row.append(node('p','torrent-policy','Seeding: '+(Math.max(0,Number(t.seeding_time)||0)/3600).toLocaleString('da-DK',{maximumFractionDigits:1})+' / 48 timer \u00b7 Ratio '+Number(t.ratio||0).toFixed(2)+' / 1,00'+(t.seeding_requirement_met===true?' \u00b7 Seedingkrav opfyldt':'')));row.append(benefitView(t.benefits));row.append(torrentProgress(t));if(t.rss_feed)row.append(node('p','torrent-policy','RSS: '+t.rss_feed));return row;}
+function card(t){const row=node('article','torrent'),head=node('div','torrent-head');head.append(node('h3','',t.name));const actions=node('div','torrent-actions');for(const [action,label] of [['start','Start'],['stop','Pause'],['delete','Fjern']]){const b=node('button','secondary',label);b.type='button';b.disabled=!current.ready;b.setAttribute('aria-label',label+' '+t.name);b.onclick=async()=>{if(action==='delete'){deleting=t;$('#delete-name').textContent=t.name;$('#delete-error').hidden=true;$('#delete-warning').hidden=t.seeding_requirement_met===true;$('#delete-warning').textContent=seedingWarning(t);$('#delete-dialog').showModal();return;}if(action==='stop'&&t.seeding_requirement_met!==true){stopping=t;$('#stop-name').textContent=t.name;$('#stop-warning').textContent=seedingWarning(t);$('#stop-error').hidden=true;$('#stop-dialog').showModal();return;}b.disabled=true;try{await api(`/api/torrents/${t.hash}/${action}`,{method:'POST'});await refresh();}catch(e){toast(e.message);}finally{b.disabled=false;}};actions.append(b);}head.append(actions);row.append(head,torrentMetrics(t),torrentDetails(t));row.append(torrentProgress(t));if(t.rss_feed)row.append(node('p','torrent-policy','RSS: '+t.rss_feed));return row;}
 function eta(seconds){if(!Number.isFinite(Number(seconds))||Number(seconds)<0||Number(seconds)>=8640000)return 'Ukendt tid tilbage';seconds=Math.round(seconds);if(seconds<60)return seconds+' sek. tilbage';if(seconds<3600)return Math.ceil(seconds/60)+' min. tilbage';return Math.floor(seconds/3600)+' t. '+Math.ceil((seconds%3600)/60)+' min. tilbage';}
 function renderDownloadLists(data){
  const manual=data.torrents.filter(t=>!t.rss_feed),rss=data.torrents.filter(t=>t.rss_feed);

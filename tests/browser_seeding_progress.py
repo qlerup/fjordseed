@@ -24,7 +24,10 @@ with sync_playwright() as p:
     assert page.locator('.download-progress').evaluate('e=>e.value')==.42
    else:
     assert bar.evaluate('e=>e.value')==expected
-    assert page.locator('.seed-values').inner_text().startswith('Ratio '+str(ratio)+' / '+str(target))
+    assert page.locator('.torrent-metrics dd').nth(2).inner_text() == str(ratio)+' / '+str(target)
+    assert page.locator('.torrent-metrics dd').count()==4
+    assert page.locator('.torrent-meta').count()==0
+    assert page.locator('.torrent').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
     assert page.locator('.seed-active').count()==(0 if state=='stoppedUP' else 1)
     assert bar.get_attribute('aria-label').startswith('Seeding')
     assert page.locator('.torrent-progress-track').evaluate('e=>e.scrollWidth<=e.clientWidth+1')

@@ -154,7 +154,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.set_viewport_size({'width':1440,'height':1000})
             page.locator('.nav[href="#torrents"]').click()
             expect(page.locator('#tracker-overview')).to_be_visible()
-            expect(page.locator('#tracker-account-list')).to_contain_text('10 GB')
+            expect(page.locator('#tracker-account-list')).to_contain_text('10,00 GiB')
             preview_match={'tracker_id':app.extensions['trackers'].entries()[0]['id'],
                 'tracker_name':'Min NordicBytes-konto','size':15*1024**3,'freeleech':100,
                 'double_upload':True,'featured':False,'internal':False,'refundable':False}
@@ -186,7 +186,8 @@ with tempfile.TemporaryDirectory() as folder:
             page.screenshot(path=str(root/'test-results/desktop-ratio.png'),full_page=True)
             page.locator('#ratio-save').click()
             expect(page.locator('#ratio-dialog')).not_to_be_visible()
-            expect(page.locator('#torrent-list')).to_contain_text('100 % Freeleech')
+            # The existing torrent keeps its saved display data, independent of preview lookups.
+            expect(page.locator('#torrent-list')).not_to_contain_text('100 % Freeleech')
             assert app.extensions['runtime'].rpc.call_args.args[0]=='add'
             assert set(app.extensions['runtime'].rpc.call_args.args[1])=={'magnet','ratio_limit','ratio_action'}
             assert app.extensions['runtime'].rpc.call_args.args[1]['ratio_limit']==2.5
