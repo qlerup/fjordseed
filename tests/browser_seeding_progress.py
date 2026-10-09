@@ -15,11 +15,12 @@ with sync_playwright() as p:
    page.close();page=browser.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
   page.set_viewport_size({'width':width,'height':900})
   page.set_content('<main></main>');page.add_style_tag(content=(root/'static/style.css').read_text(encoding='utf-8'));page.add_script_tag(content=code)
-  for state,ratio,target,seconds,expected in [('stalledUP',1,2,0,.5),('uploading',1,5,0,.2),('stoppedUP',1,5,0,.2),('stalledUP',0,5,172800,1),('downloading',0,1,0,None)]:
-   page.evaluate("t=>document.querySelector('main').replaceChildren(card(t))",{'name':'Test Linux ISO','state':state,'progress':.42 if state=='downloading' else 1,'size':1000,'ratio':ratio,'ratio_limit':target,'upspeed':0,'dlspeed':0,'seeding_time':seconds,'seeding_time_limit':2880})
+  for state,ratio,target,seconds,expected in [('stalledUP',1,2,0,.5),('uploading',1,5,0,.2),('stoppedUP',1,5,0,.2),('stalledUP',0,5,172800,1),('downloading',0,1,0,None),('stalledDL',0,1,0,None)]:
+   page.evaluate("t=>document.querySelector('main').replaceChildren(card(t))",{'name':'Test Linux ISO','state':state,'progress':.42 if expected is None else 1,'size':1000,'ratio':ratio,'ratio_limit':target,'upspeed':0,'dlspeed':0,'seeding_time':seconds,'seeding_time_limit':2880})
    bar=page.locator('.seed-progress')
    if expected is None:
     assert bar.count()==0
+    assert page.locator('.torrent-progress .seed-state').inner_text() == ('Download \u2013 venter p\u00e5 peers' if state=='stalledDL' else 'Downloader')
     assert page.locator('.download-progress').evaluate('e=>e.value')==.42
    else:
     assert bar.evaluate('e=>e.value')==expected

@@ -77,6 +77,10 @@ function torrentProgress(t) {
    (seed.minutes?' / '+(seed.minutes/60).toLocaleString('da-DK'):'')+' timers seeding'));
   wrap.append(status);
   if(seed.fraction>=1)wrap.append(node('p','seed-complete','Seedingm\u00e5l opfyldt'));
+ } else {
+  const status=node('div','seed-caption');
+  status.append(node('strong','seed-state',torrentStatus(t)));
+  wrap.append(status);
  }
  wrap.append(caption);
  const track=node('div','torrent-progress-track');
