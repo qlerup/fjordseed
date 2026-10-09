@@ -12,7 +12,7 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import requests
 
-from rss import PREFIX, validate_feed, folder_path, tracker_required
+from rss import PREFIX, validate_feed, folder_path, tracker_required, gate_required, size_matches
 from state import atomic
 from torrent_meta import magnet_meta, torrent_meta
 from qbit_rpc import seed_ratio, SEEDING_MINUTES
@@ -77,8 +77,8 @@ def gate_rpc(action,data,api,root=Path('/config')):
     if not source or fingerprint(source)!=data.get('revision'):
         raise ValueError('Feed changed')
     feed={**validate_feed(source),'id':ident}
-    if not feed['enabled'] or not tracker_required(feed):
-        raise ValueError('Badge gate inactive')
+    if not feed['enabled'] or not gate_required(feed):
+        raise ValueError('Download gate inactive')
     name=PREFIX+ident
     rule=api('rss/rules').json().get(name)
     if not rule or rule.get('enabled') is not False or rule.get('mustContain')!=feed['include'] or rule.get('affectedFeeds')!=[feed['url']]:
@@ -107,15 +107,20 @@ def gate_rpc(action,data,api,root=Path('/config')):
                 token=hashlib.sha256((str(article.get('id',''))+'\n'+url).encode()).hexdigest()
                 candidates.append((history['retry'].get(token,0),token,url,article))
             # Oldest attempts first: busy feeds must not starve later entries.
+            deadline=time.monotonic()+8
             for _,token,url,article in sorted(candidates,key=lambda c:c[0]):
                 if token in history['done'] or history['retry'].get(token,0)>now:
                     continue
+                if time.monotonic()>=deadline:
+                    break
                 # A broken item must not starve later articles.
                 history['retry'][token]=now+300
                 active_tokens={c[1] for c in candidates}
                 history['retry']={k:v for k,v in history['retry'].items() if k in active_tokens}
                 atomic(history_path,json.dumps(history))
                 meta,payload=fetch_metadata(url)
+                if not size_matches(meta,feed):
+                    continue
                 if not meta.get('name'):
                     meta['name']=str(article.get('title',''))[:200]
                 pending={'token':token,'meta':meta,'payload':payload,'revision':data['revision'],'created_at':now}
@@ -125,7 +130,9 @@ def gate_rpc(action,data,api,root=Path('/config')):
     if action!='rss_resolve' or not pending or pending['token']!=data.get('token'):
         raise ValueError('Candidate expired')
     if data.get('approved') is True:
-        if not badges_match(data.get('benefits',{}),feed):
+        if not size_matches(pending['meta'],feed):
+            raise ValueError('Torrent size exceeds limit or is unknown')
+        if tracker_required(feed) and not badges_match(data.get('benefits',{}),feed):
             raise ValueError('Badges not verified')
         hashes=pending['meta']['hashes']
         if sorted(hashes)!=sorted(data.get('hashes',[])):
@@ -137,16 +144,18 @@ def gate_rpc(action,data,api,root=Path('/config')):
         history['done']=list(dict.fromkeys([*history['done'],*keys]))
         atomic(history_path,json.dumps(history))
         if not already_added:
-            green_policy=policy_from_result(data['benefits'])
+            green_policy=policy_from_result(data.get('benefits',{})) if tracker_required(feed) else None
             with CreditLedger().transaction() as ledger:
                 ledger.register(hashes,seed_ratio(feed['ratio_limit']),green_policy)
+                green_policy=ledger.entries[hashes[0]]['policy']
+                green_enabled=ledger.policies.get('_enabled',False)
             path=folder_path(feed['folder'])
             path.mkdir(parents=True,exist_ok=True)
             options={'savepath':str(path),'stopped':'false','forceStart':'false','autoTMM':'false',
                      'tags':'FjordSeed-RSS-'+ident,'ratioLimit':seed_ratio(feed['ratio_limit']),
                      'seedingTimeLimit':SEEDING_MINUTES,'inactiveSeedingTimeLimit':-1,
                      'shareLimitAction':'RemoveWithContent' if feed['ratio_action']=='delete' else 'Stop'}
-            if (green_policy.get('until') or 0)>now or not green_policy.get('known') or not green_policy.get('has_date'):
+            if (tracker_required(feed) or green_enabled) and ((green_policy.get('until') or 0)>now or not green_policy.get('known') or not green_policy.get('has_date')):
                 options['ratioLimit']*=2
             payload=pending['payload']
             if payload.get('magnet'):
@@ -176,39 +185,43 @@ class RssGate:
         with self.rss.lock:
             entries=self.rss.entries()
         for feed in entries:
-            if not feed['enabled'] or not tracker_required(feed):
+            if not feed['enabled'] or not gate_required(feed):
                 continue
             try:
-                with self.trackers.lock:
-                    tracker=next((t for t in self.trackers.entries() if t['id']==feed['tracker_id']),None)
-                if not tracker:
-                    self.reports[feed['id']]='Tilføj eller vælg trackeren igen. Download er blokeret.'
-                    continue
-                if not self.trackers.badge_ready(feed['tracker_id']):
-                    self.reports[feed['id']]='Trackerens API-adgang er ikke bekræftet aktiv. Download er blokeret.'
-                    continue
+                tracker=None
+                if tracker_required(feed):
+                    with self.trackers.lock:
+                        tracker=next((t for t in self.trackers.entries() if t['id']==feed['tracker_id']),None)
+                    if not tracker:
+                        self.reports[feed['id']]='Tilf\u00f8j eller v\u00e6lg trackeren igen. Download er blokeret.'
+                        continue
+                    if not self.trackers.badge_ready(feed['tracker_id']):
+                        self.reports[feed['id']]='Trackerens API-adgang er ikke bekr\u00e6ftet aktiv. Download er blokeret.'
+                        continue
                 if not self.state.get()['enabled']:
                     continue
                 candidate=self.runtime.rpc('rss_prepare',{'feed_id':feed['id'],'revision':fingerprint(feed)})
                 if not candidate:
                     self.reports[feed['id']]='Afventer feedposter, der opfylder alle downloadkrav.'
                     continue
-                result=self.trackers.benefits.request(candidate['meta'],feed['tracker_id'],priority=1,
-                    max_age=30 if feed.get('min_leechers',0)>0 else 300)
-                if result.get('status')=='pending':
-                    self.reports[feed['id']]='Kontrollerer downloadkrav hos trackeren før download…'
-                    continue
-                approved=badges_match(result,feed)
+                result={}
+                if tracker_required(feed):
+                    result=self.trackers.benefits.request(candidate['meta'],feed['tracker_id'],priority=1,
+                        max_age=30 if feed.get('min_leechers',0)>0 else 300)
+                    if result.get('status')=='pending':
+                        self.reports[feed['id']]='Kontrollerer downloadkrav hos trackeren f\u00f8r download\u2026'
+                        continue
+                approved=size_matches(candidate['meta'],feed) and (not tracker_required(feed) or badges_match(result,feed))
                 # Serialize with edits and connection changes. Recheck immediately before add.
                 with self.state.lock, self.rss.lock, self.trackers.lock:
                     current=next((e for e in self.rss.entries() if e['id']==feed['id']),None)
-                    if (current!=feed or not self.state.get()['enabled'] or tracker not in self.trackers.entries()
-                            or not self.trackers.badge_ready(feed['tracker_id'])):
+                    if (current!=feed or not self.state.get()['enabled'] or (tracker_required(feed) and (tracker not in self.trackers.entries()
+                            or not self.trackers.badge_ready(feed['tracker_id'])))):
                         continue
                     self.runtime.rpc('rss_resolve',{'feed_id':feed['id'],'revision':fingerprint(feed),
                         'token':candidate['token'],'hashes':candidate['meta']['hashes'],
                         'approved':approved,'benefits':result})
-                    if approved:
+                    if approved and tracker_required(feed):
                         self.trackers.benefits.remember(candidate['meta'],result)
                 self.reports[feed['id']]='Alle downloadkrav bekræftet.' if approved else 'Feedposter, der ikke opfylder downloadkravene, springes over og kontrolleres igen senere.'
             except Exception:

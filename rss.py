@@ -1,4 +1,5 @@
 """Persist RSS rules and apply them inside qBittorrent's VPN namespace."""
+from decimal import Decimal, InvalidOperation
 import ipaddress
 import json
 from green_credit import green_safety_factor
@@ -19,6 +20,18 @@ BADGES=('freeleech','double_upload','featured','internal','refundable')
 
 def tracker_required(feed):
     return bool(feed.get('required_badges') or feed.get('min_leechers',0)>0)
+
+
+def gate_required(feed):
+    return tracker_required(feed) or feed.get('max_size_gb', 0) > 0
+
+
+def size_matches(meta, feed):
+    maximum = feed.get('max_size_gb', 0)
+    if not maximum:
+        return True
+    size = meta.get('size')
+    return type(size) is int and size >= 0 and size <= int(Decimal(str(maximum)) * 1024**3)
 
 
 def folder_path(folder, root=Path('/downloads')):
@@ -66,6 +79,15 @@ def validate_feed(data):
         minimum=int(minimum)
     if type(minimum) is not int or not 0<=minimum<=1000000:
         raise ValueError('Minimum antal downloadere skal være et helt tal fra 0 til 1000000.')
+    maximum=data.get('max_size_gb',0)
+    try:
+        if type(maximum) not in (int,float,str):
+            raise ValueError()
+        maximum=Decimal(str(maximum or 0))
+        if not maximum.is_finite() or not 0<=maximum<=1000000:
+            raise ValueError()
+    except (InvalidOperation,ValueError):
+        raise ValueError('Maksimal st\u00f8rrelse skal v\u00e6re et tal fra 0 til 1000000 GB.') from None
     tracker=data.get('tracker_id','')
     if (not isinstance(badges,list) or len(badges)>len(BADGES)
             or any(not isinstance(b,str) or b not in BADGES for b in badges)):
@@ -76,7 +98,7 @@ def validate_feed(data):
         raise ValueError('Vælg en stop-ratio fra 0 til 10000.')
     policy['ratio_limit']=seed_ratio(policy['ratio_limit'])
     return {'name':name.strip(),'url':url,'folder':folder.strip().strip('/'),
-            'enabled':data['enabled'],'include':include.strip(),
+            'enabled':data['enabled'],'include':include.strip(),'max_size_gb':float(maximum),
             'required_badges':list(dict.fromkeys(badges)),'min_leechers':minimum,'tracker_id':tracker,**policy}
 
 
@@ -185,7 +207,7 @@ def sync_rss(feeds,api=call):
             api('rss/addFeed',{'url':entry['url'],'path':name,'refreshInterval':600})
         path=folder_path(entry['folder'])
         path.mkdir(parents=True,exist_ok=True)
-        rule={**rules.get(name,{}),'enabled':entry['enabled'] and not tracker_required(entry),'mustContain':entry['include'],
+        rule={**rules.get(name,{}),'enabled':entry['enabled'] and not gate_required(entry),'mustContain':entry['include'],
               'mustNotContain':'','useRegex':False,'smartFilter':False,'affectedFeeds':[entry['url']],
               'torrentParams':{'save_path':str(path),'use_auto_tmm':False,'stopped':False,'force_start':False,
                   'tags':['FjordSeed-RSS-'+entry['id']], 'ratio_limit':entry['ratio_limit'] * green_safety_factor(),
@@ -193,7 +215,7 @@ def sync_rss(feeds,api=call):
                   'share_limit_action':'RemoveWithContent' if entry['ratio_action']=='delete' else 'Stop'}}
         api('rss/setRule',{'ruleName':name,'ruleDef':json.dumps(rule)})
     active=any(e['enabled'] for e in entries)
-    automatic=any(e['enabled'] and not tracker_required(e) for e in entries)
+    automatic=any(e['enabled'] and not gate_required(e) for e in entries)
     api('app/setPreferences',{'json':json.dumps({'rss_processing_enabled':active,'rss_auto_downloading_enabled':automatic,
         'rss_refresh_interval':10})})
 

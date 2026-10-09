@@ -35,6 +35,7 @@ function openRssForm(feed=null){
   $('#rss-id').value=feed.id;$('#rss-name').value=feed.name;$('#rss-url').required=false;
   $('#rss-url').placeholder='Gemt adresse — indtast kun for at udskifte';$('#rss-folder').value=feed.folder;
   $('#rss-ratio').value=feed.ratio_limit;$('#rss-action').value=feed.ratio_action;$('#rss-enabled').checked=feed.enabled;
+  $('#rss-max-size').value=feed.max_size_gb||'';
   $('#rss-include').value=feed.include;$('#rss-form-title').textContent='Rediger RSS-feed';$('#rss-delete-notice').hidden=feed.ratio_action!=='delete';
   rssSavedBadges=feed.required_badges||[];rssSavedTracker=feed.tracker_id||'';
   rssSavedMinimum=feed.min_leechers||0;$('#rss-min-leechers').value=rssSavedMinimum;
@@ -51,8 +52,9 @@ function rssFeedCard(feed){
   const badges=node('div','rss-required-badges');badges.append(node('span','muted small','Kræver alle:'));
   feed.required_badges.forEach(b=>badges.append(node('span','benefit-badge',rssBadgeNames[b])));card.append(badges);
  }
+ if(feed.max_size_gb>0)card.append(node('p','torrent-policy','Maksimal st\u00f8rrelse: '+Number(feed.max_size_gb).toLocaleString('da-DK')+' GB pr. torrent'));
  if(feed.min_leechers>0)card.append(node('p','torrent-policy','Mindst '+feed.min_leechers+' downloadere før automatisk download'));
- if(feed.enabled&&(feed.required_badges?.length||feed.min_leechers>0)&&feed.badge_status)card.append(node('p','muted small',feed.badge_status));
+ if(feed.enabled&&(feed.required_badges?.length||feed.min_leechers>0||feed.max_size_gb>0)&&feed.badge_status)card.append(node('p','muted small',feed.badge_status));
  if(feed.status==='error')card.append(node('p','error small','Feedet eller RSS-reglerne kunne ikke indlæses. Kontrollér RSS-adressen og VPN-status.'));
  const actions=node('div','tracker-actions'),edit=node('button','secondary','Rediger'),remove=node('button','quiet','Fjern feed');edit.type=remove.type='button';
  edit.onclick=()=>openRssForm(feed);
@@ -74,7 +76,7 @@ $('#rss-form').onsubmit=async e=>{
   await api('/api/rss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
    id:$('#rss-id').value,name:$('#rss-name').value,url:$('#rss-url').value,folder:$('#rss-folder').value,
    ratio_limit:$('#rss-ratio').value,ratio_action:$('#rss-action').value,include:$('#rss-include').value,
-   enabled:$('#rss-enabled').checked,required_badges:badges,min_leechers:minimum,tracker_id:badges.length||minimum>0?tracker:''})});
+   max_size_gb:Number($('#rss-max-size').value)||0,enabled:$('#rss-enabled').checked,required_badges:badges,min_leechers:minimum,tracker_id:badges.length||minimum>0?tracker:''})});
   $('#rss-dialog').close();resetRssForm();await refreshRss();toast('Feedet er gemt. Synkroniseres når VPN og seedbox er klar.');
  }catch(e){error('#rss-error',e);}finally{rssBusy=false;$('#rss-save').disabled=false;}
 };

@@ -17,7 +17,7 @@ from runtime import Runtime
 from qbit_rpc import share_policy
 from trackers import Trackers
 from torrent_meta import torrent_meta, magnet_meta
-from rss import Rss,validate_feed,write_snapshot,tracker_required
+from rss import Rss,validate_feed,write_snapshot,tracker_required,gate_required
 from rss_gate import RssGate
 from benefits import ratio_estimate
 from state import State, atomic
@@ -203,8 +203,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     def rss_status():
         result=rss.public()
         for feed in result['feeds']:
-            if tracker_required(feed):
-                feed['badge_status']=rss_gate.reports.get(feed['id'],'Afventer kontrol af downloadkrav hos trackeren.')
+            if gate_required(feed):
+                feed['badge_status']=rss_gate.reports.get(feed['id'],'Afventer kontrol af downloadkrav f\u00f8r download.')
         return jsonify({**result,'download_path':str(getattr(runtime,'host_downloads','/downloads'))})
 
     @app.post('/api/rss')
