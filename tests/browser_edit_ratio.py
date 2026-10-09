@@ -20,6 +20,7 @@ with tempfile.TemporaryDirectory() as folder:
     def rpc(action,data):
         assert action=='ratio'
         row['ratio_limit']=data['ratio_limit']
+        row['share_limit_action']='RemoveWithContent' if data['ratio_action']=='delete' else 'Stop'
         return {'ok':True}
     app.extensions['runtime'].rpc.side_effect=rpc
     server=make_server('127.0.0.1',0,app,threaded=True)
@@ -32,21 +33,25 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('[name=username]').fill('admin')
             page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
             page.get_by_role('button',name='Log ind').click()
-            for width,target in [(1440,5),(390,2.5)]:
+            for width,target,action in [(1440,5,'keep'),(390,2.5,'delete')]:
                 page.set_viewport_size({'width':width,'height':960})
                 page.get_by_role('button',name='Ratio Running Linux release',exact=True).click()
                 dialog=page.locator('#edit-ratio-dialog')
                 expect(dialog).to_be_visible()
                 page.locator('#edit-ratio-limit').fill(str(target))
+                page.locator('#edit-ratio-action').select_option(action)
                 page.locator('#edit-ratio-save').click()
                 expect(dialog).not_to_be_visible()
                 expect(page.locator('.torrent-metrics dd').nth(2)).to_contain_text(str(target).replace('.',','))
-                assert row['share_limit_action']=='RemoveWithContent'
+                assert row['share_limit_action']==('RemoveWithContent' if action=='delete' else 'Stop')
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
             page.get_by_role('button',name='Ratio Running Linux release',exact=True).click()
             page.locator('#edit-ratio-limit').fill('1')
             expect(page.locator('#edit-ratio-warning')).to_be_visible()
             expect(page.locator('#edit-ratio-warning')).to_contain_text('slettet automatisk')
+            page.locator('#edit-ratio-action').select_option('keep')
+            expect(page.locator('#edit-ratio-warning')).to_contain_text('Seeding kan stoppe automatisk')
+            expect(page.locator('#edit-ratio-warning')).not_to_contain_text('slettet')
             page.locator('#edit-ratio-dialog .close').last.click()
             assert row['ratio_limit']==2.5
             assert app.extensions['runtime'].rpc.call_count==2

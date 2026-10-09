@@ -198,6 +198,7 @@ function openRatioEditor(t) {
  editingRatio=t;
  $('#edit-ratio-name').textContent=t.name;
  $('#edit-ratio-limit').value=seedingProgress(t).target;
+ $('#edit-ratio-action').value=t.share_limit_action==='RemoveWithContent'?'delete':'keep';
  $('#edit-ratio-error').hidden=true;
  updateRatioEditWarning();
  $('#edit-ratio-dialog').showModal();
@@ -205,18 +206,19 @@ function openRatioEditor(t) {
 function updateRatioEditWarning() {
  const value=Number($('#edit-ratio-limit').value);
  const met=(Number(editingRatio?.credited_ratio??editingRatio?.ratio)||0)>=value||(Number(editingRatio?.seeding_time)||0)>=48*3600;
- const deleting=editingRatio?.share_limit_action==='RemoveWithContent';
+ const deleting=$('#edit-ratio-action').value==='delete';
  $('#edit-ratio-info').textContent='Automatisk stop sker ved denne ratio eller 48 timers seeding. '+(deleting?'Torrent og filer slettes automatisk.':'Filerne beholdes.');
  const warning=$('#edit-ratio-warning');
  warning.hidden=!met||value<1;
  warning.textContent=deleting?'M\u00e5let er allerede n\u00e5et. Torrenten og filerne kan blive slettet automatisk, n\u00e5r du gemmer.':'M\u00e5let er allerede n\u00e5et. Seeding kan stoppe automatisk, n\u00e5r du gemmer.';
 }
 $('#edit-ratio-limit').oninput=updateRatioEditWarning;
+$('#edit-ratio-action').onchange=updateRatioEditWarning;
 $('#edit-ratio-form').onsubmit=async event=>{
  event.preventDefault();if(!editingRatio)return;
  const button=$('#edit-ratio-save');button.disabled=true;$('#edit-ratio-error').hidden=true;
  try{
-  await api(`/api/torrents/${editingRatio.hash}/ratio`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ratio_limit:Number($('#edit-ratio-limit').value)})});
-  $('#edit-ratio-dialog').close();await refresh();toast('Stop-ratioen er opdateret.');
+  await api(`/api/torrents/${editingRatio.hash}/ratio`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ratio_limit:Number($('#edit-ratio-limit').value),ratio_action:$('#edit-ratio-action').value})});
+  $('#edit-ratio-dialog').close();await refresh();toast('Seedingindstillingerne er opdateret.');
  }catch(e){error('#edit-ratio-error',e);}finally{button.disabled=false;}
 };

@@ -47,12 +47,13 @@ def sync_share_limits(api=None):
             apply_limits(api,row,credit['native_ratio_limit'])
 
 
-def apply_limits(api,row,target):
+def apply_limits(api,row,target,action=None):
     if (row.get('ratio_limit')!=target or row.get('seeding_time_limit')!=SEEDING_MINUTES
-            or row.get('inactive_seeding_time_limit')!=-1):
+            or row.get('inactive_seeding_time_limit')!=-1
+            or (action is not None and row.get('share_limit_action')!=action)):
         api('torrents/setShareLimits',{'hashes':row['hash'],'ratioLimit':target,
             'seedingTimeLimit':SEEDING_MINUTES,'inactiveSeedingTimeLimit':-1,
-            'shareLimitAction':row.get('share_limit_action') or 'Stop'})
+            'shareLimitAction':action or row.get('share_limit_action') or 'Stop'})
 
 
 def share_policy(data):
@@ -136,7 +137,8 @@ def execute(action, data):
         ident=data.get('hash','')
         if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):
             raise ValueError('Invalid hash')
-        ratio=share_policy(data)['ratio_limit']
+        policy=share_policy(data)
+        ratio=policy['ratio_limit']
         if ratio<1:
             raise ValueError('Stop-ratio skal være mindst 1.')
         with CreditLedger().transaction() as ledger:
@@ -144,7 +146,8 @@ def execute(action, data):
             if len(rows)!=1 or rows[0].get('hash','').lower()!=ident.lower():
                 raise ValueError('Torrent not found')
             credit=ledger.update(rows[0],target=ratio)
-            apply_limits(call,rows[0],credit['native_ratio_limit'])
+            selected=('RemoveWithContent' if policy['ratio_action']=='delete' else 'Stop') if 'ratio_action' in data else None
+            apply_limits(call,rows[0],credit['native_ratio_limit'],action=selected)
     elif action in ('start','stop','delete'):
         if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}', data.get('hash','')):
             raise ValueError('Invalid hash')

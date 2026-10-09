@@ -111,7 +111,7 @@ Manuelt stop og fjernelse er altid muligt efter bekræftelse. Hvis torrenten hve
 
 ## Green-upload og redigering af ratio
 
-Ratio-knappen kan ændre stopmålet på en igangværende torrent uden genstart. Filhandlingen bevares, og manuel pause ophæves ikke. Målet eller 48 timers seeding kan stadig udløse automatisk stop/sletning.
+Ratio-knappen kan ændre stopmålet og valget mellem at beholde eller slette filerne på en eksisterende torrent uden genstart. Det aktuelle valg vises i dialogen, og manuel pause ophæves ikke. Hvis målet allerede er nået, advarer dialogen om, at automatisk sletning kan ske ved gemning. API-kald uden filhandling bevarer den eksisterende handling. Målet eller 48 timers seeding kan stadig udløse automatisk stop/sletning.
 
 Et eksakt NordicBytes-match bruger trackerens tidszoneangivne `created_at`, ikke tidspunktet for lokal tilføjelse. Green-perioden regnes konservativt som 24 timer plus 30 minutters buffer. Upload i perioden tæller halvt, senere upload tæller fuldt. Et mål på 1 kræver dermed lokal ratio 2, hvis al upload sker i perioden. Ved blandet upload bruges `uploadkredit = uploadet i alt - Green-upload / 2`. Tidligere Green-upload får aldrig ekstra kredit ved udløb. Uploadkredit og krediteret ratio vises separat fra de faktiske uploadbytes. Verificerbare egne uploads er undtaget; anonyme uploadere kan ikke identificeres sikkert og behandles konservativt.
 

@@ -315,12 +315,15 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             return jsonify(error='Ugyldig bekræftelse.'),400
         if action=='ratio':
             try:
-                policy=share_policy({'ratio_limit':payload.get('ratio_limit')})
+                policy=share_policy({key:payload[key] for key in ('ratio_limit','ratio_action') if key in payload})
                 if policy['ratio_limit']<1:
                     raise ValueError('Stop-ratio skal være mindst 1.')
             except ValueError as exc:
                 return jsonify(error=str(exc)),400
-            return invoke(action,{'hash':ident,'ratio_limit':policy['ratio_limit']})
+            data={'hash':ident,'ratio_limit':policy['ratio_limit']}
+            if 'ratio_action' in payload:
+                data['ratio_action']=policy['ratio_action']
+            return invoke(action,data)
         return invoke(action, {'hash':ident,'confirm_early_stop':payload.get('confirm_early_stop',False)})
 
     def invoke(action, data):
