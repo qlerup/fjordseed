@@ -43,7 +43,7 @@ function renderRatioPreview(data){
 function torrentStatus(t) {
  const states = {
   uploading:'Seeder \u2013 uploader', stalledUP:'Seeder \u2013 venter p\u00e5 downloadere',
-  forcedUP:'Seeder \u2013 tvunget start', queuedUP:'Afventer seeding',
+  forcedUP:'Seeder \u2013 tvunget start', queuedUP:'I k\u00f8 til seeding',
   pausedUP:'Seeding sat p\u00e5 pause', stoppedUP:'Seeding stoppet', checkingUP:'Kontrollerer filer f\u00f8r seeding',
   downloading:'Downloader', stalledDL:'Download \u2013 venter p\u00e5 peers', forcedDL:'Downloader \u2013 tvunget start',
   queuedDL:'Download i k\u00f8', pausedDL:'Download sat p\u00e5 pause', stoppedDL:'Download stoppet',

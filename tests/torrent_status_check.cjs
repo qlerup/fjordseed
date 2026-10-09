@@ -10,7 +10,7 @@ assert.equal(context.torrentStatus({state:'stalledUP',progress:1,upspeed:0}), 'S
 assert.equal(context.torrentStatus({state:'uploading'}), 'Seeder \u2013 uploader');
 assert.equal(context.torrentStatus({state:'pausedUP'}), 'Seeding sat p\u00e5 pause');
 assert.equal(context.torrentStatus({state:'stoppedUP'}), 'Seeding stoppet');
-assert.equal(context.torrentStatus({state:'queuedUP'}), 'Afventer seeding');
+assert.equal(context.torrentStatus({state:'queuedUP'}), 'I k\u00f8 til seeding');
 assert.equal(context.torrentStatus({state:'downloading'}), 'Downloader');
 assert.equal(context.torrentStatus({state:'missingFiles'}), 'Filer mangler');
 assert.equal(context.torrentStatus({state:'futureState'}), 'Ukendt status');
