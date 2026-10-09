@@ -158,7 +158,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             torrent['rss_feed']=next((e['name'] for e in feeds if 'FjordSeed-RSS-'+e['id'] in tags),
                 'RSS-feed (fjernet)' if any(tag.startswith('FjordSeed-RSS-') for tag in tags) else None)
             hashes=[torrent.get(k) for k in ('hash','infohash_v1','infohash_v2')]
-            torrent['benefits']=trackers.benefits.request({'hashes':hashes,'name':torrent.get('name','')}, priority=1)
+            torrent['benefits']=trackers.benefits.snapshot({'hashes':hashes,'name':torrent.get('name','')})
         return jsonify(result)
 
     @app.post('/api/torrents/preview')
@@ -291,7 +291,15 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             if not raw or raw[:1] != b'd':
                 return jsonify(error='Torrentfilen er ugyldig.'),400
             payload = {'torrent':base64.b64encode(raw).decode()}
-        return invoke('add', {**payload, **policy})
+        response=app.make_response(invoke('add', {**payload, **policy}))
+        if response.status_code<300:
+            try:
+                meta=magnet_meta(magnet) if magnet else torrent_meta(raw)
+                trackers.benefits.snapshot(meta)
+            except ValueError:
+                # Magnet metadata can become available after the client starts.
+                pass
+        return response
 
     @app.post('/api/torrents/<ident>/<action>')
     def torrent_action(ident, action):

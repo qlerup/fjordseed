@@ -1,11 +1,14 @@
 """Bounded asynchronous tracker lookups with exact hash verification."""
 import hashlib
+import copy
+import json
 import itertools
 import math
 import queue
 import re
 import threading
 import time
+from state import atomic
 
 
 def byte_size(value):
@@ -53,6 +56,50 @@ class Benefits:
         self.sequence=itertools.count()
         self.stop=None
         self.last_request=0
+        self.snapshot_path=trackers.path.with_name('torrent-benefits.json')
+        try:
+            self.snapshots=json.loads(self.snapshot_path.read_text())
+            if not isinstance(self.snapshots,dict):
+                self.snapshots={}
+        except (OSError,ValueError):
+            self.snapshots={}
+        self.snapshot_pending=set()
+
+    @staticmethod
+    def hashes(meta):
+        return tuple(sorted({h.lower() for h in meta.get('hashes',[]) if isinstance(h,str)
+                             and re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',h)}))
+
+    def remember(self, meta, result):
+        """Freeze display data only; RSS approval keeps using fresh request()."""
+        if result.get('status')=='pending':
+            return
+        hashes=self.hashes(meta)
+        if not hashes:
+            return
+        with self.lock:
+            changed=False
+            for ident in hashes:
+                if ident not in self.snapshots:
+                    self.snapshots[ident]=copy.deepcopy(result)
+                    changed=True
+                self.snapshot_pending.discard(ident)
+            if changed:
+                atomic(self.snapshot_path,json.dumps(self.snapshots),mode=0o600)
+
+    def snapshot(self, meta):
+        hashes=self.hashes(meta)
+        with self.lock:
+            saved=next((self.snapshots[h] for h in hashes if h in self.snapshots),None)
+            if saved is not None:
+                return copy.deepcopy(saved)
+        if not str(meta.get('name','')).strip():
+            return {'status':'unknown','message':'Afventer torrentoplysninger.'}
+        with self.lock:
+            self.snapshot_pending.update(hashes)
+        result=self.request(meta,priority=1)
+        self.remember(meta,result)
+        return result
 
     def request(self, meta, selected='', priority=0, max_age=300):
         hashes=tuple(sorted({h.lower() for h in meta.get('hashes',[]) if isinstance(h,str) and re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',h)}))
@@ -176,6 +223,9 @@ class Benefits:
                     self.cache[key]={'at':time.time(),'result':result,'priority':priority}
                 else:
                     self.cache.pop(key,None)
+                snapshot_needed=still_current and any(h in self.snapshot_pending for h in hashes)
+            if snapshot_needed:
+                self.remember({'hashes':hashes},result)
             self.jobs.task_done()
             # Keep automatic torrent lookups at most one job per second.
             stop.wait(1)

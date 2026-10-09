@@ -202,6 +202,8 @@ class RssGate:
                     self.runtime.rpc('rss_resolve',{'feed_id':feed['id'],'revision':fingerprint(feed),
                         'token':candidate['token'],'hashes':candidate['meta']['hashes'],
                         'approved':approved,'benefits':result})
+                    if approved:
+                        self.trackers.benefits.remember(candidate['meta'],result)
                 self.reports[feed['id']]='Alle downloadkrav bekræftet.' if approved else 'Feedposter, der ikke opfylder downloadkravene, springes over og kontrolleres igen senere.'
             except Exception:
                 self.reports[feed['id']]='Afventer VPN, feedsynkronisering eller trackeropslag. Ingen ubekræftede downloads.'
