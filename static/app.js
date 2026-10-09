@@ -52,7 +52,48 @@ function torrentStatus(t) {
  };
  return states[t.state] || 'Ukendt status';
 }
-function card(t){const row=node('article','torrent'),head=node('div','torrent-head');head.append(node('h3','',t.name));const actions=node('div','torrent-actions');for(const [action,label] of [['start','Start'],['stop','Pause'],['delete','Fjern']]){const b=node('button','secondary',label);b.type='button';b.disabled=!current.ready;b.setAttribute('aria-label',label+' '+t.name);b.onclick=async()=>{if(action==='delete'){deleting=t;$('#delete-name').textContent=t.name;$('#delete-error').hidden=true;$('#delete-dialog').showModal();return;}b.disabled=true;try{await api(`/api/torrents/${t.hash}/${action}`,{method:'POST'});await refresh();}catch(e){toast(e.message);}finally{b.disabled=false;}};actions.append(b);}head.append(actions);row.append(head,node('p','torrent-meta',`${(Number(t.progress)*100).toFixed(1)}% · ${size(t.size)} · ↓ ${size(t.dlspeed)}/s · ↑ ${size(t.upspeed)}/s · Ratio ${Number(t.ratio||0).toFixed(2)} · ${torrentStatus(t)}`));if(Number(t.ratio_limit)>=0&&t.ratio_limit!==undefined&&t.ratio_limit!==null){row.append(node('p','torrent-policy','Stop-ratio: '+t.ratio_limit+' \u00b7 '+(t.share_limit_action==='RemoveWithContent'?'Slet filer automatisk':'Behold filer')));}row.append(benefitView(t.benefits));const p=node('progress','progress');p.max=1;p.value=t.progress;p.setAttribute('aria-label','Fremdrift for '+t.name);const progress=node('div','progress-caption');const fraction=Math.max(0,Math.min(1,Number(t.progress)||0));progress.append(node('strong','',(fraction*100).toFixed(1)+' %'),node('span','muted small',size(t.completed??Math.round((Number(t.size)||0)*fraction))+' af '+size(t.size)+' \u00b7 '+(fraction>=1?'Download færdig':eta(t.eta))));row.append(progress,p);if(t.rss_feed)row.append(node('p','torrent-policy','RSS: '+t.rss_feed));return row;}
+function seedingProgress(t) {
+ const ratio = Math.max(0, Number(t.ratio) || 0);
+ const target = Number(t.ratio_limit) > 0 ? Number(t.ratio_limit) : 1;
+ const seconds = Math.max(0, Number(t.seeding_time) || 0);
+ const minutes = Number(t.seeding_time_limit) > 0 ? Number(t.seeding_time_limit) : 0;
+ const fraction = Math.min(1, Math.max(ratio / target, minutes ? seconds / (minutes * 60) : 0));
+ return {ratio, target, seconds, minutes, fraction, active:['uploading','stalledUP','forcedUP'].includes(t.state)};
+}
+function torrentProgress(t) {
+ const fraction = Math.max(0, Math.min(1, Number(t.progress) || 0));
+ const complete = fraction >= 1;
+ const seed = seedingProgress(t);
+ const wrap = node('div','torrent-progress'+(complete?' is-seeding':'')+(seed.active&&complete?' seed-active':''));
+ const caption = node('div','progress-caption');
+ const downloaded = size(t.completed??Math.round((Number(t.size)||0)*fraction))+' af '+size(t.size);
+ const text = complete ? 'Seeding: '+Math.floor(seed.fraction*100)+' %' : (fraction*100).toFixed(1)+' %';
+ caption.append(node('strong','',text),node('span','muted small',downloaded+' \u00b7 '+(complete?'Download f\u00e6rdig':eta(t.eta))));
+ if (complete) {
+  const status = node('div','seed-caption');
+  status.append(node('strong','seed-state',torrentStatus(t)),node('span','seed-values',
+   'Ratio '+seed.ratio.toLocaleString('da-DK',{maximumFractionDigits:2})+' / '+seed.target.toLocaleString('da-DK')+
+   ' \u00b7 '+(seed.seconds/3600).toLocaleString('da-DK',{maximumFractionDigits:1})+
+   (seed.minutes?' / '+(seed.minutes/60).toLocaleString('da-DK'):'')+' timers seeding'));
+  wrap.append(status);
+  if(seed.fraction>=1)wrap.append(node('p','seed-complete','Seedingm\u00e5l opfyldt'));
+ }
+ wrap.append(caption);
+ const track=node('div','torrent-progress-track');
+ const download=node('progress','progress download-progress');download.max=1;download.value=fraction;
+ download.setAttribute('aria-label','Download af '+t.name);
+ if(complete)download.setAttribute('aria-hidden','true');
+ track.append(download);
+ if(complete){
+  const overlay=node('progress','progress seed-progress');overlay.max=1;overlay.value=seed.fraction;
+  overlay.setAttribute('aria-label','Seeding af '+t.name);
+  overlay.setAttribute('aria-valuetext',Math.floor(seed.fraction*100)+' % af seedingm\u00e5let. Ratio '+seed.ratio+' af '+seed.target+
+   (seed.minutes?' eller '+seed.minutes/60+' timer.':''));
+  track.append(overlay);
+ }
+ wrap.append(track);return wrap;
+}
+function card(t){const row=node('article','torrent'),head=node('div','torrent-head');head.append(node('h3','',t.name));const actions=node('div','torrent-actions');for(const [action,label] of [['start','Start'],['stop','Pause'],['delete','Fjern']]){const b=node('button','secondary',label);b.type='button';b.disabled=!current.ready;b.setAttribute('aria-label',label+' '+t.name);b.onclick=async()=>{if(action==='delete'){deleting=t;$('#delete-name').textContent=t.name;$('#delete-error').hidden=true;$('#delete-dialog').showModal();return;}b.disabled=true;try{await api(`/api/torrents/${t.hash}/${action}`,{method:'POST'});await refresh();}catch(e){toast(e.message);}finally{b.disabled=false;}};actions.append(b);}head.append(actions);row.append(head,node('p','torrent-meta',`${(Number(t.progress)*100).toFixed(1)}% · ${size(t.size)} · ↓ ${size(t.dlspeed)}/s · ↑ ${size(t.upspeed)}/s · Ratio ${Number(t.ratio||0).toFixed(2)} · ${torrentStatus(t)}`));if(Number(t.ratio_limit)>=0&&t.ratio_limit!==undefined&&t.ratio_limit!==null){row.append(node('p','torrent-policy','Stop-ratio: '+t.ratio_limit+' \u00b7 '+(t.share_limit_action==='RemoveWithContent'?'Slet filer automatisk':'Behold filer')));}row.append(benefitView(t.benefits));row.append(torrentProgress(t));if(t.rss_feed)row.append(node('p','torrent-policy','RSS: '+t.rss_feed));return row;}
 function eta(seconds){if(!Number.isFinite(Number(seconds))||Number(seconds)<0||Number(seconds)>=8640000)return 'Ukendt tid tilbage';seconds=Math.round(seconds);if(seconds<60)return seconds+' sek. tilbage';if(seconds<3600)return Math.ceil(seconds/60)+' min. tilbage';return Math.floor(seconds/3600)+' t. '+Math.ceil((seconds%3600)/60)+' min. tilbage';}
 function renderDownloadLists(data){
  const manual=data.torrents.filter(t=>!t.rss_feed),rss=data.torrents.filter(t=>t.rss_feed);
