@@ -37,6 +37,7 @@ def test_add_sets_native_per_torrent_policy_before_start(monkeypatch,method,acti
     assert args[1]['seedingTimeLimit']==2940
     assert args[1]['inactiveSeedingTimeLimit']==-1
     assert args[1]['stopped']=='false'
+    assert args[1]['forceStart']=='false'
 
 
 def test_http_policy_validation_before_rpc(tmp_path):

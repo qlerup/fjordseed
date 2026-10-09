@@ -49,6 +49,7 @@ def test_native_rule_has_folder_tag_policy_and_preserves_history(tmp_path,monkey
     assert prefs[-1]['rss_auto_downloading_enabled'] is True
     rule=json.loads(next(data['ruleDef'] for path,data in calls if path=='rss/setRule'))
     params=rule['torrentParams']
+    assert params['force_start'] is False
     assert params['ratio_limit']==2 and params['share_limit_action']=='RemoveWithContent'
     assert params['save_path']==str(tmp_path/'linux/releases')
     assert params['tags']==['FjordSeed-RSS-'+ident] and params['use_auto_tmm'] is False

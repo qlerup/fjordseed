@@ -15,6 +15,34 @@ SEEDING_BASE_HOURS = 48
 SEEDING_BUFFER_HOURS = 1
 SEEDING_MINUTES = (SEEDING_BASE_HOURS + SEEDING_BUFFER_HOURS) * 60
 SEEDING_SECONDS = SEEDING_MINUTES * 60
+MAX_ACTIVE_DOWNLOADS = 8
+DOWNLOAD_QUEUE_PREFERENCES = {
+    'queueing_enabled': True,
+    'max_active_downloads': MAX_ACTIVE_DOWNLOADS,
+    'max_active_uploads': -1,
+    'max_active_torrents': -1,
+    'dont_count_slow_torrents': False,
+}
+
+
+def sync_download_queue(prefs=None, api=None):
+    """Use one native queue for manual, gated RSS and native RSS downloads."""
+    api = api or call
+    if prefs is None:
+        prefs = api('app/preferences').json()
+    if any(prefs.get(key) != value for key, value in DOWNLOAD_QUEUE_PREFERENCES.items()):
+        api('app/setPreferences', {'json': json.dumps(DOWNLOAD_QUEUE_PREFERENCES)})
+        updated = api('app/preferences').json()
+        if any(updated.get(key) != value for key, value in DOWNLOAD_QUEUE_PREFERENCES.items()):
+            raise RuntimeError('Download queue settings were not applied')
+
+
+def normalize_forced_downloads(api, rows):
+    # Force-started incomplete torrents bypass qBittorrent's queue. Completed
+    # seeders and manually stopped torrents must retain their existing state.
+    hashes = [row['hash'] for row in rows if row.get('state') in ('forcedDL', 'forcedMetaDL')]
+    if hashes:
+        api('torrents/setForceStart', {'hashes': '|'.join(hashes), 'value': 'false'})
 
 
 class SeedingRequirementError(ValueError):
@@ -44,6 +72,7 @@ def sync_share_limits(api=None):
     api=api or call
     with CreditLedger().transaction() as ledger:
         rows=api('torrents/info').json()
+        normalize_forced_downloads(api, rows)
         for row in rows:
             credit=ledger.update(row)
             apply_limits(api,row,credit['native_ratio_limit'])
@@ -120,7 +149,7 @@ def execute(action, data):
         with CreditLedger().transaction() as ledger:
             ledger.register(meta['hashes'],seed_ratio(policy['ratio_limit']))
             pending=ledger.policies.get('_enabled',False)
-        options = {'savepath':'/downloads', 'stopped':'false', 'ratioLimit':seed_ratio(policy['ratio_limit']),
+        options = {'savepath':'/downloads', 'stopped':'false', 'forceStart':'false', 'ratioLimit':seed_ratio(policy['ratio_limit']),
                    'seedingTimeLimit':SEEDING_MINUTES, 'inactiveSeedingTimeLimit':-1,
                    'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] == 'delete' else 'Stop'}
         if pending:

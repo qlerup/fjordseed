@@ -9,7 +9,7 @@ import subprocess
 import threading
 import time
 
-from qbit_rpc import call, sync_share_limits
+from qbit_rpc import call, sync_share_limits, sync_download_queue, MAX_ACTIVE_DOWNLOADS
 from state import atomic
 from rss import sync_rss,rss_report,sync_snapshot
 
@@ -42,7 +42,10 @@ def configure(port, root=Path('/config')):
         'LegalNotice': {'Accepted':'true'},
         'BitTorrent': {'Session\\Interface':'tun0', 'Session\\InterfaceName':'tun0',
             'Session\\InterfaceAddress':'', 'Session\\Port':str(port),
-            'Session\\DefaultSavePath':'/downloads', 'Session\\LSDEnabled':'false'},
+            'Session\\DefaultSavePath':'/downloads', 'Session\\LSDEnabled':'false',
+            'Session\\QueueingSystemEnabled':'true', 'Session\\MaxActiveDownloads':str(MAX_ACTIVE_DOWNLOADS),
+            'Session\\MaxActiveUploads':'-1', 'Session\\MaxActiveTorrents':'-1',
+            'Session\\IgnoreSlowTorrentsForQueueing':'false'},
         'Network': {'PortForwardingEnabled':'false'},
         'Preferences': {'WebUI\\Address':'127.0.0.1', 'WebUI\\Port':'8080',
             'WebUI\\LocalHostAuth':'false', 'WebUI\\CSRFProtection':'true',
@@ -110,6 +113,7 @@ def run():
                 else:
                     if prefs.get('current_network_interface') != 'tun0' or prefs.get('upnp') is not False:
                         raise ValueError('Unsafe network settings')
+                    sync_download_queue(prefs)
                     if prefs.get('listen_port') != port:
                         call('app/setPreferences', {'json':json.dumps({'listen_port':port,'random_port':False,'upnp':False})})
                         if call('app/preferences').json().get('listen_port') != port:

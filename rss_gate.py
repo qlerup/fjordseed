@@ -142,7 +142,7 @@ def gate_rpc(action,data,api,root=Path('/config')):
                 ledger.register(hashes,seed_ratio(feed['ratio_limit']),green_policy)
             path=folder_path(feed['folder'])
             path.mkdir(parents=True,exist_ok=True)
-            options={'savepath':str(path),'stopped':'false','autoTMM':'false',
+            options={'savepath':str(path),'stopped':'false','forceStart':'false','autoTMM':'false',
                      'tags':'FjordSeed-RSS-'+ident,'ratioLimit':seed_ratio(feed['ratio_limit']),
                      'seedingTimeLimit':SEEDING_MINUTES,'inactiveSeedingTimeLimit':-1,
                      'shareLimitAction':'RemoveWithContent' if feed['ratio_action']=='delete' else 'Stop'}

@@ -33,3 +33,5 @@
 .torrent-summary{display:flex;flex-wrap:wrap;gap:6px 20px;margin-top:8px;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
 .torrent .torrent-progress{margin-top:12px}.torrent-extra{margin-top:16px}.torrent-extra .torrent-metrics{margin-top:0}.torrent-toggle{background:transparent;color:var(--green);border-color:var(--border)}
 @media(max-width:800px){.torrent-actions{justify-content:flex-start;gap:6px}.torrent-actions button{padding:8px 10px}.torrent-summary{gap:6px 16px}}
+
+.queue-note{margin:0 0 14px}

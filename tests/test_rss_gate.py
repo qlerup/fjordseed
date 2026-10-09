@@ -147,6 +147,7 @@ def test_prepare_does_not_add_and_verified_commit_preserves_policy(gate):
     next(iter(items.values()))['articles'][0]['torrentURL']='magnet:?xt=urn:btih:'+'d'*40
     invoke('rss_resolve',token=candidate['token'],hashes=['c'*40],approved=True,benefits=result())
     payload=next(d for p,d in calls if p=='torrents/add')
+    assert payload['forceStart']=='false'
     assert 'c'*40 in payload['urls'] and 'd'*40 not in payload['urls']
     # No created_at in this response: conservative limit until date verification.
     assert payload['ratioLimit']==4 and payload['shareLimitAction']=='Stop'
@@ -163,6 +164,7 @@ def test_verified_green_rss_starts_with_adjusted_limit(gate):
         created_at=datetime.fromtimestamp(time.time()-3600,timezone.utc).isoformat())
     invoke('rss_resolve',token=candidate['token'],hashes=['c'*40],approved=True,benefits=verified)
     payload=next(d for p,d in calls if p=='torrents/add')
+    assert payload['forceStart']=='false'
     assert payload['ratioLimit']==4 and payload['seedingTimeLimit']==2940
     assert payload['tags']=='FjordSeed-RSS-'+'a'*32
     assert str(root/'downloads')==payload['savepath']
