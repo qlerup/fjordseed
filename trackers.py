@@ -13,7 +13,7 @@ from benefits import Benefits
 
 PROVIDERS = {'nordicbytes': {'name':'NordicBytes', 'url':'https://nordicbytes.org/api/user'}}
 STAT_FIELDS = ('uploaded','downloaded','ratio','buffer','seeding','leeching','seedbonus',
-               'hit_and_runs','seeding_size','total_uploads')
+               'hit_and_runs','seeding_size','total_uploads','shards')
 
 
 class TrackerError(ValueError):

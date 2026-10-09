@@ -15,7 +15,7 @@ function trackerCard(tracker,manage=false){
  if(tracker.status==='error')card.append(node('p','error small',tracker.error));
  if(tracker.stats){
   const stats=node('div','tracker-stats');
-  for(const [label,field,format] of [['UPLOAD','uploaded',trackerBytes],['DOWNLOAD','downloaded',trackerBytes],['RATIO','ratio',trackerNumber],['BUFFER','buffer',trackerBytes],['SEEDING','seeding',trackerNumber],['DOWNLOADER','leeching',trackerNumber],['BONUSPOINT','seedbonus',trackerNumber],['HIT-AND-RUNS','hit_and_runs',trackerNumber],['ADVARSLER','warnings',trackerNumber],['SEEDING-STØRRELSE','seeding_size',trackerBytes],['UPLOADS','total_uploads',trackerNumber]]){
+  for(const [label,field,format] of [['UPLOAD','uploaded',trackerBytes],['DOWNLOAD','downloaded',trackerBytes],['RATIO','ratio',trackerNumber],['BUFFER','buffer',trackerBytes],['SEEDING','seeding',trackerNumber],['DOWNLOADER','leeching',trackerNumber],['BONUSPOINT','seedbonus',trackerNumber],['HIT-AND-RUNS','hit_and_runs',trackerNumber],['ADVARSLER','warnings',trackerNumber],['SEEDING-STØRRELSE','seeding_size',trackerBytes],['UPLOADS','total_uploads',trackerNumber],['SHARDS','shards',value=>typeof value==='number'?trackerNumber(value):'Ikke oplyst']]){
    const item=node('div');item.append(node('span','',label),node('strong','',format(tracker.stats[field])));stats.append(item);
   }
   card.append(stats);

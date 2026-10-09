@@ -98,3 +98,14 @@ def test_api_auth_csrf_and_no_key_echo(tmp_path):
     assert public.json['trackers'][0]['stats']['ratio']==2
     assert KEY not in public.text
     assert client.post('/api/trackers/'+ident+'/delete',headers=headers).status_code==200
+
+
+@pytest.mark.parametrize('value,expected',[(0,0),(12.5,12.5),(None,None),('12.5',None),(True,None),(float('inf'),None)])
+def test_shards_preserves_zero_fraction_and_missing_value(monkeypatch,value,expected):
+    monkeypatch.setattr(Trackers,'read_json',Mock(return_value={**ACCOUNT,'stats':{**ACCOUNT['stats'],'shards':value}}))
+    assert Trackers.fetch(CONFIG)['stats']['shards']==expected
+
+
+def test_missing_shards_is_not_reported_as_zero(monkeypatch):
+    monkeypatch.setattr(Trackers,'read_json',Mock(return_value=ACCOUNT))
+    assert Trackers.fetch(CONFIG)['stats']['shards'] is None
