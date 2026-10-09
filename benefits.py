@@ -54,7 +54,7 @@ class Benefits:
         self.stop=None
         self.last_request=0
 
-    def request(self, meta, selected='', priority=0):
+    def request(self, meta, selected='', priority=0, max_age=300):
         hashes=tuple(sorted({h.lower() for h in meta.get('hashes',[]) if isinstance(h,str) and re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',h)}))
         if not hashes:
             return {'status':'unknown','message':'Trackerfordele ukendte — ingen info-hash.'}
@@ -68,7 +68,7 @@ class Benefits:
         with self.lock:
             cached=self.cache.get(key)
             promote=cached and cached['result']['status']=='pending' and priority<cached['priority']
-            if cached and not promote and (cached['result']['status']=='pending' or time.time()-cached['at']<300):
+            if cached and not promote and (cached['result']['status']=='pending' or time.time()-cached['at']<max_age):
                 return cached['result']
             result={'status':'pending','message':'Slår trackerfordele op…'}
             if priority>0 and self.jobs.qsize()>=150:
@@ -130,7 +130,7 @@ class Benefits:
                             ident=a.get('info_hash','')
                             if isinstance(ident,str) and ident.lower() in hashes:
                                 match={'tracker_id':entry['id'],'tracker_name':entry['name'],
-                                       'size':byte_size(a.get('size')),**self.flags(a)}
+                                       'size':byte_size(a.get('size')),'leechers':byte_size(a.get('leechers')),**self.flags(a)}
                                 break
                         metadata=data.get('meta',{}) if isinstance(data,dict) else {}
                         cursor=metadata.get('next_cursor') if isinstance(metadata,dict) else None

@@ -22,6 +22,39 @@ try:
     call('app/setPreferences',{'json':json.dumps({'listen_port':45002})})
     assert call('app/preferences').json()['listen_port']==45002
     assert execute('status',{})['torrents']==[]
+    # A disabled native rule must still expose title matches for badge gating.
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    import threading
+    from rss import sync_rss, PREFIX
+    class FeedHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200);self.send_header('Content-Type','application/rss+xml');self.end_headers()
+            self.wfile.write(('<?xml version="1.0"?><rss version="2.0"><channel><title>Fixture</title>'
+                '<link>https://example.org</link><description>Fixture</description><item><title>Linux fixture</title>'
+                '<guid>fixture</guid><link>magnet:?xt=urn:btih:'+'a'*40+'</link></item></channel></rss>').encode())
+        def log_message(self,*args):pass
+    server=HTTPServer(('127.0.0.1',0),FeedHandler)
+    threading.Thread(target=server.serve_forever,daemon=True).start()
+    entry=dict(id='a'*32,name='Fixture',url='https://nordicbytes.org/rss',enabled=True,folder='',include='Linux',
+               ratio_limit=2,ratio_action='keep',required_badges=[],min_leechers=50,tracker_id='b'*32)
+    sync_rss([entry])
+    name=PREFIX+entry['id']
+    rule=call('rss/rules').json()[name]
+    assert rule['enabled'] is False
+    assert call('app/preferences').json()['rss_auto_downloading_enabled'] is False
+    # Loopback fixture only; this container has no external network.
+    url='http://127.0.0.1:'+str(server.server_port)+'/feed'
+    call('rss/setFeedURL',{'path':name,'url':url})
+    rule['affectedFeeds']=[url]
+    call('rss/setRule',{'ruleName':name,'ruleDef':json.dumps(rule)})
+    call('rss/refreshItem',{'itemPath':name})
+    for _ in range(50):
+        matches=call('rss/matchingArticles?ruleName='+name).json()
+        if matches.get(name):break
+        time.sleep(.2)
+    assert matches[name]==['Linux fixture'],matches
+    assert call('torrents/info').json()==[]
+    server.shutdown()
 finally:stop_process(p)
 p=subprocess.Popen(['python','/app/qbit_worker.py'])
 try:

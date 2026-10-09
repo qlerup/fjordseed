@@ -46,7 +46,9 @@ def test_rpc_refuses_unbound_client_and_never_deletes_files(monkeypatch):
     monkeypatch.setattr(qbit_rpc,'call',fake)
     with pytest.raises(RuntimeError):qbit_rpc.execute('add',{'magnet':'magnet:?x'})
     assert fake.call_count==1
-    fake.return_value.json=lambda:{'current_network_interface':'tun0','upnp':False}
+    fake.side_effect=lambda path,data=None:Mock(json=lambda:
+        {'current_network_interface':'tun0','upnp':False} if path=='app/preferences' else
+        [{'hash':'a'*40,'ratio':1,'seeding_time':0}])
     qbit_rpc.execute('delete',{'hash':'a'*40})
     assert fake.call_args.args==('torrents/delete',{'hashes':'a'*40,'deleteFiles':'false'})
 

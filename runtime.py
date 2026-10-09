@@ -200,6 +200,12 @@ class Runtime:
             atomic(path, json.dumps({'action':action,'data':data}), mode=0o644)
             result = child.exec_run(['python','/app/qbit_rpc.py',ident])
             if result.exit_code:
+                try:
+                    failure=json.loads(result.output)
+                    if failure.get('code')=='seeding_requirement':
+                        raise ValueError(failure['error'])
+                except (json.JSONDecodeError,KeyError,TypeError):
+                    pass
                 raise ValueError('qBittorrent kunne ikke udføre handlingen. Kontrollér VPN og torrentfil.')
             return json.loads(result.output)
         finally:

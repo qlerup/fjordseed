@@ -9,10 +9,15 @@ import time
 from urllib.parse import urlsplit
 import uuid
 
-from qbit_rpc import share_policy, call
+from qbit_rpc import share_policy, call, seed_ratio, SEEDING_MINUTES
 from state import atomic
 
 PREFIX='FjordSeed-'
+BADGES=('freeleech','double_upload','featured','internal','refundable')
+
+
+def tracker_required(feed):
+    return bool(feed.get('required_badges') or feed.get('min_leechers',0)>0)
 
 
 def folder_path(folder, root=Path('/downloads')):
@@ -54,10 +59,24 @@ def validate_feed(data):
     folder=data.get('folder','')
     folder_path(folder)
     policy=share_policy(data)
+    badges=data.get('required_badges',[])
+    minimum=data.get('min_leechers',0)
+    if isinstance(minimum,str) and re.fullmatch('[0-9]{1,7}',minimum):
+        minimum=int(minimum)
+    if type(minimum) is not int or not 0<=minimum<=1000000:
+        raise ValueError('Minimum antal downloadere skal være et helt tal fra 0 til 1000000.')
+    tracker=data.get('tracker_id','')
+    if (not isinstance(badges,list) or len(badges)>len(BADGES)
+            or any(not isinstance(b,str) or b not in BADGES for b in badges)):
+        raise ValueError('Vælg gyldige badges til feedet.')
+    if not isinstance(tracker,str) or (tracker and not re.fullmatch('[a-f0-9]{32}',tracker)) or ((badges or minimum) and not tracker):
+        raise ValueError('Vælg den tracker, der skal bekræfte dine badgekrav.')
     if policy['ratio_limit']<0:
         raise ValueError('Vælg en stop-ratio fra 0 til 10000.')
+    policy['ratio_limit']=seed_ratio(policy['ratio_limit'])
     return {'name':name.strip(),'url':url,'folder':folder.strip().strip('/'),
-            'enabled':data['enabled'],'include':include.strip(),**policy}
+            'enabled':data['enabled'],'include':include.strip(),
+            'required_badges':list(dict.fromkeys(badges)),'min_leechers':minimum,'tracker_id':tracker,**policy}
 
 
 class Rss:
@@ -117,6 +136,7 @@ class Rss:
             pass
         reports={e['id']:e for e in state.get('rss',[])}
         return {'feeds':[{k:v for k,v in e.items() if k!='url'} | {
+                'ratio_limit':seed_ratio(e['ratio_limit']),
                 'host':urlsplit(e['url']).hostname,'has_url':True,
                 'status':('paused' if not e['enabled'] else 'pending' if not state else
                           'error' if state.get('rss_error') or reports.get(e['id'],{}).get('has_error') else
@@ -164,16 +184,27 @@ def sync_rss(feeds,api=call):
             api('rss/addFeed',{'url':entry['url'],'path':name,'refreshInterval':600})
         path=folder_path(entry['folder'])
         path.mkdir(parents=True,exist_ok=True)
-        rule={**rules.get(name,{}),'enabled':entry['enabled'],'mustContain':entry['include'],
+        rule={**rules.get(name,{}),'enabled':entry['enabled'] and not tracker_required(entry),'mustContain':entry['include'],
               'mustNotContain':'','useRegex':False,'smartFilter':False,'affectedFeeds':[entry['url']],
               'torrentParams':{'save_path':str(path),'use_auto_tmm':False,'stopped':False,
                   'tags':['FjordSeed-RSS-'+entry['id']], 'ratio_limit':entry['ratio_limit'],
-                  'seeding_time_limit':-1,'inactive_seeding_time_limit':-1,
+                  'seeding_time_limit':SEEDING_MINUTES,'inactive_seeding_time_limit':-1,
                   'share_limit_action':'RemoveWithContent' if entry['ratio_action']=='delete' else 'Stop'}}
         api('rss/setRule',{'ruleName':name,'ruleDef':json.dumps(rule)})
     active=any(e['enabled'] for e in entries)
-    api('app/setPreferences',{'json':json.dumps({'rss_processing_enabled':active,'rss_auto_downloading_enabled':active,
+    automatic=any(e['enabled'] and not tracker_required(e) for e in entries)
+    api('app/setPreferences',{'json':json.dumps({'rss_processing_enabled':active,'rss_auto_downloading_enabled':automatic,
         'rss_refresh_interval':10})})
+
+
+def sync_snapshot(root=Path('/config')):
+    import fcntl
+    with (root/'rss-sync.lock').open('a') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX)
+        path=root/'fjord-rss.json'
+        content=path.read_text() if path.exists() else '[]'
+        sync_rss(json.loads(content))
+        return content
 
 
 def rss_report(api=call):

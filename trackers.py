@@ -34,11 +34,18 @@ class Trackers:
     def entries(self):
         return json.loads(self.path.read_text(encoding='utf-8'))
 
+    def badge_ready(self,ident):
+        with self.lock:
+            status=self.cache.get(ident,{})
+            return (status.get('status')=='ok' and 0<=time.time()-status.get('updated_at',0)<600
+                    and any(e['id']==ident and e['provider']=='nordicbytes' and e.get('api_key') for e in self.entries()))
+
     def public(self):
         with self.lock:
             return {'providers':[{'id':key,'name':value['name']} for key,value in PROVIDERS.items()],
                     'trackers':[{'id':entry['id'],'provider':entry['provider'],'name':entry['name'],
-                                 'has_key':True, **self.cache.get(entry['id'], {'status':'pending'})}
+                                 'has_key':True, **self.cache.get(entry['id'], {'status':'pending'}),
+                                 'badge_ready':self.badge_ready(entry['id'])}
                                 for entry in self.entries()]}
 
     def save(self, data):

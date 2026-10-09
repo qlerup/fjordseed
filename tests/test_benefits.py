@@ -18,11 +18,12 @@ def test_exact_hash_match_no_false_name_match_and_pagination(tmp_path):
     trackers=Trackers(tmp_path)
     trackers.save(CONFIG)
     trackers.read_json=Mock(side_effect=[{'data':[row('b'*40)],'meta':{'next_cursor':'cursor'}},
-                                        {'data':[row()]}])
+                                        {'data':[row(leechers=50)]}])
     found=trackers.benefits.lookup((HASH,),'same name',trackers.entries())
     assert found['status']=='matched'
     assert found['matches'][0]['freeleech']==100
     assert found['matches'][0]['double_upload'] is True
+    assert found['matches'][0]['leechers']==50
     assert trackers.read_json.call_args.args[2]['cursor']=='cursor'
     assert 'download_link' not in str(found)
     trackers.read_json=Mock(return_value={'data':[row('b'*40)]})
@@ -73,6 +74,17 @@ def test_modal_lookup_takes_priority_and_worker_caches_result(tmp_path):
     benefits.run(stop)
     assert benefits.request(meta)['status']=='matched'
     benefits.lookup.assert_called_once()
+
+
+def test_rss_leechers_can_refresh_before_normal_benefits_cache_expires(tmp_path):
+    import time
+    trackers=Trackers(tmp_path);trackers.save(CONFIG)
+    benefits=trackers.benefits;meta={'hashes':[HASH],'name':'name'}
+    benefits.request(meta)
+    cached=next(iter(benefits.cache.values()))
+    cached.update(at=time.time()-31,result={'status':'matched','matches':[{'leechers':50}]})
+    assert benefits.request(meta)['status']=='matched'
+    assert benefits.request(meta,max_age=30)['status']=='pending'
 
 
 def test_preview_is_authenticated_and_passkeys_never_forwarded(tmp_path):

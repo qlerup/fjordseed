@@ -10,6 +10,7 @@
 !benefits.py
 !torrent_meta.py
 !rss.py
+!rss_gate.py
 !templates/
 !templates/*.html
 !static/

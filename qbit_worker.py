@@ -9,9 +9,9 @@ import subprocess
 import threading
 import time
 
-from qbit_rpc import call
+from qbit_rpc import call, sync_share_limits
 from state import atomic
-from rss import sync_rss,rss_report
+from rss import sync_rss,rss_report,sync_snapshot
 
 STOP = threading.Event()
 
@@ -78,6 +78,7 @@ def run():
     rss_content=None
     rss_last=0
     reports=[]
+    share_last=0
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: STOP.set())
     try:
@@ -98,6 +99,7 @@ def run():
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     started = time.monotonic()
                     rss_content=None
+                    share_last=0
                 try:
                     prefs = call('app/preferences').json()
                 except Exception:
@@ -112,11 +114,13 @@ def run():
                         call('app/setPreferences', {'json':json.dumps({'listen_port':port,'random_port':False,'upnp':False})})
                         if call('app/preferences').json().get('listen_port') != port:
                             raise ValueError('Port synchronization failed')
+                    if time.monotonic()-share_last>10:
+                        sync_share_limits()
+                        share_last=time.monotonic()
                     try:
                         content=Path('/config/fjord-rss.json').read_text() if Path('/config/fjord-rss.json').exists() else '[]'
                         if content!=rss_content:
-                            sync_rss(json.loads(content))
-                            rss_content=content
+                            rss_content=sync_snapshot()
                             rss_last=0
                         if time.monotonic()-rss_last>10:
                             reports=rss_report()

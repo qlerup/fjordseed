@@ -17,7 +17,8 @@ from runtime import Runtime
 from qbit_rpc import share_policy
 from trackers import Trackers
 from torrent_meta import torrent_meta, magnet_meta
-from rss import Rss
+from rss import Rss,validate_feed,write_snapshot,tracker_required
+from rss_gate import RssGate
 from benefits import ratio_estimate
 from state import State, atomic
 
@@ -38,6 +39,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     stop = threading.Event()
     trackers = Trackers(state.root)
     rss = Rss(state.root)
+    rss_gate = RssGate(rss,runtime,trackers,state)
     app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers, rss=rss)
     failures, auth_lock = {}, threading.Lock()
     allowed_hosts = {'localhost','127.0.0.1'} | set(filter(None, os.environ.get('UI_ALLOWED_HOSTS','').split(',')))
@@ -198,22 +200,59 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
 
     @app.get('/api/rss')
     def rss_status():
-        return jsonify({**rss.public(),'download_path':str(getattr(runtime,'host_downloads','/downloads'))})
+        result=rss.public()
+        for feed in result['feeds']:
+            if tracker_required(feed):
+                feed['badge_status']=rss_gate.reports.get(feed['id'],'Afventer kontrol af downloadkrav hos trackeren.')
+        return jsonify({**result,'download_path':str(getattr(runtime,'host_downloads','/downloads'))})
 
     @app.post('/api/rss')
     def save_rss():
         try:
-            return {'ok':True,'id':rss.save(request.get_json(silent=True))}
+            data=request.get_json(silent=True)
+            with state.lock,rss.lock:
+                # Validate first, preserving the private URL on edits.
+                current=next((e for e in rss.entries() if isinstance(data,dict) and e['id']==data.get('id')),None)
+                validated=validate_feed({**data,'url':data.get('url') or (current or {}).get('url','')}) if isinstance(data,dict) else validate_feed(data)
+                retained_pause=(current and not validated['enabled'] and validated['required_badges']==current.get('required_badges')
+                                and validated['min_leechers']==current.get('min_leechers',0)
+                                and validated['tracker_id']==current.get('tracker_id'))
+                if tracker_required(validated) and not retained_pause:
+                    from urllib.parse import urlsplit
+                    with trackers.lock:
+                        tracker=next((e for e in trackers.entries() if e['id']==validated['tracker_id']),None)
+                    if not tracker or tracker['provider']!='nordicbytes':
+                        raise ValueError('Tilføj og vælg en NordicBytes-tracker for at kontrollere downloadkrav.')
+                    if validated['enabled'] and not trackers.badge_ready(tracker['id']):
+                        raise ValueError('Trackerens API-nøgle skal være bekræftet aktiv, før downloadkrav kan bruges til automatisk download.')
+                    if urlsplit(validated['url']).hostname not in ('nordicbytes.org','www.nordicbytes.org'):
+                        raise ValueError('Trackerbaserede downloadkrav understøttes indtil videre kun for NordicBytes-feeds.')
+                ident=rss.save(data)
+                sync_feed_changes()
+                return {'ok':True,'id':ident}
         except ValueError as exc:
             return jsonify(error=str(exc)),400
 
     @app.post('/api/rss/<ident>/delete')
     def remove_rss(ident):
         try:
-            rss.remove(ident)
+            with state.lock,rss.lock:
+                rss.remove(ident)
+                sync_feed_changes()
             return {'ok':True}
         except ValueError as exc:
             return jsonify(error=str(exc)),400
+
+    def sync_feed_changes():
+        if testing:
+            return
+        write_snapshot(state.root,runtime.uid,runtime.gid)
+        if state.get()['enabled']:
+            try:
+                runtime.rpc('rss_sync',{})
+            except Exception:
+                # Never leave an older, less restrictive native rule running.
+                runtime.stop()
 
     @app.post('/api/trackers')
     def save_tracker():
@@ -258,7 +297,12 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     def torrent_action(ident, action):
         if action not in ('start','stop','delete') or not re.fullmatch('[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):
             return jsonify(error='Ugyldig handling.'),400
-        return invoke(action, {'hash':ident})
+        payload=request.get_json(silent=True)
+        if payload is None:
+            payload={}
+        if not isinstance(payload,dict) or type(payload.get('confirm_early_stop',False)) is not bool:
+            return jsonify(error='Ugyldig bekræftelse.'),400
+        return invoke(action, {'hash':ident,'confirm_early_stop':payload.get('confirm_early_stop',False)})
 
     def invoke(action, data):
         try:
@@ -280,6 +324,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         threading.Thread(target=worker, daemon=True).start()
         threading.Thread(target=trackers.run, args=(stop,), daemon=True).start()
         threading.Thread(target=trackers.benefits.run, args=(stop,), daemon=True).start()
+        threading.Thread(target=rss_gate.run, args=(stop,), daemon=True).start()
     return app
 
 
