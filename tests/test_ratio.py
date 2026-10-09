@@ -34,7 +34,7 @@ def test_add_sets_native_per_torrent_policy_before_start(monkeypatch,method,acti
     assert args[0]=='torrents/add'
     assert args[1]['ratioLimit']==2.5
     assert args[1]['shareLimitAction']==expected
-    assert args[1]['seedingTimeLimit']==2880
+    assert args[1]['seedingTimeLimit']==2940
     assert args[1]['inactiveSeedingTimeLimit']==-1
     assert args[1]['stopped']=='false'
 
@@ -71,9 +71,9 @@ def test_qbit_52_json_add_response(monkeypatch,result,accepted):
             execute('add',{'magnet':'magnet:?xt=urn:btih:'+'a'*40})
 
 
-@pytest.mark.parametrize('ratio,seconds,met',[(.99,172799,False),(1,0,True),(.1,172800,True),
-    (1,172800,True),(None,None,False),(.5,-1,False),(float('nan'),0,False)])
-def test_manual_warning_uses_one_to_one_or_48_hours_independent_of_selected_ratio(ratio,seconds,met):
+@pytest.mark.parametrize('ratio,seconds,met',[(.99,172800,False),(.99,176399,False),(1,0,True),(.1,176400,True),
+    (1,176400,True),(None,None,False),(.5,-1,False),(float('nan'),0,False)])
+def test_manual_warning_uses_one_to_one_or_49_hours_independent_of_selected_ratio(ratio,seconds,met):
     from qbit_rpc import stop_requirement
     assert stop_requirement({'ratio':ratio,'seeding_time':seconds,'ratio_limit':5})['seeding_requirement_met'] is met
 
@@ -97,16 +97,29 @@ def test_early_manual_action_requires_explicit_ack_but_is_allowed(monkeypatch,ac
     assert calls[-1][0]=='torrents/'+action
 
 
-def test_existing_limits_gain_48_hours_preserve_actions_and_higher_ratio():
+def test_existing_limits_gain_49_hours_preserve_actions_and_higher_ratio():
     from qbit_rpc import sync_share_limits
     calls=[]
     def api(path,data=None):
         calls.append((path,data));return Mock(json=lambda:[
             {'hash':'a'*40,'ratio_limit':0,'seeding_time_limit':-1,'share_limit_action':'Stop'},
             {'hash':'b'*40,'ratio_limit':3,'seeding_time_limit':-1,'share_limit_action':'RemoveWithContent'},
-            {'hash':'c'*40,'ratio_limit':2,'seeding_time_limit':2880,'inactive_seeding_time_limit':-1}])
+            {'hash':'c'*40,'ratio_limit':2,'seeding_time_limit':2940,'inactive_seeding_time_limit':-1}])
     sync_share_limits(api)
     updates=[d for p,d in calls if p=='torrents/setShareLimits']
     assert len(updates)==2 and updates[0]['ratioLimit']==1 and updates[1]['ratioLimit']==3
     assert updates[1]['shareLimitAction']=='RemoveWithContent'
-    assert all(d['seedingTimeLimit']==2880 and d['inactiveSeedingTimeLimit']==-1 for d in updates)
+    assert all(d['seedingTimeLimit']==2940 and d['inactiveSeedingTimeLimit']==-1 for d in updates)
+
+
+def test_existing_48_hour_limit_is_upgraded_without_resuming_or_changing_policy():
+    from qbit_rpc import sync_share_limits
+    calls=[]
+    row={'hash':'a'*40,'ratio_limit':5,'seeding_time_limit':2880,
+         'inactive_seeding_time_limit':-1,'share_limit_action':'RemoveWithContent','state':'stoppedUP'}
+    def api(path,data=None):
+        calls.append((path,data))
+        return Mock(json=lambda:[row])
+    sync_share_limits(api)
+    assert calls[-1]==('torrents/setShareLimits',{'hashes':row['hash'],'ratioLimit':5,
+        'seedingTimeLimit':2940,'inactiveSeedingTimeLimit':-1,'shareLimitAction':'RemoveWithContent'})

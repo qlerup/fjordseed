@@ -16,8 +16,8 @@ with sync_playwright() as p:
    page.close();page=browser.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
   page.set_viewport_size({'width':width,'height':900})
   page.set_content('<main></main>');page.add_style_tag(content=(root/'static/style.css').read_text(encoding='utf-8'));page.add_script_tag(content=code)
-  for state,ratio,target,seconds,expected in [('stalledUP',1,2,0,.5),('uploading',1,5,0,.2),('stoppedUP',1,5,0,.2),('stalledUP',0,5,172800,1),('downloading',0,1,0,None),('stalledDL',0,1,0,None)]:
-   page.evaluate("t=>document.querySelector('main').replaceChildren(card(t))",{'name':'Test Linux ISO','state':state,'progress':.42 if expected is None else 1,'size':1000,'ratio':ratio,'ratio_limit':target,'upspeed':0,'dlspeed':0,'seeding_time':seconds,'seeding_time_limit':2880,'uploaded':1024**3})
+  for state,ratio,target,seconds,expected in [('stalledUP',1,2,0,.5),('uploading',1,5,0,.2),('stoppedUP',1,5,0,.2),('stalledUP',0,5,176400,1),('downloading',0,1,0,None),('stalledDL',0,1,0,None)]:
+   page.evaluate("t=>document.querySelector('main').replaceChildren(card(t))",{'name':'Test Linux ISO','state':state,'progress':.42 if expected is None else 1,'size':1000,'ratio':ratio,'ratio_limit':target,'upspeed':0,'dlspeed':0,'seeding_time':seconds,'seeding_time_limit':2940,'uploaded':1024**3})
    bar=page.locator('.seed-progress')
    if expected is None:
     assert bar.count()==0
@@ -39,7 +39,7 @@ with sync_playwright() as p:
   page.evaluate("t=>document.querySelector('main').replaceChildren(card(t))",{
    'name':'Green Linux ISO','state':'stalledUP','progress':1,'size':1024**3,
    'ratio':1,'credited_ratio':.5,'ratio_limit':1,'uploaded':1024**3,'credited_uploaded':1024**3/2,
-   'green_until':1900000000,'green_active':True,'seeding_time_limit':2880})
+   'green_until':1900000000,'green_active':True,'seeding_time_limit':2940})
   assert page.locator('.seed-progress').evaluate('e=>e.value')==.5
   assert page.locator('.torrent-metrics dt').nth(2).inner_text()=='Krediteret ratio'
   assert page.locator('.torrent-metrics dd').nth(2).inner_text()=='0,5 / 1'

@@ -9,7 +9,7 @@ from test_app import FakeRuntime
 
 row = {'hash':'a'*40,'name':'Running Linux release','state':'stalledUP','progress':1,
        'size':1073741824,'ratio':1,'ratio_limit':2,'seeding_time':7200,
-       'seeding_time_limit':2880,'share_limit_action':'RemoveWithContent'}
+       'seeding_time_limit':2940,'share_limit_action':'RemoveWithContent'}
 class Demo(FakeRuntime):
     def status(self):
         return {**super().status(), 'ready':True, 'torrents':[dict(row)]}
@@ -60,6 +60,12 @@ with tempfile.TemporaryDirectory() as folder:
             page.get_by_role('button',name='Ratio Running Linux release',exact=True).click()
             page.locator('#edit-ratio-limit').fill('1')
             expect(page.locator('#edit-ratio-warning')).not_to_be_visible()
+            page.evaluate('editingRatio.seeding_time=48*3600;updateRatioEditWarning()')
+            expect(page.locator('#edit-ratio-warning')).not_to_be_visible()
+            page.evaluate('editingRatio.seeding_time=49*3600-1;updateRatioEditWarning()')
+            expect(page.locator('#edit-ratio-warning')).not_to_be_visible()
+            page.evaluate('editingRatio.seeding_time=49*3600;updateRatioEditWarning()')
+            expect(page.locator('#edit-ratio-warning')).to_be_visible()
             page.locator('#edit-ratio-dialog .close').last.click()
             assert not errors,errors
             browser.close()

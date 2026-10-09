@@ -61,7 +61,7 @@ try:
     assert params['save_path']=='/downloads/rss-fixture' and params['ratio_limit']==2.5, params
     assert params['share_limit_action']=='RemoveWithContent', params
     assert params['tags']==['FjordSeed-RSS-'+ident], params
-    assert params['seeding_time_limit']==2880 and params['inactive_seeding_time_limit']==-1,params
+    assert params['seeding_time_limit']==2940 and params['inactive_seeding_time_limit']==-1,params
     assert rule['enabled'] is False and api('app/preferences').json()['rss_auto_downloading_enabled'] is False
     print('PASS: native RSS rule retains folder, tag, ratio and automatic file action')
     sync_rss([],api)
@@ -77,9 +77,9 @@ try:
     wait_for(lambda:any(t['hash']==upgrade_hash for t in api('torrents/info').json()))
     sync_share_limits(api)
     upgraded=next(t for t in api('torrents/info').json() if t['hash']==upgrade_hash)
-    assert upgraded['ratio_limit']==3 and upgraded['seeding_time_limit']==2880,upgraded
+    assert upgraded['ratio_limit']==3 and upgraded['seeding_time_limit']==2940,upgraded
     assert upgraded['inactive_seeding_time_limit']==-1 and upgraded['share_limit_action']=='Stop'
-    print('PASS: existing torrent receives 48-hour limit; ratio and file action preserved')
+    print('PASS: existing torrent receives 49-hour limit; ratio and file action preserved')
     for action,branch in [('Stop','ratio'),('Stop','time'),('RemoveWithContent','ratio')]:
         name=(action+'-'+branch).encode()+b'.bin'
         content=b'offline-ratio-fixture-'+name
@@ -89,7 +89,7 @@ try:
         torrent=bencode({b'info':info})
         ident=hashlib.sha1(bencode(info)).hexdigest()
         response=api('torrents/add',{'savepath':'/downloads','stopped':'false','ratioLimit':0 if branch=='ratio' else 10000,
-            'seedingTimeLimit':2880 if branch=='ratio' else 0,'inactiveSeedingTimeLimit':-1,'shareLimitAction':action},
+            'seedingTimeLimit':2940 if branch=='ratio' else 0,'inactiveSeedingTimeLimit':-1,'shareLimitAction':action},
             {'torrents':('fixture.torrent',torrent,'application/x-bittorrent')})
         result=response.json()
         assert result['success_count']==1 and result['failure_count']==0, result
@@ -101,7 +101,7 @@ try:
         else:
             wait_for(lambda:not path.exists() and not any(t['hash']==ident for t in api('torrents/info').json()))
             print('RemoveWithContent reached; fixture torrent and file deleted')
-    print('PASS: ratio OR seeding time stops independently; RSS stores 48 hours; automatic deletion in offline disposable container')
+    print('PASS: ratio OR seeding time stops independently; RSS stores 49 hours; automatic deletion in offline disposable container')
 finally:
     process.terminate()
     process.wait(timeout=10)

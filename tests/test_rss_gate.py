@@ -163,7 +163,7 @@ def test_verified_green_rss_starts_with_adjusted_limit(gate):
         created_at=datetime.fromtimestamp(time.time()-3600,timezone.utc).isoformat())
     invoke('rss_resolve',token=candidate['token'],hashes=['c'*40],approved=True,benefits=verified)
     payload=next(d for p,d in calls if p=='torrents/add')
-    assert payload['ratioLimit']==4 and payload['seedingTimeLimit']==2880
+    assert payload['ratioLimit']==4 and payload['seedingTimeLimit']==2940
     assert payload['tags']=='FjordSeed-RSS-'+'a'*32
     assert str(root/'downloads')==payload['savepath']
 

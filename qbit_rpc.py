@@ -11,7 +11,9 @@ import requests
 from green_credit import CreditLedger
 
 BASE = 'http://127.0.0.1:8080/api/v2/'
-SEEDING_MINUTES = 48 * 60
+SEEDING_BASE_HOURS = 48
+SEEDING_BUFFER_HOURS = 1
+SEEDING_MINUTES = (SEEDING_BASE_HOURS + SEEDING_BUFFER_HOURS) * 60
 SEEDING_SECONDS = SEEDING_MINUTES * 60
 
 
@@ -35,7 +37,7 @@ def stop_requirement(row):
     time_done=type(seconds) in (int,float) and math.isfinite(seconds) and seconds>=SEEDING_SECONDS
     allowed=bool(ratio_done or time_done)
     return {'seeding_requirement_met':allowed,'required_seeding_seconds':SEEDING_SECONDS,
-            'stop_reason':'' if allowed else 'Torrenten har endnu ikke opfyldt kravet om ratio 1:1 eller 48 timers seeding. Hvis du stopper eller fjerner den nu, kan trackeren registrere det som hit-and-run.'}
+            'stop_reason':'' if allowed else 'Torrenten har endnu ikke opfyldt kravet om ratio 1:1 eller 49 timers seeding. Hvis du stopper eller fjerner den nu, kan trackeren registrere det som hit-and-run.'}
 
 
 def sync_share_limits(api=None):
@@ -103,7 +105,8 @@ def execute(action, data):
             for row in rows:
                 credit=ledger.update(row)
                 apply_limits(call,row,credit['native_ratio_limit'])
-                torrents.append({**{k:row.get(k) for k in fields},**credit,**stop_requirement({**row,**credit})})
+                torrents.append({**{k:row.get(k) for k in fields},**credit,
+                    'seeding_time_limit':SEEDING_MINUTES,**stop_requirement({**row,**credit})})
         return {'torrents':torrents,
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
                 'interface':prefs['current_network_interface'], 'version':call('app/version').text}

@@ -45,7 +45,7 @@ function openRssForm(feed=null){
 function rssFeedCard(feed){
  const card=node('article','tracker-card'),head=node('div','tracker-card-heading');
  head.append(node('h3','',feed.name),node('span','badge'+(feed.status==='active'?' ready':''),{active:'Aktivt',paused:'På pause',pending:'Afventer VPN / synkronisering',error:'Feedfejl'}[feed.status]));
- card.append(head,node('p','muted small',feed.host+' · '+feed.articles+' feedposter'),node('p','torrent-policy','Mappe: '+rssRoot+(feed.folder?'/'+feed.folder:'')+' · Stop-ratio: '+feed.ratio_limit+' eller 48 timers seeding'+' · '+(feed.ratio_action==='delete'?'Slet filer automatisk':'Behold filer')));
+ card.append(head,node('p','muted small',feed.host+' · '+feed.articles+' feedposter'),node('p','torrent-policy','Mappe: '+rssRoot+(feed.folder?'/'+feed.folder:'')+' · Stop-ratio: '+feed.ratio_limit+' eller 49 timers seeding'+' · '+(feed.ratio_action==='delete'?'Slet filer automatisk':'Behold filer')));
  if(feed.include)card.append(node('p','muted small','Titelfilter: '+feed.include));
  if(feed.required_badges?.length){
   const badges=node('div','rss-required-badges');badges.append(node('span','muted small','Kræver alle:'));

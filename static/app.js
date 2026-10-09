@@ -191,7 +191,7 @@ function showView(focus=false){
 window.addEventListener('hashchange',()=>showView(true));
 showView();refresh();setInterval(refresh,4000);
 
-function seedingWarning(t){return (t.stop_reason||'Torrenten har endnu ikke opfyldt kravet om ratio 1:1 eller 48 timers seeding. Trackeren kan registrere et tidligt stop som hit-and-run.')+' Aktuelt: ratio '+Number(t.credited_ratio??t.ratio??0).toFixed(2)+' og '+(Math.max(0,Number(t.seeding_time)||0)/3600).toLocaleString('da-DK',{maximumFractionDigits:1})+' timers seeding.';}
+function seedingWarning(t){return (t.stop_reason||'Torrenten har endnu ikke opfyldt kravet om ratio 1:1 eller 49 timers seeding. Trackeren kan registrere et tidligt stop som hit-and-run.')+' Aktuelt: ratio '+Number(t.credited_ratio??t.ratio??0).toFixed(2)+' og '+(Math.max(0,Number(t.seeding_time)||0)/3600).toLocaleString('da-DK',{maximumFractionDigits:1})+' timers seeding.';}
 $('#stop-form').onsubmit=async e=>{e.preventDefault();if(!stopping)return;$('#stop-save').disabled=true;$('#stop-error').hidden=true;try{await api(`/api/torrents/${stopping.hash}/stop`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_early_stop:true})});$('#stop-dialog').close();await refresh();toast('Torrent sat på pause.');}catch(e){error('#stop-error',e);}finally{$('#stop-save').disabled=false;}};
 
 function openRatioEditor(t) {
@@ -205,9 +205,9 @@ function openRatioEditor(t) {
 }
 function updateRatioEditWarning() {
  const value=Number($('#edit-ratio-limit').value);
- const met=(Number(editingRatio?.credited_ratio??editingRatio?.ratio)||0)>=value||(Number(editingRatio?.seeding_time)||0)>=48*3600;
+ const met=(Number(editingRatio?.credited_ratio??editingRatio?.ratio)||0)>=value||(Number(editingRatio?.seeding_time)||0)>=(Number(editingRatio?.required_seeding_seconds)||49*3600);
  const deleting=$('#edit-ratio-action').value==='delete';
- $('#edit-ratio-info').textContent='Automatisk stop sker ved denne ratio eller 48 timers seeding. '+(deleting?'Torrent og filer slettes automatisk.':'Filerne beholdes.');
+ $('#edit-ratio-info').textContent='Automatisk stop sker ved denne ratio eller 49 timers seeding. '+(deleting?'Torrent og filer slettes automatisk.':'Filerne beholdes.');
  const warning=$('#edit-ratio-warning');
  warning.hidden=!met||value<1;
  warning.textContent=deleting?'M\u00e5let er allerede n\u00e5et. Torrenten og filerne kan blive slettet automatisk, n\u00e5r du gemmer.':'M\u00e5let er allerede n\u00e5et. Seeding kan stoppe automatisk, n\u00e5r du gemmer.';

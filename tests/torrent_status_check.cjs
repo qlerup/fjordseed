@@ -17,13 +17,14 @@ assert.equal(context.torrentStatus({state:'futureState'}), 'Ukendt status');
 console.log('PASS active, idle, paused, stopped, queued seeding and download states');
 
 for(const target of [1,2,5]){
- const progress=context.seedingProgress({ratio:1,ratio_limit:target,seeding_time:0,seeding_time_limit:2880,state:'stalledUP'});
+ const progress=context.seedingProgress({ratio:1,ratio_limit:target,seeding_time:0,seeding_time_limit:2940,state:'stalledUP'});
  assert.equal(progress.fraction,1/target);
  assert.equal(progress.active,true);
 }
-assert.equal(context.seedingProgress({ratio:0,ratio_limit:5,seeding_time:86400,seeding_time_limit:2880}).fraction,.5);
-assert.equal(context.seedingProgress({ratio:0,ratio_limit:5,seeding_time:172800,seeding_time_limit:2880}).fraction,1);
+assert.equal(context.seedingProgress({ratio:0,ratio_limit:5,seeding_time:88200,seeding_time_limit:2940}).fraction,.5);
+assert.equal(context.seedingProgress({ratio:0,ratio_limit:5,seeding_time:176400,seeding_time_limit:2940}).fraction,1);
+assert.equal(context.seedingProgress({ratio:0,ratio_limit:5,seeding_time:172800,seeding_time_limit:2940}).fraction,48/49);
 assert.equal(context.seedingProgress({ratio:7,ratio_limit:5}).fraction,1);
 assert.equal(context.seedingProgress({ratio:1,ratio_limit:5,state:'stoppedUP'}).active,false);
-assert.equal(context.seedingProgress({ratio:1,ratio_limit:5,seeding_time:172800,seeding_time_limit:-1}).fraction,.2);
+assert.equal(context.seedingProgress({ratio:1,ratio_limit:5,seeding_time:176400,seeding_time_limit:-1}).fraction,.2);
 console.log('PASS configured ratio 1/2/5, time alternative, cap and paused seeding');
