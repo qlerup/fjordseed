@@ -1,6 +1,7 @@
 """Persist RSS rules and apply them inside qBittorrent's VPN namespace."""
 import ipaddress
 import json
+from green_credit import green_safety_factor
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -187,7 +188,7 @@ def sync_rss(feeds,api=call):
         rule={**rules.get(name,{}),'enabled':entry['enabled'] and not tracker_required(entry),'mustContain':entry['include'],
               'mustNotContain':'','useRegex':False,'smartFilter':False,'affectedFeeds':[entry['url']],
               'torrentParams':{'save_path':str(path),'use_auto_tmm':False,'stopped':False,
-                  'tags':['FjordSeed-RSS-'+entry['id']], 'ratio_limit':entry['ratio_limit'],
+                  'tags':['FjordSeed-RSS-'+entry['id']], 'ratio_limit':entry['ratio_limit'] * green_safety_factor(),
                   'seeding_time_limit':SEEDING_MINUTES,'inactive_seeding_time_limit':-1,
                   'share_limit_action':'RemoveWithContent' if entry['ratio_action']=='delete' else 'Stop'}}
         api('rss/setRule',{'ruleName':name,'ruleDef':json.dumps(rule)})

@@ -9,6 +9,7 @@ import re
 import threading
 import time
 from state import atomic
+from green_credit import policy_from_result
 
 
 def byte_size(value):
@@ -65,6 +66,27 @@ class Benefits:
             self.snapshots={}
         self.snapshot_pending=set()
 
+    def publish_green(self):
+        """Only verified dates and an enable flag cross into the VPN worker."""
+        with self.lock:
+            policies={h:policy_from_result(r) for h,r in self.snapshots.items()}
+            policies['_enabled']=bool(self.trackers.entries())
+            directory=self.snapshot_path.parent/'rpc'
+            directory.mkdir(exist_ok=True)
+            try:
+                previous=json.loads((directory/'green-policy.json').read_text())
+            except (OSError,ValueError):
+                previous={}
+            policies['_started_at']=previous.get('_started_at',time.time())
+            atomic(directory/'green-policy.json',json.dumps(policies),mode=0o644)
+
+    def needs_date(self,result):
+        ids={entry['id'] for entry in self.trackers.entries()}
+        if ids and result.get('status') in ('unknown','unavailable'):
+            return True
+        return any('created_at' not in m and (m.get('tracker_provider')=='nordicbytes' or m.get('tracker_id') in ids)
+                   for m in result.get('matches',[]))
+
     @staticmethod
     def hashes(meta):
         return tuple(sorted({h.lower() for h in meta.get('hashes',[]) if isinstance(h,str)
@@ -80,18 +102,19 @@ class Benefits:
         with self.lock:
             changed=False
             for ident in hashes:
-                if ident not in self.snapshots:
+                if ident not in self.snapshots or (self.needs_date(self.snapshots[ident]) and self.snapshots[ident]!=result):
                     self.snapshots[ident]=copy.deepcopy(result)
                     changed=True
                 self.snapshot_pending.discard(ident)
             if changed:
                 atomic(self.snapshot_path,json.dumps(self.snapshots),mode=0o600)
+                self.publish_green()
 
     def snapshot(self, meta):
         hashes=self.hashes(meta)
         with self.lock:
             saved=next((self.snapshots[h] for h in hashes if h in self.snapshots),None)
-            if saved is not None:
+            if saved is not None and not self.needs_date(saved):
                 return copy.deepcopy(saved)
         if not str(meta.get('name','')).strip():
             return {'status':'unknown','message':'Afventer torrentoplysninger.'}
@@ -177,7 +200,11 @@ class Benefits:
                             ident=a.get('info_hash','')
                             if isinstance(ident,str) and ident.lower() in hashes:
                                 match={'tracker_id':entry['id'],'tracker_name':entry['name'],
+                                       'tracker_provider':entry.get('provider','nordicbytes'),'created_at':a.get('created_at'),
                                        'size':byte_size(a.get('size')),'leechers':byte_size(a.get('leechers')),**self.flags(a)}
+                                with self.trackers.lock:
+                                    username=self.trackers.cache.get(entry['id'],{}).get('username')
+                                match['own_upload']=bool(username and a.get('uploader')==username)
                                 break
                         metadata=data.get('meta',{}) if isinstance(data,dict) else {}
                         cursor=metadata.get('next_cursor') if isinstance(metadata,dict) else None

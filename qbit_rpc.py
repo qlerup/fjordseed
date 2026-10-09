@@ -8,6 +8,7 @@ import re
 import sys
 
 import requests
+from green_credit import CreditLedger
 
 BASE = 'http://127.0.0.1:8080/api/v2/'
 SEEDING_MINUTES = 48 * 60
@@ -28,7 +29,7 @@ def seed_ratio(value):
 
 def stop_requirement(row):
     target=1.0
-    ratio=row.get('ratio')
+    ratio=row.get('credited_ratio',row.get('ratio'))
     seconds=row.get('seeding_time')
     ratio_done=type(ratio) in (int,float) and math.isfinite(ratio) and ratio>=target
     time_done=type(seconds) in (int,float) and math.isfinite(seconds) and seconds>=SEEDING_SECONDS
@@ -39,14 +40,19 @@ def stop_requirement(row):
 
 def sync_share_limits(api=None):
     api=api or call
-    rows=api('torrents/info').json()
-    for row in rows:
-        target=seed_ratio(row.get('ratio_limit'))
-        if (row.get('ratio_limit')!=target or row.get('seeding_time_limit')!=SEEDING_MINUTES
-                or row.get('inactive_seeding_time_limit')!=-1):
-            api('torrents/setShareLimits',{'hashes':row['hash'],'ratioLimit':target,
-                'seedingTimeLimit':SEEDING_MINUTES,'inactiveSeedingTimeLimit':-1,
-                'shareLimitAction':row.get('share_limit_action','Stop')})
+    with CreditLedger().transaction() as ledger:
+        rows=api('torrents/info').json()
+        for row in rows:
+            credit=ledger.update(row)
+            apply_limits(api,row,credit['native_ratio_limit'])
+
+
+def apply_limits(api,row,target):
+    if (row.get('ratio_limit')!=target or row.get('seeding_time_limit')!=SEEDING_MINUTES
+            or row.get('inactive_seeding_time_limit')!=-1):
+        api('torrents/setShareLimits',{'hashes':row['hash'],'ratioLimit':target,
+            'seedingTimeLimit':SEEDING_MINUTES,'inactiveSeedingTimeLimit':-1,
+            'shareLimitAction':row.get('share_limit_action') or 'Stop'})
 
 
 def share_policy(data):
@@ -87,18 +93,34 @@ def execute(action, data):
         sync_snapshot()
         return {'ok':True}
     if action == 'status':
-        rows = call('torrents/info?limit=500').json()
         fields = ('hash','name','size','progress','dlspeed','upspeed','state','ratio','num_seeds','num_leechs','eta',
                   'ratio_limit','share_limit_action','infohash_v1','infohash_v2','completed','tags',
-                  'seeding_time','seeding_time_limit','uploaded')
-        return {'torrents':[{**{k:r.get(k) for k in fields},**stop_requirement(r)} for r in rows],
+                  'seeding_time','seeding_time_limit','uploaded','downloaded','added_on')
+        torrents=[]
+        with CreditLedger().transaction() as ledger:
+            rows = call('torrents/info?limit=500').json()
+            for row in rows:
+                credit=ledger.update(row)
+                apply_limits(call,row,credit['native_ratio_limit'])
+                torrents.append({**{k:row.get(k) for k in fields},**credit,**stop_requirement({**row,**credit})})
+        return {'torrents':torrents,
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
                 'interface':prefs['current_network_interface'], 'version':call('app/version').text}
     if action == 'add':
         policy = share_policy(data)
+        from torrent_meta import magnet_meta, torrent_meta
+        try:
+            meta=magnet_meta(data['magnet']) if data.get('magnet') else torrent_meta(base64.b64decode(data['torrent'],validate=True))
+        except ValueError:
+            meta={'hashes':[]}
+        with CreditLedger().transaction() as ledger:
+            ledger.register(meta['hashes'],seed_ratio(policy['ratio_limit']))
+            pending=ledger.policies.get('_enabled',False)
         options = {'savepath':'/downloads', 'stopped':'false', 'ratioLimit':seed_ratio(policy['ratio_limit']),
                    'seedingTimeLimit':SEEDING_MINUTES, 'inactiveSeedingTimeLimit':-1,
                    'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] == 'delete' else 'Stop'}
+        if pending:
+            options['ratioLimit']*=2
         if data.get('magnet'):
             response = call('torrents/add', {**options, 'urls':data['magnet']})
         else:
@@ -117,26 +139,31 @@ def execute(action, data):
         ratio=share_policy(data)['ratio_limit']
         if ratio<1:
             raise ValueError('Stop-ratio skal være mindst 1.')
-        rows=call('torrents/info?hashes='+ident).json()
-        if len(rows)!=1 or rows[0].get('hash','').lower()!=ident.lower():
-            raise ValueError('Torrent not found')
-        call('torrents/setShareLimits',{'hashes':ident,'ratioLimit':ratio,
-             'seedingTimeLimit':SEEDING_MINUTES,'inactiveSeedingTimeLimit':-1,
-             'shareLimitAction':rows[0].get('share_limit_action') or 'Stop'})
+        with CreditLedger().transaction() as ledger:
+            rows=call('torrents/info?hashes='+ident).json()
+            if len(rows)!=1 or rows[0].get('hash','').lower()!=ident.lower():
+                raise ValueError('Torrent not found')
+            credit=ledger.update(rows[0],target=ratio)
+            apply_limits(call,rows[0],credit['native_ratio_limit'])
     elif action in ('start','stop','delete'):
         if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}', data.get('hash','')):
             raise ValueError('Invalid hash')
         payload = {'hashes':data['hash']}
         if action in ('stop','delete'):
-            rows=call('torrents/info?hashes='+data['hash']).json()
-            if len(rows)!=1 or rows[0].get('hash','').lower()!=data['hash'].lower():
-                raise ValueError('Torrent not found')
-            requirement=stop_requirement(rows[0])
+            with CreditLedger().transaction() as ledger:
+                rows=call('torrents/info?hashes='+data['hash']).json()
+                if len(rows)!=1 or rows[0].get('hash','').lower()!=data['hash'].lower():
+                    raise ValueError('Torrent not found')
+                credit=ledger.update(rows[0])
+            requirement=stop_requirement({**rows[0],**credit})
             if not requirement['seeding_requirement_met'] and data.get('confirm_early_stop') is not True:
                 raise SeedingRequirementError(requirement['stop_reason'])
         if action == 'delete':
             payload['deleteFiles'] = 'false'
         call('torrents/' + action, payload)
+        if action=='delete':
+            with CreditLedger().transaction() as ledger:
+                ledger.entries.pop(data['hash'].lower(),None)
     else:
         raise ValueError('Unsupported operation')
     return {'ok':True}

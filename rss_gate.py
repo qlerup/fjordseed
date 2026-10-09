@@ -16,6 +16,7 @@ from rss import PREFIX, validate_feed, folder_path, tracker_required
 from state import atomic
 from torrent_meta import magnet_meta, torrent_meta
 from qbit_rpc import seed_ratio, SEEDING_MINUTES
+from green_credit import CreditLedger, policy_from_result
 
 
 def fingerprint(feed):
@@ -136,12 +137,17 @@ def gate_rpc(action,data,api,root=Path('/config')):
         history['done']=list(dict.fromkeys([*history['done'],*keys]))
         atomic(history_path,json.dumps(history))
         if not already_added:
+            green_policy=policy_from_result(data['benefits'])
+            with CreditLedger().transaction() as ledger:
+                ledger.register(hashes,seed_ratio(feed['ratio_limit']),green_policy)
             path=folder_path(feed['folder'])
             path.mkdir(parents=True,exist_ok=True)
             options={'savepath':str(path),'stopped':'false','autoTMM':'false',
                      'tags':'FjordSeed-RSS-'+ident,'ratioLimit':seed_ratio(feed['ratio_limit']),
                      'seedingTimeLimit':SEEDING_MINUTES,'inactiveSeedingTimeLimit':-1,
                      'shareLimitAction':'RemoveWithContent' if feed['ratio_action']=='delete' else 'Stop'}
+            if (green_policy.get('until') or 0)>now or not green_policy.get('known') or not green_policy.get('has_date'):
+                options['ratioLimit']*=2
             payload=pending['payload']
             if payload.get('magnet'):
                 response=api('torrents/add',{**options,'urls':payload['magnet']})

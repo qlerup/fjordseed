@@ -148,7 +148,22 @@ def test_prepare_does_not_add_and_verified_commit_preserves_policy(gate):
     invoke('rss_resolve',token=candidate['token'],hashes=['c'*40],approved=True,benefits=result())
     payload=next(d for p,d in calls if p=='torrents/add')
     assert 'c'*40 in payload['urls'] and 'd'*40 not in payload['urls']
-    assert payload['ratioLimit']==2 and payload['shareLimitAction']=='Stop'
+    # No created_at in this response: conservative limit until date verification.
+    assert payload['ratioLimit']==4 and payload['shareLimitAction']=='Stop'
+    assert payload['tags']=='FjordSeed-RSS-'+'a'*32
+    assert str(root/'downloads')==payload['savepath']
+
+
+def test_verified_green_rss_starts_with_adjusted_limit(gate):
+    from datetime import datetime,timezone
+    invoke,calls,root,items=gate
+    candidate=invoke('rss_prepare')
+    verified=result()
+    verified['matches'][0].update(tracker_provider='nordicbytes',
+        created_at=datetime.fromtimestamp(time.time()-3600,timezone.utc).isoformat())
+    invoke('rss_resolve',token=candidate['token'],hashes=['c'*40],approved=True,benefits=verified)
+    payload=next(d for p,d in calls if p=='torrents/add')
+    assert payload['ratioLimit']==4 and payload['seedingTimeLimit']==2880
     assert payload['tags']=='FjordSeed-RSS-'+'a'*32
     assert str(root/'downloads')==payload['savepath']
 

@@ -50,6 +50,12 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#edit-ratio-dialog .close').last.click()
             assert row['ratio_limit']==2.5
             assert app.extensions['runtime'].rpc.call_count==2
+            row.update(credited_ratio=.5,green_until=1900000000,green_active=True,credited_uploaded=512*1024**2)
+            page.reload()
+            page.get_by_role('button',name='Ratio Running Linux release',exact=True).click()
+            page.locator('#edit-ratio-limit').fill('1')
+            expect(page.locator('#edit-ratio-warning')).not_to_be_visible()
+            page.locator('#edit-ratio-dialog .close').last.click()
             assert not errors,errors
             browser.close()
             print('PASS running ratio edits, mobile/desktop, existing delete action, reached-goal warning and cancel')

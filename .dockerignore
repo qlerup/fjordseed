@@ -5,6 +5,7 @@
 !runtime.py
 !state.py
 !qbit_rpc.py
+!green_credit.py
 !qbit_worker.py
 !trackers.py
 !benefits.py

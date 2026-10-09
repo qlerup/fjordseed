@@ -119,8 +119,11 @@ def run():
                         share_last=time.monotonic()
                     try:
                         content=Path('/config/fjord-rss.json').read_text() if Path('/config/fjord-rss.json').exists() else '[]'
-                        if content!=rss_content:
-                            rss_content=sync_snapshot()
+                        from green_credit import green_safety_factor
+                        signature=(content,green_safety_factor())
+                        if signature!=rss_content:
+                            sync_snapshot()
+                            rss_content=signature
                             rss_last=0
                         if time.monotonic()-rss_last>10:
                             reports=rss_report()

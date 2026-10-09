@@ -38,6 +38,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     runtime = runtime_factory(state)
     stop = threading.Event()
     trackers = Trackers(state.root)
+    trackers.benefits.publish_green()
     rss = Rss(state.root)
     rss_gate = RssGate(rss,runtime,trackers,state)
     app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers, rss=rss)
@@ -258,6 +259,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     def save_tracker():
         try:
             ident = trackers.save(request.get_json(silent=True))
+            trackers.benefits.publish_green()
             return {'ok':True,'id':ident}
         except ValueError as exc:
             return jsonify(error=str(exc)),400
@@ -266,6 +268,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     def delete_tracker(ident):
         try:
             trackers.remove(ident)
+            trackers.benefits.publish_green()
             return {'ok':True}
         except ValueError as exc:
             return jsonify(error=str(exc)),400
@@ -332,8 +335,20 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             return jsonify(error='qBittorrent er ikke tilgængelig. Kontrollér VPN-status.'),503
 
     def worker():
+        checked=0
         while not stop.is_set():
             runtime.tick()
+            if time.monotonic()-checked>10:
+                try:
+                    # Dates for RSS downloads must be discovered with no open UI.
+                    with state.lock:
+                        result=runtime.status()
+                    for row in result.get('torrents',[]):
+                        trackers.benefits.snapshot({'hashes':[row.get(k) for k in ('hash','infohash_v1','infohash_v2')],
+                            'name':row.get('name','')})
+                except Exception:
+                    pass
+                checked=time.monotonic()
             stop.wait(3)
 
     if not testing:

@@ -6,7 +6,7 @@ def test_status_preserves_seeding_time_and_configured_targets():
     row = {'hash': 'a' * 40, 'ratio': 1, 'ratio_limit': 5,
            'seeding_time': 7200, 'seeding_time_limit': 2880, 'state': 'stalledUP',
            'uploaded': 1073741824}
-    def call(path):
+    def call(path,data=None):
         response = Mock()
         if path == 'app/preferences':
             response.json.return_value = {'current_network_interface': 'tun0', 'upnp': False, 'listen_port': 12345}

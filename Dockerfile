@@ -3,7 +3,7 @@ RUN apk add --no-cache qbittorrent-nox=5.2.1-r0
 WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py hub.py runtime.py state.py qbit_rpc.py qbit_worker.py trackers.py benefits.py torrent_meta.py rss.py rss_gate.py ./
+COPY app.py hub.py runtime.py state.py qbit_rpc.py qbit_worker.py trackers.py benefits.py torrent_meta.py rss.py rss_gate.py green_credit.py ./
 COPY templates ./templates
 COPY static ./static
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
