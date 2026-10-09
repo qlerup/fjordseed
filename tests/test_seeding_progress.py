@@ -4,7 +4,8 @@ from qbit_rpc import execute
 
 def test_status_preserves_seeding_time_and_configured_targets():
     row = {'hash': 'a' * 40, 'ratio': 1, 'ratio_limit': 5,
-           'seeding_time': 7200, 'seeding_time_limit': 2880, 'state': 'stalledUP'}
+           'seeding_time': 7200, 'seeding_time_limit': 2880, 'state': 'stalledUP',
+           'uploaded': 1073741824}
     def call(path):
         response = Mock()
         if path == 'app/preferences':

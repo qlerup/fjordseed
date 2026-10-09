@@ -90,7 +90,7 @@ def execute(action, data):
         rows = call('torrents/info?limit=500').json()
         fields = ('hash','name','size','progress','dlspeed','upspeed','state','ratio','num_seeds','num_leechs','eta',
                   'ratio_limit','share_limit_action','infohash_v1','infohash_v2','completed','tags',
-                  'seeding_time','seeding_time_limit')
+                  'seeding_time','seeding_time_limit','uploaded')
         return {'torrents':[{**{k:r.get(k) for k in fields},**stop_requirement(r)} for r in rows],
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
                 'interface':prefs['current_network_interface'], 'version':call('app/version').text}
