@@ -1,0 +1,17 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const source = fs.readFileSync(path.join(__dirname, '../static/app.js'), 'utf8');
+const helper = source.slice(source.indexOf('function torrentStatus('), source.indexOf('function card('));
+const context = vm.createContext({});
+vm.runInContext(helper, context);
+assert.equal(context.torrentStatus({state:'stalledUP',progress:1,upspeed:0}), 'Seeder \u2013 venter p\u00e5 downloadere');
+assert.equal(context.torrentStatus({state:'uploading'}), 'Seeder \u2013 uploader');
+assert.equal(context.torrentStatus({state:'pausedUP'}), 'Seeding sat p\u00e5 pause');
+assert.equal(context.torrentStatus({state:'stoppedUP'}), 'Seeding stoppet');
+assert.equal(context.torrentStatus({state:'queuedUP'}), 'Afventer seeding');
+assert.equal(context.torrentStatus({state:'downloading'}), 'Downloader');
+assert.equal(context.torrentStatus({state:'missingFiles'}), 'Filer mangler');
+assert.equal(context.torrentStatus({state:'futureState'}), 'Ukendt status');
+console.log('PASS active, idle, paused, stopped, queued seeding and download states');
