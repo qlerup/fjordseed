@@ -40,3 +40,9 @@
 .torrent:not(.is-expanded) .torrent-head .torrent-summary{margin:0;gap:6px 14px;white-space:nowrap}
 @media(max-width:1100px){.torrent:not(.is-expanded) .torrent-head{grid-template-columns:minmax(0,1fr) auto;gap:8px 16px}.torrent:not(.is-expanded) .torrent-head h3{grid-column:1/-1}}
 @media(max-width:800px){.torrent:not(.is-expanded) .torrent-head{grid-template-columns:minmax(0,1fr)}.torrent:not(.is-expanded) .torrent-head h3{grid-column:auto}.torrent:not(.is-expanded) .torrent-actions{margin-top:2px}}
+
+.torrent-title-toggle{display:flex;align-items:center;gap:10px;width:100%;min-width:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;font-weight:700;text-align:left;border-radius:3px}
+.torrent-title-toggle:hover{color:var(--green)}.torrent-name{min-width:0;overflow-wrap:anywhere}
+.torrent-chevron{width:8px;height:8px;flex-shrink:0;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .18s ease,border-color .18s ease}
+.torrent-title-toggle[aria-expanded=true] .torrent-chevron{transform:rotate(45deg);border-color:var(--green)}.torrent-title-toggle:hover .torrent-chevron{border-color:var(--green)}
+@media(prefers-reduced-motion:reduce){.torrent-chevron{transition:none}}

@@ -121,26 +121,32 @@ function torrentProgress(t) {
  wrap.append(track);return wrap;
 }
 const expandedTorrents = new Set();
-function card(t){const row=node('article','torrent'),head=node('div','torrent-head');head.append(node('h3','',t.name));const actions=node('div','torrent-actions');for(const [action,label] of [['start','Start'],['stop','Pause'],['ratio','Ratio'],['delete','Fjern']]){const b=node('button','secondary',label);b.type='button';b.disabled=!current.ready;b.setAttribute('aria-label',label+' '+t.name);b.onclick=async()=>{if(action==='ratio'){openRatioEditor(t);return;}if(action==='delete'){deleting=t;$('#delete-name').textContent=t.name;$('#delete-error').hidden=true;$('#delete-warning').hidden=t.seeding_requirement_met===true;$('#delete-warning').textContent=seedingWarning(t);$('#delete-dialog').showModal();return;}if(action==='stop'&&t.seeding_requirement_met!==true){stopping=t;$('#stop-name').textContent=t.name;$('#stop-warning').textContent=seedingWarning(t);$('#stop-error').hidden=true;$('#stop-dialog').showModal();return;}b.disabled=true;try{await api(`/api/torrents/${t.hash}/${action}`,{method:'POST'});await refresh();}catch(e){toast(e.message);}finally{b.disabled=false;}};actions.append(b);}const key=t.hash||t.name;
+function card(t){const row=node('article','torrent'),head=node('div','torrent-head');
+ const heading=node('h3'),titleToggle=node('button','torrent-title-toggle');titleToggle.type='button';
+ const arrow=node('span','torrent-chevron');arrow.setAttribute('aria-hidden','true');
+ titleToggle.append(arrow,node('span','torrent-name',t.name));heading.append(titleToggle);head.append(heading);const actions=node('div','torrent-actions');for(const [action,label] of [['start','Start'],['stop','Pause'],['ratio','Ratio'],['delete','Fjern']]){const b=node('button','secondary',label);b.type='button';b.disabled=!current.ready;b.setAttribute('aria-label',label+' '+t.name);b.onclick=async()=>{if(action==='ratio'){openRatioEditor(t);return;}if(action==='delete'){deleting=t;$('#delete-name').textContent=t.name;$('#delete-error').hidden=true;$('#delete-warning').hidden=t.seeding_requirement_met===true;$('#delete-warning').textContent=seedingWarning(t);$('#delete-dialog').showModal();return;}if(action==='stop'&&t.seeding_requirement_met!==true){stopping=t;$('#stop-name').textContent=t.name;$('#stop-warning').textContent=seedingWarning(t);$('#stop-error').hidden=true;$('#stop-dialog').showModal();return;}b.disabled=true;try{await api(`/api/torrents/${t.hash}/${action}`,{method:'POST'});await refresh();}catch(e){toast(e.message);}finally{b.disabled=false;}};actions.append(b);}const key=t.hash||t.name;
  const panel=node('div','torrent-extra');panel.id='torrent-details-'+key;
  panel.append(torrentMetrics(t),torrentDetails(t));
  if(t.rss_feed)panel.append(node('p','torrent-policy','RSS: '+t.rss_feed));
- const toggle=node('button','secondary torrent-toggle');toggle.type='button';toggle.dataset.torrentToggle=key;
+ const toggle=node('button','secondary torrent-toggle');toggle.type='button';toggle.dataset.torrentToggle=key;toggle.dataset.torrentToggleControl='details';
+ titleToggle.dataset.torrentToggle=key;titleToggle.dataset.torrentToggleControl='title';titleToggle.setAttribute('aria-controls',panel.id);
  toggle.setAttribute('aria-controls',panel.id);
  const summary=node('div','torrent-summary');
  summary.append(node('span','','Download: '+size(t.dlspeed)+'/s'),node('span','','Upload: '+size(t.upspeed)+'/s'));
- function updateExpanded(){const expanded=expandedTorrents.has(key);panel.hidden=!expanded;row.classList.toggle('is-expanded',expanded);if(expanded)head.after(summary);else head.insertBefore(summary,actions);toggle.textContent=expanded?'Skjul detaljer':'Vis detaljer';toggle.setAttribute('aria-expanded',String(expanded));toggle.setAttribute('aria-label',toggle.textContent+' for '+t.name);}
+ function updateExpanded(){const expanded=expandedTorrents.has(key);panel.hidden=!expanded;row.classList.toggle('is-expanded',expanded);if(expanded)head.after(summary);else head.insertBefore(summary,actions);toggle.textContent=expanded?'Skjul detaljer':'Vis detaljer';toggle.setAttribute('aria-expanded',String(expanded));toggle.setAttribute('aria-label',toggle.textContent+' for '+t.name);titleToggle.setAttribute('aria-expanded',String(expanded));titleToggle.setAttribute('aria-label',toggle.textContent+' for '+t.name);}
  toggle.onclick=()=>{if(expandedTorrents.has(key))expandedTorrents.delete(key);else expandedTorrents.add(key);updateExpanded();};
+ titleToggle.onclick=toggle.onclick;
  actions.prepend(toggle);head.append(actions);
  row.append(head,torrentProgress(t),panel);updateExpanded();return row;}
 function eta(seconds){if(!Number.isFinite(Number(seconds))||Number(seconds)<0||Number(seconds)>=8640000)return 'Ukendt tid tilbage';seconds=Math.round(seconds);if(seconds<60)return seconds+' sek. tilbage';if(seconds<3600)return Math.ceil(seconds/60)+' min. tilbage';return Math.floor(seconds/3600)+' t. '+Math.ceil((seconds%3600)/60)+' min. tilbage';}
 function renderDownloadLists(data){
  const focusedToggle=typeof document!=='undefined'?document.activeElement?.dataset?.torrentToggle:undefined;
+ const focusedControl=typeof document!=='undefined'?document.activeElement?.dataset?.torrentToggleControl:undefined;
  const newestFirst=data.torrents.slice().sort((a,b)=>(Number(b.added_on)||0)-(Number(a.added_on)||0));
  const manual=newestFirst.filter(t=>!t.rss_feed),rss=newestFirst.filter(t=>t.rss_feed);
  $('#torrent-list').replaceChildren(...manual.map(card));$('#empty').hidden=manual.length>0;
  $('#rss-torrent-list').replaceChildren(...rss.map(card));$('#rss-empty').hidden=rss.length>0;$('#rss-count').textContent=rss.length;
- if(focusedToggle)for(const button of document.querySelectorAll('[data-torrent-toggle]'))if(button.dataset.torrentToggle===focusedToggle){button.focus({preventScroll:true});break;}
+ if(focusedToggle)for(const button of document.querySelectorAll('[data-torrent-toggle]'))if(button.dataset.torrentToggle===focusedToggle&&button.dataset.torrentToggleControl===focusedControl){button.focus({preventScroll:true});break;}
  for(const [items,prefix] of [[manual,''],[rss,'rss-']])for(const [field,id] of [['dlspeed','dl'],['upspeed','ul']])$('#'+prefix+id).textContent=size(items.reduce((sum,t)=>sum+(Number(t[field])||0),0))+'/s';
 }
 function renderFlow(data){
