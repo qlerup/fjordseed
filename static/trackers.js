@@ -1,6 +1,11 @@
 let trackerData=[],trackerSaving=false,trackerRefreshing=false;
 const trackerNumber=value=>typeof value==='number'?value.toLocaleString('da-DK',{maximumFractionDigits:2}):'—';
-const trackerBytes=value=>typeof value==='number'?size(value):'—';
+const trackerBytes=value=>{
+ if(typeof value!=='number'||!Number.isFinite(value)||value<0)return '—';
+ const units=['B','KiB','MiB','GiB','TiB'];let index=0;
+ while(value>=1024&&index<units.length-1){value/=1024;index++;}
+ return value.toLocaleString('da-DK',{minimumFractionDigits:index?2:0,maximumFractionDigits:index?2:0})+' '+units[index];
+};
 function trackerCard(tracker,manage=false){
  const card=node('article','tracker-card'),head=node('div','tracker-card-heading'),title=node('div');
  title.append(node('h3','',tracker.name));

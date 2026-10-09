@@ -148,4 +148,4 @@ class Trackers:
         while not stop.is_set():
             self.wake.clear()
             self.refresh()
-            self.wake.wait(300)
+            self.wake.wait(60)
