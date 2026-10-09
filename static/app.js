@@ -127,12 +127,12 @@ function card(t){const row=node('article','torrent'),head=node('div','torrent-he
  if(t.rss_feed)panel.append(node('p','torrent-policy','RSS: '+t.rss_feed));
  const toggle=node('button','secondary torrent-toggle');toggle.type='button';toggle.dataset.torrentToggle=key;
  toggle.setAttribute('aria-controls',panel.id);
- function updateExpanded(){const expanded=expandedTorrents.has(key);panel.hidden=!expanded;toggle.textContent=expanded?'Skjul detaljer':'Vis detaljer';toggle.setAttribute('aria-expanded',String(expanded));toggle.setAttribute('aria-label',toggle.textContent+' for '+t.name);}
- toggle.onclick=()=>{if(expandedTorrents.has(key))expandedTorrents.delete(key);else expandedTorrents.add(key);updateExpanded();};
- updateExpanded();actions.prepend(toggle);head.append(actions);
  const summary=node('div','torrent-summary');
  summary.append(node('span','','Download: '+size(t.dlspeed)+'/s'),node('span','','Upload: '+size(t.upspeed)+'/s'));
- row.append(head,summary,torrentProgress(t),panel);return row;}
+ function updateExpanded(){const expanded=expandedTorrents.has(key);panel.hidden=!expanded;row.classList.toggle('is-expanded',expanded);if(expanded)head.after(summary);else head.insertBefore(summary,actions);toggle.textContent=expanded?'Skjul detaljer':'Vis detaljer';toggle.setAttribute('aria-expanded',String(expanded));toggle.setAttribute('aria-label',toggle.textContent+' for '+t.name);}
+ toggle.onclick=()=>{if(expandedTorrents.has(key))expandedTorrents.delete(key);else expandedTorrents.add(key);updateExpanded();};
+ actions.prepend(toggle);head.append(actions);
+ row.append(head,torrentProgress(t),panel);updateExpanded();return row;}
 function eta(seconds){if(!Number.isFinite(Number(seconds))||Number(seconds)<0||Number(seconds)>=8640000)return 'Ukendt tid tilbage';seconds=Math.round(seconds);if(seconds<60)return seconds+' sek. tilbage';if(seconds<3600)return Math.ceil(seconds/60)+' min. tilbage';return Math.floor(seconds/3600)+' t. '+Math.ceil((seconds%3600)/60)+' min. tilbage';}
 function renderDownloadLists(data){
  const focusedToggle=typeof document!=='undefined'?document.activeElement?.dataset?.torrentToggle:undefined;

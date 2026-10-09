@@ -35,3 +35,8 @@
 @media(max-width:800px){.torrent-actions{justify-content:flex-start;gap:6px}.torrent-actions button{padding:8px 10px}.torrent-summary{gap:6px 16px}}
 
 .queue-note{margin:0 0 14px}
+
+.torrent:not(.is-expanded) .torrent-head{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:16px}
+.torrent:not(.is-expanded) .torrent-head .torrent-summary{margin:0;gap:6px 14px;white-space:nowrap}
+@media(max-width:1100px){.torrent:not(.is-expanded) .torrent-head{grid-template-columns:minmax(0,1fr) auto;gap:8px 16px}.torrent:not(.is-expanded) .torrent-head h3{grid-column:1/-1}}
+@media(max-width:800px){.torrent:not(.is-expanded) .torrent-head{grid-template-columns:minmax(0,1fr)}.torrent:not(.is-expanded) .torrent-head h3{grid-column:auto}.torrent:not(.is-expanded) .torrent-actions{margin-top:2px}}

@@ -13,7 +13,7 @@ torrents=[{'hash':str(i)*40,'name':('Very.long.torrent.name.'*8 if i==1 else 'Li
            'rss_feed':'Feed' if i==3 else None,'added_on':i} for i in [1,2,3]]
 with sync_playwright() as p:
  browser=p.chromium.launch()
- for width in [390,1440]:
+ for width in [390,900,1440,1920]:
   page=browser.new_page(viewport={'width':width,'height':1000});errors=[]
   page.on('pageerror',lambda e:errors.append(str(e)))
   page.set_content('<main><div id="torrent-list"></div><p id="empty"></p><div id="rss-torrent-list"></div><p id="rss-empty"></p><span id="rss-count"></span><span id="dl"></span><span id="ul"></span><span id="rss-dl"></span><span id="rss-ul"></span></main>')
@@ -22,9 +22,15 @@ with sync_playwright() as p:
   expect(page.locator('.torrent-extra:visible')).to_have_count(0)
   expect(page.locator('.torrent-progress:visible')).to_have_count(3)
   button=page.locator('#torrent-list .torrent-toggle').first
-  collapsed=page.locator('#torrent-list .torrent').first.bounding_box()['height']
+  row=page.locator('#torrent-list .torrent').first
+  assert row.locator('.torrent-summary').evaluate("e=>e.parentElement.classList.contains('torrent-head')")
+  if width>=1440:
+   title=row.locator('h3').bounding_box();summary=row.locator('.torrent-summary').bounding_box()
+   assert abs(title['y']-summary['y'])<6
+  collapsed=row.bounding_box()['height']
   button.focus();page.keyboard.press('Enter')
   expect(button).to_have_attribute('aria-expanded','true')
+  assert row.locator('.torrent-summary').evaluate("e=>e.parentElement.classList.contains('torrent') && e.previousElementSibling.classList.contains('torrent-head')")
   expect(page.locator('.torrent-extra:visible')).to_have_count(1)
   assert page.locator('#torrent-list .torrent').first.bounding_box()['height']>collapsed
   page.evaluate('torrents=>renderDownloadLists({torrents:[...torrents].reverse()})',torrents)
@@ -32,6 +38,7 @@ with sync_playwright() as p:
   rss=page.locator('#rss-torrent-list .torrent-toggle');rss.click()
   expect(page.locator('.torrent-extra:visible')).to_have_count(2)
   button.click();expect(page.locator('.torrent-extra:visible')).to_have_count(1)
+  assert row.locator('.torrent-summary').evaluate("e=>e.parentElement.classList.contains('torrent-head')")
   expect(rss).to_have_attribute('aria-expanded','true')
   page.evaluate('torrents=>renderDownloadLists({torrents})',torrents)
   expect(rss).to_have_attribute('aria-expanded','true')
