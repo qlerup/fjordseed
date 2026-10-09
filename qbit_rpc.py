@@ -110,6 +110,19 @@ def execute(action, data):
             if (result.get('failure_count', 0) or
                     result.get('success_count', 0) + result.get('pending_count', 0) < 1):
                 raise ValueError('qBittorrent rejected torrent')
+    elif action == 'ratio':
+        ident=data.get('hash','')
+        if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):
+            raise ValueError('Invalid hash')
+        ratio=share_policy(data)['ratio_limit']
+        if ratio<1:
+            raise ValueError('Stop-ratio skal være mindst 1.')
+        rows=call('torrents/info?hashes='+ident).json()
+        if len(rows)!=1 or rows[0].get('hash','').lower()!=ident.lower():
+            raise ValueError('Torrent not found')
+        call('torrents/setShareLimits',{'hashes':ident,'ratioLimit':ratio,
+             'seedingTimeLimit':SEEDING_MINUTES,'inactiveSeedingTimeLimit':-1,
+             'shareLimitAction':rows[0].get('share_limit_action') or 'Stop'})
     elif action in ('start','stop','delete'):
         if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}', data.get('hash','')):
             raise ValueError('Invalid hash')

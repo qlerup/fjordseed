@@ -303,13 +303,21 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
 
     @app.post('/api/torrents/<ident>/<action>')
     def torrent_action(ident, action):
-        if action not in ('start','stop','delete') or not re.fullmatch('[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):
+        if action not in ('start','stop','delete','ratio') or not re.fullmatch('[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):
             return jsonify(error='Ugyldig handling.'),400
         payload=request.get_json(silent=True)
         if payload is None:
             payload={}
         if not isinstance(payload,dict) or type(payload.get('confirm_early_stop',False)) is not bool:
             return jsonify(error='Ugyldig bekræftelse.'),400
+        if action=='ratio':
+            try:
+                policy=share_policy({'ratio_limit':payload.get('ratio_limit')})
+                if policy['ratio_limit']<1:
+                    raise ValueError('Stop-ratio skal være mindst 1.')
+            except ValueError as exc:
+                return jsonify(error=str(exc)),400
+            return invoke(action,{'hash':ident,'ratio_limit':policy['ratio_limit']})
         return invoke(action, {'hash':ident,'confirm_early_stop':payload.get('confirm_early_stop',False)})
 
     def invoke(action, data):
