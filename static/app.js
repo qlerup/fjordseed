@@ -163,10 +163,10 @@ function render(data){current=data;renderFlow(data);$('#vpn-message').textConten
 async function refresh(){if(busy)return;try{render(await api('/api/status'));$('#error').hidden=true;}catch(e){error('#error',e);$('#new-torrent').disabled=true;renderFlow({ready:false,enabled:true});$('#flow-status').textContent='Status utilgængelig';}}
 async function settings(enabled){busy=true;$('#connect').disabled=true;$('#stop').disabled=true;try{await api('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile_id:$('#profile').value,enabled})});toast(enabled?'VPN-valget er gemt. Starter når VPN er klar.':'Seedbox stoppes.');}catch(e){toast(e.message);}finally{busy=false;$('#connect').disabled=false;$('#stop').disabled=false;}await refresh();}
 $('#settings-form').onsubmit=e=>{e.preventDefault();settings(true);};$('#stop').onclick=()=>settings(false);
-let addMethod='magnet';
+let addMethod='file';
 function chooseMethod(method){addMethod=method;$('#magnet-fields').hidden=method!=='magnet';$('#file-fields').hidden=method!=='file';$('#method-magnet').setAttribute('aria-pressed',method==='magnet');$('#method-file').setAttribute('aria-pressed',method==='file');$('#add-error').hidden=true;}
 $('#method-magnet').onclick=()=>chooseMethod('magnet');$('#method-file').onclick=()=>chooseMethod('file');
-$('#new-torrent').onclick=()=>{$('#add-form').reset();chooseMethod('magnet');$('#add-error').hidden=true;$('#add-dialog').showModal();$('#magnet').focus();};
+$('#new-torrent').onclick=()=>{$('#add-form').reset();chooseMethod('file');$('#add-error').hidden=true;$('#add-dialog').showModal();$('#torrent-file').focus();};
 document.querySelectorAll('.close').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 let pendingTorrent;
 $('#add-form').onsubmit=e=>{e.preventDefault();$('#add-error').hidden=true;try{const body=new FormData();const magnet=$('#magnet').value.trim();const file=$('#torrent-file').files[0];if(addMethod==='magnet'){if(!magnet.startsWith('magnet:?'))throw Error('Indtast et gyldigt magnetlink.');body.set('magnet',magnet);}else{if(!file||!file.name.toLowerCase().endsWith('.torrent'))throw Error('Vælg en .torrent-fil.');body.set('torrent',file);}pendingTorrent=body;$('#ratio-form').reset();$('#ratio-source').textContent=addMethod==='file'?file.name:'Torrent fra magnetlink';$('#ratio-error').hidden=true;$('#ratio-delete-notice').hidden=true;$('#add-dialog').close();$('#ratio-dialog').showModal();prepareBenefits();$('#ratio-limit').focus();}catch(e){error('#add-error',e);}};

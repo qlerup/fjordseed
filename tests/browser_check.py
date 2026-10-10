@@ -160,6 +160,10 @@ with tempfile.TemporaryDirectory() as folder:
                 'double_upload':True,'featured':False,'internal':False,'refundable':False}
             app.extensions['trackers'].benefits.request=lambda meta,selected='',priority=0: {'status':'matched','matches':[dict(preview_match)]}
             page.locator('#new-torrent').click()
+            expect(page.locator('#torrent-file')).to_be_visible()
+            expect(page.locator('#torrent-file')).to_be_focused()
+            expect(page.locator('.add-method button').first).to_have_text('Torrentfil')
+            page.locator('#method-magnet').click()
             page.locator('#magnet').fill('magnet:?xt=urn:btih:'+'b'*40)
             page.locator('#add-save').click()
             expect(page.locator('#add-dialog')).not_to_be_visible()
@@ -193,6 +197,10 @@ with tempfile.TemporaryDirectory() as folder:
             assert app.extensions['runtime'].rpc.call_args.args[1]['ratio_limit']==2.5
             assert app.extensions['runtime'].rpc.call_args.args[1]['ratio_action']=='keep'
             page.locator('#new-torrent').click()
+            expect(page.locator('#torrent-file')).to_be_visible()
+            expect(page.locator('#torrent-file')).to_be_focused()
+            expect(page.locator('.add-method button').first).to_have_text('Torrentfil')
+            page.locator('#method-magnet').click()
             page.locator('#magnet').fill('magnet:?xt=urn:btih:'+'b'*40)
             for width in (1440,390):
                 page.set_viewport_size({'width':width,'height':1000})
