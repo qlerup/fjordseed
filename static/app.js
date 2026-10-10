@@ -68,7 +68,7 @@ function torrentMetrics(t) {
   ['Seedtid',number(seed.seconds/3600)+(seed.minutes?' / '+number(seed.minutes/60):'')+' timer'],
   ['Uploadet i alt',typeof t.uploaded==='number'&&Number.isFinite(t.uploaded)&&t.uploaded>=0?size(t.uploaded):'—']];
  for(const [label,value] of fields){const item=node('div');item.append(node('dt','',label),node('dd','',value));values.append(item);}
- if(t.green_until||t.green_pending){const item=node('div');item.append(node('dt','','Uploadkredit'),node('dd','',size(t.credited_uploaded)));values.append(item);}
+ if(t.green_until||t.green_pending){const item=node('div');item.append(node('dt','','Krediteret upload'),node('dd','',size(t.credited_uploaded)));values.append(item);}
  return values;
 }
 function torrentDetails(t) {
