@@ -1,0 +1,7 @@
+{% macro seeding_fields(prefix) -%}
+<label>Stop ved ratio<input type="number" id="{{ prefix }}-{{ 'limit' if prefix == 'ratio' else 'ratio' }}" min="1" max="10000" step="any" value="1" required inputmode="decimal" aria-describedby="{{ prefix }}-help"></label>
+<p class="muted small" id="{{ prefix }}-help">Stopmålet bruger krediteret upload. Green-upload tæller halvt de første 24 timer fra torrentens oprettelse hos trackeren (med 30 minutters buffer). Bagefter tæller ny upload fuldt; tidligere Green-upload tæller stadig halvt. Et mål på ratio 1 kræver derfor ratio 2, hvis al upload sker i Green-perioden. Automatisk stop sker ved målet eller 49 timers aktiv seeding. Pauser tæller ikke med.</p>
+<p class="muted small">Samme Green-regnskab bruges til manuelle downloads og RSS. Afventer trackerens dato, hæves uploadmålet midlertidigt. Freeleech og dobbelt upload vises separat fra uploadkreditten.</p>
+<label>Når ratio eller 49 timer er nået<select id="{{ prefix }}-action"><option value="keep">Stop seeding og behold filerne</option><option value="delete">Slet torrent og downloadede filer automatisk</option></select></label>
+<p class="error" id="{{ prefix }}-delete-notice" hidden>Downloadede filer slettes automatisk, når ratioen eller 49 timers seeding er nået. De kan ikke gendannes fra FjordSeed.</p>
+{%- endmacro %}

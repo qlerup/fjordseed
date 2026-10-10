@@ -18,10 +18,6 @@ from state import atomic
 PREFIX='FjordSeed-'
 
 
-def gate_required(feed):
-    return bool(feed.get('download_from'))
-
-
 def article_timestamp(value):
     """qBittorrent exposes ISO dates; also accept RFC dates from RSS fixtures."""
     if not isinstance(value, str) or not value or len(value) > 100:
@@ -37,7 +33,7 @@ def article_timestamp(value):
 
 
 def date_matches(article, feed):
-    if not gate_required(feed):
+    if not feed.get('download_from'):
         return True
     stamp = article_timestamp(article.get('date'))
     cutoff = article_timestamp(feed['download_from'])
@@ -212,7 +208,7 @@ def sync_rss(feeds,api=call):
             api('rss/addFeed',{'url':entry['url'],'path':name,'refreshInterval':600})
         path=folder_path(entry['folder'])
         path.mkdir(parents=True,exist_ok=True)
-        rule={**rules.get(name,{}),'enabled':entry['enabled'] and not gate_required(entry),'mustContain':'',
+        rule={**rules.get(name,{}),'enabled':False,'mustContain':'',
               'mustNotContain':'','useRegex':False,'smartFilter':False,'ignoreDays':0,'episodeFilter':'',
               'affectedFeeds':[entry['url']],
               'torrentParams':{'save_path':str(path),'use_auto_tmm':False,'stopped':False,'force_start':False,
@@ -221,8 +217,8 @@ def sync_rss(feeds,api=call):
                   'share_limit_action':'RemoveWithContent' if entry['ratio_action']=='delete' else 'Stop'}}
         api('rss/setRule',{'ruleName':name,'ruleDef':json.dumps(rule)})
     active=any(e['enabled'] for e in entries)
-    automatic=any(e['enabled'] and not gate_required(e) for e in entries)
-    api('app/setPreferences',{'json':json.dumps({'rss_processing_enabled':active,'rss_auto_downloading_enabled':automatic,
+    # All RSS additions pass through the same startup policy as manual torrents.
+    api('app/setPreferences',{'json':json.dumps({'rss_processing_enabled':active,'rss_auto_downloading_enabled':False,
         'rss_refresh_interval':10})})
 
 

@@ -60,10 +60,10 @@ def test_sync_controls_native_download_and_clears_old_filters(tmp_path,monkeypat
     monkeypatch.setattr(rss,'folder_path',lambda _:tmp_path)
     rss.sync_rss([entry],api)
     rule=json.loads(next(d['ruleDef'] for p,d in calls if p=='rss/setRule'))
-    assert rule['enabled'] is (not gated)
+    assert rule['enabled'] is False
     assert rule['mustContain']==rule['mustNotContain']==rule['episodeFilter']=='' and rule['ignoreDays']==0
     prefs=json.loads(calls[-1][1]['json'])
-    assert prefs['rss_processing_enabled'] and prefs['rss_auto_downloading_enabled'] is (not gated)
+    assert prefs['rss_processing_enabled'] and prefs['rss_auto_downloading_enabled'] is False
 
 
 @pytest.fixture
@@ -172,3 +172,43 @@ def test_api_date_roundtrip_and_gate_needs_no_tracker_key(tmp_path):
     data['download_from']=None
     assert client.post('/api/rss',headers=headers,json=data).status_code==200
     assert client.get('/api/rss').json['feeds'][0]['download_from'] is None
+
+
+@pytest.mark.parametrize('kind,expected', [('green',4),('expired',2),('unknown',4),('own',2)])
+def test_manual_and_rss_share_exact_start_policy_and_credit(gate,monkeypatch,kind,expected):
+    import green_credit as credit
+    import qbit_rpc
+    invoke,rss_calls,_,_,_,_=gate
+    ident=f'{4:040x}';now=time.time()
+    policy={'known':True,'has_date':True,'until':now+3600}
+    if kind=='expired':policy['until']=now-3600
+    elif kind=='unknown':policy={'known':False,'until':None}
+    elif kind=='own':policy['until']=None
+    credit.POLICIES.write_text(json.dumps({'_enabled':True,ident:policy}))
+    candidate=invoke('rss_prepare');resolve(invoke,candidate)
+    rss_options=next(d for p,d in rss_calls if p=='torrents/add')
+    manual_calls=[]
+    def api(path,data=None,files=None):
+        manual_calls.append((path,data));return Mock(json=lambda:{'current_network_interface':'tun0','upnp':False},text='Ok.')
+    monkeypatch.setattr(qbit_rpc,'call',api)
+    qbit_rpc.execute('add',{'magnet':'magnet:?xt=urn:btih:'+ident+'&dn=Linux','ratio_limit':2,'ratio_action':'keep'})
+    manual_options=next(d for p,d in manual_calls if p=='torrents/add')
+    for key in ('ratioLimit','seedingTimeLimit','inactiveSeedingTimeLimit','shareLimitAction','forceStart','stopped'):
+        assert rss_options[key]==manual_options[key]
+    assert rss_options['ratioLimit']==expected
+    with credit.CreditLedger().transaction() as ledger:
+        result=ledger.update({'hash':ident,'uploaded':1000,'downloaded':1000,'ratio':1,
+                              'added_on':now,'ratio_limit':expected},now=now+1)
+    assert result['ratio_limit']==2 and result['credited_ratio']==(.5 if kind in ('green','unknown') else 1)
+
+
+def test_all_posts_follow_date_lookup_without_browser(tmp_path):
+    app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
+    data=feed(download_from=None);data.pop('id');app.extensions['rss'].save(data)
+    state=app.extensions['state'];state.save('b'*32,True);runtime=app.extensions['runtime']
+    meta={'hashes':['c'*40],'name':'Linux'}
+    runtime.rpc.side_effect=[{'token':'candidate','meta':meta},{'ok':True}]
+    benefits=Mock()
+    worker=rss_gate.RssGate(app.extensions['rss'],runtime,state,benefits);worker.tick()
+    benefits.snapshot.assert_called_once_with(meta)
+    assert runtime.rpc.call_args_list[-1].args[0]=='rss_resolve'

@@ -8,7 +8,7 @@ import re
 import sys
 
 import requests
-from green_credit import CreditLedger
+from green_credit import CreditLedger, initial_ratio_limit
 
 BASE = 'http://127.0.0.1:8080/api/v2/'
 SEEDING_BASE_HOURS = 48
@@ -146,14 +146,10 @@ def execute(action, data):
             meta=magnet_meta(data['magnet']) if data.get('magnet') else torrent_meta(base64.b64decode(data['torrent'],validate=True))
         except ValueError:
             meta={'hashes':[]}
-        with CreditLedger().transaction() as ledger:
-            ledger.register(meta['hashes'],seed_ratio(policy['ratio_limit']))
-            pending=ledger.policies.get('_enabled',False)
-        options = {'savepath':'/downloads', 'stopped':'false', 'forceStart':'false', 'ratioLimit':seed_ratio(policy['ratio_limit']),
+        options = {'savepath':'/downloads', 'stopped':'false', 'forceStart':'false',
+                   'ratioLimit':initial_ratio_limit(meta['hashes'],seed_ratio(policy['ratio_limit'])),
                    'seedingTimeLimit':SEEDING_MINUTES, 'inactiveSeedingTimeLimit':-1,
                    'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] == 'delete' else 'Stop'}
-        if pending:
-            options['ratioLimit']*=2
         if data.get('magnet'):
             response = call('torrents/add', {**options, 'urls':data['magnet']})
         else:

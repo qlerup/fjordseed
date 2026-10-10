@@ -46,7 +46,7 @@ def test_native_rule_has_folder_tag_policy_and_preserves_history(tmp_path,monkey
     rss.sync_rss([entry],api)
     prefs=[json.loads(data['json']) for path,data in calls if path=='app/setPreferences']
     assert prefs[0]['rss_auto_downloading_enabled'] is False
-    assert prefs[-1]['rss_auto_downloading_enabled'] is True
+    assert prefs[-1]['rss_auto_downloading_enabled'] is False
     rule=json.loads(next(data['ruleDef'] for path,data in calls if path=='rss/setRule'))
     params=rule['torrentParams']
     assert params['force_start'] is False

@@ -17,7 +17,7 @@ from runtime import Runtime
 from qbit_rpc import share_policy
 from trackers import Trackers
 from torrent_meta import torrent_meta, magnet_meta
-from rss import Rss,write_snapshot,gate_required
+from rss import Rss,write_snapshot
 from rss_gate import RssGate
 from benefits import ratio_estimate
 from state import State, atomic
@@ -40,7 +40,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     trackers = Trackers(state.root)
     trackers.benefits.publish_green()
     rss = Rss(state.root)
-    rss_gate = RssGate(rss,runtime,state)
+    rss_gate = RssGate(rss,runtime,state,trackers.benefits)
     app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers, rss=rss)
     failures, auth_lock = {}, threading.Lock()
     allowed_hosts = {'localhost','127.0.0.1'} | set(filter(None, os.environ.get('UI_ALLOWED_HOSTS','').split(',')))
@@ -203,8 +203,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     def rss_status():
         result=rss.public()
         for feed in result['feeds']:
-            if gate_required(feed):
-                feed['download_status']=rss_gate.reports.get(feed['id'],'Afventer feedposter fra den valgte startdato.')
+            feed['download_status']=rss_gate.reports.get(feed['id'],'Afventer feedposter.')
         return jsonify({**result,'download_path':str(getattr(runtime,'host_downloads','/downloads'))})
 
     @app.post('/api/rss')

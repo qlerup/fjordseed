@@ -10,6 +10,8 @@ code+=source[source.index('function size(n)'):source.index('function benefitView
 torrents=[{'hash':str(i)*40,'name':('Very.long.torrent.name.'*8 if i==1 else 'Linux ISO '+str(i)),
            'state':'stalledUP','progress':1,'size':1024**3,'uploaded':1024**2,
            'ratio':.25,'ratio_limit':1,'seeding_time':3600,'seeding_time_limit':2940,
+           'green_active':True,'green_until':1791633600,'green_uploaded':1024**2,
+           'credited_uploaded':512*1024,'credited_ratio':.125,
            'rss_feed':'Feed' if i==3 else None,'added_on':i} for i in [1,2,3]]
 with sync_playwright() as p:
  browser=p.chromium.launch()
@@ -37,6 +39,10 @@ with sync_playwright() as p:
   expect(button).to_have_attribute('aria-expanded','true');expect(button).to_be_focused()
   rss=page.locator('#rss-torrent-list .torrent-toggle');rss.click()
   expect(page.locator('.torrent-extra:visible')).to_have_count(2)
+  manual_details=page.locator('#torrent-list .torrent').first.locator('.torrent-details')
+  rss_details=page.locator('#rss-torrent-list .torrent-details')
+  expect(rss_details).to_contain_text('Green:')
+  assert manual_details.inner_text()==rss_details.inner_text()
   button.click();expect(page.locator('.torrent-extra:visible')).to_have_count(1)
   assert row.locator('.torrent-summary').evaluate("e=>e.parentElement.classList.contains('torrent-head')")
   title_button=row.locator('.torrent-title-toggle')

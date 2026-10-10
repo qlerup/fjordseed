@@ -12,11 +12,11 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import requests
 
-from rss import PREFIX, validate_feed, folder_path, gate_required, date_matches
+from rss import PREFIX, validate_feed, folder_path, date_matches
 from state import atomic
 from torrent_meta import magnet_meta, torrent_meta
 from qbit_rpc import seed_ratio, SEEDING_MINUTES
-from green_credit import CreditLedger
+from green_credit import initial_ratio_limit
 
 
 def fingerprint(feed):
@@ -64,7 +64,7 @@ def gate_rpc(action,data,api,root=Path('/config')):
     if not source or fingerprint(source)!=data.get('revision'):
         raise ValueError('Feed changed')
     feed={**validate_feed(source),'id':ident}
-    if not feed['enabled'] or not gate_required(feed):
+    if not feed['enabled']:
         raise ValueError('Download gate inactive')
     name=PREFIX+ident
     rule=api('rss/rules').json().get(name)
@@ -126,18 +126,12 @@ def gate_rpc(action,data,api,root=Path('/config')):
         history['done']=list(dict.fromkeys([*history['done'],*keys]))
         atomic(history_path,json.dumps(history))
         if not already_added:
-            with CreditLedger().transaction() as ledger:
-                ledger.register(hashes,seed_ratio(feed['ratio_limit']))
-                green_policy=ledger.entries[hashes[0]]['policy']
-                green_enabled=ledger.policies.get('_enabled',False)
             path=folder_path(feed['folder'])
             path.mkdir(parents=True,exist_ok=True)
             options={'savepath':str(path),'stopped':'false','forceStart':'false','autoTMM':'false',
-                     'tags':'FjordSeed-RSS-'+ident,'ratioLimit':seed_ratio(feed['ratio_limit']),
+                     'tags':'FjordSeed-RSS-'+ident,'ratioLimit':initial_ratio_limit(hashes,seed_ratio(feed['ratio_limit'])),
                      'seedingTimeLimit':SEEDING_MINUTES,'inactiveSeedingTimeLimit':-1,
                      'shareLimitAction':'RemoveWithContent' if feed['ratio_action']=='delete' else 'Stop'}
-            if green_enabled and ((green_policy.get('until') or 0)>now or not green_policy.get('known') or not green_policy.get('has_date')):
-                options['ratioLimit']*=2
             payload=pending['payload']
             if payload.get('magnet'):
                 response=api('torrents/add',{**options,'urls':payload['magnet']})
@@ -162,23 +156,28 @@ def gate_rpc(action,data,api,root=Path('/config')):
 
 
 class RssGate:
-    def __init__(self,rss,runtime,state):
+    def __init__(self,rss,runtime,state,benefits=None):
         self.rss,self.runtime,self.state=rss,runtime,state
+        self.benefits=benefits
         self.reports={}
 
     def tick(self):
         with self.rss.lock:
             entries=self.rss.entries()
         for feed in entries:
-            if not feed['enabled'] or not gate_required(feed):
+            if not feed['enabled']:
                 continue
             try:
                 if not self.state.get()['enabled']:
                     continue
                 candidate=self.runtime.rpc('rss_prepare',{'feed_id':feed['id'],'revision':fingerprint(feed)})
                 if not candidate:
-                    self.reports[feed['id']]='Afventer nye feedposter fra den valgte startdato. Poster uden dato springes over.'
+                    self.reports[feed['id']]=('Afventer nye feedposter fra den valgte startdato. Poster uden dato springes over.'
+                                             if feed.get('download_from') else 'Afventer nye feedposter.')
                     continue
+                # Same asynchronous exact-hash/date lookup as manual addition.
+                if self.benefits is not None:
+                    self.benefits.snapshot(candidate['meta'])
                 # Serialize with edits and connection changes. Recheck immediately before add.
                 with self.state.lock, self.rss.lock:
                     current=next((e for e in self.rss.entries() if e['id']==feed['id']),None)

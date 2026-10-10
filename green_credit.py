@@ -46,6 +46,18 @@ def green_safety_factor():
     return 2 if read(POLICIES, {}).get('_enabled') else 1
 
 
+def initial_ratio_limit(hashes, target, now=None):
+    """Shared manual/RSS startup policy before any payload can download."""
+    now=time.time() if now is None else now
+    with CreditLedger().transaction() as ledger:
+        ledger.register(hashes,target)
+        policies=[ledger.policies.get(h,ledger.entries[h]['policy']) for h in hashes]
+        pending=ledger.policies.get('_enabled',False) and (
+            not policies or any(not p.get('known') or p.get('has_date') is False for p in policies))
+        green=any(number(p.get('until'))>now for p in policies)
+    return target * (2 if green or pending else 1)
+
+
 def number(value):
     return max(0, value) if type(value) in (int, float) and math.isfinite(value) else 0
 
