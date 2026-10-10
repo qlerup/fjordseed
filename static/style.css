@@ -43,6 +43,8 @@
 
 .torrent-title-toggle{display:flex;align-items:center;gap:10px;width:100%;min-width:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;font-weight:700;text-align:left;border-radius:3px}
 .torrent-title-toggle:hover{color:var(--green)}.torrent-name{min-width:0;overflow-wrap:anywhere}
+.rss-feed-card .tracker-card-heading{gap:12px;align-items:center}.rss-feed-card .tracker-card-heading h3{min-width:0;flex:1}.rss-heading-controls{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:10px}.rss-feed-details{margin-top:12px}.rss-feed-details p{overflow-wrap:anywhere}
+@media(max-width:650px){.rss-feed-card .tracker-card-heading{align-items:flex-start;flex-direction:column}.rss-heading-controls{justify-content:flex-start}.rss-feed-card .torrent-toggle{padding:8px 10px}}
 .torrent-chevron{width:8px;height:8px;flex-shrink:0;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .18s ease,border-color .18s ease}
 .torrent-title-toggle[aria-expanded=true] .torrent-chevron{transform:rotate(45deg);border-color:var(--green)}.torrent-title-toggle:hover .torrent-chevron{border-color:var(--green)}
 @media(prefers-reduced-motion:reduce){.torrent-chevron{transition:none}}
