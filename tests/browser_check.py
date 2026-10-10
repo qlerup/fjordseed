@@ -77,6 +77,8 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#rss-save').click()
             expect(page.locator('#rss-feed-list')).to_contain_text('Linux feed')
             expect(page.locator('#rss-feed-list')).to_contain_text('Stop-ratio: 3')
+            expect(page.locator('#shared-download-count')).to_have_text('2 / 8')
+            expect(page.locator('#shared-queue-breakdown')).to_have_text('1 RSS · 1 manuelle aktive')
             page.evaluate('refresh()')
             expect(page.locator('#rss-torrent-list')).to_contain_text('RSS Linux release')
             expect(page.locator('#rss-torrent-list .progress')).to_have_js_property('value',.6)
@@ -118,6 +120,9 @@ with tempfile.TemporaryDirectory() as folder:
             assert page.locator('#rss-badge-options, #rss-include, #rss-max-size, #rss-min-leechers').count()==0
             page.locator('#rss-name').fill('Dated feed')
             page.locator('#rss-url').fill('https://nordicbytes.org/rss?key=fixture-only')
+            page.locator('[name=rss-badge][value=freeleech]').check()
+            page.locator('[name=rss-badge][value=double_upload]').check()
+            expect(page.locator('#rss-tracker')).to_have_value(app.extensions['trackers'].entries()[0]['id'])
             page.locator('#rss-start').select_option('3')
             start=page.locator('#rss-start-date').input_value()
             page.screenshot(path=str(root/'test-results/desktop-rss-modal.png'))
@@ -129,9 +134,12 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#rss-dialog')).not_to_be_visible()
             dated_card=page.locator('#rss-feed-list .tracker-card').filter(has_text='Dated feed')
             expect(dated_card).to_contain_text('Hent fra:')
+            expect(dated_card).to_contain_text('Kræver alle: 100 % Freeleech + Double upload')
             dated_card.get_by_role('button',name='Rediger').click()
             expect(page.locator('#rss-start')).to_have_value('custom')
             expect(page.locator('#rss-start-date')).to_have_value(start)
+            expect(page.locator('[name=rss-badge][value=freeleech]')).to_be_checked()
+            expect(page.locator('[name=rss-badge][value=double_upload]')).to_be_checked()
             page.locator('#rss-cancel').click()
             app.extensions['trackers'].refresh()
             page.set_viewport_size({'width':1440,'height':1000})
@@ -144,6 +152,11 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('.nav[href="#torrents"]').click()
             expect(page.locator('#tracker-overview')).to_be_visible()
             expect(page.locator('#tracker-account-list')).to_contain_text('10,00 GiB')
+            # Seed a complete frozen display snapshot, independent of periodic refresh timing.
+            app.extensions['trackers'].benefits.remember({'hashes':['b'*40],'name':'Test Linux ISO'},
+                {'status':'matched','matches':[{'tracker_id':app.extensions['trackers'].entries()[0]['id'],
+                    'tracker_name':'Min NordicBytes-konto','tracker_provider':'nordicbytes',
+                    'created_at':None,'freeleech':0,'double_upload':False}]})
             preview_match={'tracker_id':app.extensions['trackers'].entries()[0]['id'],
                 'tracker_name':'Min NordicBytes-konto','size':15*1024**3,'freeleech':100,
                 'double_upload':True,'featured':False,'internal':False,'refundable':False}

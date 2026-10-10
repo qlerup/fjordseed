@@ -23,6 +23,20 @@ def fingerprint(feed):
     return hashlib.sha256(json.dumps(feed,sort_keys=True).encode()).hexdigest()
 
 
+def badges_match(result,feed,now=None):
+    """Every selected badge must be verified on the same exact-hash tracker match."""
+    badges=feed.get('required_badges',[])
+    if not badges:
+        return True
+    now=time.time() if now is None else now
+    stamp=result.get('checked_at')
+    if result.get('status')!='matched' or type(stamp) not in (int,float) or not 0<=now-stamp<30:
+        return False
+    return any(m.get('tracker_id')==feed['tracker_id'] and all(
+        type(m.get(b)) in (int,float) and m[b]==100 if b=='freeleech' else m.get(b) is True
+        for b in badges) for m in result.get('matches',[]))
+
+
 def read_json(path, default):
     return json.loads(path.read_text()) if path.exists() else default
 
@@ -114,6 +128,8 @@ def gate_rpc(action,data,api,root=Path('/config')):
     if action!='rss_resolve' or not pending or pending['token']!=data.get('token'):
         raise ValueError('Candidate expired')
     if data.get('approved') is True:
+        if not badges_match(data.get('benefits',{}),feed):
+            raise ValueError('Selected badges not verified')
         if not date_matches(pending,feed):
             raise ValueError('Article predates feed start or has no date')
         hashes=pending['meta']['hashes']
@@ -170,23 +186,48 @@ class RssGate:
             try:
                 if not self.state.get()['enabled']:
                     continue
+                required=bool(feed.get('required_badges'))
+                trackers=self.benefits.trackers if self.benefits is not None else None
+                tracker=None
+                if required:
+                    if trackers is None or not trackers.badge_ready(feed['tracker_id']):
+                        self.reports[feed['id']]='Afventer aktiv tracker-API. Valgte badges skal bekræftes før download.'
+                        continue
+                    with trackers.lock:
+                        tracker=next((e for e in trackers.entries() if e['id']==feed['tracker_id']),None)
                 candidate=self.runtime.rpc('rss_prepare',{'feed_id':feed['id'],'revision':fingerprint(feed)})
                 if not candidate:
                     self.reports[feed['id']]=('Afventer nye feedposter fra den valgte startdato. Poster uden dato springes over.'
                                              if feed.get('download_from') else 'Afventer nye feedposter.')
                     continue
-                # Same asynchronous exact-hash/date lookup as manual addition.
-                if self.benefits is not None:
+                result={}
+                if required:
+                    # Fresh request rather than the frozen display snapshot.
+                    result=self.benefits.request(candidate['meta'],feed['tracker_id'],priority=1,max_age=30)
+                    if result.get('status')=='pending':
+                        self.reports[feed['id']]='Kontrollerer de valgte badges hos trackeren…'
+                        continue
+                elif self.benefits is not None:
                     self.benefits.snapshot(candidate['meta'])
+                approved=badges_match(result,feed)
                 # Serialize with edits and connection changes. Recheck immediately before add.
                 with self.state.lock, self.rss.lock:
                     current=next((e for e in self.rss.entries() if e['id']==feed['id']),None)
                     if current!=feed or not self.state.get()['enabled']:
                         continue
-                    self.runtime.rpc('rss_resolve',{'feed_id':feed['id'],'revision':fingerprint(feed),
-                        'token':candidate['token'],'hashes':candidate['meta']['hashes'],
-                        'approved':True})
-                self.reports[feed['id']]='Feedpost fra den valgte startdato tilføjet.'
+                    if required:
+                        with trackers.lock:
+                            if tracker not in trackers.entries() or not trackers.badge_ready(feed['tracker_id']):
+                                continue
+                            if approved:
+                                self.benefits.remember(candidate['meta'],result)
+                            self.runtime.rpc('rss_resolve',{'feed_id':feed['id'],'revision':fingerprint(feed),
+                                'token':candidate['token'],'hashes':candidate['meta']['hashes'],
+                                'approved':approved,'benefits':result})
+                    else:
+                        self.runtime.rpc('rss_resolve',{'feed_id':feed['id'],'revision':fingerprint(feed),
+                            'token':candidate['token'],'hashes':candidate['meta']['hashes'],'approved':True})
+                self.reports[feed['id']]='Feedpost tilføjet.' if approved else 'Valgte badges er ikke alle bekræftet. Torrenten springes over og kontrolleres igen senere.'
             except Exception:
                 self.reports[feed['id']]='Afventer VPN eller feedsynkronisering.'
 

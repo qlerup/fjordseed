@@ -140,6 +140,14 @@ function card(t){const row=node('article','torrent'),head=node('div','torrent-he
  row.append(head,torrentProgress(t),panel);updateExpanded();return row;}
 function eta(seconds){if(!Number.isFinite(Number(seconds))||Number(seconds)<0||Number(seconds)>=8640000)return 'Ukendt tid tilbage';seconds=Math.round(seconds);if(seconds<60)return seconds+' sek. tilbage';if(seconds<3600)return Math.ceil(seconds/60)+' min. tilbage';return Math.floor(seconds/3600)+' t. '+Math.ceil((seconds%3600)/60)+' min. tilbage';}
 function renderDownloadLists(data){
+ const queue=data.download_queue||{active:data.torrents.filter(t=>['downloading','stalledDL','forcedDL','metaDL','forcedMetaDL'].includes(t.state)).length,
+  waiting:data.torrents.filter(t=>t.state==='queuedDL').length,limit:8};
+ if($('#shared-download-count')){
+  $('#shared-download-count').textContent=queue.active+' / '+queue.limit;
+  $('#shared-queue-count').textContent=queue.waiting+' i kø';
+  const rssActive=queue.rss_active??data.torrents.filter(t=>t.rss_feed&&['downloading','stalledDL','forcedDL','metaDL','forcedMetaDL'].includes(t.state)).length;
+  $('#shared-queue-breakdown').textContent=rssActive+' RSS · '+(queue.manual_active??queue.active-rssActive)+' manuelle aktive';
+ }
  const focusedToggle=typeof document!=='undefined'?document.activeElement?.dataset?.torrentToggle:undefined;
  const focusedControl=typeof document!=='undefined'?document.activeElement?.dataset?.torrentToggleControl:undefined;
  const newestFirst=data.torrents.slice().sort((a,b)=>(Number(b.added_on)||0)-(Number(a.added_on)||0));
@@ -202,6 +210,7 @@ $('#delete-form').onsubmit=async e=>{e.preventDefault();$('#delete-save').disabl
 function showView(focus=false){
  const view=location.hash==='#connection'?'connection':location.hash==='#trackers'?'trackers':location.hash==='#rss'?'rss':'torrents';
  const vpn=view==='connection',trackers=view==='trackers',rss=view==='rss';
+ $('#download-queue').hidden=vpn||trackers;
  $('#connection').hidden=!vpn;$('#downloads-view').hidden=vpn||trackers||rss;$('#trackers-view').hidden=!trackers;$('#new-torrent').hidden=vpn||trackers||rss;$('#traffic-flow').hidden=trackers;$('#rss-view').hidden=!rss;
  $('#breadcrumb').textContent='Seedbox / '+(vpn?'VPN-forbindelse':trackers?'Trackere':rss?'RSS-feeds':'Downloads');
  $('#page-title').textContent=vpn?'Din VPN-forbindelse':trackers?'Dine trackere':rss?'Dine RSS-feeds':'Manuelle downloads';

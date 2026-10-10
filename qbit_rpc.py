@@ -23,6 +23,32 @@ DOWNLOAD_QUEUE_PREFERENCES = {
     'max_active_torrents': -1,
     'dont_count_slow_torrents': False,
 }
+ACTIVE_DOWNLOAD_STATES={'downloading','stalledDL','forcedDL','metaDL','forcedMetaDL'}
+WAITING_DOWNLOAD_STATES={'queuedDL'}
+
+
+def rss_download(row):
+    return any(tag.strip().startswith('FjordSeed-RSS-') for tag in str(row.get('tags','')).split(','))
+
+
+def download_queue_summary(rows):
+    active=[r for r in rows if r.get('state') in ACTIVE_DOWNLOAD_STATES]
+    waiting=[r for r in rows if r.get('state') in WAITING_DOWNLOAD_STATES]
+    return {'active':len(active),'limit':MAX_ACTIVE_DOWNLOADS,'waiting':len(waiting),
+            'rss_active':sum(rss_download(r) for r in active),'manual_active':sum(not rss_download(r) for r in active)}
+
+
+def prioritize_rss_downloads(api,rows):
+    """Stable RSS-first native queue; never start paused torrents or force downloads."""
+    eligible=[r for r in rows if r.get('state') in ACTIVE_DOWNLOAD_STATES|WAITING_DOWNLOAD_STATES
+              and type(r.get('priority')) is int and r['priority']>=0]
+    ordered=sorted(eligible,key=lambda r:r['priority'])
+    rss=[r for r in ordered if rss_download(r)]
+    manual=[r for r in ordered if not rss_download(r)]
+    if rss and manual and rss[-1]['priority']>manual[0]['priority']:
+        # Move individually in reverse order: preserves order within RSS.
+        for row in reversed(rss):
+            api('torrents/topPrio',{'hashes':row['hash']})
 
 
 def sync_download_queue(prefs=None, api=None):
@@ -73,6 +99,7 @@ def sync_share_limits(api=None):
     with CreditLedger().transaction() as ledger:
         rows=api('torrents/info').json()
         normalize_forced_downloads(api, rows)
+        prioritize_rss_downloads(api,rows)
         for row in rows:
             credit=ledger.update(row)
             apply_limits(api,row,credit['native_ratio_limit'])
@@ -127,16 +154,17 @@ def execute(action, data):
     if action == 'status':
         fields = ('hash','name','size','progress','dlspeed','upspeed','state','ratio','num_seeds','num_leechs','eta',
                   'ratio_limit','share_limit_action','infohash_v1','infohash_v2','completed','tags',
-                  'seeding_time','seeding_time_limit','uploaded','downloaded','added_on')
+                  'seeding_time','seeding_time_limit','uploaded','downloaded','added_on','priority')
         torrents=[]
         with CreditLedger().transaction() as ledger:
-            rows = call('torrents/info?limit=500').json()
+            rows = call('torrents/info').json()
             for row in rows:
                 credit=ledger.update(row)
                 apply_limits(call,row,credit['native_ratio_limit'])
                 torrents.append({**{k:row.get(k) for k in fields},**credit,
                     'seeding_time_limit':SEEDING_MINUTES,**stop_requirement({**row,**credit})})
         return {'torrents':torrents,
+                'download_queue':download_queue_summary(rows),
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
                 'interface':prefs['current_network_interface'], 'version':call('app/version').text}
     if action == 'add':

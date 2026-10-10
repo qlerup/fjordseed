@@ -16,6 +16,7 @@ from qbit_rpc import share_policy, call, seed_ratio, SEEDING_MINUTES
 from state import atomic
 
 PREFIX='FjordSeed-'
+BADGES=('freeleech','double_upload','featured','internal','refundable')
 
 
 def article_timestamp(value):
@@ -90,12 +91,19 @@ def validate_feed(data):
         start=None
     folder=data.get('folder','')
     folder_path(folder)
+    badges=data.get('required_badges',[])
+    tracker=data.get('tracker_id','')
+    if not isinstance(badges,list) or any(not isinstance(b,str) or b not in BADGES for b in badges) or len(badges)>len(BADGES):
+        raise ValueError('Vælg gyldige badges til feedet.')
+    if not isinstance(tracker,str) or (tracker and not re.fullmatch('[a-f0-9]{32}',tracker)) or (badges and not tracker):
+        raise ValueError('Vælg den tracker, der skal bekræfte de valgte badges.')
     policy=share_policy(data)
     if policy['ratio_limit']<0:
         raise ValueError('Vælg en stop-ratio fra 0 til 10000.')
     policy['ratio_limit']=seed_ratio(policy['ratio_limit'])
     return {'name':name.strip(),'url':url,'folder':folder.strip().strip('/'),
-            'enabled':data['enabled'],'download_from':start,**policy}
+            'enabled':data['enabled'],'download_from':start,'required_badges':list(dict.fromkeys(badges)),
+            'tracker_id':tracker if badges else '',**policy}
 
 
 class Rss:
@@ -106,7 +114,7 @@ class Rss:
         self.lock=threading.RLock()
         if not self.path.exists():
             atomic(self.path,'[]')
-        # Retire old local filters; selection now belongs in the tracker's RSS URL.
+        # Retire title/size/leecher filters while preserving optional badge requirements.
         saved=json.loads(self.path.read_text(encoding='utf-8'))
         migrated=[{**validate_feed(e),'id':e['id']} for e in saved]
         if saved != migrated:
@@ -128,6 +136,9 @@ class Rss:
             if ident and not existing:
                 raise ValueError('Feedet findes ikke længere.')
             data={**data}
+            if existing and 'required_badges' not in data:
+                data['required_badges']=existing.get('required_badges',[])
+                data['tracker_id']=existing.get('tracker_id','')
             if not data.get('url') and existing:
                 data['url']=existing['url']
             feed=validate_feed(data)

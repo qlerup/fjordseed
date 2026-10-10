@@ -9,7 +9,7 @@ import time
 sys.path.insert(0,'/checks')
 sys.path.insert(1,'/app')
 from qbit_worker import configure, stop_process
-from qbit_rpc import call, DOWNLOAD_QUEUE_PREFERENCES, sync_download_queue
+from qbit_rpc import call, DOWNLOAD_QUEUE_PREFERENCES, sync_download_queue, prioritize_rss_downloads, download_queue_summary
 
 
 def encode(value):
@@ -57,6 +57,13 @@ try:
         return (len(rows)==12 and len([r for r in incomplete if r['state']=='queuedDL'])==2
             and all(r['progress']==1 and r['state']=='stalledUP' for r in rows if r['hash'] not in pending))
     rows=wait_for(queued,'8 active mixed manual/RSS downloads and 2 queued; 2 seeders stay active')
+    prioritize_rss_downloads(call,rows)
+    def rss_first(rows):
+        downloaders=sorted([r for r in rows if r['hash'] in pending],key=lambda r:r['priority'])
+        return (len(downloaders)==10 and all('FjordSeed-RSS-' in r['tags'] for r in downloaders[:5])
+            and all('FjordSeed-RSS-' not in r['tags'] for r in downloaders[5:])
+            and download_queue_summary(rows)['active']==8)
+    rows=wait_for(rss_first,'stable RSS-first shared queue')
     active=[r for r in rows if r['hash'] in pending and r['state']=='stalledDL']
     assert len(active)==8
     previous_queue={r['hash'] for r in rows if r['state']=='queuedDL'}

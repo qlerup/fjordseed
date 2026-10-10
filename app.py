@@ -17,7 +17,7 @@ from runtime import Runtime
 from qbit_rpc import share_policy
 from trackers import Trackers
 from torrent_meta import torrent_meta, magnet_meta
-from rss import Rss,write_snapshot
+from rss import Rss,write_snapshot,validate_feed
 from rss_gate import RssGate
 from benefits import ratio_estimate
 from state import State, atomic
@@ -211,6 +211,24 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         try:
             data=request.get_json(silent=True)
             with state.lock,rss.lock:
+                current=next((e for e in rss.entries() if isinstance(data,dict) and e['id']==data.get('id')),None)
+                merged={**(current or {}),**data} if isinstance(data,dict) else data
+                if isinstance(merged,dict) and not merged.get('url'):
+                    merged['url']=(current or {}).get('url','')
+                validated=validate_feed(merged)
+                retained_pause=(current and not validated['enabled']
+                    and validated['required_badges']==current.get('required_badges',[])
+                    and validated['tracker_id']==current.get('tracker_id',''))
+                if validated['required_badges'] and not retained_pause:
+                    from urllib.parse import urlsplit
+                    with trackers.lock:
+                        tracker=next((e for e in trackers.entries() if e['id']==validated['tracker_id']),None)
+                        if not tracker or tracker['provider']!='nordicbytes':
+                            raise ValueError('Vælg en NordicBytes-tracker til badgekontrol.')
+                        if urlsplit(validated['url']).hostname not in ('nordicbytes.org','www.nordicbytes.org'):
+                            raise ValueError('Badgekontrol understøttes aktuelt for NordicBytes-feeds.')
+                        if validated['enabled'] and not trackers.badge_ready(tracker['id']):
+                            raise ValueError('Trackerens API-adgang skal være aktiv, før feedet kan startes med badgekrav.')
                 ident=rss.save(data)
                 sync_feed_changes()
                 return {'ok':True,'id':ident}

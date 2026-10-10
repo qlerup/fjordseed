@@ -46,3 +46,7 @@
 .torrent-chevron{width:8px;height:8px;flex-shrink:0;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-45deg);transition:transform .18s ease,border-color .18s ease}
 .torrent-title-toggle[aria-expanded=true] .torrent-chevron{transform:rotate(45deg);border-color:var(--green)}.torrent-title-toggle:hover .torrent-chevron{border-color:var(--green)}
 @media(prefers-reduced-motion:reduce){.torrent-chevron{transition:none}}
+
+.rss-badges{border:0;padding:0;margin:18px 0 8px;display:flex;flex-wrap:wrap;gap:8px}.rss-badges legend{font-size:12px;font-weight:600;margin-bottom:10px}.rss-badges .check-label{margin:0!important;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);cursor:pointer}.rss-badges .check-label:has(input:checked){border-color:var(--green);background:#19332f}
+
+.shared-download-queue{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:24px}.shared-download-queue>div:first-child{display:flex;flex-direction:column}.shared-download-queue #shared-download-count{font-size:26px;color:var(--green)}.shared-download-queue>div:last-child{max-width:360px}@media(max-width:520px){.shared-download-queue{align-items:flex-start;flex-direction:column}}

@@ -46,7 +46,8 @@ def test_old_filters_migrate_without_changing_url_history_or_seeding(tmp_path):
     store=rss.Rss(tmp_path,tmp_path/'downloads')
     entry=store.entries()[0]
     assert entry['download_from'] is None and entry['url']==old['url'] and entry['ratio_limit']==2
-    assert not {'include','max_size_gb','required_badges','min_leechers','tracker_id'} & entry.keys()
+    assert not {'include','max_size_gb','min_leechers'} & entry.keys()
+    assert entry['required_badges']==['freeleech'] and entry['tracker_id']=='b'*32
     assert json.loads(history.read_text())=={'done':['old']}
     assert json.loads((tmp_path/'rss.json').read_text())==[entry]
 
