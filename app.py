@@ -17,7 +17,7 @@ from runtime import Runtime
 from qbit_rpc import share_policy
 from trackers import Trackers
 from torrent_meta import torrent_meta, magnet_meta
-from rss import Rss,validate_feed,write_snapshot,tracker_required,gate_required
+from rss import Rss,write_snapshot,gate_required
 from rss_gate import RssGate
 from benefits import ratio_estimate
 from state import State, atomic
@@ -40,7 +40,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     trackers = Trackers(state.root)
     trackers.benefits.publish_green()
     rss = Rss(state.root)
-    rss_gate = RssGate(rss,runtime,trackers,state)
+    rss_gate = RssGate(rss,runtime,state)
     app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers, rss=rss)
     failures, auth_lock = {}, threading.Lock()
     allowed_hosts = {'localhost','127.0.0.1'} | set(filter(None, os.environ.get('UI_ALLOWED_HOSTS','').split(',')))
@@ -204,7 +204,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         result=rss.public()
         for feed in result['feeds']:
             if gate_required(feed):
-                feed['badge_status']=rss_gate.reports.get(feed['id'],'Afventer kontrol af downloadkrav f\u00f8r download.')
+                feed['download_status']=rss_gate.reports.get(feed['id'],'Afventer feedposter fra den valgte startdato.')
         return jsonify({**result,'download_path':str(getattr(runtime,'host_downloads','/downloads'))})
 
     @app.post('/api/rss')
@@ -212,22 +212,6 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         try:
             data=request.get_json(silent=True)
             with state.lock,rss.lock:
-                # Validate first, preserving the private URL on edits.
-                current=next((e for e in rss.entries() if isinstance(data,dict) and e['id']==data.get('id')),None)
-                validated=validate_feed({**data,'url':data.get('url') or (current or {}).get('url','')}) if isinstance(data,dict) else validate_feed(data)
-                retained_pause=(current and not validated['enabled'] and validated['required_badges']==current.get('required_badges')
-                                and validated['min_leechers']==current.get('min_leechers',0)
-                                and validated['tracker_id']==current.get('tracker_id'))
-                if tracker_required(validated) and not retained_pause:
-                    from urllib.parse import urlsplit
-                    with trackers.lock:
-                        tracker=next((e for e in trackers.entries() if e['id']==validated['tracker_id']),None)
-                    if not tracker or tracker['provider']!='nordicbytes':
-                        raise ValueError('Tilføj og vælg en NordicBytes-tracker for at kontrollere downloadkrav.')
-                    if validated['enabled'] and not trackers.badge_ready(tracker['id']):
-                        raise ValueError('Trackerens API-nøgle skal være bekræftet aktiv, før downloadkrav kan bruges til automatisk download.')
-                    if urlsplit(validated['url']).hostname not in ('nordicbytes.org','www.nordicbytes.org'):
-                        raise ValueError('Trackerbaserede downloadkrav understøttes indtil videre kun for NordicBytes-feeds.')
                 ident=rss.save(data)
                 sync_feed_changes()
                 return {'ok':True,'id':ident}

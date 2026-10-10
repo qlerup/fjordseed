@@ -36,7 +36,7 @@ try:
     server=HTTPServer(('127.0.0.1',0),FeedHandler)
     threading.Thread(target=server.serve_forever,daemon=True).start()
     entry=dict(id='a'*32,name='Fixture',url='https://nordicbytes.org/rss',enabled=True,folder='',include='Linux',
-               ratio_limit=2,ratio_action='keep',required_badges=[],min_leechers=50,tracker_id='b'*32)
+               ratio_limit=2,ratio_action='keep',download_from='2026-01-01T00:00:00Z')
     sync_rss([entry])
     name=PREFIX+entry['id']
     rule=call('rss/rules').json()[name]

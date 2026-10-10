@@ -1,5 +1,6 @@
 """Persist RSS rules and apply them inside qBittorrent's VPN namespace."""
-from decimal import Decimal, InvalidOperation
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import ipaddress
 import json
 from green_credit import green_safety_factor
@@ -15,23 +16,32 @@ from qbit_rpc import share_policy, call, seed_ratio, SEEDING_MINUTES
 from state import atomic
 
 PREFIX='FjordSeed-'
-BADGES=('freeleech','double_upload','featured','internal','refundable')
-
-
-def tracker_required(feed):
-    return bool(feed.get('required_badges') or feed.get('min_leechers',0)>0)
 
 
 def gate_required(feed):
-    return tracker_required(feed) or feed.get('max_size_gb', 0) > 0
+    return bool(feed.get('download_from'))
 
 
-def size_matches(meta, feed):
-    maximum = feed.get('max_size_gb', 0)
-    if not maximum:
+def article_timestamp(value):
+    """qBittorrent exposes ISO dates; also accept RFC dates from RSS fixtures."""
+    if not isinstance(value, str) or not value or len(value) > 100:
+        return None
+    try:
+        try:
+            date = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except ValueError:
+            date = parsedate_to_datetime(value)
+        return date.timestamp() if date.tzinfo is not None else None
+    except (ValueError, TypeError, OverflowError, OSError):
+        return None
+
+
+def date_matches(article, feed):
+    if not gate_required(feed):
         return True
-    size = meta.get('size')
-    return type(size) is int and size >= 0 and size <= int(Decimal(str(maximum)) * 1024**3)
+    stamp = article_timestamp(article.get('date'))
+    cutoff = article_timestamp(feed['download_from'])
+    return stamp is not None and cutoff is not None and stamp >= cutoff
 
 
 def folder_path(folder, root=Path('/downloads')):
@@ -50,7 +60,6 @@ def validate_feed(data):
         raise ValueError('Ugyldigt RSS-feed.')
     name=data.get('name','')
     url=data.get('url','')
-    include=data.get('include','')
     if not isinstance(name,str) or not 1<=len(name.strip())<=80 or not isinstance(url,str):
         raise ValueError('Indtast et navn og en RSS-adresse.')
     try:
@@ -68,38 +77,29 @@ def validate_feed(data):
         public='.' in host and not host.endswith(('.local','.localhost','.internal'))
     if not public:
         raise ValueError('RSS-adressen skal pege på en offentlig tracker.')
-    if type(data.get('enabled')) is not bool or not isinstance(include,str) or len(include)>200:
-        raise ValueError('Vælg automatisk download og et gyldigt titelfilter.')
+    if type(data.get('enabled')) is not bool:
+        raise ValueError('Vælg automatisk download.')
+    start=data.get('download_from')
+    if start not in (None, ''):
+        if not isinstance(start,str) or len(start)>100:
+            raise ValueError('Vælg en gyldig startdato med tidszone.')
+        try:
+            date=datetime.fromisoformat(start.replace('Z','+00:00'))
+            if date.tzinfo is None:
+                raise ValueError()
+            start=date.astimezone(timezone.utc).isoformat()
+        except (ValueError,OverflowError):
+            raise ValueError('Vælg en gyldig startdato med tidszone.') from None
+    else:
+        start=None
     folder=data.get('folder','')
     folder_path(folder)
     policy=share_policy(data)
-    badges=data.get('required_badges',[])
-    minimum=data.get('min_leechers',0)
-    if isinstance(minimum,str) and re.fullmatch('[0-9]{1,7}',minimum):
-        minimum=int(minimum)
-    if type(minimum) is not int or not 0<=minimum<=1000000:
-        raise ValueError('Minimum antal downloadere skal være et helt tal fra 0 til 1000000.')
-    maximum=data.get('max_size_gb',0)
-    try:
-        if type(maximum) not in (int,float,str):
-            raise ValueError()
-        maximum=Decimal(str(maximum or 0))
-        if not maximum.is_finite() or not 0<=maximum<=1000000:
-            raise ValueError()
-    except (InvalidOperation,ValueError):
-        raise ValueError('Maksimal st\u00f8rrelse skal v\u00e6re et tal fra 0 til 1000000 GB.') from None
-    tracker=data.get('tracker_id','')
-    if (not isinstance(badges,list) or len(badges)>len(BADGES)
-            or any(not isinstance(b,str) or b not in BADGES for b in badges)):
-        raise ValueError('Vælg gyldige badges til feedet.')
-    if not isinstance(tracker,str) or (tracker and not re.fullmatch('[a-f0-9]{32}',tracker)) or ((badges or minimum) and not tracker):
-        raise ValueError('Vælg den tracker, der skal bekræfte dine badgekrav.')
     if policy['ratio_limit']<0:
         raise ValueError('Vælg en stop-ratio fra 0 til 10000.')
     policy['ratio_limit']=seed_ratio(policy['ratio_limit'])
     return {'name':name.strip(),'url':url,'folder':folder.strip().strip('/'),
-            'enabled':data['enabled'],'include':include.strip(),'max_size_gb':float(maximum),
-            'required_badges':list(dict.fromkeys(badges)),'min_leechers':minimum,'tracker_id':tracker,**policy}
+            'enabled':data['enabled'],'download_from':start,**policy}
 
 
 class Rss:
@@ -110,6 +110,11 @@ class Rss:
         self.lock=threading.RLock()
         if not self.path.exists():
             atomic(self.path,'[]')
+        # Retire old local filters; selection now belongs in the tracker's RSS URL.
+        saved=json.loads(self.path.read_text(encoding='utf-8'))
+        migrated=[{**validate_feed(e),'id':e['id']} for e in saved]
+        if saved != migrated:
+            atomic(self.path,json.dumps(migrated))
         self.path.chmod(0o600)
 
     def entries(self):
@@ -207,8 +212,9 @@ def sync_rss(feeds,api=call):
             api('rss/addFeed',{'url':entry['url'],'path':name,'refreshInterval':600})
         path=folder_path(entry['folder'])
         path.mkdir(parents=True,exist_ok=True)
-        rule={**rules.get(name,{}),'enabled':entry['enabled'] and not gate_required(entry),'mustContain':entry['include'],
-              'mustNotContain':'','useRegex':False,'smartFilter':False,'affectedFeeds':[entry['url']],
+        rule={**rules.get(name,{}),'enabled':entry['enabled'] and not gate_required(entry),'mustContain':'',
+              'mustNotContain':'','useRegex':False,'smartFilter':False,'ignoreDays':0,'episodeFilter':'',
+              'affectedFeeds':[entry['url']],
               'torrentParams':{'save_path':str(path),'use_auto_tmm':False,'stopped':False,'force_start':False,
                   'tags':['FjordSeed-RSS-'+entry['id']], 'ratio_limit':entry['ratio_limit'] * green_safety_factor(),
                   'seeding_time_limit':SEEDING_MINUTES,'inactive_seeding_time_limit':-1,
