@@ -37,6 +37,15 @@ førstegangsadgangskoden fra `DATA_DIR/initial-login.txt` (brugernavn `admin`).
   liste af handlinger via Docker exec; der er ingen generel API-proxy.
 
 Panelet viser højst 500 torrents. **Fjern** bevarer altid downloadede filer.
+Manuelle torrents og RSS-downloads viser samme cover i starten af torrentkortet,
+når NordicBytes' API leverer `meta.poster` for det præcise info-hash. Der bruges
+ingen separat metadata- eller titelsøgning og ingen ekstra API-nøgle. Eksisterende
+torrents får et asynkront coveropslag uden ændring af gemte Green-/seeding-data.
+Billeder hentes uden trackerlegitimationsoplysninger fra API'ets godkendte
+billedadresser og serveres lokalt til indloggede brugere. `DATA_DIR/cover-cache`
+er midlertidig: højst 64 MiB, højst 2 MiB pr. billede, genhentning efter 24 timer
+og oprydning af billeder ældre end syv dage. Manglende covers eller API-fejl
+bevarer den normale kortvisning og påvirker ikke downloads.
 Downloadmappen kan deles med andre apps gennem et fælles mount og passende
 filrettigheder. Der ændres ikke rekursivt på ejerskab af eksisterende downloads.
 Forbindelsen fra browser til kontrolpanelet er almindelig lokal webtrafik;

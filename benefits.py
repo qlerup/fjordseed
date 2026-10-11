@@ -10,6 +10,7 @@ import threading
 import time
 from state import atomic
 from green_credit import policy_from_result
+from covers import poster_url
 
 
 def byte_size(value):
@@ -105,6 +106,13 @@ class Benefits:
                 if ident not in self.snapshots or (self.needs_date(self.snapshots[ident]) and self.snapshots[ident]!=result):
                     self.snapshots[ident]=copy.deepcopy(result)
                     changed=True
+                elif result.get('status')=='matched':
+                    # Enrich old snapshots without rewriting frozen Green/accounting data.
+                    posters={m['tracker_id']:m.get('poster') for m in result.get('matches',[]) if 'poster' in m}
+                    for match in self.snapshots[ident].get('matches',[]):
+                        if match.get('tracker_id') in posters and match.get('poster','missing')!=posters[match['tracker_id']]:
+                            match['poster']=posters[match['tracker_id']]
+                            changed=True
                 self.snapshot_pending.discard(ident)
             if changed:
                 atomic(self.snapshot_path,json.dumps(self.snapshots),mode=0o600)
@@ -115,14 +123,17 @@ class Benefits:
         with self.lock:
             saved=next((self.snapshots[h] for h in hashes if h in self.snapshots),None)
             if saved is not None and not self.needs_date(saved):
-                return copy.deepcopy(saved)
+                active={e['id'] for e in self.trackers.entries() if e.get('provider')=='nordicbytes'}
+                if all('poster' in m or m.get('tracker_id') not in active for m in saved.get('matches',[])):
+                    return copy.deepcopy(saved)
         if not str(meta.get('name','')).strip():
             return {'status':'unknown','message':'Afventer torrentoplysninger.'}
         with self.lock:
             self.snapshot_pending.update(hashes)
         result=self.request(meta,priority=1)
         self.remember(meta,result)
-        return result
+        with self.lock:
+            return copy.deepcopy(next((self.snapshots[h] for h in hashes if h in self.snapshots),result))
 
     def request(self, meta, selected='', priority=0, max_age=300):
         hashes=tuple(sorted({h.lower() for h in meta.get('hashes',[]) if isinstance(h,str) and re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',h)}))
@@ -201,6 +212,7 @@ class Benefits:
                             if isinstance(ident,str) and ident.lower() in hashes:
                                 match={'tracker_id':entry['id'],'tracker_name':entry['name'],
                                        'tracker_provider':entry.get('provider','nordicbytes'),'created_at':a.get('created_at'),
+                                       'poster':poster_url(a.get('meta',{}).get('poster')) if isinstance(a.get('meta'),dict) else None,
                                        'size':byte_size(a.get('size')),'leechers':byte_size(a.get('leechers')),**self.flags(a)}
                                 with self.trackers.lock:
                                     username=self.trackers.cache.get(entry['id'],{}).get('username')

@@ -1,6 +1,8 @@
 """Isolated UI test: fake runtime, no Docker or downloads."""
 from pathlib import Path
 import json
+import base64
+import hashlib
 import sys
 import tempfile
 import threading
@@ -30,6 +32,12 @@ root=Path(__file__).resolve().parents[1]
 (root/'test-results').mkdir(exist_ok=True)
 with tempfile.TemporaryDirectory() as folder:
     app=create_app(folder,testing=True,runtime_factory=Demo)
+    poster='https://tmdbc.org/tmdb/t/p/w92/fixture.png'
+    ident=hashlib.sha256(poster.encode()).hexdigest()
+    (app.extensions['covers'].root/(ident+'.img')).write_bytes(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='))
+    for torrent_hash in ('b'*40,'c'*40):
+        app.extensions['trackers'].benefits.remember({'hashes':[torrent_hash]},
+            {'status':'matched','matches':[{'tracker_id':'fixture','created_at':None,'poster':poster}]})
     server=make_server('127.0.0.1',0,app,threaded=True)
     threading.Thread(target=server.serve_forever,daemon=True).start()
     try:
@@ -81,6 +89,8 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#shared-queue-breakdown')).to_have_text('1 RSS · 1 manuelle aktive')
             page.evaluate('refresh()')
             expect(page.locator('#rss-torrent-list')).to_contain_text('RSS Linux release')
+            expect(page.locator('#rss-torrent-list .torrent-cover')).to_be_visible()
+            assert page.locator('#rss-torrent-list .torrent-cover').evaluate('img=>img.complete && img.naturalWidth>0')
             expect(page.locator('#rss-torrent-list .progress')).to_have_js_property('value',.6)
             expect(page.locator('#rss-torrent-list .progress-caption')).to_contain_text('60.0 %')
             expect(page.locator('#rss-torrent-list')).not_to_contain_text('Test Linux ISO')
@@ -96,6 +106,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.set_viewport_size({'width':1440,'height':1000})
             page.locator('.nav[href="#torrents"]').click()
             expect(page.locator('#torrent-list')).to_contain_text('Test Linux ISO')
+            expect(page.locator('#torrent-list .torrent-cover')).to_be_visible()
             expect(page.locator('#torrent-list')).not_to_contain_text('RSS Linux release')
             expect(page.locator('#torrent-list .progress')).to_have_js_property('value',.42)
             page.locator('.nav[href="#trackers"]').click()
@@ -257,6 +268,8 @@ with tempfile.TemporaryDirectory() as folder:
             page.set_viewport_size({'width':390,'height':844})
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
             page.screenshot(path=str(root/'test-results/mobile.png'),full_page=True)
+            expect(page.locator('#torrent-list .torrent-cover')).to_be_visible()
+            assert page.locator('#torrent-list .torrent-cover').evaluate('img=>img.getBoundingClientRect().right<=innerWidth')
             page.locator('.nav[href="#connection"]').click()
             expect(page.locator('#connection')).to_be_visible()
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')

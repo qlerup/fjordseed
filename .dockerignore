@@ -9,6 +9,7 @@
 !qbit_worker.py
 !trackers.py
 !benefits.py
+!covers.py
 !torrent_meta.py
 !rss.py
 !rss_gate.py

@@ -9,7 +9,7 @@ import signal
 import threading
 import time
 
-from flask import Flask, jsonify, redirect, render_template, request, session
+from flask import Flask, jsonify, redirect, render_template, request, session, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from hub import Hub, HubError
@@ -21,6 +21,7 @@ from rss import Rss,write_snapshot,validate_feed
 from rss_gate import RssGate
 from benefits import ratio_estimate
 from state import State, atomic
+from covers import Covers
 
 
 def create_app(root=None, testing=False, runtime_factory=Runtime):
@@ -38,10 +39,11 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     runtime = runtime_factory(state)
     stop = threading.Event()
     trackers = Trackers(state.root)
+    covers = Covers(state.root)
     trackers.benefits.publish_green()
     rss = Rss(state.root)
     rss_gate = RssGate(rss,runtime,state,trackers.benefits)
-    app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers, rss=rss)
+    app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers, rss=rss, covers=covers)
     failures, auth_lock = {}, threading.Lock()
     allowed_hosts = {'localhost','127.0.0.1'} | set(filter(None, os.environ.get('UI_ALLOWED_HOSTS','').split(',')))
 
@@ -82,6 +84,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         response.headers.update({'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
             'X-Frame-Options':'DENY','Referrer-Policy':'same-origin',
             'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'"})
+        if request.endpoint=='cover' and response.status_code==200:
+            response.headers['Cache-Control']='private, max-age=3600'
         return response
 
     @app.errorhandler(413)
@@ -160,7 +164,22 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                 'RSS-feed (fjernet)' if any(tag.startswith('FjordSeed-RSS-') for tag in tags) else None)
             hashes=[torrent.get(k) for k in ('hash','infohash_v1','infohash_v2')]
             torrent['benefits']=trackers.benefits.snapshot({'hashes':hashes,'name':torrent.get('name','')})
+            torrent['cover']=next((url for m in torrent['benefits'].get('matches',[])
+                                  if (url:=covers.request(m.get('poster')))),None)
         return jsonify(result)
+
+    @app.get('/api/covers/<ident>')
+    def cover(ident):
+        path=covers.path(ident)
+        if path is None:
+            return '',404
+        try:
+            with path.open('rb') as image:
+                signature=image.read(12)
+            mimetype='image/jpeg' if signature.startswith(b'\xff\xd8\xff') else 'image/png' if signature.startswith(b'\x89PNG') else 'image/webp'
+            return send_file(path,mimetype=mimetype,conditional=True)
+        except FileNotFoundError:
+            return '',404
 
     @app.post('/api/torrents/preview')
     def preview_torrent():
@@ -359,6 +378,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         threading.Thread(target=worker, daemon=True).start()
         threading.Thread(target=trackers.run, args=(stop,), daemon=True).start()
         threading.Thread(target=trackers.benefits.run, args=(stop,), daemon=True).start()
+        threading.Thread(target=covers.run, args=(stop,), daemon=True).start()
         threading.Thread(target=rss_gate.run, args=(stop,), daemon=True).start()
     return app
 

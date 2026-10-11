@@ -178,7 +178,7 @@ def test_saved_badges_get_one_date_migration_without_live_refresh(tmp_path):
     old={'status':'matched','matches':[{'tracker_id':ident,'freeleech':100}]}
     benefits.remember(meta,old)
     new={'status':'matched','matches':[{**old['matches'][0],'tracker_provider':'nordicbytes',
-        'created_at':'2023-11-14T22:13:20Z'}]}
+        'created_at':'2023-11-14T22:13:20Z','poster':None}]}
     benefits.request=Mock(return_value=new)
     assert benefits.snapshot(meta)==new
     assert benefits.snapshot(meta)==new
