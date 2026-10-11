@@ -30,7 +30,7 @@ function updateRssStart(){
  $('#rss-start-date').readOnly=choice!=='custom';
 }
 function resetRssForm(){
- $('#rss-form').reset();$('#rss-id').value='';$('#rss-url').required=true;
+ $('#rss-form').reset();$('#rss-id').value='';$('#rss-url').required=true;$('#rss-url-status').hidden=true;
  $('#rss-url').placeholder='https://tracker.example/rss?...';$('#rss-form-title').textContent='Tilføj RSS-feed';
  $('#rss-delete-notice').hidden=true;$('#rss-error').hidden=true;updateRssPath();updateRssStart();
  rssShowStep(false);
@@ -46,7 +46,7 @@ function rssShowStep(seeding){
 function openRssForm(feed=null){
  resetRssForm();
  if(feed){
-  $('#rss-id').value=feed.id;$('#rss-name').value=feed.name;$('#rss-url').required=false;
+  $('#rss-id').value=feed.id;$('#rss-name').value=feed.name;$('#rss-url').required=false;$('#rss-url-status').hidden=false;
   $('#rss-url').placeholder='Gemt adresse — indtast kun for at udskifte';$('#rss-folder').value=feed.folder;
   $('#rss-ratio').value=feed.ratio_limit;$('#rss-action').value=feed.ratio_action;$('#rss-enabled').checked=feed.enabled;
   document.querySelectorAll('[name=rss-badge]').forEach(e=>e.checked=(feed.required_badges||[]).includes(e.value));
