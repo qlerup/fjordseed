@@ -74,7 +74,7 @@ function torrentMetrics(t) {
 function torrentDetails(t) {
  const details=node('div','torrent-details');details.append(benefitView(t.benefits));
  if(t.green_active)details.append(node('p','torrent-rule','Green: upload t\u00e6ller halvt indtil '+new Date(t.green_until*1000).toLocaleString('da-DK')+' (inkl. 30 min. buffer).'));
- else if(t.green_until&&t.green_uploaded>0)details.append(node('p','torrent-rule','Upload t\u00e6ller nu fuldt. Tidligere Green-upload t\u00e6ller fortsat halvt.'));
+ else if(t.green_until&&t.green_uploaded>0)details.append(node('p','torrent-rule','Green-perioden er slut. Upload efter perioden t\u00e6ller 100 %. Den viste total tager h\u00f8jde for, at upload under Green-perioden blev krediteret med 50 %.'));
  else if(t.green_date_unavailable)details.append(node('p','torrent-rule','Green-dato ukendt. Upload t\u00e6ller forel\u00f8bigt halvt, og m\u00e5let er fordoblet.'));
  else if(t.green_pending)details.append(node('p','torrent-rule','Afventer trackerens oprettelsesdato. Uploadm\u00e5let er midlertidigt fordoblet.'));
  if(t.green_history_estimated)details.append(node('p','torrent-rule','Tidligere upload kan ikke fordeles pr\u00e6cist. Ukendt uploadhistorik er forsigtigt regnet som halv kredit.'));
