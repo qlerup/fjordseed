@@ -231,8 +231,19 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             if request.args.get('proxmox') == '1':
                 if not hub.enabled:
                     raise ValueError('Proxmox-oversigten kræver en forbindelse til FjordHub.')
-                return jsonify(hub.call('/api/hub/apps/fjordseed/library',
-                    {'user_id':session.get('hub_uid')},method='GET',timeout=55))
+                try:
+                    inventory = hub.call('/api/hub/apps/fjordseed/library',
+                        {'user_id':session.get('hub_uid')},method='GET',timeout=55)
+                except HubError as exc:
+                    # The user's session was checked above. This rejection belongs
+                    # to the app-to-app storage request, not the browser login.
+                    # Older Hub versions reject the unknown route with HTTP 401.
+                    if exc.status == 401:
+                        return jsonify(error='FjordHub afviste lageroversigten. Opdatér FjordHub til nyeste version. '
+                            'Hvis fejlen fortsætter, skal FjordSeeds forbindelse til FjordHub kontrolleres.',
+                            error_code='storage_integration_unavailable'),503
+                    raise
+                return jsonify(inventory)
             return jsonify(storage.public())
         except HubError as exc:
             return jsonify(error=str(exc)),exc.status

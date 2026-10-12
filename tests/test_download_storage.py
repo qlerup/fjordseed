@@ -110,3 +110,24 @@ def test_storage_api_auth_csrf_and_global_admin(tmp_path,monkeypatch):
     hub.current.return_value['hub_role']='admin'
     monkeypatch.setattr(Storage,'select',lambda self,path:{'path':path})
     assert client.post('/api/storage',headers=headers,json={'path':'/mnt/media'}).json['path']=='/mnt/media'
+
+
+def test_storage_integration_rejection_does_not_expire_valid_login(tmp_path):
+    from hub import HubError
+    app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
+    app.extensions['runtime'].host_downloads='/downloads'
+    client,_=login(app)
+    hub=app.extensions['hub'];hub.enabled=True
+    hub.current=Mock(return_value={'id':1,'role':'admin','hub_role':'admin'})
+    hub.call=Mock(side_effect=HubError('Rejected by Hub',401))
+    with client.session_transaction() as session:session['hub_uid']=1
+    response=client.get('/api/storage?proxmox=1')
+    assert response.status_code==503
+    assert response.json['error_code']=='storage_integration_unavailable'
+    assert client.get('/api/storage').status_code==200
+    with client.session_transaction() as session:assert session['authenticated']
+    hub.call=Mock(return_value={'ok':True,'storages':[]})
+    assert client.get('/api/storage?proxmox=1').json['storages']==[]
+    hub.current.side_effect=HubError('Access removed',401)
+    assert client.get('/api/storage?proxmox=1').status_code==401
+    with client.session_transaction() as session:assert not session.get('authenticated')

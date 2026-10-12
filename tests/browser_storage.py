@@ -58,6 +58,14 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
                 page.screenshot(path=str(screenshots/f'storage-{width}.png'))
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
                 page.reload()
+            page.unroute('**/api/storage?proxmox=1')
+            page.route('**/api/storage?proxmox=1',lambda route:route.fulfill(status=503,json={
+                'error':'FjordHub afviste lageroversigten. Opdatér FjordHub til nyeste version.',
+                'error_code':'storage_integration_unavailable'}))
+            page.locator('#storage-proxmox').click()
+            expect(page.locator('#storage-error')).to_contain_text('Opdatér FjordHub')
+            expect(page.locator('#page-title')).to_have_text('Lager og mapper')
+            assert '/login' not in page.url
             assert app.extensions['state'].get()['storage']['locations'][0]['path'].endswith('fjordflix-media')
             assert not errors,errors
             browser.close()
