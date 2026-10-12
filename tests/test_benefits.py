@@ -43,6 +43,38 @@ def test_unavailable_flags_and_cache_survive_without_blocking_download(tmp_path)
     assert trackers.benefits.flags({'featured':True})['double_upload'] is True
 
 
+def test_single_file_torrent_matches_tracker_release_without_media_extension(tmp_path):
+    trackers=Trackers(tmp_path)
+    trackers.save(CONFIG)
+    release='Example.S02E02.1080p.WEB-DL.H.264-GROUP'
+    def search(entry,url,params):
+        return {'data':[row()] if params['name']==release else []}
+    trackers.read_json=Mock(side_effect=search)
+    result=trackers.benefits.lookup((HASH,),release+'.mkv',trackers.entries())
+    assert result['status']=='matched'
+    assert result['matches'][0]['freeleech']==100
+    trackers.read_json.assert_called_once()
+    assert trackers.read_json.call_args.args[2]['name']==release
+
+
+def test_filename_normalization_never_accepts_a_different_hash(tmp_path):
+    trackers=Trackers(tmp_path)
+    trackers.save(CONFIG)
+    trackers.read_json=Mock(return_value={'data':[row('b'*40)]})
+    result=trackers.benefits.lookup((HASH,),'Example.Release.MKV',trackers.entries())
+    assert result['status']=='unknown'
+    assert not result['matches']
+    assert trackers.read_json.call_args_list[0].args[2]['name']=='Example.Release'
+
+
+def test_original_filename_search_is_preserved(tmp_path):
+    trackers=Trackers(tmp_path)
+    trackers.save(CONFIG)
+    trackers.read_json=Mock(side_effect=[{'data':[]},{'data':[row()]}])
+    assert trackers.benefits.lookup((HASH,),'Example.mkv',trackers.entries())['status']=='matched'
+    assert trackers.read_json.call_args.args[2]['name']=='Example.mkv'
+
+
 def test_async_cache_deduplicates_and_invalidates_credentials(tmp_path):
     trackers=Trackers(tmp_path)
     ident=trackers.save(CONFIG)

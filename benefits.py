@@ -185,7 +185,11 @@ class Benefits:
             return {'status':'unknown','message':'Trackerfordele ukendte — navnet kan slås op, når torrentens metadata er hentet.'}
         matches=[]
         failed=False
-        candidates=list(dict.fromkeys([name,re.sub(r'[._]+',' ',name).strip()]))
+        # A single-file torrent uses e.g. Release.mkv as its internal name,
+        # while the tracker indexes Release. Still verify every hit by hash.
+        release=re.sub(r'\.(?:mkv|mp4|m4v|avi|mov|wmv|webm|m2ts|ts|iso|flac|mp3|m4a|ogg|wav)$','',name,flags=re.I)
+        candidates=list(dict.fromkeys([release,name,re.sub(r'[._]+',' ',release).strip(),
+                                      re.sub(r'[._]+',' ',name).strip()]))
         for entry in entries:
             match=None
             try:
