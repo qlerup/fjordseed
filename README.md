@@ -154,3 +154,10 @@ Arbejdsklienten registrerer uploadtælleren mindst hvert 10. sekund og tilpasser
 Datoer hentes også i baggrunden for RSS-torrents uden en åben browser. Gemte trackerfordele behøver kun et ekstra opslag ved migrering fra en version uden oprettelsesdato. API-nøglen deles ikke med arbejdsklienten. Mens et opslag afventer, er målet konservativt fordoblet. Uden en konfigureret API-konto kan Green ikke dokumenteres, og normal ratio anvendes. Med en API-konto, men uden verificerbar dato, bevares det konservativt fordoblede mål og markeres i visningen. Mislykkede/ukendte opslag prøves igen efter opslagscachens fem minutter; et verificeret resultat fryses fortsat. Green-regnskabet beregner stopmålet pr. torrent, ikke trackerens samlede kontoratio eller andre bonusmultiplikatorer. Bufferen forlænger ikke trackerens faktiske freeleech-periode.
 
 Ved "Slet filerne" er seedinggrænsen 49 timer: 48 timer plus én times buffer. Bufferen gælder automatisk stop, fremdrift og advarslen ved manuelt stop. Ratio-målet kan stadig opfyldes først. Eksisterende torrents får automatisk den nye tidsgrænse med deres mål og filhandling bevaret.
+
+
+## Chrome extension
+
+`chrome-extension/` contains the Manifest V3 extension for the NordicBytes link context menu. It opens the existing manual torrent dialog; only the user can submit the final download. Installation instructions are in `chrome-extension/README.md`.
+
+Build the downloadable ZIP with `python tools/package_chrome_extension.py`. It is served at `/static/fjordseed-chrome.zip` and linked from FjordSeed. Run `node --test tests/test_chrome_extension.mjs` and `python tests/browser_extension_check.py` to verify validation and the isolated browser handoff without contacting a tracker.

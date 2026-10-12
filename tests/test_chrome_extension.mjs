@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {torrentLink, seedAddress, permissionOrigin, readTorrent, MAX_BYTES} from '../chrome-extension/common.mjs';
+
+test('only HTTPS NordicBytes torrent download links are accepted', () => {
+  assert.equal(torrentLink('https://nordicbytes.org/torrents/download/42?key=test#fragment'),
+    'https://nordicbytes.org/torrents/download/42?key=test');
+  for (const url of ['http://nordicbytes.org/torrents/download/42',
+    'https://nordicbytes.org.evil.test/torrents/download/42',
+    'https://nordicbytes.org/torrents/42', 'https://user@ nordicbytes.org/torrents/download/42',
+    'https://user:pass@nordicbytes.org/torrents/download/42',
+    'https://nordicbytes.org:444/torrents/download/42', 'file:///test.torrent']) {
+    assert.throws(() => torrentLink(url));
+  }
+});
+
+test('destination preserves exact port while permission uses host pattern', () => {
+  assert.equal(seedAddress('http://192.168.1.110:8099'), 'http://192.168.1.110:8099/');
+  assert.equal(permissionOrigin('http://192.168.1.110:8099/'), 'http://192.168.1.110/*');
+  for (const url of ['javascript:alert(1)', 'https://seed.test/login', 'https://seed.test/?token=x',
+    'https://admin:secret@seed.test/', 'https://nordicbytes.org']) assert.throws(() => seedAddress(url));
+});
+
+test('torrent response survives binary transfer', async () => {
+  const data = new Uint8Array([100, 49, 58, 120, 49, 58, 255, 101]);
+  assert.deepEqual(Buffer.from(await readTorrent(new Response(data)), 'base64'), Buffer.from(data));
+});
+
+test('login pages, errors, invalid data, and oversized metadata fail closed', async () => {
+  for (const response of [new Response('<html>Login</html>', {headers: {'Content-Type': 'text/html'}}),
+    new Response('error', {status: 403}), new Response('not a torrent'),
+    new Response('d1:xe', {headers: {'Content-Length': String(MAX_BYTES + 1)}}),
+    new Response(new Uint8Array(MAX_BYTES + 1))]) await assert.rejects(readTorrent(response));
+});
