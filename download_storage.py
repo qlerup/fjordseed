@@ -11,6 +11,7 @@ from state import atomic
 
 CONFIG = Path('/config')
 BUFFER = '.fjordseed-buffer'
+PUBLISHING_MARKER = '.fjordseed-publishing'
 _lock = threading.RLock()
 
 
@@ -98,6 +99,11 @@ def publish_complete(api, rows):
             current = str(row.get('save_path', '')).rstrip('/')
             if current == record['target']:
                 # setLocation is asynchronous: acknowledge only on a later poll.
+                try:
+                    (Path(record['target']) / PUBLISHING_MARKER).unlink(missing_ok=True)
+                except OSError:
+                    errors.append('En færdig download kunne ikke frigives til biblioteket. Kontrollér skriverettigheder.')
+                    continue
                 record['published'] = True
                 for key, value in entries.items():
                     if value['stage'] == record['stage']:
@@ -116,9 +122,14 @@ def publish_complete(api, rows):
                 for part in (target, *target.parents):
                     if part.is_symlink():
                         raise ValueError('Målmappen indeholder et link.')
-                if target.exists() and any(target.iterdir()):
+                if target.exists() and any(p.name != PUBLISHING_MARKER for p in target.iterdir()):
                     raise ValueError('Målmappen indeholder allerede filer; flytningen afventer kontrol.')
                 target.mkdir(parents=True, exist_ok=True)
+                # Flix must not index the destination during an asynchronous copy.
+                marker = target / PUBLISHING_MARKER
+                if marker.is_symlink():
+                    raise ValueError('Flyttemarkeringen må ikke være et link.')
+                marker.touch(exist_ok=True)
                 api('torrents/setLocation', {'hashes':row['hash'], 'location':str(target)})
             except Exception:
                 errors.append('En færdig download kunne ikke flyttes. Kontrollér lager og skriverettigheder.')

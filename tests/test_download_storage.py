@@ -28,12 +28,16 @@ def test_only_complete_retained_new_downloads_publish_and_keep_original_destinat
     assert ds.publish_complete(api,[row(stage)]) == []
     api.assert_called_once_with('torrents/setLocation',{'hashes':'a'*40,'location':old['target']})
     assert Path(old['target']).parent == tmp_path/'downloads'/'film'
+    marker = Path(old['target']) / ds.PUBLISHING_MARKER
+    assert marker.is_file()
     # Only the later completed move is acknowledged, and it is not repeated.
     api.reset_mock()
     ds.publish_complete(api,[row(old['target'],state='moving')])
+    assert marker.exists()
     assert not ds.read(ds.CONFIG/'download-storage.json',{})['a'*40]['published']
     ds.publish_complete(api,[row(old['target'])])
     assert ds.read(ds.CONFIG/'download-storage.json',{})['a'*40]['published']
+    assert not marker.exists()
     ds.publish_complete(api,[row(old['target'])])
     api.assert_not_called()
 
@@ -53,6 +57,25 @@ def test_publication_does_not_overwrite_and_retries_failed_move(tmp_path):
     api.side_effect=None
     assert ds.publish_complete(api,[row(stage)]) == []
     assert api.call_count == 2
+
+
+def test_failed_marker_removal_keeps_publication_pending_for_retry(tmp_path, monkeypatch):
+    stage = ds.prepare(['a'*40])
+    target = Path(ds.read(ds.CONFIG/'download-storage.json', {})['a'*40]['target'])
+    api = Mock()
+    assert ds.publish_complete(api, [row(stage)]) == []
+    original = Path.unlink
+    def fail_marker(path, *args, **kwargs):
+        if path.name == ds.PUBLISHING_MARKER:
+            raise PermissionError('read only')
+        return original(path, *args, **kwargs)
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, 'unlink', fail_marker)
+        assert ds.publish_complete(api, [row(str(target))])
+    assert not ds.read(ds.CONFIG/'download-storage.json', {})['a'*40]['published']
+    assert (target / ds.PUBLISHING_MARKER).exists()
+    assert ds.publish_complete(api, [row(str(target))]) == []
+    assert ds.read(ds.CONFIG/'download-storage.json', {})['a'*40]['published']
 
 
 def test_removal_retains_files_but_readd_uses_current_destination(tmp_path,monkeypatch):
