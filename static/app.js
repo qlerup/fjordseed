@@ -67,8 +67,8 @@ function torrentMetrics(t) {
  const seed=seedingProgress(t),values=node('dl','torrent-metrics');
  const number=n=>n.toLocaleString('da-DK',{maximumFractionDigits:2});
  const fields=[['Download',size(t.dlspeed)+'/s'],['Upload',size(t.upspeed)+'/s'],
-  [t.green_until||t.green_pending?'Krediteret ratio':'Ratio',number(seed.ratio)+' / '+number(seed.target)],
-  ['Seedtid',number(seed.seconds/3600)+(seed.minutes?' / '+number(seed.minutes/60):'')+' timer'],
+  [t.green_until||t.green_pending?'Krediteret ratio':'Ratio',number(seed.ratio)+(t.seeding_unlimited?'':' / '+number(seed.target))],
+  ['Seedtid',number(seed.seconds/3600)+(!t.seeding_unlimited&&seed.minutes?' / '+number(seed.minutes/60):'')+' timer'],
   ['Uploadet i alt',typeof t.uploaded==='number'&&Number.isFinite(t.uploaded)&&t.uploaded>=0?size(t.uploaded):'—']];
  for(const [label,value] of fields){const item=node('div');item.append(node('dt','',label),node('dd','',value));values.append(item);}
  if(t.green_until||t.green_pending){const item=node('div');item.append(node('dt','','Krediteret upload'),node('dd','',size(t.credited_uploaded)));values.append(item);}
@@ -81,7 +81,8 @@ function torrentDetails(t) {
  else if(t.green_date_unavailable)details.append(node('p','torrent-rule','Green-dato ukendt. Upload t\u00e6ller forel\u00f8bigt halvt, og m\u00e5let er fordoblet.'));
  else if(t.green_pending)details.append(node('p','torrent-rule','Afventer trackerens oprettelsesdato. Uploadm\u00e5let er midlertidigt fordoblet.'));
  if(t.green_history_estimated)details.append(node('p','torrent-rule','Tidligere upload kan ikke fordeles pr\u00e6cist. Ukendt uploadhistorik er forsigtigt regnet som halv kredit.'));
- if(t.ratio_limit!==undefined&&t.ratio_limit!==null&&Number(t.ratio_limit)>=0){
+ if(t.seeding_unlimited)details.append(node('p','torrent-rule','Filerne beholdes. Seeding fortsætter, indtil du stopper den manuelt.'));
+ if(!t.seeding_unlimited&&t.ratio_limit!==undefined&&t.ratio_limit!==null&&Number(t.ratio_limit)>=0){
   const seed=seedingProgress(t);
   details.append(node('p','torrent-rule','Automatisk stop ved ratio '+seed.target.toLocaleString('da-DK')+
    (seed.minutes?' eller '+(seed.minutes/60).toLocaleString('da-DK')+' timers seeding':'')+
@@ -96,13 +97,13 @@ function torrentProgress(t) {
  const wrap = node('div','torrent-progress'+(complete?' is-seeding':'')+(seed.active&&complete?' seed-active':''));
  const caption = node('div','progress-caption');
  const downloaded = size(t.completed??Math.round((Number(t.size)||0)*fraction))+' af '+size(t.size);
- const text = complete ? 'Seeding: '+Math.floor(seed.fraction*100)+' %' : (fraction*100).toFixed(1)+' %';
+ const text = complete && t.seeding_unlimited ? 'Seeding uden grænse' : complete ? 'Seeding: '+Math.floor(seed.fraction*100)+' %' : (fraction*100).toFixed(1)+' %';
  caption.append(node('strong','',text),node('span','muted small',downloaded+' \u00b7 '+(complete?'Download f\u00e6rdig':eta(t.eta))));
  if (complete) {
   const status = node('div','seed-caption');
   status.append(node('strong','seed-state',torrentStatus(t)));
   wrap.append(status);
-  if(seed.fraction>=1)wrap.append(node('p','seed-complete','Seedingm\u00e5l opfyldt'));
+  if(!t.seeding_unlimited&&seed.fraction>=1)wrap.append(node('p','seed-complete','Seedingm\u00e5l opfyldt'));
  } else {
   const status=node('div','seed-caption');
   status.append(node('strong','seed-state',torrentStatus(t)));
@@ -114,7 +115,7 @@ function torrentProgress(t) {
  download.setAttribute('aria-label','Download af '+t.name);
  if(complete)download.setAttribute('aria-hidden','true');
  track.append(download);
- if(complete){
+ if(complete&&!t.seeding_unlimited){
   const overlay=node('progress','progress seed-progress');overlay.max=1;overlay.value=seed.fraction;
   overlay.setAttribute('aria-label','Seeding af '+t.name);
   overlay.setAttribute('aria-valuetext',Math.floor(seed.fraction*100)+' % af seedingm\u00e5let. Ratio '+seed.ratio+' af '+seed.target+
@@ -181,7 +182,7 @@ $('#method-magnet').onclick=()=>chooseMethod('magnet');$('#method-file').onclick
 $('#new-torrent').onclick=()=>{$('#add-form').reset();chooseMethod('file');$('#add-error').hidden=true;$('#add-dialog').showModal();$('#torrent-file').focus();};
 document.querySelectorAll('.close').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 let pendingTorrent;
-$('#add-form').onsubmit=e=>{e.preventDefault();$('#add-error').hidden=true;try{const body=new FormData();const magnet=$('#magnet').value.trim();const file=$('#torrent-file').files[0];if(addMethod==='magnet'){if(!magnet.startsWith('magnet:?'))throw Error('Indtast et gyldigt magnetlink.');body.set('magnet',magnet);}else{if(!file||!file.name.toLowerCase().endsWith('.torrent'))throw Error('Vælg en .torrent-fil.');body.set('torrent',file);}pendingTorrent=body;$('#ratio-form').reset();$('#ratio-source').textContent=addMethod==='file'?file.name:'Torrent fra magnetlink';$('#ratio-error').hidden=true;$('#ratio-delete-notice').hidden=true;$('#add-dialog').close();$('#ratio-dialog').showModal();prepareBenefits();$('#ratio-limit').focus();}catch(e){error('#add-error',e);}};
+$('#add-form').onsubmit=e=>{e.preventDefault();$('#add-error').hidden=true;try{const body=new FormData();const magnet=$('#magnet').value.trim();const file=$('#torrent-file').files[0];if(addMethod==='magnet'){if(!magnet.startsWith('magnet:?'))throw Error('Indtast et gyldigt magnetlink.');body.set('magnet',magnet);}else{if(!file||!file.name.toLowerCase().endsWith('.torrent'))throw Error('Vælg en .torrent-fil.');body.set('torrent',file);}pendingTorrent=body;$('#ratio-form').reset();$('#ratio-source').textContent=addMethod==='file'?file.name:'Torrent fra magnetlink';$('#ratio-error').hidden=true;$('#ratio-delete-notice').hidden=true;$('#add-dialog').close();$('#ratio-dialog').showModal();prepareBenefits();updateSeedingFields('ratio');$('#ratio-action').focus();}catch(e){error('#add-error',e);}};
 let previewTimer,previewGeneration=0;
 function prepareBenefits(){
  const select=$('#benefit-tracker');select.replaceChildren(node('option','','Find automatisk blandt mine trackere'));select.firstChild.value='';
@@ -206,7 +207,16 @@ async function loadPreviewBenefits(){
 }
 $('#benefit-tracker').onchange=loadPreviewBenefits;
 $('#ratio-dialog').addEventListener('close',()=>{clearTimeout(previewTimer);previewGeneration++;});
-$('#ratio-action').onchange=()=>$('#ratio-delete-notice').hidden=$('#ratio-action').value!=='delete';
+function updateSeedingFields(prefix){
+ const deleting=$('#'+prefix+'-action').value==='delete';
+ $('#'+prefix+'-limits').hidden=!deleting;
+ $('#'+prefix+'-keep-info').hidden=deleting;
+ $('#'+prefix+'-delete-notice').hidden=!deleting;
+ const input=$('#'+prefix+(prefix==='ratio'?'-limit':'-ratio'));
+ input.disabled=!deleting;input.required=deleting;if(!deleting&&!(Number(input.value)>=1))input.value=1;
+}
+$('#ratio-action').onchange=()=>updateSeedingFields('ratio');
+updateSeedingFields('ratio');
 $('#ratio-dialog').addEventListener('cancel',e=>{if($('#ratio-save').disabled)e.preventDefault();});
 $('#ratio-back').onclick=()=>{$('#ratio-dialog').close();$('#add-dialog').showModal();};
 $('#ratio-form').onsubmit=async e=>{e.preventDefault();if(!pendingTorrent)return;$('#ratio-save').disabled=true;$('#ratio-back').disabled=true;$('#ratio-dialog .close').disabled=true;$('#ratio-error').hidden=true;try{pendingTorrent.set('ratio_limit',$('#ratio-limit').value);pendingTorrent.set('ratio_action',$('#ratio-action').value);await api('/api/torrents',{method:'POST',body:pendingTorrent});pendingTorrent=null;$('#ratio-dialog').close();toast('Torrent tilføjet');await refresh();}catch(e){error('#ratio-error',e);}finally{$('#ratio-save').disabled=false;$('#ratio-back').disabled=false;$('#ratio-dialog .close').disabled=false;}};
@@ -242,9 +252,10 @@ function updateRatioEditWarning() {
  const value=Number($('#edit-ratio-limit').value);
  const met=(Number(editingRatio?.credited_ratio??editingRatio?.ratio)||0)>=value||(Number(editingRatio?.seeding_time)||0)>=(Number(editingRatio?.required_seeding_seconds)||49*3600);
  const deleting=$('#edit-ratio-action').value==='delete';
- $('#edit-ratio-info').textContent='Automatisk stop sker ved denne ratio eller 49 timers seeding, n\u00e5r aktive downloadere er f\u00e6rdige. '+(deleting?'Torrent og filer slettes automatisk.':'Filerne beholdes.');
+ $('#edit-ratio-limits').hidden=!deleting;$('#edit-ratio-limit').disabled=!deleting;$('#edit-ratio-limit').required=deleting;if(!deleting&&!(value>=1))$('#edit-ratio-limit').value=1;
+ $('#edit-ratio-info').textContent=!deleting?'Filerne beholdes. Seeding fortsætter, indtil du stopper den manuelt.':'Automatisk stop sker ved denne ratio eller 49 timers seeding, n\u00e5r aktive downloadere er f\u00e6rdige. '+(deleting?'Torrent og filer slettes automatisk.':'Filerne beholdes.');
  const warning=$('#edit-ratio-warning');
- warning.hidden=!met||value<1;
+ warning.hidden=!deleting||!met||value<1;
  warning.textContent=deleting?'M\u00e5let er allerede n\u00e5et. Torrenten og filerne kan blive slettet automatisk efter gem, n\u00e5r aktive downloadere er f\u00e6rdige.':'M\u00e5let er allerede n\u00e5et. Seeding kan stoppe automatisk efter gem, n\u00e5r aktive downloadere er f\u00e6rdige.';
 }
 $('#edit-ratio-limit').oninput=updateRatioEditWarning;

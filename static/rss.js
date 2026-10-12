@@ -41,7 +41,7 @@ function rssShowStep(seeding){
  $('#rss-source-step').hidden=seeding;$('#rss-seeding-step').hidden=!seeding;
  $('#rss-next').hidden=seeding;$('#rss-save').hidden=!seeding;$('#rss-back').hidden=!seeding;$('#rss-cancel').hidden=seeding;
  $('#rss-form-title').textContent=seeding?'Seeding og filer':($('#rss-id').value?'Rediger RSS-feed':'Tilføj RSS-feed');
- if(seeding){$('#rss-source-summary').textContent='RSS: '+$('#rss-name').value;$('#rss-ratio').focus();}
+ if(seeding){$('#rss-source-summary').textContent='RSS: '+$('#rss-name').value;updateSeedingFields('rss');$('#rss-action').focus();}
 }
 function openRssForm(feed=null){
  resetRssForm();
@@ -69,7 +69,7 @@ function rssFeedCard(feed){
  function updateExpanded(){const expanded=expandedRssFeeds.has(feed.id);panel.hidden=!expanded;card.classList.toggle('is-expanded',expanded);toggle.textContent=expanded?'Skjul detaljer':'Vis detaljer';for(const button of [titleToggle,toggle]){button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-label',toggle.textContent+' for '+feed.name);}}
  toggle.onclick=()=>{if(expandedRssFeeds.has(feed.id))expandedRssFeeds.delete(feed.id);else expandedRssFeeds.add(feed.id);updateExpanded();};titleToggle.onclick=toggle.onclick;
  card.append(head,node('p','muted small',feed.host+' · '+feed.articles+' feedposter'));
- panel.append(node('p','torrent-policy','Mappe: '+rssRoot+(feed.folder?'/'+feed.folder:'')+' · Stop-ratio: '+feed.ratio_limit+' eller 49 timers seeding'+' · '+(feed.ratio_action==='delete'?'Slet filer automatisk':'Behold filer')));
+ panel.append(node('p','torrent-policy','Mappe: '+rssRoot+(feed.folder?'/'+feed.folder:'')+(feed.ratio_action==='delete'?' · Slet ved ratio '+feed.ratio_limit+' eller 49 timers seeding':' · Behold filer og seed uden grænse')));
  panel.append(node('p','torrent-policy',feed.download_from?'Hent fra: '+new Date(feed.download_from).toLocaleString('da-DK'):'Hent alle poster i feedet'));
  if(feed.required_badges?.length)panel.append(node('p','torrent-policy','Kræver alle: '+feed.required_badges.map(b=>rssBadgeNames[b]).join(' + ')));
  if(feed.enabled&&feed.download_status)panel.append(node('p','muted small',feed.download_status));
@@ -85,7 +85,8 @@ $('#rss-folder').oninput=updateRssPath;
 $('#rss-start').onchange=updateRssStart;
 document.querySelectorAll('[name=rss-badge]').forEach(e=>e.onchange=updateRssBadges);
 $('#rss-dialog').addEventListener('close',()=>rssTrackerGeneration++);
-$('#rss-action').onchange=()=>$('#rss-delete-notice').hidden=$('#rss-action').value!=='delete';
+$('#rss-action').onchange=()=>updateSeedingFields('rss');
+updateSeedingFields('rss');
 $('#rss-cancel').onclick=()=>$('#rss-dialog').close();
 $('#rss-dialog').addEventListener('cancel',e=>{if(rssBusy)e.preventDefault();});
 $('#rss-back').onclick=()=>rssShowStep(false);

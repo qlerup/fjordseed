@@ -37,11 +37,13 @@ def test_waits_for_downloaders_then_finishes_after_restart(source,trigger,action
     assert not actions()
     row['upspeed']=0
     sync_share_limits(api)
-    expected=('torrents/stop',{'hashes':row['hash']}) if action=='Stop' else (
-        'torrents/delete',{'hashes':row['hash'],'deleteFiles':'true' if action=='RemoveWithContent' else 'false'})
-    assert actions()==[expected]
+    if action=='RemoveWithContent':
+        assert actions()==[('torrents/delete',{'hashes':row['hash'],'deleteFiles':'true'})]
+    else:
+        assert not actions()  # Keep seeding even after both time/ratio goals.
     saved=json.loads((green_credit.CONFIG/'green-credit.json').read_text())
-    assert (row['hash'] in saved)==(action=='Stop')
+    assert (row['hash'] in saved)==(action!='RemoveWithContent')
+
 
 
 @pytest.mark.parametrize('state',['stoppedUP','pausedUP','downloading','checkingUP','queuedUP'])
@@ -55,7 +57,7 @@ def test_never_auto_finishes_or_resumes_non_seeding_torrents(state):
 @pytest.mark.parametrize('peers,speed',[(None,0),(-1,0),(0,None),(0,-1),(True,0),(0,float('nan'))])
 def test_unknown_peer_data_keeps_seeding(peers,speed):
     api=Mock(return_value=Mock(json=lambda:[{'hash':'a'*40,'state':'stalledUP','ratio':10,
-        'ratio_limit':1,'num_leechs':peers,'upspeed':speed}]))
+        'ratio_limit':1,'share_limit_action':'RemoveWithContent','num_leechs':peers,'upspeed':speed}]))
     sync_share_limits(api)
     assert not any(c.args[0] in ('torrents/stop','torrents/delete') for c in api.call_args_list)
 
@@ -68,7 +70,7 @@ def test_below_goal_keeps_seeding_without_peers():
 
 
 def test_status_explains_waiting_and_keeps_displayed_goal(monkeypatch):
-    row={'hash':'a'*40,'state':'uploading','ratio':3,'ratio_limit':3,'num_leechs':1,'upspeed':100}
+    row={'hash':'a'*40,'state':'uploading','share_limit_action':'RemoveWithContent','ratio':3,'ratio_limit':3,'num_leechs':1,'upspeed':100}
     def api(path,data=None):
         result={'current_network_interface':'tun0','upnp':False,'listen_port':1234} if path=='app/preferences' else [row]
         return Mock(json=lambda:result,text='5.2.1')
@@ -90,13 +92,13 @@ def test_green_credit_controls_completion_not_raw_ratio(monkeypatch):
     green_credit.POLICIES.write_text(json.dumps({'_enabled':True,'a'*40:{
         'known':True,'has_date':True,'until':time.time()+3600}}))
     row={'hash':'a'*40,'state':'stalledUP','ratio':1,'ratio_limit':1,
-         'uploaded':1000,'downloaded':1000,'num_leechs':0,'upspeed':0}
+         'share_limit_action':'RemoveWithContent','uploaded':1000,'downloaded':1000,'num_leechs':0,'upspeed':0}
     api=Mock(side_effect=lambda *args:Mock(json=lambda:[dict(row)]))
     sync_share_limits(api)
     assert not any(c.args[0]=='torrents/stop' for c in api.call_args_list)
     row.update(uploaded=2000,ratio=2,ratio_limit=-1)
     sync_share_limits(api)
-    assert api.call_args.args==('torrents/stop',{'hashes':row['hash']})
+    assert api.call_args.args==('torrents/delete',{'hashes':row['hash'],'deleteFiles':'true'})
 
 
 def test_edit_managed_goal_is_durable_without_reenabling_native_limits(monkeypatch):

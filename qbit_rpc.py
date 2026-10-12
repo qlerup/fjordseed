@@ -134,14 +134,15 @@ def seeding_completion(row,credit):
     active=row.get('state') in {'uploading','stalledUP','forcedUP'}
     ratio=credit['credited_ratio']
     seconds=row.get('seeding_time')
-    reached=ratio>=credit['ratio_limit'] or (
-        type(seconds) in (int,float) and math.isfinite(seconds) and seconds>=SEEDING_SECONDS)
+    unlimited=row.get('share_limit_action') != 'RemoveWithContent'
+    reached=not unlimited and (ratio>=credit['ratio_limit'] or (
+        type(seconds) in (int,float) and math.isfinite(seconds) and seconds>=SEEDING_SECONDS))
     peers=row.get('num_leechs')
     speed=row.get('upspeed')
     known=(type(peers) is int and peers>=0 and type(speed) in (int,float)
            and math.isfinite(speed) and speed>=0)
     waiting=bool(active and reached and (not known or peers>0 or speed>0))
-    return {'seeding_goal_reached':bool(reached),'waiting_for_downloaders':waiting,
+    return {'seeding_unlimited':unlimited,'seeding_goal_reached':bool(reached),'waiting_for_downloaders':waiting,
             'seeding_peer_status_known':known}
 
 
@@ -150,10 +151,8 @@ def finish_seeding(api,row,credit):
     if (row.get('state') not in {'uploading','stalledUP','forcedUP'}
             or not completion['seeding_goal_reached'] or completion['waiting_for_downloaders']):
         return
-    action=row.get('share_limit_action') or 'Stop'
-    if action=='Stop':
-        api('torrents/stop',{'hashes':row['hash']})
-    elif action in {'Remove','RemoveWithContent'}:
+    action=row.get('share_limit_action')
+    if action=='RemoveWithContent':
         api('torrents/delete',{'hashes':row['hash'],
             'deleteFiles':'true' if action=='RemoveWithContent' else 'false'})
         return True
@@ -208,7 +207,7 @@ def execute(action, data):
             for row,credit in zip(rows,credits):
                 apply_limits(call,row)
                 torrents.append({**{k:row.get(k) for k in fields},**credit,
-                    'seeding_time_limit':SEEDING_MINUTES,**stop_requirement({**row,**credit}),
+                    'seeding_time_limit':SEEDING_MINUTES if row.get('share_limit_action')=='RemoveWithContent' else -1,**stop_requirement({**row,**credit}),
                     **seeding_completion(row,credit)})
         return {'torrents':torrents,
                 'download_queue':download_queue_summary(rows),
