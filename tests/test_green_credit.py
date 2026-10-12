@@ -152,6 +152,7 @@ def test_worker_adjusts_after_expiry_and_keeps_49_hour_alternative(monkeypatch):
     assert calls[-1][1]['shareLimitAction']=='RemoveWithContent'
     effective=update(row(1000,1.5),END+10)
     assert not stop_requirement({**row(1000),**effective})['seeding_requirement_met']
+    effective=update(row(1000,seeding_time=49*3600),END+20)
     assert stop_requirement({**row(1000,seeding_time=49*3600),**effective})['seeding_requirement_met']
 
 

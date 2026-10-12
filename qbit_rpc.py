@@ -133,7 +133,7 @@ def initial_managed_ratio(hashes,target):
 def seeding_completion(row,credit):
     active=row.get('state') in {'uploading','stalledUP','forcedUP'}
     ratio=credit['credited_ratio']
-    seconds=row.get('seeding_time')
+    seconds=credit.get('seeding_time',row.get('seeding_time'))
     unlimited=row.get('share_limit_action') != 'RemoveWithContent'
     reached=not unlimited and (ratio>=credit['ratio_limit'] or (
         type(seconds) in (int,float) and math.isfinite(seconds) and seconds>=SEEDING_SECONDS))

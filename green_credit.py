@@ -62,6 +62,22 @@ def number(value):
     return max(0, value) if type(value) in (int, float) and math.isfinite(value) else 0
 
 
+def seed_time(entry, row):
+    """Exclude native counter growth during moves, including transition polls."""
+    raw = row.get('seeding_time')
+    if type(raw) not in (int, float) or not math.isfinite(raw) or raw < 0:
+        return entry.get('seed_clock', {}).get('seconds', 0)
+    moving = row.get('state') == 'moving'
+    clock = entry.get('seed_clock')
+    if clock is None:
+        clock = {'seconds': raw}
+    elif not moving and not clock['moving']:
+        clock['seconds'] += max(0, raw - clock['raw'])
+    clock.update(raw=raw, moving=moving)
+    entry['seed_clock'] = clock
+    return clock['seconds']
+
+
 class CreditLedger:
     @contextmanager
     def transaction(self):
@@ -144,7 +160,8 @@ class CreditLedger:
         active = until > now
         native = entry['target'] * 2 if active or pending else entry['target'] + (discounted / 2 / denominator if denominator else 0)
         raw_ratio = number(row.get('ratio'))
-        return {'ratio_limit': entry['target'], 'native_ratio_limit': native,
+        return {'seeding_time': seed_time(entry, row),
+                'ratio_limit': entry['target'], 'native_ratio_limit': native,
                 'credited_ratio': credited / denominator if denominator else raw_ratio / (2 if active or pending else 1),
                 'credited_uploaded': credited, 'green_uploaded': discounted,
                 'green_until': until or None, 'green_active': active, 'green_pending': pending,
