@@ -67,6 +67,9 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
                 document.body.append(torrentProgress({name:'Moving',state:'moving',move_progress:.42}));}""")
             expect(page.locator('.move-progress')).to_have_attribute('value','0.42')
             expect(page.locator('.is-moving')).to_contain_text('42 %')
+            expect(page.locator('.is-moving .seed-state')).to_contain_text('Flytter filer')
+            assert 'Seeder' not in page.locator('.is-moving').inner_text()
+            assert 'Seeding:' not in page.locator('.is-moving').inner_text()
             assert not errors,errors
             browser.close()
             print('PASS manual, RSS and existing-torrent keep/delete fields and warnings')

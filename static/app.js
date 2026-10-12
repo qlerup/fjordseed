@@ -93,9 +93,12 @@ function torrentDetails(t) {
 function torrentProgress(t) {
  if(t.state==='moving'){
   const wrap=node('div','torrent-progress is-moving'),caption=node('div','progress-caption');
+  const status=node('div','seed-caption');
+  status.append(node('strong','seed-state','Flytter filer – seeding er sat på pause'));
+  wrap.append(status);
   const measured=typeof t.move_progress==='number'&&Number.isFinite(t.move_progress);
   const percent=measured?Math.floor(Math.max(0,Math.min(.99,t.move_progress))*100):null;
-  caption.append(node('strong','',measured?'Flytter filer: ca. '+percent+' %':'Flytter filer – afventer fremdrift'),node('span','muted small','Seedtiden er sat på pause'));
+  caption.append(node('strong','',measured?'Flytning: ca. '+percent+' %':'Flytning: afventer fremdrift'),node('span','muted small','Seedtiden er sat på pause'));
   const track=node('div','torrent-progress-track'),bar=node('progress','progress move-progress');
   bar.max=1;if(measured)bar.value=percent/100;
   bar.setAttribute('aria-label','Flytning af '+t.name);
