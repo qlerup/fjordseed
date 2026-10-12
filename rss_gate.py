@@ -15,8 +15,7 @@ import requests
 from rss import PREFIX, validate_feed, folder_path, date_matches
 from state import atomic
 from torrent_meta import magnet_meta, torrent_meta
-from qbit_rpc import seed_ratio, SEEDING_MINUTES
-from green_credit import initial_ratio_limit
+from qbit_rpc import seed_ratio, initial_managed_ratio
 
 
 def fingerprint(feed):
@@ -145,8 +144,8 @@ def gate_rpc(action,data,api,root=Path('/config')):
             path=folder_path(feed['folder'])
             path.mkdir(parents=True,exist_ok=True)
             options={'savepath':str(path),'stopped':'false','forceStart':'false','autoTMM':'false',
-                     'tags':'FjordSeed-RSS-'+ident,'ratioLimit':initial_ratio_limit(hashes,seed_ratio(feed['ratio_limit'])),
-                     'seedingTimeLimit':SEEDING_MINUTES,'inactiveSeedingTimeLimit':-1,
+                     'tags':'FjordSeed-RSS-'+ident,'ratioLimit':initial_managed_ratio(hashes,seed_ratio(feed['ratio_limit'])),
+                     'seedingTimeLimit':-1,'inactiveSeedingTimeLimit':-1,
                      'shareLimitAction':'RemoveWithContent' if feed['ratio_action']=='delete' else 'Stop'}
             payload=pending['payload']
             if payload.get('magnet'):

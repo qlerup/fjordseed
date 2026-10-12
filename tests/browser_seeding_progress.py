@@ -48,6 +48,11 @@ with sync_playwright() as p:
   assert '30 min. buffer' in page.locator('.torrent-details').inner_text()
   assert page.locator('.torrent').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
   page.screenshot(path=str(root/'test-results'/f'green-credit-{width}.png'))
+ for known in [True,False]:
+  page.evaluate("known=>document.querySelector('main').replaceChildren(card({name:'Waiting for peers',state:'uploading',progress:1,ratio:3,ratio_limit:3,seeding_time_limit:2940,waiting_for_downloaders:true,seeding_peer_status_known:known}))",known)
+  status=page.locator('.torrent-progress .seed-state').inner_text()
+  assert ('aktive downloadere' if known else 'peer-status') in status
+  assert page.locator('.seed-progress').evaluate('e=>e.value')==1
  for power,unit in [(1,'KB'),(2,'MB'),(3,'GB'),(4,'TB')]:
   page.evaluate("uploaded=>document.querySelector('main').replaceChildren(card({name:'Upload check',state:'stalledUP',progress:1,uploaded}))",1024**power)
   assert page.locator('.torrent-metrics dd').nth(4).inner_text()=='1.0 '+unit

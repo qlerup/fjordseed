@@ -80,10 +80,14 @@ class CreditLedger:
                 self.policies = read(POLICIES, {})
                 self.feeds = read(CONFIG / 'fjord-rss.json', [])
                 yield self
-                atomic(CONFIG / 'green-credit.json', json.dumps(self.entries))
+                self.save()
             finally:
                 if fcntl:
                     fcntl.flock(handle, fcntl.LOCK_UN)
+
+    def save(self):
+        """Persist goals before disabling qBittorrent's native stop limits."""
+        atomic(CONFIG / 'green-credit.json', json.dumps(self.entries))
 
     def register(self, hashes, target, policy=None):
         for ident in hashes:

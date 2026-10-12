@@ -3,7 +3,6 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import ipaddress
 import json
-from green_credit import green_safety_factor
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -12,7 +11,7 @@ import time
 from urllib.parse import urlsplit
 import uuid
 
-from qbit_rpc import share_policy, call, seed_ratio, SEEDING_MINUTES
+from qbit_rpc import share_policy, call, seed_ratio
 from state import atomic
 
 PREFIX='FjordSeed-'
@@ -223,8 +222,8 @@ def sync_rss(feeds,api=call):
               'mustNotContain':'','useRegex':False,'smartFilter':False,'ignoreDays':0,'episodeFilter':'',
               'affectedFeeds':[entry['url']],
               'torrentParams':{'save_path':str(path),'use_auto_tmm':False,'stopped':False,'force_start':False,
-                  'tags':['FjordSeed-RSS-'+entry['id']], 'ratio_limit':entry['ratio_limit'] * green_safety_factor(),
-                  'seeding_time_limit':SEEDING_MINUTES,'inactive_seeding_time_limit':-1,
+                  'tags':['FjordSeed-RSS-'+entry['id']], 'ratio_limit':-1,
+                  'seeding_time_limit':-1,'inactive_seeding_time_limit':-1,
                   'share_limit_action':'RemoveWithContent' if entry['ratio_action']=='delete' else 'Stop'}}
         api('rss/setRule',{'ruleName':name,'ruleDef':json.dumps(rule)})
     active=any(e['enabled'] for e in entries)

@@ -100,18 +100,58 @@ def sync_share_limits(api=None):
         rows=api('torrents/info').json()
         normalize_forced_downloads(api, rows)
         prioritize_rss_downloads(api,rows)
-        for row in rows:
-            credit=ledger.update(row)
-            apply_limits(api,row,credit['native_ratio_limit'])
+        credits=[ledger.update(row) for row in rows]
+        ledger.save()
+        for row,credit in zip(rows,credits):
+            apply_limits(api,row)
+            if finish_seeding(api,row,credit):
+                for key in ('hash','infohash_v1','infohash_v2'):
+                    ledger.entries.pop(str(row.get(key) or '').lower(),None)
 
 
-def apply_limits(api,row,target,action=None):
-    if (row.get('ratio_limit')!=target or row.get('seeding_time_limit')!=SEEDING_MINUTES
+def apply_limits(api,row,action=None):
+    # Native limits can fire between polls and disconnect active downloaders.
+    # The durable ledger owns the goal; qBittorrent retains the file action.
+    if (row.get('ratio_limit')!=-1 or row.get('seeding_time_limit')!=-1
             or row.get('inactive_seeding_time_limit')!=-1
             or (action is not None and row.get('share_limit_action')!=action)):
-        api('torrents/setShareLimits',{'hashes':row['hash'],'ratioLimit':target,
-            'seedingTimeLimit':SEEDING_MINUTES,'inactiveSeedingTimeLimit':-1,
+        api('torrents/setShareLimits',{'hashes':row['hash'],'ratioLimit':-1,
+            'seedingTimeLimit':-1,'inactiveSeedingTimeLimit':-1,
             'shareLimitAction':action or row.get('share_limit_action') or 'Stop'})
+
+
+def initial_managed_ratio(hashes,target):
+    initial_ratio_limit(hashes,target)  # Persist the selected goal before add.
+    return -1
+
+
+def seeding_completion(row,credit):
+    active=row.get('state') in {'uploading','stalledUP','forcedUP'}
+    ratio=credit['credited_ratio']
+    seconds=row.get('seeding_time')
+    reached=ratio>=credit['ratio_limit'] or (
+        type(seconds) in (int,float) and math.isfinite(seconds) and seconds>=SEEDING_SECONDS)
+    peers=row.get('num_leechs')
+    speed=row.get('upspeed')
+    known=(type(peers) is int and peers>=0 and type(speed) in (int,float)
+           and math.isfinite(speed) and speed>=0)
+    waiting=bool(active and reached and (not known or peers>0 or speed>0))
+    return {'seeding_goal_reached':bool(reached),'waiting_for_downloaders':waiting,
+            'seeding_peer_status_known':known}
+
+
+def finish_seeding(api,row,credit):
+    completion=seeding_completion(row,credit)
+    if (row.get('state') not in {'uploading','stalledUP','forcedUP'}
+            or not completion['seeding_goal_reached'] or completion['waiting_for_downloaders']):
+        return
+    action=row.get('share_limit_action') or 'Stop'
+    if action=='Stop':
+        api('torrents/stop',{'hashes':row['hash']})
+    elif action in {'Remove','RemoveWithContent'}:
+        api('torrents/delete',{'hashes':row['hash'],
+            'deleteFiles':'true' if action=='RemoveWithContent' else 'false'})
+        return True
 
 
 def share_policy(data):
@@ -158,11 +198,13 @@ def execute(action, data):
         torrents=[]
         with CreditLedger().transaction() as ledger:
             rows = call('torrents/info').json()
-            for row in rows:
-                credit=ledger.update(row)
-                apply_limits(call,row,credit['native_ratio_limit'])
+            credits=[ledger.update(row) for row in rows]
+            ledger.save()
+            for row,credit in zip(rows,credits):
+                apply_limits(call,row)
                 torrents.append({**{k:row.get(k) for k in fields},**credit,
-                    'seeding_time_limit':SEEDING_MINUTES,**stop_requirement({**row,**credit})})
+                    'seeding_time_limit':SEEDING_MINUTES,**stop_requirement({**row,**credit}),
+                    **seeding_completion(row,credit)})
         return {'torrents':torrents,
                 'download_queue':download_queue_summary(rows),
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
@@ -170,13 +212,10 @@ def execute(action, data):
     if action == 'add':
         policy = share_policy(data)
         from torrent_meta import magnet_meta, torrent_meta
-        try:
-            meta=magnet_meta(data['magnet']) if data.get('magnet') else torrent_meta(base64.b64decode(data['torrent'],validate=True))
-        except ValueError:
-            meta={'hashes':[]}
+        meta=magnet_meta(data['magnet']) if data.get('magnet') else torrent_meta(base64.b64decode(data['torrent'],validate=True))
         options = {'savepath':'/downloads', 'stopped':'false', 'forceStart':'false',
-                   'ratioLimit':initial_ratio_limit(meta['hashes'],seed_ratio(policy['ratio_limit'])),
-                   'seedingTimeLimit':SEEDING_MINUTES, 'inactiveSeedingTimeLimit':-1,
+                   'ratioLimit':initial_managed_ratio(meta['hashes'],seed_ratio(policy['ratio_limit'])),
+                   'seedingTimeLimit':-1, 'inactiveSeedingTimeLimit':-1,
                    'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] == 'delete' else 'Stop'}
         if data.get('magnet'):
             response = call('torrents/add', {**options, 'urls':data['magnet']})
@@ -201,9 +240,10 @@ def execute(action, data):
             rows=call('torrents/info?hashes='+ident).json()
             if len(rows)!=1 or rows[0].get('hash','').lower()!=ident.lower():
                 raise ValueError('Torrent not found')
-            credit=ledger.update(rows[0],target=ratio)
+            ledger.update(rows[0],target=ratio)
+            ledger.save()
             selected=('RemoveWithContent' if policy['ratio_action']=='delete' else 'Stop') if 'ratio_action' in data else None
-            apply_limits(call,rows[0],credit['native_ratio_limit'],action=selected)
+            apply_limits(call,rows[0],action=selected)
     elif action in ('start','stop','delete'):
         if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}', data.get('hash','')):
             raise ValueError('Invalid hash')

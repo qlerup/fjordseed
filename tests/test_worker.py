@@ -78,3 +78,28 @@ def test_supervisor_terminates_running_client_when_vpn_fails(monkeypatch):
     process.terminate.assert_called_once()
     process.wait.assert_called_once_with(10)
     assert qbit_worker.atomic.call_args_list[-1].args[1].find('false')>=0
+
+
+def test_policy_failure_keeps_healthy_seeders_running(monkeypatch):
+    stop=Mock()
+    stop.is_set.side_effect=[False,True]
+    monkeypatch.setattr(qbit_worker,'STOP',stop)
+    monkeypatch.setattr(qbit_worker.signal,'signal',Mock())
+    monkeypatch.setattr(qbit_worker,'ready',Mock(return_value=(40001,'203.0.113.1','France')))
+    monkeypatch.setattr(qbit_worker,'configure',Mock())
+    monkeypatch.setattr(qbit_worker,'sync_download_queue',Mock())
+    monkeypatch.setattr(qbit_worker,'sync_share_limits',Mock(side_effect=OSError('policy unavailable')))
+    monkeypatch.setattr(qbit_worker,'atomic',Mock())
+    monkeypatch.setattr(qbit_worker,'call',Mock(return_value=Mock(json=lambda:{'current_network_interface':'tun0','upnp':False,'listen_port':40001})))
+    session=Mock()
+    session.__enter__=Mock(return_value=session);session.__exit__=Mock(return_value=False)
+    session.get.return_value.status_code=200
+    monkeypatch.setattr('requests.Session',Mock(return_value=session))
+    process=Mock();process.poll.return_value=None
+    monkeypatch.setattr(qbit_worker.subprocess,'Popen',Mock(return_value=process))
+    stop.wait.side_effect=lambda _:process.terminate.assert_not_called()
+    qbit_worker.run()
+    status=json.loads(qbit_worker.atomic.call_args_list[0].args[1])
+    assert status['ready'] and status['seeding_error']
+    # Normal supervisor shutdown still stops the process.
+    process.terminate.assert_called_once()

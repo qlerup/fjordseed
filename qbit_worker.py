@@ -82,6 +82,7 @@ def run():
     rss_last=0
     reports=[]
     share_last=0
+    seeding_error=None
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: STOP.set())
     try:
@@ -119,8 +120,16 @@ def run():
                         if call('app/preferences').json().get('listen_port') != port:
                             raise ValueError('Port synchronization failed')
                     if time.monotonic()-share_last>10:
-                        sync_share_limits()
+                        try:
+                            sync_share_limits()
+                            seeding_error=None
+                        except Exception:
+                            # A policy/read failure must not interrupt seeders.
+                            # VPN failures still reach the outer kill switch.
+                            seeding_error='Seedingkontrol fejlede; automatisk stop afventer næste kontrol.'
                         share_last=time.monotonic()
+                    if seeding_error:
+                        status['seeding_error']=seeding_error
                     try:
                         content=Path('/config/fjord-rss.json').read_text() if Path('/config/fjord-rss.json').exists() else '[]'
                         from green_credit import green_safety_factor
@@ -136,6 +145,8 @@ def run():
                     except Exception:
                         status['rss_error']=True
                     status.update(ready=True, port=port, public_ip=address, country=country, message='qBittorrent kører gennem VPN.')
+                    if seeding_error:
+                        status['message']+=' '+seeding_error
             except Exception:
                 stop_process(process)
                 process = None

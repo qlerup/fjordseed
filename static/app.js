@@ -41,6 +41,9 @@ function renderRatioPreview(data){
  }
 }
 function torrentStatus(t) {
+ if(t.waiting_for_downloaders)return t.seeding_peer_status_known
+  ?'Seeder videre \u2013 venter p\u00e5 aktive downloadere'
+  :'Seeder videre \u2013 afventer peer-status';
  const states = {
   uploading:'Seeder \u2013 uploader', stalledUP:'Seeder \u2013 venter p\u00e5 downloadere',
   forcedUP:'Seeder \u2013 tvunget start', queuedUP:'I k\u00f8 til seeding',
@@ -82,7 +85,7 @@ function torrentDetails(t) {
   const seed=seedingProgress(t);
   details.append(node('p','torrent-rule','Automatisk stop ved ratio '+seed.target.toLocaleString('da-DK')+
    (seed.minutes?' eller '+(seed.minutes/60).toLocaleString('da-DK')+' timers seeding':'')+
-   '. '+(t.share_limit_action==='RemoveWithContent'?'Filer slettes automatisk.':'Filer beholdes.')));
+   ', n\u00e5r ingen tilsluttede downloadere mangler data, og upload er afsluttet. '+(t.share_limit_action==='RemoveWithContent'?'Filer slettes automatisk.':'Filer beholdes.')));
  }
  return details;
 }
@@ -238,10 +241,10 @@ function updateRatioEditWarning() {
  const value=Number($('#edit-ratio-limit').value);
  const met=(Number(editingRatio?.credited_ratio??editingRatio?.ratio)||0)>=value||(Number(editingRatio?.seeding_time)||0)>=(Number(editingRatio?.required_seeding_seconds)||49*3600);
  const deleting=$('#edit-ratio-action').value==='delete';
- $('#edit-ratio-info').textContent='Automatisk stop sker ved denne ratio eller 49 timers seeding. '+(deleting?'Torrent og filer slettes automatisk.':'Filerne beholdes.');
+ $('#edit-ratio-info').textContent='Automatisk stop sker ved denne ratio eller 49 timers seeding, n\u00e5r aktive downloadere er f\u00e6rdige. '+(deleting?'Torrent og filer slettes automatisk.':'Filerne beholdes.');
  const warning=$('#edit-ratio-warning');
  warning.hidden=!met||value<1;
- warning.textContent=deleting?'M\u00e5let er allerede n\u00e5et. Torrenten og filerne kan blive slettet automatisk, n\u00e5r du gemmer.':'M\u00e5let er allerede n\u00e5et. Seeding kan stoppe automatisk, n\u00e5r du gemmer.';
+ warning.textContent=deleting?'M\u00e5let er allerede n\u00e5et. Torrenten og filerne kan blive slettet automatisk efter gem, n\u00e5r aktive downloadere er f\u00e6rdige.':'M\u00e5let er allerede n\u00e5et. Seeding kan stoppe automatisk efter gem, n\u00e5r aktive downloadere er f\u00e6rdige.';
 }
 $('#edit-ratio-limit').oninput=updateRatioEditWarning;
 $('#edit-ratio-action').onchange=updateRatioEditWarning;

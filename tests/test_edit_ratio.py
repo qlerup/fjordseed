@@ -14,8 +14,8 @@ def test_edit_ratio_preserves_action_and_time_without_restart(monkeypatch, value
         return Mock(json=lambda: {'current_network_interface': 'tun0', 'upnp': False} if path == 'app/preferences' else [row])
     monkeypatch.setattr('qbit_rpc.call', api)
     assert execute('ratio', {'hash': row['hash'], 'ratio_limit': value}) == {'ok': True}
-    assert calls[-1] == ('torrents/setShareLimits', {'hashes': row['hash'], 'ratioLimit': value,
-        'seedingTimeLimit': 2940, 'inactiveSeedingTimeLimit': -1, 'shareLimitAction': 'RemoveWithContent'})
+    assert calls[-1] == ('torrents/setShareLimits', {'hashes': row['hash'], 'ratioLimit': -1,
+        'seedingTimeLimit': -1, 'inactiveSeedingTimeLimit': -1, 'shareLimitAction': 'RemoveWithContent'})
     assert not any(path in ('torrents/start', 'torrents/stop', 'torrents/add') for path, _ in calls)
 
 
@@ -62,8 +62,8 @@ def test_file_action_can_change_without_changing_ratio_or_resuming(monkeypatch,o
         return Mock(json=lambda:{'current_network_interface':'tun0','upnp':False} if path=='app/preferences' else [row])
     monkeypatch.setattr('qbit_rpc.call',api)
     execute('ratio',{'hash':row['hash'],'ratio_limit':2,'ratio_action':selected})
-    assert calls[-1]==('torrents/setShareLimits',{'hashes':row['hash'],'ratioLimit':2,
-        'seedingTimeLimit':2940,'inactiveSeedingTimeLimit':-1,'shareLimitAction':expected})
+    assert calls[-1]==('torrents/setShareLimits',{'hashes':row['hash'],'ratioLimit':-1,
+        'seedingTimeLimit':-1,'inactiveSeedingTimeLimit':-1,'shareLimitAction':expected})
     assert not any(path in ('torrents/start','torrents/stop','torrents/delete','torrents/add') for path,_ in calls)
 
 

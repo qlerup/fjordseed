@@ -104,7 +104,7 @@ def test_skip_old_and_undated_before_metadata_then_add_boundary_and_future(gate)
     resolve(invoke,candidate)
     added=next(d for p,d in calls if p=='torrents/add')
     assert f'{4:040x}' in added['urls'] and added['forceStart']=='false'
-    assert added['ratioLimit']==2 and added['seedingTimeLimit']==2940 and added['shareLimitAction']=='Stop'
+    assert added['ratioLimit']==-1 and added['seedingTimeLimit']==-1 and added['shareLimitAction']=='Stop'
     assert added['tags']=='FjordSeed-RSS-'+entry['id'] and added['savepath']==str(root/'downloads')
     articles[3]['torrentURL']='https://tracker.example/3'
     next_candidate=invoke('rss_prepare');resolve(invoke,next_candidate)
@@ -196,7 +196,7 @@ def test_manual_and_rss_share_exact_start_policy_and_credit(gate,monkeypatch,kin
     manual_options=next(d for p,d in manual_calls if p=='torrents/add')
     for key in ('ratioLimit','seedingTimeLimit','inactiveSeedingTimeLimit','shareLimitAction','forceStart','stopped'):
         assert rss_options[key]==manual_options[key]
-    assert rss_options['ratioLimit']==expected
+    assert rss_options['ratioLimit']==-1
     with credit.CreditLedger().transaction() as ledger:
         result=ledger.update({'hash':ident,'uploaded':1000,'downloaded':1000,'ratio':1,
                               'added_on':now,'ratio_limit':expected},now=now+1)

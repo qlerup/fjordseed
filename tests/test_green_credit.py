@@ -132,7 +132,7 @@ def test_api_ratio_edit_preserves_credit_action_and_paused_state(monkeypatch):
     monkeypatch.setattr('qbit_rpc.call',api)
     monkeypatch.setattr(credit.time,'time',lambda:CREATED+120)
     execute('ratio',{'hash':HASH,'ratio_limit':5})
-    assert calls[-1][1]['ratioLimit']==10
+    assert calls[-1][1]['ratioLimit']==-1
     assert calls[-1][1]['shareLimitAction']=='RemoveWithContent'
     assert not any(p in ('torrents/start','torrents/stop') for p,_ in calls)
     assert update(row(1000,10),CREATED+130)['ratio_limit']==5
@@ -147,8 +147,8 @@ def test_worker_adjusts_after_expiry_and_keeps_49_hour_alternative(monkeypatch):
         calls.append((path,data))
         return Mock(json=lambda:[row(1000,2,share_limit_action='RemoveWithContent')])
     sync_share_limits(api)
-    assert calls[-1][1]['ratioLimit']==1.5
-    assert calls[-1][1]['seedingTimeLimit']==2940
+    assert calls[-1][1]['ratioLimit']==-1
+    assert calls[-1][1]['seedingTimeLimit']==-1
     assert calls[-1][1]['shareLimitAction']=='RemoveWithContent'
     effective=update(row(1000,1.5),END+10)
     assert not stop_requirement({**row(1000),**effective})['seeding_requirement_met']
@@ -196,6 +196,6 @@ def test_manual_add_protects_goal_before_async_date_lookup(monkeypatch):
         return Mock(json=lambda:{'current_network_interface':'tun0','upnp':False},text='Ok.')
     monkeypatch.setattr('qbit_rpc.call',api)
     execute('add',{'magnet':'magnet:?xt=urn:btih:'+HASH+'&dn=Linux','ratio_limit':1})
-    assert calls[-1][1]['ratioLimit']==2
+    assert calls[-1][1]['ratioLimit']==-1
     result=update(row(1000,2),CREATED+120)
     assert result['ratio_limit']==1 and result['credited_ratio']==.5

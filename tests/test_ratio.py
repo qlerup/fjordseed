@@ -32,9 +32,9 @@ def test_add_sets_native_per_torrent_policy_before_start(monkeypatch,method,acti
     execute('add',payload)
     args=call.call_args.args
     assert args[0]=='torrents/add'
-    assert args[1]['ratioLimit']==2.5
+    assert args[1]['ratioLimit']==-1
     assert args[1]['shareLimitAction']==expected
-    assert args[1]['seedingTimeLimit']==2940
+    assert args[1]['seedingTimeLimit']==-1
     assert args[1]['inactiveSeedingTimeLimit']==-1
     assert args[1]['stopped']=='false'
     assert args[1]['forceStart']=='false'
@@ -108,9 +108,9 @@ def test_existing_limits_gain_49_hours_preserve_actions_and_higher_ratio():
             {'hash':'c'*40,'ratio_limit':2,'seeding_time_limit':2940,'inactive_seeding_time_limit':-1}])
     sync_share_limits(api)
     updates=[d for p,d in calls if p=='torrents/setShareLimits']
-    assert len(updates)==2 and updates[0]['ratioLimit']==1 and updates[1]['ratioLimit']==3
+    assert len(updates)==3 and all(d['ratioLimit']==-1 for d in updates)
     assert updates[1]['shareLimitAction']=='RemoveWithContent'
-    assert all(d['seedingTimeLimit']==2940 and d['inactiveSeedingTimeLimit']==-1 for d in updates)
+    assert all(d['seedingTimeLimit']==-1 and d['inactiveSeedingTimeLimit']==-1 for d in updates)
 
 
 def test_existing_48_hour_limit_is_upgraded_without_resuming_or_changing_policy():
@@ -122,5 +122,5 @@ def test_existing_48_hour_limit_is_upgraded_without_resuming_or_changing_policy(
         calls.append((path,data))
         return Mock(json=lambda:[row])
     sync_share_limits(api)
-    assert calls[-1]==('torrents/setShareLimits',{'hashes':row['hash'],'ratioLimit':5,
-        'seedingTimeLimit':2940,'inactiveSeedingTimeLimit':-1,'shareLimitAction':'RemoveWithContent'})
+    assert calls[-1]==('torrents/setShareLimits',{'hashes':row['hash'],'ratioLimit':-1,
+        'seedingTimeLimit':-1,'inactiveSeedingTimeLimit':-1,'shareLimitAction':'RemoveWithContent'})
