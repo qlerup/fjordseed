@@ -59,7 +59,7 @@ function seedingProgress(t) {
  const ratio = Math.max(0, Number(t.credited_ratio??t.ratio) || 0);
  const target = Number(t.ratio_limit) > 0 ? Number(t.ratio_limit) : 1;
  const seconds = Math.max(0, Number(t.seeding_time) || 0);
- const minutes = Number(t.seeding_time_limit) > 0 ? Number(t.seeding_time_limit) : 0;
+ const minutes = !t.ratio_only && Number(t.seeding_time_limit) > 0 ? Number(t.seeding_time_limit) : 0;
  const fraction = Math.min(1, Math.max(ratio / target, minutes ? seconds / (minutes * 60) : 0));
  return {ratio, target, seconds, minutes, fraction, active:['uploading','stalledUP','forcedUP'].includes(t.state)};
 }

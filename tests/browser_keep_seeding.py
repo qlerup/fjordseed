@@ -103,6 +103,12 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             expect(page.locator('#stop-dialog')).not_to_be_visible()
             assert app.extensions['runtime'].rpc.call_args.args[0]=='stop'
             assert app.extensions['runtime'].rpc.call_args.args[1]['confirm_early_stop'] is True
+            page.evaluate("""()=>{const bar=torrentProgress({state:'stalledUP',progress:1,
+                ratio_only:true,credited_ratio:.5,ratio:1,ratio_limit:2,
+                seeding_time:3600*1000,seeding_time_limit:2940});bar.id='ratio-only-test';
+                document.body.append(bar);}""")
+            assert page.locator('#ratio-only-test .seed-progress').evaluate('e=>e.value')==.25
+            assert '25 %' in page.locator('#ratio-only-test').inner_text()
             assert not errors,errors
             browser.close()
             print('PASS manual, RSS and existing-torrent keep/delete fields and warnings')
