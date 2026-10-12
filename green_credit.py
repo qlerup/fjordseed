@@ -63,17 +63,18 @@ def number(value):
 
 
 def seed_time(entry, row):
-    """Exclude native counter growth during moves, including transition polls."""
+    """Exclude native counter growth during moves and pauses, including transitions."""
     raw = row.get('seeding_time')
     if type(raw) not in (int, float) or not math.isfinite(raw) or raw < 0:
         return entry.get('seed_clock', {}).get('seconds', 0)
     moving = row.get('state') == 'moving'
+    paused = row.get('state') in ('pausedUP', 'pausedDL', 'stoppedUP', 'stoppedDL')
     clock = entry.get('seed_clock')
     if clock is None:
         clock = {'seconds': raw}
-    elif not moving and not clock['moving']:
+    elif not moving and not paused and not clock['moving'] and not clock.get('paused', False):
         clock['seconds'] += max(0, raw - clock['raw'])
-    clock.update(raw=raw, moving=moving)
+    clock.update(raw=raw, moving=moving, paused=paused)
     entry['seed_clock'] = clock
     return clock['seconds']
 

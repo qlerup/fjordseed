@@ -22,6 +22,7 @@ def helper(self,action,value='',source='/'):
 
 with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',helper):
     app=create_app(folder,testing=True,runtime_factory=FakeRuntime)
+    app.extensions['state'].save('a'*32,True)
     app.extensions['runtime'].host_downloads=Path('/downloads')
     app.extensions['runtime'].stop=Mock()
     server=make_server('127.0.0.1',0,app,threaded=True)
@@ -70,6 +71,31 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             expect(page.locator('.is-moving .seed-state')).to_contain_text('Flytter filer')
             assert 'Seeder' not in page.locator('.is-moving').inner_text()
             assert 'Seeding:' not in page.locator('.is-moving').inner_text()
+            page.evaluate("""()=>{current={ready:true};const host=document.createElement('div');
+                host.id='toggle-test';document.querySelector('#torrent-list').append(host);}""")
+            for state,label in [('downloading','Pause'),('stalledUP','Pause'),('queuedDL','Pause'),
+                                ('pausedUP','Start'),('pausedDL','Start'),('stoppedUP','Start'),('stoppedDL','Start'),
+                                ('moving','Pause')]:
+                page.evaluate("""state=>document.querySelector('#toggle-test').replaceChildren(card({
+                    hash:'a'.repeat(40),name:'Toggle fixture',state,progress:1,seeding_requirement_met:true}))""",state)
+                host=page.locator('#toggle-test')
+                assert host.get_by_role('button',name='Start Toggle fixture',exact=True).count()+host.get_by_role('button',name='Pause Toggle fixture',exact=True).count()==1
+                button=host.get_by_role('button',name=label+' Toggle fixture',exact=True)
+                expect(button).to_be_disabled() if state=='moving' else expect(button).to_be_enabled()
+            page.evaluate("""()=>document.querySelector('#toggle-test').replaceChildren(card({
+                hash:'a'.repeat(40),name:'Toggle fixture',state:'stoppedUP',progress:1,seeding_requirement_met:true}))""")
+            page.get_by_role('button',name='Start Toggle fixture',exact=True).click()
+            expect(page.locator('#toggle-test')).to_have_count(0)
+            assert app.extensions['runtime'].rpc.call_args.args[0]=='start'
+            page.evaluate("""()=>{current={ready:true};document.querySelector('#torrent-list').append(card({
+                hash:'a'.repeat(40),name:'Toggle fixture',state:'stalledUP',progress:1,seeding_requirement_met:false}));}""")
+            page.get_by_role('button',name='Pause Toggle fixture',exact=True).click()
+            expect(page.locator('#stop-dialog')).to_be_visible()
+            assert app.extensions['runtime'].rpc.call_count==1
+            page.locator('#stop-save').click()
+            expect(page.locator('#stop-dialog')).not_to_be_visible()
+            assert app.extensions['runtime'].rpc.call_args.args[0]=='stop'
+            assert app.extensions['runtime'].rpc.call_args.args[1]['confirm_early_stop'] is True
             assert not errors,errors
             browser.close()
             print('PASS manual, RSS and existing-torrent keep/delete fields and warnings')

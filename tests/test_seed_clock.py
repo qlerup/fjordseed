@@ -30,3 +30,19 @@ def test_native_move_time_cannot_trigger_49_hour_deletion():
     assert not seeding_completion(row,credit)['seeding_goal_reached']
     credit['seeding_time']+=1
     assert seeding_completion(row,credit)['seeding_goal_reached']
+
+
+@pytest.mark.parametrize('state',['pausedUP','pausedDL','stoppedUP','stoppedDL'])
+@pytest.mark.parametrize('action',['Stop','RemoveWithContent'])
+def test_manual_pause_freezes_seed_time_even_if_native_counter_grows(state,action):
+    row={'hash':'b'*40,'added_on':1,'state':'stalledUP','share_limit_action':action}
+    def sample(raw,status):
+        row.update(seeding_time=raw,state=status)
+        with CreditLedger().transaction() as ledger:
+            return ledger.update(row)['seeding_time']
+    assert sample(100,'stalledUP')==100
+    assert sample(110,'stalledUP')==110
+    assert sample(120,state)==110
+    assert sample(3720,state)==110
+    assert sample(3730,'stalledUP')==110
+    assert sample(3740,'stalledUP')==120
