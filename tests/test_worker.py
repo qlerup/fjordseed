@@ -90,7 +90,7 @@ def test_policy_failure_keeps_healthy_seeders_running(monkeypatch):
     monkeypatch.setattr(qbit_worker,'sync_download_queue',Mock())
     monkeypatch.setattr(qbit_worker,'sync_share_limits',Mock(side_effect=OSError('policy unavailable')))
     monkeypatch.setattr(qbit_worker,'atomic',Mock())
-    monkeypatch.setattr(qbit_worker,'call',Mock(return_value=Mock(json=lambda:{'current_network_interface':'tun0','upnp':False,'listen_port':40001})))
+    monkeypatch.setattr(qbit_worker,'call',Mock(return_value=Mock(json=lambda:{'current_network_interface':'tun0','upnp':False,'listen_port':40001,'stop_tracker_timeout':2})))
     session=Mock()
     session.__enter__=Mock(return_value=session);session.__exit__=Mock(return_value=False)
     session.get.return_value.status_code=200
@@ -103,3 +103,22 @@ def test_policy_failure_keeps_healthy_seeders_running(monkeypatch):
     assert status['ready'] and status['seeding_error']
     # Normal supervisor shutdown still stops the process.
     process.terminate.assert_called_once()
+    process.wait.assert_called_once_with(30)
+    assert any(call.args==('app/setPreferences',{'json':json.dumps({'stop_tracker_timeout':10})})
+               for call in qbit_worker.call.call_args_list)
+
+
+def test_graceful_stop_waits_for_stopped_announces_before_killing():
+    process=Mock();process.poll.return_value=None
+    qbit_worker.stop_process(process,graceful=True)
+    process.terminate.assert_called_once()
+    process.wait.assert_called_once_with(30)
+    process.kill.assert_not_called()
+
+
+def test_unresponsive_shutdown_is_bounded():
+    process=Mock();process.poll.return_value=None
+    process.wait.side_effect=[qbit_worker.subprocess.TimeoutExpired('qbit',30),0]
+    qbit_worker.stop_process(process,graceful=True)
+    process.kill.assert_called_once()
+    assert [call.args[0] for call in process.wait.call_args_list]==[30,3]

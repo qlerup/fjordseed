@@ -100,7 +100,7 @@ class Runtime:
         child = self.child()
         if child:
             if child.status != 'exited':
-                child.stop(timeout=15)
+                child.stop(timeout=40)
             if remove:
                 child.remove()
 

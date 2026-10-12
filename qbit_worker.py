@@ -65,11 +65,11 @@ def configure(port, root=Path('/config')):
     atomic(path, output.getvalue())
 
 
-def stop_process(process):
+def stop_process(process, graceful=False):
     if process and process.poll() is None:
         process.terminate()
         try:
-            process.wait(10)
+            process.wait(30 if graceful else 10)
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(3)
@@ -114,6 +114,11 @@ def run():
                 else:
                     if prefs.get('current_network_interface') != 'tun0' or prefs.get('upnp') is not False:
                         raise ValueError('Unsafe network settings')
+                    # Private trackers need time to acknowledge stopped announces
+                    # before a restart generates a new peer ID. Keep the VPN-failure
+                    # termination path short; extend only normal shutdown.
+                    if type(prefs.get('stop_tracker_timeout')) is int and prefs['stop_tracker_timeout'] < 10:
+                        call('app/setPreferences', {'json':json.dumps({'stop_tracker_timeout':10})})
                     sync_download_queue(prefs)
                     if prefs.get('listen_port') != port:
                         call('app/setPreferences', {'json':json.dumps({'listen_port':port,'random_port':False,'upnp':False})})
@@ -153,7 +158,7 @@ def run():
             atomic('/config/worker-status.json', json.dumps(status), mode=0o644)
             STOP.wait(2)
     finally:
-        stop_process(process)
+        stop_process(process, graceful=True)
         atomic('/config/worker-status.json', json.dumps({'ready':False, 'checked_at':time.time(), 'message':'Seedbox stoppet.'}), mode=0o644)
 
 
