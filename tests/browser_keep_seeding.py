@@ -63,6 +63,10 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             page.locator('#edit-ratio-action').select_option('keep')
             expect(page.locator('#edit-extra-seed-hours')).not_to_be_visible()
             expect(page.locator('#edit-ratio-warning')).not_to_be_visible()
+            page.evaluate("""()=>{document.querySelectorAll('dialog[open]').forEach(d=>d.close());
+                document.body.append(torrentProgress({name:'Moving',state:'moving',move_progress:.42}));}""")
+            expect(page.locator('.move-progress')).to_have_attribute('value','0.42')
+            expect(page.locator('.is-moving')).to_contain_text('42 %')
             assert not errors,errors
             browser.close()
             print('PASS manual, RSS and existing-torrent keep/delete fields and warnings')

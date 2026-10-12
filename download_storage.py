@@ -1,6 +1,7 @@
 """New torrents are staged privately; qBittorrent moves retained complete payloads."""
 from contextlib import contextmanager
 import json
+import os
 from pathlib import Path
 import re
 import threading
@@ -122,3 +123,41 @@ def publish_complete(api, rows):
             except Exception:
                 errors.append('En færdig download kunne ikke flyttes. Kontrollér lager og skriverettigheder.')
     return errors
+
+
+def moving_progress(row, entries):
+    """Best-effort estimate; qBittorrent does not expose native move progress."""
+    if row.get('state') != 'moving':
+        return {}
+    unknown = {'move_progress': None}
+    record = next((entries.get(row.get(k)) for k in ('hash','infohash_v1','infohash_v2')
+                   if entries.get(row.get(k))), None)
+    if not record or not row.get('size') or row['size'] <= 0:
+        return unknown
+    destination = Path(record['target'] if row.get('share_limit_action') in ('Stop','Remove') else record['stage'])
+    if str(destination).rstrip('/') == str(row.get('save_path','')).rstrip('/'):
+        return unknown
+    try:
+        if any(p.is_symlink() for p in (destination, *destination.parents)):
+            return unknown
+        if not destination.is_dir():
+            return unknown
+        allocated, count = 0, 0
+        def failed(error):
+            raise error
+        for directory, dirs, files in os.walk(destination, followlinks=False, onerror=failed):
+            dirs[:] = [d for d in dirs if not (Path(directory)/d).is_symlink()]
+            for name in files:
+                path = Path(directory)/name
+                if path.is_symlink():
+                    continue
+                count += 1
+                if count > 10000:
+                    return unknown
+                info = path.stat()
+                if not hasattr(info, 'st_blocks'):
+                    return unknown  # File length alone may be preallocated.
+                allocated += min(info.st_size, info.st_blocks * 512)
+        return {'move_progress': min(.99, allocated / row['size']), 'move_estimated': True}
+    except OSError:
+        return unknown

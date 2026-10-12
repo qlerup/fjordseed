@@ -91,6 +91,17 @@ function torrentDetails(t) {
  return details;
 }
 function torrentProgress(t) {
+ if(t.state==='moving'){
+  const wrap=node('div','torrent-progress is-moving'),caption=node('div','progress-caption');
+  const measured=typeof t.move_progress==='number'&&Number.isFinite(t.move_progress);
+  const percent=measured?Math.floor(Math.max(0,Math.min(.99,t.move_progress))*100):null;
+  caption.append(node('strong','',measured?'Flytter filer: ca. '+percent+' %':'Flytter filer – afventer fremdrift'),node('span','muted small','Seedtiden er sat på pause'));
+  const track=node('div','torrent-progress-track'),bar=node('progress','progress move-progress');
+  bar.max=1;if(measured)bar.value=percent/100;
+  bar.setAttribute('aria-label','Flytning af '+t.name);
+  if(measured)bar.setAttribute('aria-valuetext','Anslået '+percent+' % flyttet');
+  track.append(bar);wrap.append(caption,track);return wrap;
+ }
  const fraction = Math.max(0, Math.min(1, Number(t.progress) || 0));
  const complete = fraction >= 1;
  const seed = seedingProgress(t);

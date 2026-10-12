@@ -202,6 +202,8 @@ def execute(action, data):
         sync_snapshot()
         return {'ok':True}
     if action == 'status':
+        from download_storage import moving_progress, read as storage_read, CONFIG as storage_config
+        storage_entries = storage_read(storage_config/'download-storage.json', {})
         fields = ('hash','name','size','progress','dlspeed','upspeed','state','ratio','num_seeds','num_leechs','eta',
                   'ratio_limit','share_limit_action','infohash_v1','infohash_v2','completed','tags',
                   'seeding_time','seeding_time_limit','uploaded','downloaded','added_on','priority')
@@ -214,7 +216,7 @@ def execute(action, data):
                 apply_limits(call,row)
                 torrents.append({**{k:row.get(k) for k in fields},**credit,
                     'seeding_time_limit':SEEDING_MINUTES+credit.get('extra_seed_hours',0)*60 if row.get('share_limit_action')=='RemoveWithContent' else -1,**stop_requirement({**row,**credit}),
-                    **seeding_completion(row,credit)})
+                    **seeding_completion(row,credit), **moving_progress(row,storage_entries)})
         return {'torrents':torrents,
                 'download_queue':download_queue_summary(rows),
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
