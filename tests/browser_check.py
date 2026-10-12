@@ -18,7 +18,7 @@ class Demo(FakeRuntime):
         result=super().status()
         result['profiles']=[{'id':'a'*32,'name':'Seedbox VPN','desired':True,'relay_enabled':False}]
         if self.state.get()['enabled']:
-            result.update(ready=True,message='VPN klar',public_ip='203.0.113.5',country='PS',port=45001,version='5.2.1',
+            result.update(transfer={'dl_info_speed':2000000,'up_info_speed':15000},ready=True,message='VPN klar',public_ip='203.0.113.5',country='PS',port=45001,version='5.2.1',
                 torrents=[{'hash':'b'*40,'name':'Test Linux ISO','progress':.42,'size':1234567890,'dlspeed':2000000,'upspeed':15000,'ratio':.1,'state':'downloading'}])
             feeds=json.loads((self.state.root/'rss.json').read_text())
             if feeds:
@@ -64,7 +64,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#new-torrent')).to_be_enabled()
             expect(page.locator('#traffic-flow')).to_have_attribute('data-state','active')
             expect(page.locator('#flow-vpn-icon img')).to_have_attribute('src','/static/flags/ps.svg')
-            assert page.locator('.flow-link i').first.evaluate("el=>getComputedStyle(el).animationName")=='flow-out'
+            assert page.locator('.flow-link i').first.evaluate("el=>getComputedStyle(el).animationName")=='flow-back'
             expect(page.locator('#public-address')).to_contain_text('Palæstina')
             page.locator('.nav[href="#torrents"]').click()
             expect(page.locator('#connection')).not_to_be_visible()
