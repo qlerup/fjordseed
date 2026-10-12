@@ -52,7 +52,7 @@ function openRssForm(feed=null){
   document.querySelectorAll('[name=rss-badge]').forEach(e=>e.checked=(feed.required_badges||[]).includes(e.value));
   $('#rss-start').value=feed.download_from?'custom':'all';
   if(feed.download_from)$('#rss-start-date').value=rssLocalDate(feed.download_from);
-  updateRssStart();$('#rss-form-title').textContent='Rediger RSS-feed';$('#rss-delete-notice').hidden=feed.ratio_action!=='delete';
+  updateRssStart();$('#rss-form-title').textContent='Rediger RSS-feed';$('#rss-delete-notice').hidden=feed.ratio_action==='keep';
  }
  updateRssPath();updateRssBadges();loadRssTrackers(feed?.tracker_id||'');$('#rss-dialog').showModal();$('#rss-name').focus();
 }
@@ -69,7 +69,7 @@ function rssFeedCard(feed){
  function updateExpanded(){const expanded=expandedRssFeeds.has(feed.id);panel.hidden=!expanded;card.classList.toggle('is-expanded',expanded);toggle.textContent=expanded?'Skjul detaljer':'Vis detaljer';for(const button of [titleToggle,toggle]){button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-label',toggle.textContent+' for '+feed.name);}}
  toggle.onclick=()=>{if(expandedRssFeeds.has(feed.id))expandedRssFeeds.delete(feed.id);else expandedRssFeeds.add(feed.id);updateExpanded();};titleToggle.onclick=toggle.onclick;
  card.append(head,node('p','muted small',feed.host+' · '+feed.articles+' feedposter'));
- panel.append(node('p','torrent-policy','Mappe: '+rssRoot+(feed.folder?'/'+feed.folder:'')+(feed.ratio_action==='delete'?' · Slet ved ratio '+feed.ratio_limit+' eller 49 timers seeding':' · Behold filer og seed uden grænse')));
+ panel.append(node('p','torrent-policy','Mappe: '+rssRoot+(feed.folder?'/'+feed.folder:'')+(feed.ratio_action!=='keep'?' · Slet ved ratio '+feed.ratio_limit+(feed.ratio_action==='delete_ratio'?' uden tidsgrænse':' eller 49 timers seeding'):' · Behold filer og seed uden grænse')));
  panel.append(node('p','torrent-policy',feed.download_from?'Hent fra: '+new Date(feed.download_from).toLocaleString('da-DK'):'Hent alle poster i feedet'));
  if(feed.required_badges?.length)panel.append(node('p','torrent-policy','Kræver alle: '+feed.required_badges.map(b=>rssBadgeNames[b]).join(' + ')));
  if(feed.enabled&&feed.download_status)panel.append(node('p','muted small',feed.download_status));

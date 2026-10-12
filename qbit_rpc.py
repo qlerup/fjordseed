@@ -125,8 +125,8 @@ def apply_limits(api,row,action=None):
             'shareLimitAction':action or row.get('share_limit_action') or 'Stop'})
 
 
-def initial_managed_ratio(hashes,target):
-    initial_ratio_limit(hashes,target)  # Persist the selected goal before add.
+def initial_managed_ratio(hashes,target,ratio_only=False):
+    initial_ratio_limit(hashes,target,ratio_only=ratio_only)  # Persist the selected goal before add.
     return -1
 
 
@@ -135,7 +135,7 @@ def seeding_completion(row,credit):
     ratio=credit['credited_ratio']
     seconds=credit.get('seeding_time',row.get('seeding_time'))
     unlimited=row.get('share_limit_action') != 'RemoveWithContent'
-    reached=not unlimited and (ratio>=credit['ratio_limit'] or (
+    reached=not unlimited and (ratio>=credit['ratio_limit'] or (not credit.get('ratio_only',False) and
         type(seconds) in (int,float) and math.isfinite(seconds) and seconds>=SEEDING_SECONDS+credit.get('extra_seed_hours',0)*3600))
     peers=row.get('num_leechs')
     speed=row.get('upspeed')
@@ -173,7 +173,7 @@ def share_policy(data):
         raise ValueError('Vælg en gyldig stop-ratio.') from None
     if isinstance(value, bool) or not math.isfinite(ratio) or not (ratio == -1 or 0 <= ratio <= 10000):
         raise ValueError('Stop-ratio skal være mellem 0 og 10000.')
-    if action not in ('keep', 'delete') or (action == 'delete' and ratio < 0):
+    if action not in ('keep', 'delete', 'delete_ratio') or (action != 'keep' and ratio < 0):
         raise ValueError('Vælg en stop-ratio og hvad der skal ske med filerne.')
     return {'ratio_limit':ratio, 'ratio_action':action}
 
@@ -215,7 +215,7 @@ def execute(action, data):
             for row,credit in zip(rows,credits):
                 apply_limits(call,row)
                 torrents.append({**{k:row.get(k) for k in fields},**credit,
-                    'seeding_time_limit':SEEDING_MINUTES+credit.get('extra_seed_hours',0)*60 if row.get('share_limit_action')=='RemoveWithContent' else -1,**stop_requirement({**row,**credit}),
+                    'seeding_time_limit':SEEDING_MINUTES+credit.get('extra_seed_hours',0)*60 if row.get('share_limit_action')=='RemoveWithContent' and not credit.get('ratio_only',False) else -1,**stop_requirement({**row,**credit}),
                     **seeding_completion(row,credit), **moving_progress(row,storage_entries)})
         return {'torrents':torrents,
                 'download_queue':download_queue_summary(rows),
@@ -227,9 +227,9 @@ def execute(action, data):
         meta=magnet_meta(data['magnet']) if data.get('magnet') else torrent_meta(base64.b64decode(data['torrent'],validate=True))
         from download_storage import prepare
         options = {'savepath':prepare(meta['hashes']), 'autoTMM':'false', 'stopped':'false', 'forceStart':'false',
-                   'ratioLimit':initial_managed_ratio(meta['hashes'],seed_ratio(policy['ratio_limit'])),
+                   'ratioLimit':initial_managed_ratio(meta['hashes'],seed_ratio(policy['ratio_limit']),ratio_only=policy['ratio_action']=='delete_ratio'),
                    'seedingTimeLimit':-1, 'inactiveSeedingTimeLimit':-1,
-                   'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] == 'delete' else 'Stop'}
+                   'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] != 'keep' else 'Stop'}
         if data.get('magnet'):
             response = call('torrents/add', {**options, 'urls':data['magnet']})
         else:
@@ -255,10 +255,12 @@ def execute(action, data):
             if len(rows)!=1 or rows[0].get('hash','').lower()!=ident.lower():
                 raise ValueError('Torrent not found')
             ledger.update(rows[0],target=ratio)
+            if 'ratio_action' in data:
+                ledger.entries[ident.lower()]['ratio_only']=policy['ratio_action']=='delete_ratio'
             if extra is not None:
                 ledger.entries[ident.lower()]['extra_seed_hours']=extra
             ledger.save()
-            selected=('RemoveWithContent' if policy['ratio_action']=='delete' else 'Stop') if 'ratio_action' in data else None
+            selected=('RemoveWithContent' if policy['ratio_action']!='keep' else 'Stop') if 'ratio_action' in data else None
             apply_limits(call,rows[0],action=selected)
     elif action in ('start','stop','delete'):
         if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}', data.get('hash','')):

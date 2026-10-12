@@ -68,8 +68,8 @@ def test_sync_controls_native_download_and_clears_old_filters(tmp_path,monkeypat
 
 
 @pytest.fixture
-def gate(tmp_path,monkeypatch):
-    entry=feed();name=rss.PREFIX+entry['id'];calls=[];fetched=[]
+def gate(tmp_path,monkeypatch,request):
+    entry=feed(**getattr(request,'param',{}));name=rss.PREFIX+entry['id'];calls=[];fetched=[]
     (tmp_path/'fjord-rss.json').write_text(json.dumps([entry]))
     dates=['2026-10-06T12:00:00Z',None,'bad',START,'2026-10-08T12:00:00Z']
     articles=[{'id':str(i),'title':'Duplicate title','date':date,
@@ -92,6 +92,20 @@ def gate(tmp_path,monkeypatch):
 
 def resolve(invoke,candidate):
     return invoke('rss_resolve',token=candidate['token'],hashes=candidate['meta']['hashes'],approved=True)
+
+
+@pytest.mark.parametrize('gate',[{'ratio_action':'delete_ratio'}],indirect=True)
+def test_ratio_only_rss_add_stays_in_buffer_and_persists_goal(gate):
+    from green_credit import CreditLedger
+    from pathlib import Path
+    invoke,calls,_,_,root,_=gate
+    candidate=invoke('rss_prepare');resolve(invoke,candidate)
+    options=next(d for p,d in calls if p=='torrents/add')
+    assert options['shareLimitAction']=='RemoveWithContent'
+    assert options['seedingTimeLimit']==-1
+    assert Path(options['savepath']).parent==root/'downloads'/'.fjordseed-buffer'
+    with CreditLedger().transaction() as ledger:
+        assert ledger.update({'hash':candidate['meta']['hashes'][0],'state':'downloading'})['ratio_only'] is True
 
 
 def test_skip_old_and_undated_before_metadata_then_add_boundary_and_future(gate):

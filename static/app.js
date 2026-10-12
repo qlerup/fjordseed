@@ -240,7 +240,8 @@ async function loadPreviewBenefits(){
 $('#benefit-tracker').onchange=loadPreviewBenefits;
 $('#ratio-dialog').addEventListener('close',()=>{clearTimeout(previewTimer);previewGeneration++;});
 function updateSeedingFields(prefix){
- const deleting=$('#'+prefix+'-action').value==='delete';
+ const action=$('#'+prefix+'-action').value;const deleting=action!=='keep';
+ $('#'+prefix+'-delete-notice').textContent=action==='delete_ratio'?'Torrent og filer slettes ved den valgte ratio, uden tidsgrænse, når aktive downloadere er færdige.':'Torrent og filer slettes ved ratio eller 49 timers aktiv seeding, når aktive downloadere er færdige.';
  $('#'+prefix+'-limits').hidden=!deleting;
  $('#'+prefix+'-keep-info').hidden=deleting;
  $('#'+prefix+'-delete-notice').hidden=!deleting;
@@ -276,7 +277,7 @@ function openRatioEditor(t) {
  $('#edit-ratio-name').textContent=t.name;
  $('#edit-ratio-limit').value=seedingProgress(t).target;
  $('#edit-extra-seed-hours').value=t.extra_seed_hours||0;
- $('#edit-ratio-action').value=t.share_limit_action==='RemoveWithContent'?'delete':'keep';
+ $('#edit-ratio-action').value=t.share_limit_action==='RemoveWithContent'?(t.ratio_only?'delete_ratio':'delete'):'keep';
  $('#edit-ratio-error').hidden=true;
  updateRatioEditWarning();
  $('#edit-ratio-dialog').showModal();
@@ -285,10 +286,12 @@ function updateRatioEditWarning() {
  const value=Number($('#edit-ratio-limit').value);
  const hours=49+Math.max(0,Number($('#edit-extra-seed-hours').value)||0);
  $('#edit-extra-seed-info').textContent='Samlet tidsgrænse: '+hours.toLocaleString('da-DK')+' timer (49 timer + tillæg). Ratio-målet kan stadig afslutte seeding tidligere.';
- const met=(Number(editingRatio?.credited_ratio??editingRatio?.ratio)||0)>=value||(Number(editingRatio?.seeding_time)||0)>=hours*3600;
- const deleting=$('#edit-ratio-action').value==='delete';
- $('#edit-extra-seed-hours').disabled=!deleting;$('#edit-ratio-limits').hidden=!deleting;$('#edit-ratio-limit').disabled=!deleting;$('#edit-ratio-limit').required=deleting;if(!deleting&&!(value>=1))$('#edit-ratio-limit').value=1;
- $('#edit-ratio-info').textContent=!deleting?'Filerne beholdes. Seeding fortsætter, indtil du stopper den manuelt.':'Automatisk stop sker ved denne ratio eller '+hours.toLocaleString('da-DK')+' timers seeding, n\u00e5r aktive downloadere er f\u00e6rdige. '+(deleting?'Torrent og filer slettes automatisk.':'Filerne beholdes.');
+ const ratioOnly=$('#edit-ratio-action').value==='delete_ratio';
+ const met=(Number(editingRatio?.credited_ratio??editingRatio?.ratio)||0)>=value||(!ratioOnly&&(Number(editingRatio?.seeding_time)||0)>=hours*3600);
+ const deleting=$('#edit-ratio-action').value!=='keep';
+ $('#edit-extra-seed-hours').closest('label').hidden=ratioOnly;$('#edit-extra-seed-info').hidden=ratioOnly;
+ $('#edit-extra-seed-hours').disabled=!deleting||ratioOnly;$('#edit-ratio-limits').hidden=!deleting;$('#edit-ratio-limit').disabled=!deleting;$('#edit-ratio-limit').required=deleting;if(!deleting&&!(value>=1))$('#edit-ratio-limit').value=1;
+ $('#edit-ratio-info').textContent=!deleting?'Filerne beholdes. Seeding fortsætter, indtil du stopper den manuelt.':'Automatisk stop sker ved denne ratio'+(ratioOnly?' uden tidsgrænse':' eller '+hours.toLocaleString('da-DK')+' timers seeding')+', n\u00e5r aktive downloadere er f\u00e6rdige. '+(deleting?'Torrent og filer slettes automatisk.':'Filerne beholdes.');
  const warning=$('#edit-ratio-warning');
  warning.hidden=!deleting||!met||value<1;
  warning.textContent=deleting?'M\u00e5let er allerede n\u00e5et. Torrenten og filerne kan blive slettet automatisk efter gem, n\u00e5r aktive downloadere er f\u00e6rdige.':'M\u00e5let er allerede n\u00e5et. Seeding kan stoppe automatisk efter gem, n\u00e5r aktive downloadere er f\u00e6rdige.';
