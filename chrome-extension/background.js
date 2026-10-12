@@ -1,4 +1,4 @@
-import {torrentLink, seedAddress, permissionOrigin, readTorrent, showTorrent, MAX_AGE} from './common.mjs';
+import {torrentLink, seedAddress, permissionOrigin, readTorrent, showTorrent, selectSeedTab, MAX_AGE} from './common.mjs';
 
 const MENU = 'send-fjordseed';
 let working = false;
@@ -27,6 +27,16 @@ async function destination() {
   return url;
 }
 
+async function openDestination(seedUrl, preferredId) {
+  const tabs = await chrome.tabs.query({url: permissionOrigin(seedUrl)});
+  const existing = selectSeedTab(tabs, seedUrl, preferredId);
+  const tab = existing
+    ? await chrome.tabs.update(existing.id, {active: true})
+    : await chrome.tabs.create({url: seedUrl});
+  await chrome.windows.update(tab.windowId, {focused: true});
+  return tab;
+}
+
 async function begin(link) {
   if (working) throw Error('En overførsel er allerede i gang.');
   working = true;
@@ -50,7 +60,7 @@ async function begin(link) {
     // Keep metadata in session memory, not sync storage or the destination URL.
     const item = {id: crypto.randomUUID(), seedUrl, base64, name: `NordicBytes-${id}.torrent`, created: Date.now()};
     await chrome.storage.session.set({pending: item});
-    const tab = await chrome.tabs.create({url: seedUrl});
+    const tab = await openDestination(seedUrl);
     item.tabId = tab.id;
     await chrome.storage.session.set({pending: item});
     await status('Åbner FjordSeed. Log ind dér, hvis du bliver bedt om det.');
@@ -94,13 +104,9 @@ async function deliver(tabId) {
 async function retry() {
   const {pending} = await chrome.storage.session.get('pending');
   if (!pending) throw Error('Der er ingen ventende torrent.');
-  let tab;
-  try { tab = await chrome.tabs.get(pending.tabId); } catch { /* Closed tab: recreate. */ }
-  if (!tab || new URL(tab.url).origin !== new URL(pending.seedUrl).origin) {
-    tab = await chrome.tabs.create({url: pending.seedUrl});
-    pending.tabId = tab.id;
-    await chrome.storage.session.set({pending});
-  } else await chrome.tabs.update(tab.id, {active: true});
+  const tab = await openDestination(pending.seedUrl, pending.tabId);
+  pending.tabId = tab.id;
+  await chrome.storage.session.set({pending});
   await deliver(tab.id);
 }
 

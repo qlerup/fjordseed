@@ -1,6 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {torrentLink, seedAddress, permissionOrigin, readTorrent, MAX_BYTES} from '../chrome-extension/common.mjs';
+import {torrentLink, seedAddress, permissionOrigin, readTorrent, selectSeedTab, MAX_BYTES} from '../chrome-extension/common.mjs';
+
+test('reuse only the configured FjordSeed origin and preserve pending tab preference', () => {
+  const address = 'http://192.168.1.110:8099/';
+  const tabs = [
+    {id:1,url:'http://192.168.1.110:8097/',active:true},
+    {id:2,url:address+'#trackers',active:false,lastAccessed:10},
+    {id:3,url:address+'login',active:true},
+    {id:4,url:address+'api/status',active:true},
+    {id:5,url:address,pendingUrl:'https://example.org/',active:true},
+  ];
+  assert.equal(selectSeedTab(tabs,address).id,3);
+  assert.equal(selectSeedTab(tabs,address,2).id,2);
+  assert.equal(selectSeedTab([tabs[0],tabs[3],tabs[4]],address),undefined);
+});
 
 test('only HTTPS NordicBytes torrent download links are accepted', () => {
   assert.equal(torrentLink('https://nordicbytes.org/torrents/download/42?key=test#fragment'),

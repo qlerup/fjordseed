@@ -80,6 +80,16 @@ with tempfile.TemporaryDirectory() as folder:
             assert float(call.args[1]['ratio_limit']) == 2
             assert 'torrent' in call.args[1]
             assert worker.evaluate("async () => !(await chrome.storage.session.get('pending')).pending")
+            # A subsequent import reuses the same document instead of opening/reloading a tab.
+            page.evaluate("window.reuseMarker = 'preserved'; location.hash = '#trackers'")
+            before = len(context.pages)
+            worker.evaluate("() => self.fixtureBegin('https://nordicbytes.org/torrents/download/42')")
+            expect(page.locator('#ratio-dialog')).to_be_visible()
+            assert len(context.pages) == before
+            assert page.evaluate('window.reuseMarker') == 'preserved'
+            assert worker.evaluate("async () => (await chrome.tabs.query({active:true})).some(t => t.url.includes('#trackers'))")
+            app.extensions['runtime'].rpc.assert_called_once()
+            page.locator('#ratio-dialog .close').click()
             page.set_viewport_size({'width': 390, 'height': 844})
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             popup = context.new_page()

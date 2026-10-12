@@ -5,7 +5,7 @@
 3. Vælg mappen med `manifest.json`.
 4. Åbn udvidelsen i Chromes værktøjslinje. Gem din FjordSeed-adresse, fx `https://seed.example.dk` eller `http://192.168.1.110:8099`, og tillad adgang til den adresse.
 5. Log ind på NordicBytes i Chrome. Højreklik på torrentens downloadlink og vælg **Send til FjordSeed**.
-6. FjordSeed åbner i en ny fane. Log ind om nødvendigt. Vælg behold/slet og seeding i den normale dialog og tryk **Start download**.
+6. Udvidelsen aktiverer en eksisterende FjordSeed-fane og dens vindue. Hvis ingen findes, åbner den en ny. Log ind om nødvendigt. Vælg behold/slet og seeding i den normale dialog og tryk **Start download**. En åben dialog bliver ikke overskrevet; luk den og vælg **Fortsæt** i udvidelsen.
 
 Udvidelsen henter kun den lille .torrent-fil via dit eksisterende NordicBytes-login. Den gemmer ingen fil i Chromes downloadmappe. Selve indholdet downloades først af FjordSeed efter din godkendelse, med de eksisterende regler for VPN, buffer og seeding.
 

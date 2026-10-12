@@ -26,6 +26,19 @@ export function permissionOrigin(address) {
   return `${url.protocol}//${url.hostname}/*`;
 }
 
+export function selectSeedTab(tabs, address, preferredId) {
+  const origin = new URL(address).origin;
+  return tabs.filter(tab => {
+    try {
+      const url = new URL(tab.pendingUrl || tab.url);
+      return url.origin === origin && ['/', '/login'].includes(url.pathname);
+    } catch { return false; }
+  }).sort((a, b) =>
+    Number(b.id === preferredId) - Number(a.id === preferredId) ||
+    Number(!!b.active) - Number(!!a.active) ||
+    (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
+}
+
 export async function readTorrent(response) {
   if (!response.ok) throw Error(`NordicBytes svarede med HTTP ${response.status}. Log ind på NordicBytes og prøv igen.`);
   if (/text\/html|application\/json/i.test(response.headers.get('content-type') || '')) {
