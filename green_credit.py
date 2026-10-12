@@ -160,7 +160,7 @@ class CreditLedger:
         active = until > now
         native = entry['target'] * 2 if active or pending else entry['target'] + (discounted / 2 / denominator if denominator else 0)
         raw_ratio = number(row.get('ratio'))
-        return {'seeding_time': seed_time(entry, row),
+        return {'seeding_time': seed_time(entry, row), 'extra_seed_hours': entry.get('extra_seed_hours', 0),
                 'ratio_limit': entry['target'], 'native_ratio_limit': native,
                 'credited_ratio': credited / denominator if denominator else raw_ratio / (2 if active or pending else 1),
                 'credited_uploaded': credited, 'green_uploaded': discounted,

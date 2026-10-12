@@ -14,7 +14,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from hub import Hub, HubError
 from runtime import Runtime
-from qbit_rpc import share_policy
+from qbit_rpc import share_policy, extra_seed_hours
 from trackers import Trackers
 from torrent_meta import torrent_meta, magnet_meta
 from rss import Rss,write_snapshot,validate_feed
@@ -377,9 +377,12 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                 policy=share_policy({key:payload[key] for key in ('ratio_limit','ratio_action') if key in payload})
                 if policy['ratio_limit']<1:
                     raise ValueError('Stop-ratio skal være mindst 1.')
+                extra=extra_seed_hours(payload['extra_seed_hours']) if 'extra_seed_hours' in payload else None
             except ValueError as exc:
                 return jsonify(error=str(exc)),400
             data={'hash':ident,'ratio_limit':policy['ratio_limit']}
+            if extra is not None:
+                data['extra_seed_hours']=extra
             if 'ratio_action' in payload:
                 data['ratio_action']=policy['ratio_action']
             return invoke(action,data)

@@ -28,7 +28,7 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
     threading.Thread(target=server.serve_forever,daemon=True).start()
     try:
         with sync_playwright() as p:
-            browser=p.chromium.launch();page=browser.new_page();errors=[]
+            browser=p.chromium.launch();page=browser.new_page(bypass_csp=True);errors=[]
             page.on('pageerror',lambda e:errors.append(str(e)))
             base=f'http://127.0.0.1:{server.server_port}'
             page.goto(base)
@@ -58,7 +58,10 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             page.locator('#edit-ratio-action').select_option('delete')
             expect(page.locator('#edit-ratio-limit')).to_be_visible()
             expect(page.locator('#edit-ratio-warning')).to_be_visible()
+            page.locator('#edit-extra-seed-hours').fill('1')
+            expect(page.locator('#edit-extra-seed-info')).to_contain_text('50 timer')
             page.locator('#edit-ratio-action').select_option('keep')
+            expect(page.locator('#edit-extra-seed-hours')).not_to_be_visible()
             expect(page.locator('#edit-ratio-warning')).not_to_be_visible()
             assert not errors,errors
             browser.close()

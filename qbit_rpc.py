@@ -136,7 +136,7 @@ def seeding_completion(row,credit):
     seconds=credit.get('seeding_time',row.get('seeding_time'))
     unlimited=row.get('share_limit_action') != 'RemoveWithContent'
     reached=not unlimited and (ratio>=credit['ratio_limit'] or (
-        type(seconds) in (int,float) and math.isfinite(seconds) and seconds>=SEEDING_SECONDS))
+        type(seconds) in (int,float) and math.isfinite(seconds) and seconds>=SEEDING_SECONDS+credit.get('extra_seed_hours',0)*3600))
     peers=row.get('num_leechs')
     speed=row.get('upspeed')
     known=(type(peers) is int and peers>=0 and type(speed) in (int,float)
@@ -156,6 +156,12 @@ def finish_seeding(api,row,credit):
         api('torrents/delete',{'hashes':row['hash'],
             'deleteFiles':'true' if action=='RemoveWithContent' else 'false'})
         return True
+
+
+def extra_seed_hours(value):
+    if type(value) not in (int,float) or not math.isfinite(value) or not 0 <= value <= 8760:
+        raise ValueError('Ekstra seedtid skal være mellem 0 og 8760 timer.')
+    return float(value)
 
 
 def share_policy(data):
@@ -207,7 +213,7 @@ def execute(action, data):
             for row,credit in zip(rows,credits):
                 apply_limits(call,row)
                 torrents.append({**{k:row.get(k) for k in fields},**credit,
-                    'seeding_time_limit':SEEDING_MINUTES if row.get('share_limit_action')=='RemoveWithContent' else -1,**stop_requirement({**row,**credit}),
+                    'seeding_time_limit':SEEDING_MINUTES+credit.get('extra_seed_hours',0)*60 if row.get('share_limit_action')=='RemoveWithContent' else -1,**stop_requirement({**row,**credit}),
                     **seeding_completion(row,credit)})
         return {'torrents':torrents,
                 'download_queue':download_queue_summary(rows),
@@ -239,6 +245,7 @@ def execute(action, data):
             raise ValueError('Invalid hash')
         policy=share_policy(data)
         ratio=policy['ratio_limit']
+        extra=extra_seed_hours(data['extra_seed_hours']) if 'extra_seed_hours' in data else None
         if ratio<1:
             raise ValueError('Stop-ratio skal være mindst 1.')
         with CreditLedger().transaction() as ledger:
@@ -246,6 +253,8 @@ def execute(action, data):
             if len(rows)!=1 or rows[0].get('hash','').lower()!=ident.lower():
                 raise ValueError('Torrent not found')
             ledger.update(rows[0],target=ratio)
+            if extra is not None:
+                ledger.entries[ident.lower()]['extra_seed_hours']=extra
             ledger.save()
             selected=('RemoveWithContent' if policy['ratio_action']=='delete' else 'Stop') if 'ratio_action' in data else None
             apply_limits(call,rows[0],action=selected)
