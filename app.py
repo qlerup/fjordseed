@@ -22,6 +22,7 @@ from rss_gate import RssGate
 from benefits import ratio_estimate
 from state import State, atomic
 from covers import Covers
+from storage import Storage
 
 
 def create_app(root=None, testing=False, runtime_factory=Runtime):
@@ -214,6 +215,33 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         except Exception:
             return jsonify(error='FjordVPN kunne ikke kontaktes. Opdatér og start FjordVPN.'),503
 
+    @app.route('/api/storage', methods=['GET','POST'])
+    def storage_settings():
+        try:
+            if hub.enabled and hub.current(session.get('hub_uid'), force=True).get('hub_role') != 'admin':
+                return jsonify(error='Valg af servermapper kræver en FjordHub-administrator.'),403
+            storage = Storage(runtime)
+            if request.method == 'POST':
+                data = request.get_json(silent=True)
+                if not isinstance(data,dict):
+                    raise ValueError('Vælg en mappe.')
+                return jsonify(ok=True, **storage.select(data.get('path')))
+            if request.args.get('browse') == '1':
+                return jsonify(storage.helper('browse',request.args.get('path','')))
+            if request.args.get('proxmox') == '1':
+                if not hub.enabled:
+                    raise ValueError('Proxmox-oversigten kræver en forbindelse til FjordHub.')
+                return jsonify(hub.call('/api/hub/apps/fjordseed/library',
+                    {'user_id':session.get('hub_uid')},method='GET',timeout=55))
+            return jsonify(storage.public())
+        except HubError as exc:
+            return jsonify(error=str(exc)),exc.status
+        except ValueError as exc:
+            return jsonify(error=str(exc)),400
+        except Exception:
+            app.logger.exception('Storage operation failed')
+            return jsonify(error='Lageret kunne ikke åbnes. Kontrollér Docker og skriverettigheder.'),503
+
     @app.get('/api/trackers')
     def tracker_status():
         return jsonify(trackers.public())
@@ -223,7 +251,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         result=rss.public()
         for feed in result['feeds']:
             feed['download_status']=rss_gate.reports.get(feed['id'],'Afventer feedposter.')
-        return jsonify({**result,'download_path':str(getattr(runtime,'host_downloads','/downloads'))})
+        return jsonify({**result,'download_path':Storage(runtime).public()['path'] if hasattr(runtime,'host_downloads') else '/downloads'})
 
     @app.post('/api/rss')
     def save_rss():

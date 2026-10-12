@@ -22,7 +22,7 @@ class Hub:
         self.users = []
         self.expires = 0
 
-    def call(self, path, payload=None, method='POST'):
+    def call(self, path, payload=None, method='POST', timeout=5):
         if not self.url or not self.key or self.app_id != 'fjordseed':
             raise HubError('FjordHub-forbindelsen er ikke korrekt konfigureret.',503)
         data = dict(payload or {},app_id=self.app_id)
@@ -30,7 +30,7 @@ class Hub:
             with requests.Session() as client:
                 client.trust_env = False
                 response=client.request(method,self.url+path,headers={'X-Hub-Key':self.key},
-                    timeout=5,allow_redirects=False,**({'params':data} if method=='GET' else {'json':data}))
+                    timeout=timeout,allow_redirects=False,**({'params':data} if method=='GET' else {'json':data}))
             if response.status_code in (401,403):
                 raise HubError('Login er udløbet, eller du mangler adgang i FjordHub.',401)
             result=response.json()

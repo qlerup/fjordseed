@@ -53,9 +53,32 @@ VPN-kravet gælder torrentklientens trafik.
 
 ## Drift
 
+### Lager, buffer og færdige downloads
+
+Under **Lager og mapper** kan en FjordHub-administrator vælge en eksisterende
+skrivbar mappe på Docker-serveren. **Proxmox-diske og storage** viser lagerets
+tilgængelige LXC-stier gennem FjordHub; nye eller skrivebeskyttede mounts skal
+først tilsluttes med skriveadgang i FjordHub/Proxmox. Standalone har mappevælgeren,
+men ingen Proxmox-oversigt. FjordSeed ændrer ikke ejerskab på delte mapper.
+
+Nye manuelle og RSS-downloads starter i `.fjordseed-buffer/<id>` i den valgte
+mappe. Først når hele torrenten er færdig, flyttes downloads med **behold filerne**
+til en særskilt mappe med et unikt id (under RSS-undermappen, hvis valgt).
+qBittorrent udfører flytningen og fortsætter seeding fra den nye placering.
+Downloads med **slet filerne** forbliver i bufferen frem til automatisk sletning
+efter seedingmålet og afsluttede aktive downloadere. Flyttefejl vises i status;
+FjordSeed overskriver ikke en eksisterende udgivelse.
+
+Valget gælder kun fremtidige torrents. Tidligere placeringer forbliver monteret,
+så eksisterende downloads kan fortsætte. Gemning genstarter kort torrentklienten.
+Backup skal også omfatte alle placeringer i `settings.json` under `storage`.
+Opdatér FjordHub og FjordFlix sammen med FjordSeed: FjordFlix springer bufferen
+over ved biblioteksscanning. Tilføj den færdige mappe som biblioteksmappe i
+FjordFlix og scan den for at indeksere de beholdte film.
+
 Appen kræver Docker-socket som FjordVPN og skal behandles som administration af
 Docker-værten. Brug et betroet lokalnet eller HTTPS og adgangskontrol. FjordSeed
-har ingen Proxmox-adgang og får ikke VPN-profiler eller private nøgler monteret.
+har ingen direkte Proxmox-adgang og får ikke VPN-profiler eller private nøgler monteret.
 Den læser kun en filtreret profiloversigt og VPN-statusfiler.
 
 Backup: `DATA_DIR` og `DOWNLOADS_DIR`. `docker compose down --remove-orphans`

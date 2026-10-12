@@ -17,3 +17,7 @@
 !templates/*.html
 !static/
 !static/**
+
+!download_storage.py
+!storage.py
+!storage_browser.py

@@ -141,8 +141,8 @@ def gate_rpc(action,data,api,root=Path('/config')):
         history['done']=list(dict.fromkeys([*history['done'],*keys]))
         atomic(history_path,json.dumps(history))
         if not already_added:
-            path=folder_path(feed['folder'])
-            path.mkdir(parents=True,exist_ok=True)
+            from download_storage import prepare
+            path=prepare(hashes, feed['folder'])
             options={'savepath':str(path),'stopped':'false','forceStart':'false','autoTMM':'false',
                      'tags':'FjordSeed-RSS-'+ident,'ratioLimit':initial_managed_ratio(hashes,seed_ratio(feed['ratio_limit'])),
                      'seedingTimeLimit':-1,'inactiveSeedingTimeLimit':-1,

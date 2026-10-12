@@ -212,13 +212,14 @@ $('#ratio-back').onclick=()=>{$('#ratio-dialog').close();$('#add-dialog').showMo
 $('#ratio-form').onsubmit=async e=>{e.preventDefault();if(!pendingTorrent)return;$('#ratio-save').disabled=true;$('#ratio-back').disabled=true;$('#ratio-dialog .close').disabled=true;$('#ratio-error').hidden=true;try{pendingTorrent.set('ratio_limit',$('#ratio-limit').value);pendingTorrent.set('ratio_action',$('#ratio-action').value);await api('/api/torrents',{method:'POST',body:pendingTorrent});pendingTorrent=null;$('#ratio-dialog').close();toast('Torrent tilføjet');await refresh();}catch(e){error('#ratio-error',e);}finally{$('#ratio-save').disabled=false;$('#ratio-back').disabled=false;$('#ratio-dialog .close').disabled=false;}};
 $('#delete-form').onsubmit=async e=>{e.preventDefault();$('#delete-save').disabled=true;try{await api(`/api/torrents/${deleting.hash}/delete`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_early_stop:deleting.seeding_requirement_met!==true})});$('#delete-dialog').close();await refresh();}catch(e){error('#delete-error',e);}finally{$('#delete-save').disabled=false;}};
 function showView(focus=false){
- const view=location.hash==='#connection'?'connection':location.hash==='#trackers'?'trackers':location.hash==='#rss'?'rss':'torrents';
- const vpn=view==='connection',trackers=view==='trackers',rss=view==='rss';
- $('#download-queue').hidden=vpn||trackers;
- $('#connection').hidden=!vpn;$('#downloads-view').hidden=vpn||trackers||rss;$('#trackers-view').hidden=!trackers;$('#new-torrent').hidden=vpn||trackers||rss;$('#traffic-flow').hidden=trackers;$('#rss-view').hidden=!rss;
- $('#breadcrumb').textContent='Seedbox / '+(vpn?'VPN-forbindelse':trackers?'Trackere':rss?'RSS-feeds':'Downloads');
- $('#page-title').textContent=vpn?'Din VPN-forbindelse':trackers?'Dine trackere':rss?'Dine RSS-feeds':'Manuelle downloads';
- $('#page-description').textContent=vpn?'Vælg VPN-profil, og se seedboxens forbindelse og beskyttelse.':trackers?'Forbind dine trackerkonti, og saml statistikken i FjordSeed.':rss?'Automatiske downloads med dine egne regler for mapper og seeding.':'qBittorrent samlet ét sted, med trafik gennem din VPN.';
+ const view=location.hash==='#storage'?'storage':location.hash==='#connection'?'connection':location.hash==='#trackers'?'trackers':location.hash==='#rss'?'rss':'torrents';
+ const vpn=view==='connection',trackers=view==='trackers',rss=view==='rss',storage=view==='storage';
+ $('#storage-view').hidden=!storage;
+ $('#download-queue').hidden=vpn||trackers||storage;
+ $('#connection').hidden=!vpn;$('#downloads-view').hidden=vpn||trackers||rss||storage;$('#trackers-view').hidden=!trackers;$('#new-torrent').hidden=vpn||trackers||rss||storage;$('#traffic-flow').hidden=trackers||storage;$('#rss-view').hidden=!rss;
+ $('#breadcrumb').textContent='Seedbox / '+(storage?'Lager og mapper':vpn?'VPN-forbindelse':trackers?'Trackere':rss?'RSS-feeds':'Downloads');
+ $('#page-title').textContent=storage?'Lager og mapper':vpn?'Din VPN-forbindelse':trackers?'Dine trackere':rss?'Dine RSS-feeds':'Manuelle downloads';
+ $('#page-description').textContent=storage?'Fra buffer til dit mediebibliotek.':vpn?'Vælg VPN-profil, og se seedboxens forbindelse og beskyttelse.':trackers?'Forbind dine trackerkonti, og saml statistikken i FjordSeed.':rss?'Automatiske downloads med dine egne regler for mapper og seeding.':'qBittorrent samlet ét sted, med trafik gennem din VPN.';
  document.querySelectorAll('.nav').forEach(link=>{const active=link.hash==='#'+view;link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
  if(focus)$('#page-title').focus({preventScroll:true});
 }

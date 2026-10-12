@@ -105,7 +105,7 @@ def test_skip_old_and_undated_before_metadata_then_add_boundary_and_future(gate)
     added=next(d for p,d in calls if p=='torrents/add')
     assert f'{4:040x}' in added['urls'] and added['forceStart']=='false'
     assert added['ratioLimit']==-1 and added['seedingTimeLimit']==-1 and added['shareLimitAction']=='Stop'
-    assert added['tags']=='FjordSeed-RSS-'+entry['id'] and added['savepath']==str(root/'downloads')
+    assert added['tags']=='FjordSeed-RSS-'+entry['id'] and __import__('pathlib').Path(added['savepath']).parent==root/'downloads'/'.fjordseed-buffer'
     articles[3]['torrentURL']='https://tracker.example/3'
     next_candidate=invoke('rss_prepare');resolve(invoke,next_candidate)
     assert fetched==['https://tracker.example/3','https://tracker.example/4']

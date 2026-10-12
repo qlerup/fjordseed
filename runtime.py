@@ -9,6 +9,7 @@ import docker
 
 from state import atomic
 from rss import write_snapshot
+from storage import Storage
 
 OWNER = 'dk.fjordseed.owner'
 PROFILE = 'dk.fjordvpn.profile'
@@ -104,6 +105,8 @@ class Runtime:
                 child.remove()
 
     def reconcile(self):
+        storage = Storage(self)
+        storage.publish()
         write_snapshot(self.state.root,self.uid,self.gid)
         settings = self.state.get()
         if not settings['enabled']:
@@ -134,7 +137,9 @@ class Runtime:
         if child and (child.labels.get('dk.fjordseed.vpn-generation') != generation or child.attrs['Image'] != self.image
                 or self.mount(child, '/config') != self.host_data/'qbit'
                 or self.mount(child, '/downloads') != self.host_downloads
-                or child.attrs['Config'].get('User') != f'{self.uid}:{self.gid}'):
+                or child.attrs['Config'].get('User') != f'{self.uid}:{self.gid}'
+                or any(not any(m.get('Destination')==v['bind'] and m.get('Source')==p and m.get('RW',True)
+                    for m in child.attrs['Mounts']) for p,v in storage.mounts().items())):
             self.stop(remove=True)
             child = None
         if child is None:
@@ -148,7 +153,8 @@ class Runtime:
                 str(self.host_data/'vpn'):{'bind':'/vpn','mode':'ro'}}
             child = self.client.containers.create(self.image, name=self.name, labels=labels,
                 command=['python','/app/qbit_worker.py'], network_mode='container:' + vpn.id,
-                user=f'{self.uid}:{self.gid}', volumes=volumes, read_only=True,
+                user=f'{self.uid}:{self.gid}', mounts=[docker.types.Mount(v['bind'],p,type='bind',read_only=v['mode']=='ro')
+                    for p,v in [*volumes.items(),*storage.mounts().items()]], read_only=True,
                 tmpfs={'/tmp':'rw,nosuid,noexec,size=32m'}, cap_drop=['ALL'],
                 security_opt=['no-new-privileges:true'], init=True,
                 environment={'HOME':'/config','PYTHONDONTWRITEBYTECODE':'1'},
@@ -173,7 +179,7 @@ class Runtime:
     def status(self):
         settings = self.state.get()
         result = dict(settings, ready=False, message='Seedbox er stoppet.', profiles=self.profiles,
-                      torrents=[], transfer={}, download_path=str(self.host_downloads))
+                      torrents=[], transfer={}, download_path=Storage(self).public()['path'])
         if self.error:
             result['message'] = self.error
         elif settings['enabled']:

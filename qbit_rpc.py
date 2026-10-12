@@ -100,13 +100,18 @@ def sync_share_limits(api=None):
         rows=api('torrents/info').json()
         normalize_forced_downloads(api, rows)
         prioritize_rss_downloads(api,rows)
+        from download_storage import publish_complete
+        storage_errors = publish_complete(api, rows)
         credits=[ledger.update(row) for row in rows]
         ledger.save()
         for row,credit in zip(rows,credits):
             apply_limits(api,row)
             if finish_seeding(api,row,credit):
+                from download_storage import forget
+                forget([row.get(k) for k in ('hash','infohash_v1','infohash_v2')])
                 for key in ('hash','infohash_v1','infohash_v2'):
                     ledger.entries.pop(str(row.get(key) or '').lower(),None)
+        return storage_errors
 
 
 def apply_limits(api,row,action=None):
@@ -213,7 +218,8 @@ def execute(action, data):
         policy = share_policy(data)
         from torrent_meta import magnet_meta, torrent_meta
         meta=magnet_meta(data['magnet']) if data.get('magnet') else torrent_meta(base64.b64decode(data['torrent'],validate=True))
-        options = {'savepath':'/downloads', 'stopped':'false', 'forceStart':'false',
+        from download_storage import prepare
+        options = {'savepath':prepare(meta['hashes']), 'autoTMM':'false', 'stopped':'false', 'forceStart':'false',
                    'ratioLimit':initial_managed_ratio(meta['hashes'],seed_ratio(policy['ratio_limit'])),
                    'seedingTimeLimit':-1, 'inactiveSeedingTimeLimit':-1,
                    'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] == 'delete' else 'Stop'}
@@ -261,6 +267,8 @@ def execute(action, data):
             payload['deleteFiles'] = 'false'
         call('torrents/' + action, payload)
         if action=='delete':
+            from download_storage import forget
+            forget([data['hash'].lower()])
             with CreditLedger().transaction() as ledger:
                 ledger.entries.pop(data['hash'].lower(),None)
     else:

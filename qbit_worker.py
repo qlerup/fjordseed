@@ -121,8 +121,8 @@ def run():
                             raise ValueError('Port synchronization failed')
                     if time.monotonic()-share_last>10:
                         try:
-                            sync_share_limits()
-                            seeding_error=None
+                            storage_errors=sync_share_limits()
+                            seeding_error=' '.join(dict.fromkeys(storage_errors)) or None
                         except Exception:
                             # A policy/read failure must not interrupt seeders.
                             # VPN failures still reach the outer kill switch.

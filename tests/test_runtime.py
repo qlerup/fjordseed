@@ -34,7 +34,7 @@ def test_child_has_only_vpn_network_and_no_keys_or_host_ports(runtime):
     assert args['network_mode']=='container:vpn-id'
     assert 'ports' not in args and 'devices' not in args
     assert args['user']=='1000:1000' and args['cap_drop']==['ALL']
-    assert not any('wg0' in p or 'docker.sock' in p for p in args['volumes'])
+    assert not any('wg0' in p or 'docker.sock' in p for p in (m['Source'] for m in args['mounts']))
     assert json.loads((runtime.state.root/'vpn/status.json').read_text())['healthy'] is False
 
 
