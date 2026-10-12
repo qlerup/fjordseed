@@ -114,9 +114,9 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                     return render_template('login.html', error='Vent fem minutter før næste forsøg.', managed=hub.enabled),429
                 try:
                     if hub.enabled:
-                        user = hub.authenticate(request.form.get('username',''), request.form.get('password',''), request.form.get('first_login_email',''))
-                        if user.get('email_required'):
-                            return render_template('login.html', managed=True, email_required=True, error=user.get('email_error') or 'Indtast din email ved første login og bekræft dit login.')
+                        user = hub.authenticate(request.form.get('username',''), request.form.get('password',''), request.form.get('first_login_email',''), request.form.get('first_login_password',''), request.form.get('first_login_password_confirm',''))
+                        if user.get('email_required') or user.get('must_change_password'):
+                            return render_template('login.html', managed=True, email_required=user.get("email_required"), password_required=user.get("must_change_password"), error=user.get('email_error') or 'Første login: Udfyld oplysningerne og vælg din egen adgangskode.')
                     else:
                         auth = json.loads(auth_path.read_text())
                         if request.form.get('username') != 'admin' or not check_password_hash(auth['password_hash'], request.form.get('password','')):
