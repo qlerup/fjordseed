@@ -185,18 +185,19 @@ function renderFlow(data){
   const rate=rates[index];
   $('#flow-'+direction+'-rate').textContent=data.ready&&rate!==null?size(rate)+'/s':'—';
   // Logarithmic density keeps both small transfers and fast links readable.
-  const count=data.ready&&rate>0?Math.min(18,Math.ceil(Math.log2(1+rate/16384))):0;
+  const density=data.ready&&rate>0?Math.min(6,Math.ceil(Math.log2(1+rate/16384)/2)):0;
   for(const lane of flow.querySelectorAll('.flow-'+direction)){
+   const count=Math.min(density,Math.max(1,Math.floor(lane.parentElement.clientWidth/30)));
    if(lane.children.length===count)continue;
    while(lane.children.length>count)lane.lastElementChild.remove();
-   while(lane.children.length<count)lane.append(node(tag));
+   while(lane.children.length<count){const duck=node(tag);duck.dataset.duck=String((lane.children.length+index)%4);lane.append(duck);}
    [...lane.children].forEach((dot,i)=>{
     dot.style.animationDelay=(-3.6*i/count)+'s';
     dot.style.setProperty('--dot-position',((i+.5)/count*95)+'%');
    });
   }
  }
- $('#flow-note').textContent=!data.ready?'Ingen trafik gennem VPN.':rates.some(rate=>rate===null)?'Afventer trafikdata.':rates.every(rate=>rate===0)?'Ingen download eller upload lige nu.':'Flere prikker betyder højere hastighed · samlet trafik fra manuelle downloads og RSS.';
+ $('#flow-note').textContent=!data.ready?'Ingen trafik gennem VPN.':rates.some(rate=>rate===null)?'Afventer trafikdata.':rates.every(rate=>rate===0)?'Ingen download eller upload lige nu.':'Flere ænder betyder højere hastighed · samlet trafik fra manuelle downloads og RSS.';
  $('#flow-status').textContent=data.ready?'VPN aktiv':data.enabled?'Forbindelse blokeret':'Seedbox stoppet';
  const code=data.ready?countryCode(data.country):null;
  $('#flow-country').textContent=data.ready?(countryName(data.country)||'Ukendt land'):'Afventer forbindelse';
