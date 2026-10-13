@@ -118,6 +118,8 @@ def test_mapping_failure_stops_qbittorrent_and_reports_external_port(monkeypatch
     assert status['ready'] and status['port']==65279 and status['internal_port']==56789
     assert status['torrent_mode']=='gateway'
     assert not json.loads(writes.call_args_list[1].args[1])['ready']
+    failure=json.loads(writes.call_args_list[1].args[1])['last_failure']
+    assert failure['stage']=='torrent_port' and failure['error_type']=='OSError'
     assert lease.close.call_count>=2
 
 
@@ -130,6 +132,7 @@ def test_gateway_status_keeps_public_port_when_rpc_returns_internal_port(runtime
         'ready':True,'checked_at':time.time(),'torrent_mode':'gateway',
         'public_torrent_port':65279,'internal_port':56789,'port':65279}))
     assert runtime.status()['port']==65279
+    assert runtime.status()['torrents_available'] is True
 
 
 def test_stopped_gateway_seedbox_removes_only_its_marked_firewall_rules(runtime):

@@ -58,7 +58,7 @@ def test_rpc_refuses_unbound_client_and_never_deletes_files(monkeypatch):
     assert fake.call_args.args==('torrents/delete',{'hashes':'a'*40,'deleteFiles':'false'})
 
 
-def test_supervisor_terminates_running_client_when_vpn_fails(monkeypatch):
+def test_supervisor_terminates_running_client_when_vpn_fails(monkeypatch,caplog):
     stop=Mock()
     stop.is_set.side_effect=[False,False,True]
     monkeypatch.setattr(qbit_worker,'STOP',stop)
@@ -78,6 +78,10 @@ def test_supervisor_terminates_running_client_when_vpn_fails(monkeypatch):
     process.terminate.assert_called_once()
     process.wait.assert_called_once_with(10)
     assert qbit_worker.atomic.call_args_list[-1].args[1].find('false')>=0
+    failure=json.loads(qbit_worker.atomic.call_args_list[1].args[1])['last_failure']
+    assert failure['stage']=='vpn_status' and failure['error_type']=='ValueError'
+    assert 'qBittorrent safety stop' in caplog.text
+    assert 'VPN lost' not in caplog.text
 
 
 def test_policy_failure_keeps_healthy_seeders_running(monkeypatch):
@@ -106,6 +110,32 @@ def test_policy_failure_keeps_healthy_seeders_running(monkeypatch):
     process.wait.assert_called_once_with(30)
     assert any(call.args==('app/setPreferences',{'json':json.dumps({'stop_tracker_timeout':10})})
                for call in qbit_worker.call.call_args_list)
+
+
+def test_failure_diagnostics_survive_recovery_without_private_error_text(monkeypatch,caplog):
+    stop=Mock();stop.is_set.side_effect=[False,False,True]
+    monkeypatch.setattr(qbit_worker,'STOP',stop)
+    monkeypatch.setattr(qbit_worker.signal,'signal',Mock())
+    monkeypatch.setattr(qbit_worker,'vpn_status',Mock(side_effect=[None,{}]))
+    monkeypatch.setattr(qbit_worker,'ready',Mock(side_effect=[
+        ValueError('https://private.example/?passkey=secret'),(40001,'203.0.113.1','France')]))
+    monkeypatch.setattr(qbit_worker,'configure',Mock())
+    monkeypatch.setattr(qbit_worker,'sync_download_queue',Mock())
+    monkeypatch.setattr(qbit_worker,'sync_share_limits',Mock(return_value=[]))
+    monkeypatch.setattr(qbit_worker,'atomic',Mock())
+    monkeypatch.setattr(qbit_worker,'call',Mock(return_value=Mock(json=lambda:{
+        'current_network_interface':'tun0','upnp':False,'listen_port':40001})))
+    session=Mock();session.__enter__=Mock(return_value=session);session.__exit__=Mock(return_value=False)
+    session.get.return_value.status_code=200
+    monkeypatch.setattr('requests.Session',Mock(return_value=session))
+    process=Mock();process.poll.return_value=None
+    monkeypatch.setattr(qbit_worker.subprocess,'Popen',Mock(return_value=process))
+    qbit_worker.run()
+    failed,recovered=[json.loads(c.args[1]) for c in qbit_worker.atomic.call_args_list[:2]]
+    assert not failed['ready'] and recovered['ready']
+    assert recovered['last_failure']==failed['last_failure']
+    assert recovered['last_failure']['stage']=='vpn_status'
+    assert 'secret' not in caplog.text and 'private.example' not in caplog.text
 
 
 def test_graceful_stop_waits_for_stopped_announces_before_killing():

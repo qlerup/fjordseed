@@ -238,7 +238,7 @@ class Runtime:
     def status(self):
         settings = self.state.get()
         result = dict(settings, ready=False, message='Seedbox er stoppet.', profiles=self.profiles,
-                      torrents=[], transfer={}, download_path=Storage(self).public()['path'])
+                      torrents=[], torrents_available=False, transfer={}, download_path=Storage(self).public()['path'])
         if self.error:
             result['message'] = self.error
         elif settings['enabled']:
@@ -250,6 +250,7 @@ class Runtime:
                     result.update(status)
                     if result.get('ready'):
                         result.update(self.rpc('status', {}))
+                        result['torrents_available']=True
                         if status.get('torrent_mode')=='gateway':
                             result['port']=status['public_torrent_port']
             except Exception:

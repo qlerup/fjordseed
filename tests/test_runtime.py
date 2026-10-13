@@ -1,10 +1,26 @@
 import json
+import time
 from pathlib import Path, PurePosixPath
 from unittest.mock import Mock
 
 import pytest
 from runtime import Runtime, GLUETUN, OWNER, PROFILE
 from state import State
+
+
+@pytest.mark.parametrize('failure',['missing_status','stale_status','worker_not_ready','rpc_failure','empty_success'])
+def test_status_distinguishes_unavailable_torrents_from_confirmed_empty(runtime,failure):
+    runtime.child.return_value=Mock(status='running')
+    runtime.rpc=Mock(return_value={'torrents':[]})
+    if failure!='missing_status':
+        (runtime.state.root/'qbit/worker-status.json').write_text(json.dumps({
+            'ready':failure!='worker_not_ready',
+            'checked_at':time.time()-(20 if failure=='stale_status' else 0)}))
+    if failure=='rpc_failure':runtime.rpc.side_effect=ValueError('unavailable')
+    result=runtime.status()
+    assert result['torrents']==[]
+    assert result['torrents_available'] is (failure=='empty_success')
+    assert result['ready'] is (failure=='empty_success')
 
 
 @pytest.fixture

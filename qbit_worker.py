@@ -1,6 +1,7 @@
 """Fail-closed supervisor. No qBittorrent process until the VPN is healthy."""
 import configparser
 import json
+import logging
 import os
 from pathlib import Path
 import signal
@@ -15,6 +16,7 @@ from rss import sync_rss,rss_report,sync_snapshot
 from torrent_port import Lease,internal_port
 
 STOP = threading.Event()
+LOG = logging.getLogger(__name__)
 
 
 def vpn_status():
@@ -94,16 +96,20 @@ def run():
     seeding_error=None
     lease=Lease()
     connection=None
+    last_failure=None
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: STOP.set())
     try:
         while not STOP.is_set():
             status = {'ready':False, 'checked_at':time.time(), 'message':'Venter på beskyttet VPN-forbindelse.'}
+            stage='vpn_status'
+            context={}
             try:
                 context=vpn_status()
                 port, address, country = ready(status=context)
                 # The Docker firewall is the primary kill switch. This independent
                 # gate also prevents restoring torrents into an unhealthy tunnel.
+                stage='vpn_health'
                 with __import__('requests').Session() as client:
                     client.trust_env = False
                     response = client.get('http://127.0.0.1:9999/', timeout=2)
@@ -111,6 +117,7 @@ def run():
                         raise ValueError('VPN health check failed')
                 gateway=context.get('gateway_enabled') is True
                 if gateway:
+                    stage='torrent_port'
                     status['message']='Afventer gatewayens ekstra torrentport og beskyttet qBittorrent.'
                     private,public=lease.get(port)
                     if context.get('torrent_internal_port')!=private:
@@ -120,9 +127,14 @@ def run():
                     lease.close();private,public,announce=port,port,0
                 next_connection=(private,announce,address) if gateway else None
                 if process is not None and connection!=next_connection:
+                    LOG.warning('qBittorrent restarting: VPN endpoint or torrent port changed')
                     stop_process(process,graceful=True)
                     process=None
-                if process is None or process.poll() is not None:
+                exit_code=process.poll() if process is not None else None
+                if process is None or exit_code is not None:
+                    if process is not None:
+                        LOG.warning('qBittorrent exited unexpectedly: returncode=%s',exit_code)
+                    stage='process_start'
                     configure(private,announce_port=announce)
                     process = subprocess.Popen(['qbittorrent-nox','--profile=/config','--webui-port=8080','--confirm-legal-notice'],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -130,6 +142,7 @@ def run():
                     rss_content=None
                     share_last=0
                     connection=next_connection
+                stage='network_settings'
                 try:
                     prefs = call('app/preferences').json()
                 except Exception:
@@ -147,7 +160,9 @@ def run():
                     # termination path short; extend only normal shutdown.
                     if type(prefs.get('stop_tracker_timeout')) is int and prefs['stop_tracker_timeout'] < 10:
                         call('app/setPreferences', {'json':json.dumps({'stop_tracker_timeout':10})})
+                    stage='download_queue'
                     sync_download_queue(prefs)
+                    stage='listen_port'
                     if prefs.get('listen_port') != private:
                         call('app/setPreferences', {'json':json.dumps({'listen_port':private,'random_port':False,'upnp':False})})
                         if call('app/preferences').json().get('listen_port') != private:
@@ -182,11 +197,22 @@ def run():
                         message='qBittorrent deler gatewayens VPN med sin egen åbne torrentport.' if gateway else 'qBittorrent kører gennem VPN.')
                     if seeding_error:
                         status['message']+=' '+seeding_error
-            except Exception:
+            except Exception as exc:
+                # Do not log exception text: HTTP errors can contain private URLs.
+                # Preserve the last failure after recovery so brief restarts remain diagnosable.
+                context=context if isinstance(context,dict) else {}
+                stamp=context.get('checked_at')
+                age=round(time.time()-stamp,1) if isinstance(stamp,(int,float)) else None
+                last_failure={'at':time.time(),'stage':stage,'error_type':type(exc).__name__,
+                              'vpn_status_age':age,'vpn_healthy':context.get('healthy')}
+                LOG.warning('qBittorrent safety stop: %s',json.dumps(last_failure))
+                status['message']='qBittorrent afventer sikker forbindelse. Kontrol fejlede: '+stage+'.'
                 stop_process(process)
                 process = None
                 connection=None
                 lease.close()
+            if last_failure:
+                status['last_failure']=last_failure
             atomic('/config/worker-status.json', json.dumps(status), mode=0o644)
             STOP.wait(2)
     finally:

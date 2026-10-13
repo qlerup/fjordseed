@@ -1,6 +1,6 @@
 const $ = s => document.querySelector(s);
 const csrf = $('meta[name="csrf-token"]').content;
-let current, busy = false, deleting, stopping, editingRatio, toastTimer;
+let current, busy = false, refreshing = false, deleting, stopping, editingRatio, toastTimer;
 function node(tag, cls, text) {const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;}
 function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4000);}
 function error(selector,e){$(selector).textContent=e.message;$(selector).hidden=false;}
@@ -175,6 +175,18 @@ function renderDownloadLists(data){
  $('#rss-torrent-list').replaceChildren(...rss.map(card));$('#rss-empty').hidden=rss.length>0;$('#rss-count').textContent=rss.length;
  if(focusedToggle)for(const button of document.querySelectorAll('[data-torrent-toggle]'))if(button.dataset.torrentToggle===focusedToggle&&button.dataset.torrentToggleControl===focusedControl){button.focus({preventScroll:true});break;}
  for(const [items,prefix] of [[manual,''],[rss,'rss-']])for(const [field,id] of [['dlspeed','dl'],['upspeed','ul']])$('#'+prefix+id).textContent=size(items.reduce((sum,t)=>sum+(Number(t[field])||0),0))+'/s';
+ if(data.torrents_available===false){
+  $('#empty').hidden=true;$('#rss-empty').hidden=true;
+  for(const id of ['dl','ul','rss-dl','rss-ul','shared-download-count','shared-queue-count'])$('#'+id).textContent='—';
+  $('#shared-queue-breakdown').textContent='Afventer aktuelle downloadtal';
+  if(!data.torrents.length){$('#count').textContent='—';$('#rss-count').textContent='—';}
+ }
+}
+function preserveTorrentSnapshot(data,previous){
+ if(data.torrents_available!==false)return data;
+ const sameProfile=previous&&previous.profile_id===data.profile_id&&previous.id===data.id;
+ return {...data,ready:false,transfer:{},torrents:sameProfile?previous.torrents:[],
+  message:data.message+' Torrentstatus er utilgængelig.'+(sameProfile&&previous.torrents.length?' Viser senest kendte oplysninger; de er ikke live.':'')};
 }
 function renderFlow(data){
  const state=data.ready?'active':'blocked',flow=$('#traffic-flow');
@@ -197,16 +209,28 @@ function renderFlow(data){
    });
   }
  }
- $('#flow-note').textContent=!data.ready?'Ingen trafik gennem VPN.':rates.some(rate=>rate===null)?'Afventer trafikdata.':rates.every(rate=>rate===0)?'Ingen download eller upload lige nu.':'Flere ænder betyder højere hastighed · samlet trafik fra manuelle downloads og RSS.';
- $('#flow-status').textContent=data.ready?'VPN aktiv':data.enabled?'Forbindelse blokeret':'Seedbox stoppet';
+ $('#flow-note').textContent=!data.ready?'Afventer bekræftet trafikstatus.':rates.some(rate=>rate===null)?'Afventer trafikdata.':rates.every(rate=>rate===0)?'Ingen download eller upload lige nu.':'Flere ænder betyder højere hastighed · samlet trafik fra manuelle downloads og RSS.';
+ $('#flow-status').textContent=data.ready?'VPN aktiv':!data.enabled?'Seedbox stoppet':data.torrents_available===false?'Afventer status':'Forbindelse blokeret';
  const code=data.ready?countryCode(data.country):null;
  $('#flow-country').textContent=data.ready?(countryName(data.country)||'Ukendt land'):'Afventer forbindelse';
  const icon=$('#flow-vpn-icon'),key=code||'unknown';
  if(icon.dataset.country!==key){icon.dataset.country=key;const content=code?node('img'):node('span','','VPN');if(code){content.src='/static/flags/'+code.toLowerCase()+'.svg';content.alt='';content.width=32;content.height=24;}icon.replaceChildren(content);}
 }
-function render(data){current=data;renderFlow(data);$('#vpn-message').textContent=data.message;$('#vpn-badge').textContent=data.ready?'VPN aktiv':'Blokeret';$('#vpn-badge').className='badge'+(data.ready?' ready':'');$('#new-torrent').disabled=!data.ready;$('#stop').hidden=!data.enabled;$('#connect').textContent=data.enabled?'Gem VPN-valg':'Start seedbox';$('#dl').textContent=size(data.transfer?.dl_info_speed)+'/s';$('#ul').textContent=size(data.transfer?.up_info_speed)+'/s';$('#count').textContent=data.torrents.filter(t=>!t.rss_feed).length;$('#download-path').textContent='Downloadmappe: '+data.download_path;$('#qbit-version').textContent=data.version?'qBittorrent '+data.version:'qBittorrent inkluderet';$('#public-address').replaceChildren(...(data.public_ip?[document.createTextNode(`${data.public_ip}:${data.port}${data.torrent_mode==='gateway'?' · Delt gateway-VPN · Åben torrentport':''} · `),countryInfo(data.country),document.createTextNode(' · Netkort: tun0')]:[]));
+function render(data){current=data;renderFlow(data);$('#vpn-message').textContent=data.message;$('#vpn-badge').textContent=data.ready?'VPN aktiv':data.torrents_available===false?'Afventer status':'Blokeret';$('#vpn-badge').className='badge'+(data.ready?' ready':'');$('#new-torrent').disabled=!data.ready;$('#stop').hidden=!data.enabled;$('#connect').textContent=data.enabled?'Gem VPN-valg':'Start seedbox';$('#dl').textContent=size(data.transfer?.dl_info_speed)+'/s';$('#ul').textContent=size(data.transfer?.up_info_speed)+'/s';$('#count').textContent=data.torrents.filter(t=>!t.rss_feed).length;$('#download-path').textContent='Downloadmappe: '+data.download_path;$('#qbit-version').textContent=data.version?'qBittorrent '+data.version:'qBittorrent inkluderet';$('#public-address').replaceChildren(...(data.public_ip?[document.createTextNode(`${data.public_ip}:${data.port}${data.torrent_mode==='gateway'?' · Delt gateway-VPN · Åben torrentport':''} · `),countryInfo(data.country),document.createTextNode(' · Netkort: tun0')]:[]));
  const select=$('#profile'),chosen=select.value||data.profile_id;const options=[node('option','','Vælg VPN')];options[0].value='';for(const p of data.profiles){const o=node('option','',p.name+(p.gateway_enabled?' · delt VPN, egen torrentport':p.relay_enabled?' · bruges til TCP':p.desired?' · egen torrent-VPN, startet':' · slukket'));o.value=p.id;o.disabled=p.relay_enabled&&!p.gateway_enabled;options.push(o);}if(data.profile_id&&!data.profiles.some(p=>p.id===data.profile_id)){const o=node('option','','Valgt VPN er ikke tilgængelig');o.value=data.profile_id;options.push(o);}select.replaceChildren(...options);select.value=chosen;renderDownloadLists(data);$('#updated').textContent='Opdateret '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});}
-async function refresh(){if(busy)return;try{render(await api('/api/status'));$('#error').hidden=true;}catch(e){error('#error',e);$('#new-torrent').disabled=true;renderFlow({ready:false,enabled:true});$('#flow-status').textContent='Status utilgængelig';}}
+async function refresh(){
+ if(busy||refreshing)return;
+ refreshing=true;
+ try{
+  const data=preserveTorrentSnapshot(await api('/api/status'),current);
+  render(data);
+  $('#error').hidden=data.torrents_available!==false;
+  if(data.torrents_available===false)error('#error',new Error(data.message));
+ }catch(e){
+  if(current)render(preserveTorrentSnapshot({...current,torrents_available:false,message:'Status kunne ikke hentes.'},current));
+  error('#error',e);$('#new-torrent').disabled=true;renderFlow({ready:false,enabled:true});$('#flow-status').textContent='Status utilgængelig';
+ }finally{refreshing=false;}
+}
 async function settings(enabled){busy=true;$('#connect').disabled=true;$('#stop').disabled=true;try{await api('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({profile_id:$('#profile').value,enabled})});toast(enabled?'VPN-valget er gemt. Starter når VPN er klar.':'Seedbox stoppes.');}catch(e){toast(e.message);}finally{busy=false;$('#connect').disabled=false;$('#stop').disabled=false;}await refresh();}
 $('#settings-form').onsubmit=e=>{e.preventDefault();settings(true);};$('#stop').onclick=()=>settings(false);
 let addMethod='file';
