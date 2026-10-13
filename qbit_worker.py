@@ -12,14 +12,22 @@ import time
 from qbit_rpc import call, sync_share_limits, sync_download_queue, MAX_ACTIVE_DOWNLOADS
 from state import atomic
 from rss import sync_rss,rss_report,sync_snapshot
+from torrent_port import Lease,internal_port
 
 STOP = threading.Event()
 
 
-def ready(root=Path('/vpn'), now=None, interfaces=None):
+def vpn_status():
+    path=Path('/vpn/status.json')
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
+def ready(root=Path('/vpn'), now=None, interfaces=None, status=None):
     now = time.time() if now is None else now
-    status = json.loads((root/'status.json').read_text())
-    if not status.get('healthy') or not 0 <= now - status['checked_at'] < 15 or status.get('relay_enabled', True):
+    status = json.loads((root/'status.json').read_text()) if status is None else status
+    gateway=status.get('gateway_enabled') is True
+    if (not status.get('healthy') or not 0 <= now - status['checked_at'] < 15
+            or (status.get('relay_enabled', True) and not gateway)):
         raise ValueError('VPN is not ready')
     names = interfaces if interfaces is not None else [name for _, name in socket.if_nameindex()]
     if 'tun0' not in names:
@@ -30,7 +38,7 @@ def ready(root=Path('/vpn'), now=None, interfaces=None):
     return port, status.get('public_ip', ''), status.get('country', '')
 
 
-def configure(port, root=Path('/config')):
+def configure(port, root=Path('/config'), announce_port=0):
     folder = root / 'qBittorrent' / 'config'
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / 'qBittorrent.conf'
@@ -42,6 +50,7 @@ def configure(port, root=Path('/config')):
         'LegalNotice': {'Accepted':'true'},
         'BitTorrent': {'Session\\Interface':'tun0', 'Session\\InterfaceName':'tun0',
             'Session\\InterfaceAddress':'', 'Session\\Port':str(port),
+            'Session\\AnnouncePort':str(announce_port),
             'Session\\DefaultSavePath':'/downloads', 'Session\\LSDEnabled':'false',
             'Session\\QueueingSystemEnabled':'true', 'Session\\MaxActiveDownloads':str(MAX_ACTIVE_DOWNLOADS),
             'Session\\MaxActiveUploads':'-1', 'Session\\MaxActiveTorrents':'-1',
@@ -83,13 +92,16 @@ def run():
     reports=[]
     share_last=0
     seeding_error=None
+    lease=Lease()
+    connection=None
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: STOP.set())
     try:
         while not STOP.is_set():
             status = {'ready':False, 'checked_at':time.time(), 'message':'Venter på beskyttet VPN-forbindelse.'}
             try:
-                port, address, country = ready()
+                context=vpn_status()
+                port, address, country = ready(status=context)
                 # The Docker firewall is the primary kill switch. This independent
                 # gate also prevents restoring torrents into an unhealthy tunnel.
                 with __import__('requests').Session() as client:
@@ -97,13 +109,27 @@ def run():
                     response = client.get('http://127.0.0.1:9999/', timeout=2)
                     if response.status_code != 200:
                         raise ValueError('VPN health check failed')
+                gateway=context.get('gateway_enabled') is True
+                if gateway:
+                    status['message']='Afventer gatewayens ekstra torrentport og beskyttet qBittorrent.'
+                    private,public=lease.get(port)
+                    if context.get('torrent_internal_port')!=private:
+                        raise ValueError('Torrentportens firewall afventer den aktuelle gatewayport.')
+                    announce=public
+                else:
+                    lease.close();private,public,announce=port,port,0
+                next_connection=(private,announce,address) if gateway else None
+                if process is not None and connection!=next_connection:
+                    stop_process(process,graceful=True)
+                    process=None
                 if process is None or process.poll() is not None:
-                    configure(port)
+                    configure(private,announce_port=announce)
                     process = subprocess.Popen(['qbittorrent-nox','--profile=/config','--webui-port=8080','--confirm-legal-notice'],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     started = time.monotonic()
                     rss_content=None
                     share_last=0
+                    connection=next_connection
                 try:
                     prefs = call('app/preferences').json()
                 except Exception:
@@ -114,15 +140,17 @@ def run():
                 else:
                     if prefs.get('current_network_interface') != 'tun0' or prefs.get('upnp') is not False:
                         raise ValueError('Unsafe network settings')
+                    if gateway and prefs.get('announce_port')!=public:
+                        raise ValueError('qBittorrent annoncerer ikke den åbne torrentport.')
                     # Private trackers need time to acknowledge stopped announces
                     # before a restart generates a new peer ID. Keep the VPN-failure
                     # termination path short; extend only normal shutdown.
                     if type(prefs.get('stop_tracker_timeout')) is int and prefs['stop_tracker_timeout'] < 10:
                         call('app/setPreferences', {'json':json.dumps({'stop_tracker_timeout':10})})
                     sync_download_queue(prefs)
-                    if prefs.get('listen_port') != port:
-                        call('app/setPreferences', {'json':json.dumps({'listen_port':port,'random_port':False,'upnp':False})})
-                        if call('app/preferences').json().get('listen_port') != port:
+                    if prefs.get('listen_port') != private:
+                        call('app/setPreferences', {'json':json.dumps({'listen_port':private,'random_port':False,'upnp':False})})
+                        if call('app/preferences').json().get('listen_port') != private:
                             raise ValueError('Port synchronization failed')
                     if time.monotonic()-share_last>10:
                         try:
@@ -149,16 +177,21 @@ def run():
                         status['rss']=reports
                     except Exception:
                         status['rss_error']=True
-                    status.update(ready=True, port=port, public_ip=address, country=country, message='qBittorrent kører gennem VPN.')
+                    status.update(ready=True,port=public,public_torrent_port=public,internal_port=private,
+                        torrent_mode='gateway' if gateway else 'dedicated',public_ip=address,country=country,
+                        message='qBittorrent deler gatewayens VPN med sin egen åbne torrentport.' if gateway else 'qBittorrent kører gennem VPN.')
                     if seeding_error:
                         status['message']+=' '+seeding_error
             except Exception:
                 stop_process(process)
                 process = None
+                connection=None
+                lease.close()
             atomic('/config/worker-status.json', json.dumps(status), mode=0o644)
             STOP.wait(2)
     finally:
         stop_process(process, graceful=True)
+        lease.close()
         atomic('/config/worker-status.json', json.dumps({'ready':False, 'checked_at':time.time(), 'message':'Seedbox stoppet.'}), mode=0o644)
 
 

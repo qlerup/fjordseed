@@ -8,8 +8,8 @@ administrerer Proton-profilerne. Ingen torrent starter under installationen.
 1. Installér/opdatér FjordVPN i FjordHub på samme Docker-vært.
 2. Installér FjordSeed fra appkataloget. Vælg appdata og downloads med FjordHubs
    normale lager-/mappevælger. Angiv UID/GID med skriveadgang til downloadmappen.
-3. Opret en ny Proton WireGuard-profil med NAT-PMP i FjordVPN. Start profilen
-   med **TCP-videresendelse slået fra**. Porten skal bruges af qBittorrent.
+3. Vælg enten en separat Proton-profil med NAT-PMP og **TCP-videresendelse slået fra**,
+   eller en eksisterende VPN-gateway. Opdatér begge apps for at kunne vælge gatewayen.
 4. Åbn FjordSeed, vælg profilen, og tryk **Start seedbox**.
 5. Når VPN-status er klar, tilføj magnetlinks eller `.torrent`-filer.
 
@@ -29,8 +29,9 @@ førstegangsadgangskoden fra `DATA_DIR/initial-login.txt` (brugernavn `admin`).
   tildelt Proton-port før qBittorrent startes. Ved VPN-fejl stoppes processen.
 - Porten opdateres i qBittorrent via dens lokale API. VPN-restart eller profilskift
   genopretter qBittorrent-containeren med den rigtige netværksnamespace.
-- Ét qBittorrent-instance pr. VPN-profil; profilen kan ikke samtidig bruges som
-  FjordVPN TCP-relay. TCP og UDP fra qBittorrent forbliver i VPN-netværket.
+- Ét qBittorrent-instance pr. VPN-profil. En gateway kan deles med web, media og
+  Minecraft: FjordSeed får sin egen direkte TCP/UDP-port på samme VPN-konfiguration.
+  En almindelig TCP-relayprofil kan fortsat ikke vælges.
 - Stoppes FjordSeed, stoppes dens qBittorrent-container. Stop af FjordVPN blokerer
   torrenttrafik. Gemte torrents genoptages, når den valgte VPN bliver klar igen.
 - qBittorrents API lytter kun på loopback. FjordSeeds backend udfører en begrænset
@@ -50,6 +51,33 @@ Downloadmappen kan deles med andre apps gennem et fælles mount og passende
 filrettigheder. Der ændres ikke rekursivt på ejerskab af eksisterende downloads.
 Forbindelsen fra browser til kontrolpanelet er almindelig lokal webtrafik;
 VPN-kravet gælder torrentklientens trafik.
+
+## Fælles gateway eller separat torrent-VPN
+
+Opdatér først FjordVPN og derefter FjordSeed. Under **VPN-forbindelse** vælges
+**Gateway · delt VPN, egen torrentport**, og der trykkes **Gem VPN-valg**.
+qBittorrent genstartes på den valgte VPN med de samme torrents og filer.
+Overførsler kan kort afbrydes. Den gamle Seedbox-profil kan fortsat vælges.
+
+Gatewayens første port bliver ved med at betjene HTTPS og Minecraft.
+FjordSeed reserverer en ekstra NAT-PMP-port til TCP og UDP, med privat lytteport
+56789 (56790 ved kollision med gatewayens første port). Den offentlige port
+annonceres separat til trackere og vises i panelet. Lejen fornyes hvert 20. sekund.
+VPN-udfald eller mislykket fornyelse stopper qBittorrent. Ved en ny port genstartes
+klienten med korrekt annoncering, og torrents genoptages.
+
+Download og upload forbliver bundet til tun0 og Gluetuns firewall. Der bruges
+ingen torrentproxy, ekstra VPN-konfiguration eller åbne LAN-porte. Eksisterende
+hastighedsindstillinger bevares; der tilføjes ingen grænser. Fælles trafik deler
+naturligvis VPN- og internetkapaciteten.
+
+Stop/profilskift lukker den ekstra portleje og fjerner kun FjordSeeds egne
+markerede firewallregler. Lejen udløber inden 60 sekunder, hvis serveren ikke kan
+kontaktes under stop. Web-/Minecraft-porten og andre profiler berøres ikke.
+
+Proton-serveren skal acceptere en ekstra ikke-symmetrisk NAT-PMP-mapping.
+Hvis porten ikke kan oprettes, forbliver qBittorrent blokeret; der skiftes ikke
+til direkte internet. Se [Gluetuns portdokumentation](https://github.com/qdm12/gluetun-wiki/blob/main/setup/options/port-forwarding.md).
 
 ## Drift
 

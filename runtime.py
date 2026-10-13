@@ -4,12 +4,14 @@ from pathlib import Path
 import re
 import time
 import uuid
+from types import SimpleNamespace
 
 import docker
 
 from state import atomic
 from rss import write_snapshot
 from storage import Storage
+from torrent_port import internal_port
 
 OWNER = 'dk.fjordseed.owner'
 PROFILE = 'dk.fjordvpn.profile'
@@ -92,7 +94,7 @@ class Runtime:
         if data['enabled']:
             _, profiles = self.discover()
             selected = next((p for p in profiles if p['id'] == ident), None)
-            if not selected or selected['relay_enabled']:
+            if not selected or (selected['relay_enabled'] and selected.get('gateway_enabled') is not True):
                 raise ValueError('Vælg en VPN-profil uden TCP-videresendelse; porten skal bruges af qBittorrent.')
         self.state.save(ident, data['enabled'])
 
@@ -103,6 +105,46 @@ class Runtime:
                 child.stop(timeout=40)
             if remove:
                 child.remove()
+        ledger=self.state.root/'torrent-firewall.json'
+        if ledger.exists():
+            self.clear_torrent_rules(SimpleNamespace(labels=json.loads(ledger.read_text())))
+            ledger.unlink()
+        elif child and child.labels.get('dk.fjordseed.torrent-mode')=='gateway':
+            self.clear_torrent_rules(child)
+
+    def torrent_rules(self,vpn,port,remove=False):
+        """Open only this seedbox's second port on the protected VPN interface."""
+        marker='fjordseed-'+self.state.get()['id']
+        added=[]
+        for protocol in ('tcp','udp'):
+            args=['-i','tun0','-p',protocol,'--dport',str(port),'-m','comment','--comment',marker,'-j','ACCEPT']
+            check=vpn.exec_run(['iptables','-C','INPUT',*args])
+            if check.exit_code not in (0,1):
+                raise ValueError('Torrentportens VPN-firewall kunne ikke kontrolleres.')
+            if (remove and check.exit_code==0) or (not remove and check.exit_code==1):
+                operation='-D' if remove else '-I'
+                result=vpn.exec_run(['iptables',operation,'INPUT',*args])
+                if result.exit_code:
+                    for previous in added:
+                        vpn.exec_run(['iptables','-D','INPUT',*previous])
+                    raise ValueError('Torrentportens VPN-firewall kunne ikke opdateres.')
+                if not remove:added.append(args)
+
+    def clear_torrent_rules(self,child):
+        if not re.fullmatch('[a-f0-9]{32}',child.labels.get(PROFILE,'')):
+            raise ValueError('Torrentportens VPN-profil er ugyldig.')
+        try:
+            vpn=self.client.containers.get('fjordvpn-'+child.labels[PROFILE]+'-vpn')
+        except docker.errors.NotFound:
+            return
+        if (vpn.labels.get('dk.fjordvpn.managed')!='1' or vpn.labels.get(PROFILE)!=child.labels[PROFILE]
+                or vpn.labels.get('com.docker.compose.project')!=child.labels.get('dk.fjordseed.vpn-project')):
+            raise ValueError('Torrentportens VPN tilhører en anden installation.')
+        port=int(child.labels['dk.fjordseed.torrent-internal-port'])
+        if port not in (56789,56790):
+            raise ValueError('Torrentportens registrering er ugyldig.')
+        if vpn.status=='running':
+            self.torrent_rules(vpn,port,remove=True)
 
     def reconcile(self):
         storage = Storage(self)
@@ -115,7 +157,8 @@ class Runtime:
             return
         manager, profiles = self.discover()
         p = next((p for p in profiles if p['id'] == settings['profile_id']), None)
-        if not p or not p['desired'] or p['relay_enabled']:
+        gateway=bool(p and p.get('gateway_enabled') is True)
+        if not p or not p['desired'] or (p['relay_enabled'] and not gateway):
             self.stop()
             raise ValueError('Start den valgte VPN i FjordVPN, og slå TCP-videresendelse fra.')
         vpn = self.client.containers.get('fjordvpn-' + p['id'] + '-vpn')
@@ -133,8 +176,12 @@ class Runtime:
                 raise ValueError('Denne VPN-profil bruges allerede af en anden seedbox.')
         child = self.child()
         generation = vpn.id + ':' + vpn.attrs['State']['StartedAt']
-        atomic(self.state.root/'vpn/status.json', json.dumps({**p.get('status', {}), 'relay_enabled':p['relay_enabled']}), mode=0o644)
+        mode='gateway' if gateway else 'dedicated'
+        try:private=internal_port(p['status']['public_port']) if gateway else 0
+        except (ValueError,TypeError,KeyError):private=56789 if gateway else 0
         if child and (child.labels.get('dk.fjordseed.vpn-generation') != generation or child.attrs['Image'] != self.image
+                or child.labels.get('dk.fjordseed.torrent-mode','dedicated')!=mode
+                or (gateway and child.labels.get('dk.fjordseed.torrent-internal-port')!=str(private))
                 or self.mount(child, '/config') != self.host_data/'qbit'
                 or self.mount(child, '/downloads') != self.host_downloads
                 or child.attrs['Config'].get('User') != f'{self.uid}:{self.gid}'
@@ -142,10 +189,22 @@ class Runtime:
                     for m in child.attrs['Mounts']) for p,v in storage.mounts().items())):
             self.stop(remove=True)
             child = None
+        # Publish the new profile only after a previous namespace has stopped.
+        # Otherwise its worker could announce the new profile's endpoint early.
+        atomic(self.state.root/'vpn/status.json', json.dumps({**p.get('status', {}),
+            'relay_enabled':p['relay_enabled'],'gateway_enabled':gateway,
+            'torrent_internal_port':private}), mode=0o644)
+        if gateway:
+            atomic(self.state.root/'torrent-firewall.json',json.dumps({PROFILE:p['id'],
+                'dk.fjordseed.torrent-internal-port':str(private),
+                'dk.fjordseed.vpn-project':manager.labels.get('com.docker.compose.project','')}))
+            self.torrent_rules(vpn,private)
         if child is None:
             labels = {OWNER:settings['id'], PROFILE:p['id'], 'dk.fjordseed.vpn-generation':generation,
                 'com.docker.compose.project':self.project, 'com.docker.compose.service':'qbittorrent',
                 'com.docker.compose.oneoff':'False', 'com.docker.compose.config-hash':'fjordseed-v1'}
+            labels.update({'dk.fjordseed.torrent-mode':mode,'dk.fjordseed.torrent-internal-port':str(private),
+                           'dk.fjordseed.vpn-project':manager.labels.get('com.docker.compose.project','')})
             volumes = {str(self.host_data/'qbit'):{'bind':'/config','mode':'rw'},
                 str(self.host_data/'rpc'):{'bind':'/rpc','mode':'ro'},
                 str(self.host_data/'resolv.conf'):{'bind':'/etc/resolv.conf','mode':'ro'},
@@ -191,6 +250,8 @@ class Runtime:
                     result.update(status)
                     if result.get('ready'):
                         result.update(self.rpc('status', {}))
+                        if status.get('torrent_mode')=='gateway':
+                            result['port']=status['public_torrent_port']
             except Exception:
                 result.update(ready=False, message='Venter på sikker forbindelse til qBittorrent.')
         return result
