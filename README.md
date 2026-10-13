@@ -53,6 +53,19 @@ VPN-kravet gælder torrentklientens trafik.
 
 ## Drift
 
+Ved tilføjelse eller redigering af et RSS-feed åbner **Titelfilter** to lister:
+**Kig efter** og **Undgå**. Titler tilføjes som almindelige tekstfragmenter, ikke
+regulære udtryk. En post skal matche mindst én tekst i Kig efter, medmindre
+listen er tom. Undgå har altid forrang: `Politijagt` i Undgå springer fx
+`Politijagt.S01E02` over i et dansk TV-feed. Store/små bogstaver, punktummer,
+bindestreger, underscores og mellemrum normaliseres ved sammenligning.
+Listerne kan have op til 50 tekster på 120 tegn hver. Træk en titel til den anden
+liste, eller markér titler og brug **Flyt**/**Fjern valgte** på mobil og tastatur.
+**Brug filter** overfører ændringen til RSS-formularen; **Gem feed** gemmer den.
+Filtreringen bruger feedpostens titel før metadata hentes og kontrolleres igen
+før download. Poster uden titel springes over, når et titelfilter er indstillet.
+Ændringer påvirker nye downloads; eksisterende torrents fortsætter.
+
 RSS-feedkortene viser **Krediteret upload i alt** fra feedets torrents, beregnet
 med samme Green-regler som torrenternes krediterede ratio. Totalen gemmes i
 `DATA_DIR/qbit/green-credit.json` og bevares, når torrents slettes eller et feed

@@ -12,7 +12,7 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import requests
 
-from rss import PREFIX, validate_feed, folder_path, date_matches
+from rss import PREFIX, validate_feed, folder_path, date_matches, title_matches
 from state import atomic
 from torrent_meta import magnet_meta, torrent_meta
 from qbit_rpc import seed_ratio, initial_managed_ratio
@@ -100,7 +100,8 @@ def gate_rpc(action,data,api,root=Path('/config')):
             candidates=[]
             for article in articles:
                 url=article.get('torrentURL') or article.get('link','')
-                if article.get('isRead') is True or not date_matches(article,feed) or not isinstance(url,str) or not url:
+                if (article.get('isRead') is True or not date_matches(article,feed) or not title_matches(article,feed)
+                        or not isinstance(url,str) or not url):
                     continue
                 token=hashlib.sha256((str(article.get('id',''))+'\n'+url).encode()).hexdigest()
                 candidates.append((history['retry'].get(token,0),token,url,article))
@@ -119,7 +120,7 @@ def gate_rpc(action,data,api,root=Path('/config')):
                 meta,payload=fetch_metadata(url)
                 if not meta.get('name'):
                     meta['name']=str(article.get('title',''))[:200]
-                pending={'token':token,'meta':meta,'payload':payload,'date':article.get('date'),'article_id':article.get('id'),
+                pending={'token':token,'meta':meta,'payload':payload,'date':article.get('date'),'title':article.get('title'),'article_id':article.get('id'),
                          'revision':data['revision'],'created_at':now}
                 atomic(pending_path,json.dumps(pending))
                 break
@@ -131,6 +132,8 @@ def gate_rpc(action,data,api,root=Path('/config')):
             raise ValueError('Selected badges not verified')
         if not date_matches(pending,feed):
             raise ValueError('Article predates feed start or has no date')
+        if not title_matches(pending,feed):
+            raise ValueError('Article does not match title filters')
         hashes=pending['meta']['hashes']
         if sorted(hashes)!=sorted(data.get('hashes',[])):
             raise ValueError('Torrent identity changed')
@@ -196,7 +199,9 @@ class RssGate:
                         tracker=next((e for e in trackers.entries() if e['id']==feed['tracker_id']),None)
                 candidate=self.runtime.rpc('rss_prepare',{'feed_id':feed['id'],'revision':fingerprint(feed)})
                 if not candidate:
-                    self.reports[feed['id']]=('Afventer nye feedposter fra den valgte startdato. Poster uden dato springes over.'
+                    self.reports[feed['id']]=('Afventer nye feedposter, der matcher titelfilteret og startdatoen.'
+                                             if feed.get('title_include') or feed.get('title_exclude') else
+                                             'Afventer nye feedposter fra den valgte startdato. Poster uden dato springes over.'
                                              if feed.get('download_from') else 'Afventer nye feedposter.')
                     continue
                 result={}

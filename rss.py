@@ -11,12 +11,43 @@ import threading
 import time
 from urllib.parse import urlsplit
 import uuid
+import unicodedata
 
 from qbit_rpc import share_policy, call, seed_ratio
 from state import atomic
 
 PREFIX='FjordSeed-'
 BADGES=('freeleech','double_upload','featured','internal','refundable')
+
+
+def title_key(value):
+    return re.sub(r'[\W_]+',' ',unicodedata.normalize('NFKC',value).casefold()).strip()
+
+
+def validate_title_filters(value):
+    if not isinstance(value,list) or len(value)>50:
+        raise ValueError('Hver titelliste må indeholde op til 50 titler.')
+    result=[];seen=set()
+    for title in value:
+        if (not isinstance(title,str) or not 1<=len(title.strip())<=120
+                or any(ord(c)<32 for c in title) or not title_key(title)):
+            raise ValueError('Indtast en titel på 1–120 tegn.')
+        key=title_key(title)
+        if key not in seen:
+            seen.add(key);result.append(title.strip())
+    return result
+
+
+def title_matches(article,feed):
+    """Plain title fragments: any include, no exclude; separators are equivalent."""
+    include=feed.get('title_include',[]);exclude=feed.get('title_exclude',[])
+    if not include and not exclude:
+        return True
+    title=article.get('title')
+    if not isinstance(title,str) or not title_key(title):
+        return False
+    key=title_key(title)
+    return not any(title_key(t) in key for t in exclude) and (not include or any(title_key(t) in key for t in include))
 
 
 def article_timestamp(value):
@@ -102,6 +133,8 @@ def validate_feed(data):
         raise ValueError('Vælg en stop-ratio fra 0 til 10000.')
     policy['ratio_limit']=seed_ratio(policy['ratio_limit'])
     return {'name':name.strip(),'url':url,'folder':folder.strip().strip('/'),
+            'title_include':validate_title_filters(data.get('title_include',[])),
+            'title_exclude':validate_title_filters(data.get('title_exclude',[])),
             'enabled':data['enabled'],'download_from':start,'required_badges':list(dict.fromkeys(badges)),
             'tracker_id':tracker if badges else '',**policy}
 
@@ -114,7 +147,7 @@ class Rss:
         self.lock=threading.RLock()
         if not self.path.exists():
             atomic(self.path,'[]')
-        # Retire title/size/leecher filters while preserving optional badge requirements.
+        # Retire legacy filters; preserve current title lists and badge requirements.
         saved=json.loads(self.path.read_text(encoding='utf-8'))
         migrated=[{**validate_feed(e),'id':e['id']} for e in saved]
         if saved != migrated:

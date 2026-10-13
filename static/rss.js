@@ -31,6 +31,7 @@ function updateRssStart(){
  $('#rss-start-date').readOnly=choice!=='custom';
 }
 function resetRssForm(){
+ rssTitleFilters={include:[],exclude:[]};updateRssFilterSummary();
  $('#rss-form').reset();$('#rss-id').value='';$('#rss-url').required=true;$('#rss-url-status').hidden=true;
  $('#rss-url').placeholder='https://tracker.example/rss?...';$('#rss-form-title').textContent='Tilføj RSS-feed';
  $('#rss-delete-notice').hidden=true;$('#rss-error').hidden=true;updateRssPath();updateRssStart();
@@ -47,6 +48,7 @@ function rssShowStep(seeding){
 function openRssForm(feed=null){
  resetRssForm();
  if(feed){
+  rssTitleFilters={include:[...(feed.title_include||[])],exclude:[...(feed.title_exclude||[])]};updateRssFilterSummary();
   $('#rss-id').value=feed.id;$('#rss-name').value=feed.name;$('#rss-url').required=false;$('#rss-url-status').hidden=false;
   $('#rss-url').placeholder='Gemt adresse — indtast kun for at udskifte';$('#rss-folder').value=feed.folder;
   $('#rss-ratio').value=feed.ratio_limit;$('#rss-action').value=feed.ratio_action;$('#rss-enabled').checked=feed.enabled;
@@ -105,6 +107,8 @@ function rssFeedCard(feed){
  panel.append(node('p','torrent-policy','Mappe: '+rssRoot+(feed.folder?'/'+feed.folder:'')+(feed.ratio_action!=='keep'?' · Slet ved ratio '+feed.ratio_limit+(feed.ratio_action==='delete_ratio'?' uden tidsgrænse':' eller 49 timers seeding'):' · Behold filer og seed uden grænse')));
  panel.append(node('p','torrent-policy',feed.download_from?'Hent fra: '+new Date(feed.download_from).toLocaleString('da-DK'):'Hent alle poster i feedet'));
  if(feed.required_badges?.length)panel.append(node('p','torrent-policy','Kræver alle: '+feed.required_badges.map(b=>rssBadgeNames[b]).join(' + ')));
+ if(feed.title_include?.length)panel.append(node('p','torrent-policy','Kig efter: '+feed.title_include.join(', ')));
+ if(feed.title_exclude?.length)panel.append(node('p','torrent-policy','Undgå: '+feed.title_exclude.join(', ')));
  if(feed.enabled&&feed.download_status)panel.append(node('p','muted small',feed.download_status));
  if(feed.status==='error')panel.append(node('p','error small','Feedet eller RSS-reglerne kunne ikke indlæses. Kontrollér RSS-adressen og VPN-status.'));
  const actions=node('div','tracker-actions'),edit=node('button','secondary','Rediger'),remove=node('button','quiet','Fjern feed');edit.type=remove.type='button';
@@ -135,7 +139,7 @@ $('#rss-new').onclick=()=>openRssForm();
 $('#rss-folder').oninput=updateRssPath;
 $('#rss-start').onchange=updateRssStart;
 document.querySelectorAll('[name=rss-badge]').forEach(e=>e.onchange=updateRssBadges);
-$('#rss-dialog').addEventListener('close',()=>rssTrackerGeneration++);
+$('#rss-dialog').addEventListener('close',()=>{rssTrackerGeneration++;if($('#rss-filter-dialog').open)$('#rss-filter-dialog').close();});
 $('#rss-action').onchange=()=>updateSeedingFields('rss');
 updateSeedingFields('rss');
 $('#rss-cancel').onclick=()=>$('#rss-dialog').close();
@@ -153,6 +157,7 @@ $('#rss-form').onsubmit=async e=>{
    id:$('#rss-id').value,name:$('#rss-name').value,url:$('#rss-url').value,folder:$('#rss-folder').value,
    ratio_limit:$('#rss-ratio').value,ratio_action:$('#rss-action').value,
    download_from:start,enabled:$('#rss-enabled').checked,required_badges:selectedRssBadges(),
+   title_include:rssTitleFilters.include,title_exclude:rssTitleFilters.exclude,
    tracker_id:selectedRssBadges().length?$('#rss-tracker').value:''})});
   $('#rss-dialog').close();resetRssForm();await refreshRss();toast('Feedet er gemt. Synkroniseres når VPN og seedbox er klar.');
  }catch(e){error('#rss-error',e);}finally{rssBusy=false;$('#rss-save').disabled=false;$('#rss-back').disabled=false;$('#rss-dialog .close').disabled=false;}

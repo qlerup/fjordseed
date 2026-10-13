@@ -145,6 +145,34 @@ def test_prepared_before_pause_cannot_add(gate):
     assert not any(p=='torrents/add' for p,d in calls)
 
 
+@pytest.mark.parametrize('gate',[{'title_include':['Badehotellet'],'title_exclude':['Politijagt']}],indirect=True)
+def test_title_filters_skip_excluded_before_metadata_and_recheck_before_add(gate):
+    invoke,calls,fetched,articles,root,entry=gate
+    articles[3]['title']='Politijagt.S01E02'
+    articles[4]['title']='Badehotellet_S10E01'
+    candidate=invoke('rss_prepare')
+    assert fetched==['https://tracker.example/4']
+    path=root/('rss-pending-'+entry['id']+'.json')
+    pending=json.loads(path.read_text())
+    assert pending['title']=='Badehotellet_S10E01'
+    pending['title']='Politijagt';path.write_text(json.dumps(pending))
+    with pytest.raises(ValueError,match='title filters'):resolve(invoke,candidate)
+    assert not any(p=='torrents/add' for p,d in calls)
+    pending['title']='Badehotellet_S10E01';path.write_text(json.dumps(pending))
+    resolve(invoke,candidate)
+    assert len([p for p,d in calls if p=='torrents/add'])==1
+    assert not invoke('rss_prepare')
+
+
+def test_new_title_filter_invalidates_prepared_candidate(gate):
+    invoke,calls,_,_,root,entry=gate
+    candidate=invoke('rss_prepare')
+    entry['title_exclude']=['Duplicate title']
+    (root/'fjord-rss.json').write_text(json.dumps([entry]))
+    with pytest.raises(ValueError,match='Feed changed'):resolve(invoke,candidate)
+    assert not any(p=='torrents/add' for p,d in calls)
+
+
 def test_changed_start_pause_identity_or_missing_pending_date_never_add(gate):
     invoke,calls,_,_,root,entry=gate
     candidate=invoke('rss_prepare')
