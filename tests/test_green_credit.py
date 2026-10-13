@@ -200,3 +200,81 @@ def test_manual_add_protects_goal_before_async_date_lookup(monkeypatch):
     assert calls[-1][1]['ratioLimit']==-1
     result=update(row(1000,2),CREATED+120)
     assert result['ratio_limit']==1 and result['credited_ratio']==.5
+
+
+FEED='b'*32
+OTHER_FEED='c'*32
+
+
+def feed_totals():
+    return json.loads((credit.CONFIG/'green-credit.json').read_text())['_rss_upload']['feeds']
+
+
+def test_feed_credit_tracks_green_expiry_without_double_counting():
+    policy()
+    tags='other, FjordSeed-RSS-'+FEED
+    assert update(row(1000,tags=tags),CREATED+120)['credited_uploaded']==500
+    update(row(1000,tags=tags),CREATED+130)
+    assert feed_totals()[FEED]['credited_uploaded']==500
+    update(row(1200,tags=tags),END+10)
+    update(row(1400,tags=tags),END+20)
+    assert feed_totals()[FEED]['credited_uploaded']==800
+    # Same feed, a second torrent; a manual torrent and other feed stay separate.
+    policies=json.loads(credit.POLICIES.read_text())
+    policies.update({h*40:{'known':True,'until':None,'has_date':True} for h in ('d','e','f')})
+    credit.POLICIES.write_text(json.dumps(policies))
+    update(row(200,hash='d'*40,tags=tags),END+20)
+    update(row(900,hash='e'*40),END+20)
+    update(row(300,hash='f'*40,tags='FjordSeed-RSS-'+OTHER_FEED),END+20)
+    assert feed_totals()[FEED]['credited_uploaded']==1000
+    assert feed_totals()[OTHER_FEED]['credited_uploaded']==300
+
+
+def test_feed_credit_survives_torrent_removal_restart_and_readdition():
+    policy(None)
+    tags='FjordSeed-RSS-'+FEED
+    update(row(1000,tags=tags),END+10)
+    with credit.CreditLedger().transaction() as ledger:
+        ledger.entries.pop(HASH)
+    assert feed_totals()[FEED]['credited_uploaded']==1000
+    update(row(200,tags=tags,added_on=END+15),END+20)
+    update(row(200,tags=tags,added_on=END+15),END+25)
+    assert feed_totals()[FEED]['credited_uploaded']==1200
+    # Counter reset cannot subtract upload already earned by this feed.
+    update(row(50,tags=tags,added_on=END+15),END+30)
+    assert feed_totals()[FEED]['credited_uploaded']==1250
+    update(row(100,tags=tags,added_on=END+15),END+35)
+    assert feed_totals()[FEED]['credited_uploaded']==1300
+
+
+def test_feed_credit_adjusts_pending_classification():
+    tags='FjordSeed-RSS-'+FEED
+    policy(None,False)
+    update(row(1000,tags=tags),CREATED+120)
+    assert feed_totals()[FEED]['credited_uploaded']==500
+    assert feed_totals()[FEED]['estimated'] is True
+    policy(None,True)
+    update(row(1000,tags=tags),CREATED+130)
+    assert feed_totals()[FEED]['credited_uploaded']==1000
+    update(row(1000,tags=tags),CREATED+140)
+    assert feed_totals()[FEED]['credited_uploaded']==1000
+
+
+def test_feed_credit_new_incarnation_retains_old_total():
+    policy(None)
+    tags='FjordSeed-RSS-'+FEED
+    update(row(1000,tags=tags),END+10)
+    update(row(200,tags=tags,added_on=END+15),END+20)
+    assert feed_totals()[FEED]['credited_uploaded']==1200
+
+
+def test_feed_credit_imports_available_old_upload_once():
+    policy(None)
+    update(row(1000),END+10)
+    path=credit.CONFIG/'green-credit.json'
+    saved=json.loads(path.read_text())
+    saved.pop('_rss_upload')
+    path.write_text(json.dumps(saved))
+    update(row(1200,tags='FjordSeed-RSS-'+FEED),END+20)
+    update(row(1200,tags='FjordSeed-RSS-'+FEED),END+30)
+    assert feed_totals()[FEED]['credited_uploaded']==1200

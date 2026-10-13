@@ -53,6 +53,16 @@ VPN-kravet gælder torrentklientens trafik.
 
 ## Drift
 
+RSS-feedkortene viser **Krediteret upload i alt** fra feedets torrents, beregnet
+med samme Green-regler som torrenternes krediterede ratio. Totalen gemmes i
+`DATA_DIR/qbit/green-credit.json` og bevares, når torrents slettes eller et feed
+sættes på pause. Gentagne statusopdateringer tæller ikke samme upload flere gange.
+Eksisterende torrents med tilgængelige uploadtal medregnes ved første kontrol;
+upload fra torrents slettet før funktionen blev tilføjet kan ikke genskabes.
+Ukendt Green-historik beregnes konservativt. Tallet er appens beregning, ikke en
+bekræftet opgørelse fra trackeren. **Afventer uploadtal** vises, indtil historikken
+kan læses. Backup af appdata skal derfor også bevare kreditregnskabet.
+
 ### Lager, buffer og færdige downloads
 
 Under **Lager og mapper** kan en FjordHub-administrator vælge en eksisterende

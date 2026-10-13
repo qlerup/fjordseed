@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import ipaddress
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -169,13 +170,32 @@ class Rss:
         except (OSError,ValueError,KeyError):
             pass
         reports={e['id']:e for e in state.get('rss',[])}
+        # The worker commits feed totals together with torrent credit samples.
+        # This stays available while the VPN is offline or the feed is paused.
+        upload_history=None
+        try:
+            ledger=json.loads((self.root/'qbit/green-credit.json').read_text(encoding='utf-8'))
+            history=ledger.get('_rss_upload')
+            if isinstance(history,dict) and isinstance(history.get('feeds'),dict):
+                upload_history=history
+        except (OSError,ValueError,AttributeError):
+            pass
+        def upload_total(ident):
+            if upload_history is None:
+                return {'credited_uploaded':None,'credit_estimated':False,'credit_started_at':None}
+            total=upload_history['feeds'].get(ident,{})
+            value=total.get('credited_uploaded',0) if isinstance(total,dict) else None
+            valid=type(value) in (int,float) and math.isfinite(value) and value>=0
+            return {'credited_uploaded':value if valid else None,
+                    'credit_estimated':bool(isinstance(total,dict) and total.get('estimated')),
+                    'credit_started_at':upload_history.get('started_at')}
         return {'feeds':[{k:v for k,v in e.items() if k!='url'} | {
                 'ratio_limit':seed_ratio(e['ratio_limit']),
                 'host':urlsplit(e['url']).hostname,'has_url':True,
                 'status':('paused' if not e['enabled'] else 'pending' if not state else
                           'error' if state.get('rss_error') or reports.get(e['id'],{}).get('has_error') else
                           'active' if e['id'] in reports else 'pending'),
-                'articles':reports.get(e['id'],{}).get('articles',0)} for e in entries]}
+                'articles':reports.get(e['id'],{}).get('articles',0)} | upload_total(e['id']) for e in entries]}
 
 
 def write_snapshot(root,uid,gid):

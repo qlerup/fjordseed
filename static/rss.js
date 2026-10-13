@@ -96,6 +96,12 @@ function rssFeedCard(feed){
  function updateExpanded(){const expanded=expandedRssFeeds.has(feed.id);panel.hidden=!expanded;card.classList.toggle('is-expanded',expanded);toggle.textContent=expanded?'Skjul detaljer':'Vis detaljer';for(const button of [titleToggle,toggle]){button.setAttribute('aria-expanded',String(expanded));button.setAttribute('aria-label',toggle.textContent+' for '+feed.name);}}
  toggle.onclick=()=>{if(expandedRssFeeds.has(feed.id))expandedRssFeeds.delete(feed.id);else expandedRssFeeds.add(feed.id);updateExpanded();};titleToggle.onclick=toggle.onclick;
  card.append(head,node('p','muted small',feed.host+' · '+feed.articles+' feedposter'));
+ const upload=node('div','rss-feed-upload'),uploadLabel=node('span','muted small','Krediteret upload i alt');
+ const hasUpload=typeof feed.credited_uploaded==='number'&&Number.isFinite(feed.credited_uploaded)&&feed.credited_uploaded>=0;
+ upload.append(uploadLabel,node('strong','rss-feed-upload-value',hasUpload?size(feed.credited_uploaded):'Afventer uploadtal'));
+ if(feed.credit_estimated)upload.append(node('span','muted small','Beregnet konservativt'));
+ upload.title='Samlet beregnet kredit fra feedets torrents, inkl. Green-periodens halve kredit. Gemmes også efter sletning af torrents. Tidligere slettede torrents kan mangle i historikken.';
+ card.append(upload);
  panel.append(node('p','torrent-policy','Mappe: '+rssRoot+(feed.folder?'/'+feed.folder:'')+(feed.ratio_action!=='keep'?' · Slet ved ratio '+feed.ratio_limit+(feed.ratio_action==='delete_ratio'?' uden tidsgrænse':' eller 49 timers seeding'):' · Behold filer og seed uden grænse')));
  panel.append(node('p','torrent-policy',feed.download_from?'Hent fra: '+new Date(feed.download_from).toLocaleString('da-DK'):'Hent alle poster i feedet'));
  if(feed.required_badges?.length)panel.append(node('p','torrent-policy','Kræver alle: '+feed.required_badges.map(b=>rssBadgeNames[b]).join(' + ')));

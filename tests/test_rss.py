@@ -108,3 +108,21 @@ def test_toggle_missing_feed_does_not_create_one(tmp_path):
     client,headers=login(app)
     assert client.post('/api/rss/'+'a'*32+'/enabled',headers=headers,json={'enabled':True}).status_code==400
     assert app.extensions['rss'].entries()==[]
+
+
+def test_feed_upload_total_remains_available_when_offline_and_paused(tmp_path,monkeypatch):
+    import green_credit as credit
+    monkeypatch.setattr(credit,'CONFIG',tmp_path/'qbit')
+    app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
+    client,headers=login(app)
+    ident=client.post('/api/rss',headers=headers,json=feed()).json['id']
+    assert client.get('/api/rss').json['feeds'][0]['credited_uploaded'] is None
+    with credit.CreditLedger().transaction() as ledger:
+        ledger.update({'hash':'a'*40,'tags':'FjordSeed-RSS-'+ident,'uploaded':4096,'added_on':10},now=20)
+        ledger.entries.pop('a'*40)
+    public=client.get('/api/rss').json['feeds'][0]
+    assert public['status']=='paused' and public['credited_uploaded']==4096
+    assert public['credit_started_at']==20
+    assert 'passkey' not in json.dumps(public)
+    (tmp_path/'qbit/green-credit.json').write_text('{broken')
+    assert client.get('/api/rss').json['feeds'][0]['credited_uploaded'] is None

@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 import math
 from pathlib import Path
+import re
 import threading
 import time
 
@@ -130,6 +131,7 @@ class CreditLedger:
             self.entries[ident] = entry
         if target is not None:
             entry['target'] = target
+        previous_uploaded = entry['uploaded']
         entry['added_on'] = row.get('added_on')
         policy = self.policies.get(ident, entry['policy'])
         entry['policy'] = policy
@@ -156,6 +158,7 @@ class CreditLedger:
         # Never let a counter reset create negative or unearned credit.
         discounted = min(uploaded, entry['green_uploaded'] + (entry.get('unclassified', 0) if pending else 0))
         credited = uploaded - discounted / 2
+        self.record_rss_upload(row, entry, credited, previous_uploaded, now, pending)
         denominator = number(row.get('downloaded'))
         if not denominator and number(row.get('ratio')):
             denominator = uploaded / row['ratio']
@@ -171,3 +174,27 @@ class CreditLedger:
                 'green_date_unavailable': bool(self.policies.get('_enabled') and policy.get('known')
                     and not until and policy.get('has_date') is False),
                 'green_history_estimated': entry.get('history_estimated', False)}
+
+    def record_rss_upload(self, row, entry, credited, previous_uploaded, now, pending):
+        """Keep feed totals in the same atomic ledger as per-torrent samples.
+
+        Removing a torrent may retire its goal/sample, but never its feed total.
+        Repeated status/worker polls replace that torrent's previous contribution.
+        """
+        history = self.entries.setdefault('_rss_upload', {'started_at': now, 'feeds': {}})
+        feed_id = entry.get('rss_feed_id')
+        if not feed_id:
+            tags = str(row.get('tags', '')).split(',')
+            feed_ids = {tag.strip()[len('FjordSeed-RSS-'):] for tag in tags
+                        if re.fullmatch(r'FjordSeed-RSS-[a-f0-9]{32}', tag.strip())}
+            if len(feed_ids) != 1:
+                return
+            feed_id = entry['rss_feed_id'] = feed_ids.pop()
+        total = history['feeds'].setdefault(feed_id, {'credited_uploaded': 0, 'estimated': False})
+        previous_credit = number(entry.get('rss_credited_uploaded'))
+        if number(row.get('uploaded')) < previous_uploaded:
+            # A reset starts a new counter; earlier earned upload stays in the total.
+            previous_credit = 0
+        total['credited_uploaded'] = max(0, total['credited_uploaded'] + credited - previous_credit)
+        total['estimated'] = total['estimated'] or pending or entry.get('history_estimated', False)
+        entry['rss_credited_uploaded'] = credited

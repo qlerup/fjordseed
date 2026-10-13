@@ -9,10 +9,13 @@ from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 from app import create_app
 from test_app import FakeRuntime
+import green_credit as credit
 
 
 root=Path(__file__).resolve().parents[1]
 with tempfile.TemporaryDirectory() as folder:
+    credit.CONFIG=Path(folder)/'qbit'
+    credit.POLICIES=Path(folder)/'green-policy.json'
     app=create_app(folder,testing=True,runtime_factory=FakeRuntime)
     store=app.extensions['rss']
     ident=store.save(dict(name='Politijagt',url='https://tracker.example/rss?passkey=private',
@@ -34,18 +37,27 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('.nav[href="#rss"]').click()
             switch=page.get_by_role('switch',name='Automatisk hentning for Politijagt',exact=True)
             expect(switch).to_have_attribute('aria-checked','true')
+            card=page.locator('.rss-feed-card').first
+            expect(card.locator('.rss-feed-upload-value')).to_have_text('Afventer uploadtal')
+            with credit.CreditLedger().transaction() as ledger:
+                ledger.update({'hash':'a'*40,'uploaded':6*1024**3,'tags':'FjordSeed-RSS-'+ident},now=20)
+                ledger.update({'hash':'b'*40,'uploaded':256*1024**2,'tags':'FjordSeed-RSS-'+ident},now=20)
+                ledger.entries.pop('a'*40)
+            page.evaluate('refreshRss()')
+            expect(card.locator('.rss-feed-upload-value')).to_have_text('6.3 GB')
+            expect(page.locator('.rss-feed-card').nth(1).locator('.rss-feed-upload-value')).to_have_text('0.0 B')
             switch.click()
             expect(switch).to_be_enabled()
             expect(switch).to_have_attribute('aria-checked','false')
             assert store.entries()[0]['enabled'] is False
             page.reload()
             expect(switch).to_have_attribute('aria-checked','false')
+            expect(card.locator('.rss-feed-upload-value')).to_have_text('6.3 GB')
             switch.focus()
             page.keyboard.press('Space')
             expect(switch).to_have_attribute('aria-checked','true')
             expect(switch).to_be_focused()
             assert store.entries()[0]['enabled'] is True
-            card=page.locator('.rss-feed-card').first
             card.get_by_role('button',name='Vis detaljer for Politijagt',exact=True).last.click()
             expect(card.locator('.rss-feed-details')).to_be_visible()
             endpoint='**/api/rss/'+ident+'/enabled'
@@ -71,15 +83,15 @@ with tempfile.TemporaryDirectory() as folder:
             page.unroute(endpoint)
             output=root/'test-results'
             output.mkdir(exist_ok=True)
-            page.screenshot(path=str(output/'rss-toggle-desktop.png'),full_page=True)
+            page.screenshot(path=str(output/'rss-upload-desktop.png'),full_page=True)
             page.set_viewport_size({'width':390,'height':844})
             expect(switch).to_be_visible()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             switch.click()
             expect(switch).to_have_attribute('aria-checked','true')
-            page.screenshot(path=str(output/'rss-toggle-mobile.png'),full_page=True)
+            page.screenshot(path=str(output/'rss-upload-mobile.png'),full_page=True)
             assert not errors,errors
             browser.close()
     finally:
         server.shutdown()
-print('PASS: RSS switch persistence, keyboard focus, error recovery, pending save, desktop/mobile.')
+print('PASS: RSS credit totals, switch persistence, keyboard focus, error recovery, pending save, desktop/mobile.')
