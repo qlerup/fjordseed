@@ -61,6 +61,51 @@ def test_torrent_port_collision_and_failed_renewal_are_closed(monkeypatch):
     lease.close();assert not lease.public
 
 
+@pytest.mark.parametrize('protocol',['udp','tcp'])
+def test_renewal_timeout_reuses_only_confirmed_unexpired_lease(monkeypatch,protocol):
+    call=Mock(return_value=65279);monkeypatch.setattr(torrent_port,'request',call)
+    monkeypatch.setattr(torrent_port.time,'monotonic',lambda:0)
+    lease=Lease();lease.get(53289,0)
+    call.side_effect=[TimeoutError()] if protocol=='udp' else [65279,TimeoutError()]
+    assert lease.get(53289,21)==(56789,65279)
+    assert lease.expires==50 and lease.next_check==23
+    count=call.call_count
+    assert lease.get(53289,22)==(56789,65279) and call.call_count==count
+    call.side_effect=None
+    assert lease.get(53289,23)==(56789,65279)
+    assert lease.expires==73 and call.call_count==count+2
+
+
+def test_timeouts_never_extend_deadline_and_expiry_during_request_fails(monkeypatch):
+    call=Mock(return_value=65279);monkeypatch.setattr(torrent_port,'request',call)
+    monkeypatch.setattr(torrent_port.time,'monotonic',lambda:0)
+    lease=Lease();lease.get(53289,0)
+    call.side_effect=TimeoutError()
+    for now in [21,26,31,36,41,46]:
+        assert lease.get(53289,now)==(56789,65279)
+        assert lease.expires==50
+    monkeypatch.setattr(torrent_port.time,'monotonic',Mock(side_effect=[100,103]))
+    with pytest.raises(TimeoutError):lease.get(53289,48)
+
+
+def test_initial_partial_mapping_or_expired_lease_cannot_mask_timeout(monkeypatch):
+    call=Mock(side_effect=[65279,TimeoutError()]);monkeypatch.setattr(torrent_port,'request',call)
+    lease=Lease()
+    with pytest.raises(TimeoutError):lease.get(53289,0)
+    assert lease.public==0 and lease.expires==0
+    call.side_effect=None;call.return_value=65279
+    lease.get(53289,0)
+    call.side_effect=TimeoutError()
+    with pytest.raises(TimeoutError):lease.get(53289,50)
+
+
+def test_conflicting_renewal_reply_is_not_treated_as_packet_loss(monkeypatch):
+    call=Mock(return_value=65279);monkeypatch.setattr(torrent_port,'request',call)
+    lease=Lease();lease.get(53289,0)
+    call.side_effect=[65279,65280]
+    with pytest.raises(ValueError):lease.get(53289,21)
+
+
 def test_gateway_config_preserves_speed_settings_and_reports_the_external_port(tmp_path):
     configure(38850,tmp_path)
     path=tmp_path/'qBittorrent/config/qBittorrent.conf'

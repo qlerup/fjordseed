@@ -119,6 +119,8 @@ def run():
                 if gateway:
                     stage='torrent_port'
                     status['message']='Afventer gatewayens ekstra torrentport og beskyttet qBittorrent.'
+                    if connection is not None and connection[2]!=address:
+                        lease.close()  # A lease from the previous VPN endpoint is not reusable.
                     private,public=lease.get(port)
                     if context.get('torrent_internal_port')!=private:
                         raise ValueError('Torrentportens firewall afventer den aktuelle gatewayport.')

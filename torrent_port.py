@@ -1,7 +1,10 @@
 """A second Proton NAT-PMP lease; never modifies the gateway's first port."""
 import socket
+import logging
 import struct
 import time
+
+LOG=logging.getLogger(__name__)
 
 
 def internal_port(gateway_port):
@@ -32,7 +35,8 @@ class Lease:
         self.expires=self.next_check=0
 
     def get(self,gateway_port,now=None):
-        now=time.monotonic() if now is None else now
+        started=time.monotonic()
+        now=started if now is None else now
         private=internal_port(gateway_port)
         if self.private and (private!=self.private or int(gateway_port)==self.public):
             self.close()
@@ -42,8 +46,21 @@ class Lease:
         self.private=private;self.gateway_port=int(gateway_port)
         # Keep the private port fixed. Matching UDP/TCP external ports are required
         # for qBittorrent to advertise a single reachable endpoint.
-        udp=request('udp',private,self.public)
-        tcp=request('tcp',private,self.public or udp)
+        try:
+            udp=request('udp',private,self.public)
+            tcp=request('tcp',private,self.public or udp)
+        except TimeoutError:
+            # A lost renewal reply does not revoke the existing mapping. Only
+            # reuse a previously confirmed TCP+UDP lease before its conservative
+            # deadline, including time spent waiting for either reply. A partial
+            # renewal must never extend that deadline.
+            finished=now+max(0,time.monotonic()-started)
+            if not self.public or finished>=self.expires:
+                raise
+            self.next_check=min(finished+2,self.expires)
+            LOG.warning('Torrent port renewal timed out; retrying with %.1fs left on confirmed lease',
+                        self.expires-finished)
+            return self.private,self.public
         if udp!=tcp or tcp in (private,self.gateway_port,8080,9999):
             raise ValueError('Proton gav modstridende torrentporte. Den første gatewayport bevares.')
         self.public=tcp;self.expires=now+50;self.next_check=now+20
