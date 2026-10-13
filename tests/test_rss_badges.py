@@ -55,6 +55,13 @@ def test_api_enforces_active_key_provider_and_retains_requirements_on_pause(tmp_
     data.pop('required_badges');data.pop('tracker_id')
     assert client.post('/api/rss',headers=headers,json=data).status_code==200
     assert client.get('/api/rss').json['feeds'][0]['required_badges']==['freeleech','double_upload']
+    endpoint='/api/rss/'+saved.json['id']+'/enabled'
+    assert client.post(endpoint,headers=headers,json={'enabled':False}).status_code==200
+    assert client.post(endpoint,headers=headers,json={'enabled':True}).status_code==400
+    assert app.extensions['rss'].entries()[0]['enabled'] is False
+    trackers.cache[ident]={'status':'ok','updated_at':time.time()}
+    assert client.post(endpoint,headers=headers,json={'enabled':True}).status_code==200
+    assert app.extensions['rss'].entries()[0]['required_badges']==['freeleech','double_upload']
 
 
 def test_worker_uses_fresh_api_and_rechecks_it_before_commit(tmp_path):

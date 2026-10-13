@@ -268,10 +268,21 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
 
     @app.post('/api/rss')
     def save_rss():
+        return save_rss_data(request.get_json(silent=True))
+
+    @app.post('/api/rss/<ident>/enabled')
+    def set_rss_enabled(ident):
+        data=request.get_json(silent=True)
+        if not isinstance(data,dict) or type(data.get('enabled')) is not bool:
+            return jsonify(error='Vælg tændt eller slukket for feedet.'),400
+        return save_rss_data({'id':ident,'enabled':data['enabled']})
+
+    def save_rss_data(data):
         try:
-            data=request.get_json(silent=True)
             with state.lock,rss.lock:
                 current=next((e for e in rss.entries() if isinstance(data,dict) and e['id']==data.get('id')),None)
+                if isinstance(data,dict) and data.get('id') and not current:
+                    raise ValueError('Feedet findes ikke længere.')
                 merged={**(current or {}),**data} if isinstance(data,dict) else data
                 if isinstance(merged,dict) and not merged.get('url'):
                     merged['url']=(current or {}).get('url','')
@@ -289,7 +300,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                             raise ValueError('Badgekontrol understøttes aktuelt for NordicBytes-feeds.')
                         if validated['enabled'] and not trackers.badge_ready(tracker['id']):
                             raise ValueError('Trackerens API-adgang skal være aktiv, før feedet kan startes med badgekrav.')
-                ident=rss.save(data)
+                ident=rss.save(merged)
                 sync_feed_changes()
                 return {'ok':True,'id':ident}
         except ValueError as exc:

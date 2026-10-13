@@ -1,5 +1,6 @@
 let rssFeeds=[],rssRoot='',rssBusy=false,rssLoading=false,rssTrackerGeneration=0;
-const expandedRssFeeds=new Set();
+let rssRefreshPromise;
+const expandedRssFeeds=new Set(),rssToggleBusy=new Set();
 const rssBadgeNames={freeleech:'100 % Freeleech',double_upload:'Double upload',featured:'Featured',internal:'Internal',refundable:'Refundable'};
 function selectedRssBadges(){return [...document.querySelectorAll('[name=rss-badge]:checked')].map(e=>e.value);}
 function updateRssBadges(){
@@ -63,6 +64,32 @@ function rssFeedCard(feed){
  titleToggle.append(arrow,node('span','torrent-name',feed.name));heading.append(titleToggle);
  const controls=node('div','rss-heading-controls'),toggle=node('button','secondary torrent-toggle');toggle.type='button';
  controls.append(node('span','badge'+(feed.status==='active'?' ready':''),{active:'Aktivt',paused:'På pause',pending:'Afventer VPN / synkronisering',error:'Feedfejl'}[feed.status]),toggle);
+ const enabledToggle=node('button','rss-enabled-toggle');enabledToggle.type='button';
+ enabledToggle.setAttribute('role','switch');enabledToggle.setAttribute('aria-checked',String(feed.enabled));
+ enabledToggle.setAttribute('aria-label','Automatisk hentning for '+feed.name);
+ enabledToggle.title='Slå automatisk hentning til eller fra. Eksisterende torrents fortsætter.';
+ enabledToggle.dataset.rssToggle=feed.id;enabledToggle.dataset.rssToggleControl='enabled';
+ const switchTrack=node('span','rss-switch-track');switchTrack.setAttribute('aria-hidden','true');
+ enabledToggle.append(switchTrack,node('span','',rssToggleBusy.has(feed.id)?'Gemmer…':feed.enabled?'Tændt':'Slukket'));
+ enabledToggle.disabled=rssToggleBusy.has(feed.id);controls.prepend(enabledToggle);
+ enabledToggle.onclick=async()=>{
+  if(rssToggleBusy.has(feed.id))return;
+  const enabled=!feed.enabled,restoreFocus=document.activeElement===enabledToggle;rssToggleBusy.add(feed.id);enabledToggle.disabled=true;edit.disabled=remove.disabled=true;
+  enabledToggle.lastChild.textContent='Gemmer…';
+  try{
+   await api('/api/rss/'+feed.id+'/enabled',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled})});
+   feed.enabled=enabled;enabledToggle.setAttribute('aria-checked',String(enabled));
+   toast(enabled?'Feedet er tændt. Nye poster hentes, når VPN og seedbox er klar.':'Feedet er slukket. Eksisterende torrents fortsætter.');
+  }catch(e){toast(e.message);}
+  finally{
+   await rssRefreshPromise;rssToggleBusy.delete(feed.id);
+   enabledToggle.disabled=false;edit.disabled=remove.disabled=false;
+   enabledToggle.lastChild.textContent=feed.enabled?'Tændt':'Slukket';
+   if(restoreFocus&&document.activeElement===document.body)enabledToggle.focus({preventScroll:true});
+   await refreshRss();
+  }
+ };
+
  head.append(heading,controls);
  const panel=node('div','rss-feed-details');panel.id='rss-feed-details-'+feed.id;
  for(const [button,control] of [[titleToggle,'title'],[toggle,'details']]){button.dataset.rssToggle=feed.id;button.dataset.rssToggleControl=control;button.setAttribute('aria-controls',panel.id);}
@@ -75,11 +102,29 @@ function rssFeedCard(feed){
  if(feed.enabled&&feed.download_status)panel.append(node('p','muted small',feed.download_status));
  if(feed.status==='error')panel.append(node('p','error small','Feedet eller RSS-reglerne kunne ikke indlæses. Kontrollér RSS-adressen og VPN-status.'));
  const actions=node('div','tracker-actions'),edit=node('button','secondary','Rediger'),remove=node('button','quiet','Fjern feed');edit.type=remove.type='button';
+ edit.disabled=remove.disabled=rssToggleBusy.has(feed.id);
  edit.onclick=()=>openRssForm(feed);
  remove.onclick=async()=>{if(!confirm('Fjern '+feed.name+'? Eksisterende torrents og filer bevares.'))return;remove.disabled=true;try{await api('/api/rss/'+feed.id+'/delete',{method:'POST'});await refreshRss();toast('Feedet er fjernet.');}catch(e){toast(e.message);}finally{remove.disabled=false;}};
  actions.append(edit,remove);card.append(panel,actions);updateExpanded();return card;
 }
-async function refreshRss(){if(rssLoading)return;rssLoading=true;try{const result=await api('/api/rss');rssFeeds=result.feeds;rssRoot=result.download_path;updateRssPath();const focused=document.activeElement?.dataset,key=focused?.rssToggle,control=focused?.rssToggleControl;$('#rss-feed-list').replaceChildren(...(rssFeeds.length?rssFeeds.map(rssFeedCard):[node('p','empty','Ingen RSS-feeds tilføjet endnu.')]));if(key)for(const button of document.querySelectorAll('[data-rss-toggle]'))if(button.dataset.rssToggle===key&&button.dataset.rssToggleControl===control){button.focus({preventScroll:true});break;}}catch(e){$('#rss-feed-list').replaceChildren(node('p','error',e.message));}finally{rssLoading=false;}}
+async function refreshRss(){
+ if(rssToggleBusy.size)return;
+ if(rssLoading)return rssRefreshPromise;
+ rssLoading=true;
+ rssRefreshPromise=(async()=>{
+  try{
+   const result=await api('/api/rss');
+   if(rssToggleBusy.size)return;
+   rssFeeds=result.feeds;rssRoot=result.download_path;updateRssPath();
+   const focused=document.activeElement?.dataset,key=focused?.rssToggle,control=focused?.rssToggleControl;
+   $('#rss-feed-list').replaceChildren(...(rssFeeds.length?rssFeeds.map(rssFeedCard):[node('p','empty','Ingen RSS-feeds tilføjet endnu.')]));
+   if(key)for(const button of document.querySelectorAll('[data-rss-toggle]'))if(button.dataset.rssToggle===key&&button.dataset.rssToggleControl===control){button.focus({preventScroll:true});break;}
+  }catch(e){if(!rssToggleBusy.size)$('#rss-feed-list').replaceChildren(node('p','error',e.message));}
+  finally{rssLoading=false;}
+ })();
+ return rssRefreshPromise;
+}
+
 $('#rss-new').onclick=()=>openRssForm();
 $('#rss-folder').oninput=updateRssPath;
 $('#rss-start').onchange=updateRssStart;

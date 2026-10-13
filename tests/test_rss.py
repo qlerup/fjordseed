@@ -72,3 +72,39 @@ def test_api_auth_and_separate_origin_even_after_feed_removed(tmp_path):
     assert rows[0]['rss_feed'] is None and rows[1]['rss_feed']=='Linux releases'
     assert client.post('/api/rss/'+ident+'/delete',headers=headers).status_code==200
     assert client.get('/api/status').json['torrents'][1]['rss_feed']=='RSS-feed (fjernet)'
+
+
+def test_toggle_preserves_feed_settings_and_existing_torrents(tmp_path):
+    app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
+    client,headers=login(app)
+    ident=client.post('/api/rss',headers=headers,json=feed()).json['id']
+    store=app.extensions['rss']
+    original=store.entries()[0]
+    endpoint='/api/rss/'+ident+'/enabled'
+    assert client.post(endpoint,json={'enabled':True}).status_code==403
+    for enabled in (True,True,False):
+        response=client.post(endpoint,headers=headers,json={'enabled':enabled,'name':'Ignored'})
+        assert response.status_code==200
+        assert store.entries()[0]=={**original,'enabled':enabled}
+        assert rss.Rss(tmp_path).entries()[0]['enabled'] is enabled
+        public=client.get('/api/rss').json['feeds'][0]
+        assert public['enabled'] is enabled
+        assert public['status']==('pending' if enabled else 'paused')
+        assert 'passkey' not in json.dumps(public)
+    app.extensions['runtime'].rpc.assert_not_called()
+
+
+@pytest.mark.parametrize('data',[None,{},[],{'enabled':'false'},{'enabled':0}])
+def test_toggle_rejects_invalid_state(tmp_path,data):
+    app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
+    client,headers=login(app)
+    ident=client.post('/api/rss',headers=headers,json=feed()).json['id']
+    assert client.post('/api/rss/'+ident+'/enabled',headers=headers,json=data).status_code==400
+    assert app.extensions['rss'].entries()[0]['enabled'] is False
+
+
+def test_toggle_missing_feed_does_not_create_one(tmp_path):
+    app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
+    client,headers=login(app)
+    assert client.post('/api/rss/'+'a'*32+'/enabled',headers=headers,json={'enabled':True}).status_code==400
+    assert app.extensions['rss'].entries()==[]
