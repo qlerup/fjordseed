@@ -1,223 +1,118 @@
 # FjordSeed
 
-En separat seedbox-app i FjordHub. qBittorrent installeres med appen; FjordVPN
-administrerer Proton-profilerne. Ingen torrent starter under installationen.
+A separate FjordHub seedbox with bundled qBittorrent. FjordVPN manages Proton profiles; installation starts no torrents. The interface currently uses Danish labels.
 
 ## Installation
 
-1. Installér/opdatér FjordVPN i FjordHub på samme Docker-vært.
-2. Installér FjordSeed fra appkataloget. Vælg appdata og downloads med FjordHubs
-   normale lager-/mappevælger. Angiv UID/GID med skriveadgang til downloadmappen.
-3. Vælg enten en separat Proton-profil med NAT-PMP og **TCP-videresendelse slået fra**,
-   eller en eksisterende VPN-gateway. Opdatér begge apps for at kunne vælge gatewayen.
-4. Åbn FjordSeed, vælg profilen, og tryk **Start seedbox**.
-5. Når VPN-status er klar, tilføj magnetlinks eller `.torrent`-filer.
+1. Install/update FjordVPN on the same Docker host.
+2. Install FjordSeed from the catalog. Choose app/download directories with Hub's storage picker and UID/GID that can write the downloads.
+3. Choose a dedicated Proton NAT-PMP profile with **TCP forwarding disabled**, or an existing shared VPN gateway. Update both apps to use shared gateways.
+4. Open Seed, select the profile and Start seedbox.
+5. Once VPN readiness is confirmed, add magnets or `.torrent` files.
 
-FjordHub-login og administratorrettigheder kræves i en administreret installation.
-Adgang kontrolleres løbende hos FjordHub. Standalone: kopiér `.env.example` til
-`.env`, angiv absolutte datastier, kør `docker compose up -d --build`, og læs
-førstegangsadgangskoden fra `DATA_DIR/initial-login.txt` (brugernavn `admin`).
-Åbn `http://SERVER-IP:8099`. FjordVPN skal fortsat køre på samme Docker-vært.
+Managed installations require Hub login and administrator privileges. First-login email/password setup works in the app; membership is rechecked during existing sessions. A centrally required email update appears immediately on opening/returning, without requiring a fresh login. Saving a valid, unique address clears the requirement across updated apps. Update Hub and Seed together.
 
-## Netværk og stop
+Standalone: copy `.env.example` to `.env`, set absolute paths and run `docker compose up -d --build`. Read the random first password from `DATA_DIR/initial-login.txt`, username `admin`, and open `http://SERVER-IP:8099`. FjordVPN must still run on the same Docker host.
 
-- qBittorrent får **kun** `network_mode: container:<valgt-vpn-id>`; ingen egen
-  bridge, host-network, offentlig WebUI-port eller Docker-socket.
-- Gluetuns firewall er kill switch. qBittorrent bindes til `tun0`, UPnP slås fra,
-  og DNS går til Gluetuns resolver på `127.0.0.1` i VPN-netværket.
-- Supervisoren kræver frisk VPN-status, aktivt VPN-netkort, sundhedstjek og en
-  tildelt Proton-port før qBittorrent startes. Ved VPN-fejl stoppes processen.
-- Porten opdateres i qBittorrent via dens lokale API. VPN-restart eller profilskift
-  genopretter qBittorrent-containeren med den rigtige netværksnamespace.
-- Ét qBittorrent-instance pr. VPN-profil. En gateway kan deles med web, media og
-  Minecraft: FjordSeed får sin egen direkte TCP/UDP-port på samme VPN-konfiguration.
-  En almindelig TCP-relayprofil kan fortsat ikke vælges.
-- Stoppes FjordSeed, stoppes dens qBittorrent-container. Stop af FjordVPN blokerer
-  torrenttrafik. Gemte torrents genoptages, når den valgte VPN bliver klar igen.
-- qBittorrents API lytter kun på loopback. FjordSeeds backend udfører en begrænset
-  liste af handlinger via Docker exec; der er ingen generel API-proxy.
+## Network and runtime
 
-Panelet viser højst 500 torrents. **Fjern** bevarer altid downloadede filer.
-Manuelle torrents og RSS-downloads viser samme cover i starten af torrentkortet,
-når NordicBytes' API leverer `meta.poster` for det præcise info-hash. Der bruges
-ingen separat metadata- eller titelsøgning og ingen ekstra API-nøgle. Eksisterende
-torrents får et asynkront coveropslag uden ændring af gemte Green-/seeding-data.
-Billeder hentes uden trackerlegitimationsoplysninger fra API'ets godkendte
-billedadresser og serveres lokalt til indloggede brugere. `DATA_DIR/cover-cache`
-er midlertidig: højst 64 MiB, højst 2 MiB pr. billede, genhentning efter 24 timer
-og oprydning af billeder ældre end syv dage. Manglende covers eller API-fejl
-bevarer den normale kortvisning og påvirker ikke downloads.
-Downloadmappen kan deles med andre apps gennem et fælles mount og passende
-filrettigheder. Der ændres ikke rekursivt på ejerskab af eksisterende downloads.
-Forbindelsen fra browser til kontrolpanelet er almindelig lokal webtrafik;
-VPN-kravet gælder torrentklientens trafik.
+- qBittorrent uses only `network_mode: container:<selected-vpn-id>`, without its own bridge, host network, public WebUI port or Docker socket.
+- Gluetun provides the kill switch. The client binds to `tun0`, disables UPnP and uses Gluetun's resolver at `127.0.0.1` inside the namespace.
+- Fresh VPN status, an active tunnel, health checks and an assigned Proton port are required before the client starts. VPN failure stops it.
+- Assigned ports update through the local API; profile changes/restarts recreate the worker in the correct namespace, retaining torrents.
+- One qBittorrent instance per selected VPN profile. Shared gateways can also serve web/media/Minecraft using a separate torrent port. An ordinary TCP-relay profile remains ineligible.
+- Stopping Seed stops its client; stopping VPN blocks torrent traffic. Saved torrents resume when the selected VPN is ready.
+- The qBittorrent API listens only on loopback. Seed allows specific Docker-exec operations, not a general API proxy.
 
-## Fælles gateway eller separat torrent-VPN
+The panel shows at most 500 torrents. Cached status remains visible during transient worker outages, with diagnostic error/restart information rather than falsely displaying an empty torrent list. Conservative VPN readiness still controls actual traffic. Transient port-renewal timeouts may retry within the already confirmed lease; failed/expired readiness does not fall back to direct internet.
 
-Opdatér først FjordVPN og derefter FjordSeed. Under **VPN-forbindelse** vælges
-**Gateway · delt VPN, egen torrentport**, og der trykkes **Gem VPN-valg**.
-qBittorrent genstartes på den valgte VPN med de samme torrents og filer.
-Overførsler kan kort afbrydes. Den gamle Seedbox-profil kan fortsat vælges.
+## Shared gateway or dedicated seedbox VPN
 
-Gatewayens første port bliver ved med at betjene HTTPS og Minecraft.
-FjordSeed reserverer en ekstra NAT-PMP-port til TCP og UDP, med privat lytteport
-56789 (56790 ved kollision med gatewayens første port). Den offentlige port
-annonceres separat til trackere og vises i panelet. Lejen fornyes hvert 20. sekund.
-VPN-udfald eller mislykket fornyelse stopper qBittorrent. Ved en ny port genstartes
-klienten med korrekt annoncering, og torrents genoptages.
+Update VPN first, then Seed. Select **Gateway · shared VPN, separate torrent port** and save. The same torrent state/files are reused after a brief client restart; dedicated seedbox profiles remain selectable.
 
-Download og upload forbliver bundet til tun0 og Gluetuns firewall. Der bruges
-ingen torrentproxy, ekstra VPN-konfiguration eller åbne LAN-porte. Eksisterende
-hastighedsindstillinger bevares; der tilføjes ingen grænser. Fælles trafik deler
-naturligvis VPN- og internetkapaciteten.
+The first gateway port continues HTTPS/Minecraft. Seed reserves another NAT-PMP TCP/UDP mapping using private port 56789, or 56790 if it collides with the first mapping. The public port is announced separately to trackers and displayed in the UI. Renewal runs every 20 seconds. VPN/renewal failure stops the client; changing public ports restarts correct announcement and saved transfers.
 
-Stop/profilskift lukker den ekstra portleje og fjerner kun FjordSeeds egne
-markerede firewallregler. Lejen udløber inden 60 sekunder, hvis serveren ikke kan
-kontaktes under stop. Web-/Minecraft-porten og andre profiler berøres ikke.
+Traffic remains on tun0 behind Gluetun, without a torrent proxy, extra VPN configuration or open LAN ports. Existing speed settings remain; shared services naturally share capacity. Stop/profile switch removes only Seed's tagged rules/mapping. If unreachable during cleanup, the lease expires within 60 seconds; web/Minecraft and other profiles remain.
 
-Proton-serveren skal acceptere en ekstra ikke-symmetrisk NAT-PMP-mapping.
-Hvis porten ikke kan oprettes, forbliver qBittorrent blokeret; der skiftes ikke
-til direkte internet. Se [Gluetuns portdokumentation](https://github.com/qdm12/gluetun-wiki/blob/main/setup/options/port-forwarding.md).
+Proton must permit the extra non-symmetric mapping. If it cannot be obtained, qBittorrent stays blocked. See [Gluetun port forwarding](https://github.com/qdm12/gluetun-wiki/blob/main/setup/options/port-forwarding.md).
 
-## Drift
+## Storage and completed files
 
-Ved tilføjelse eller redigering af et RSS-feed åbner **Titelfilter** to lister:
-**Kig efter** og **Undgå**. Titler tilføjes som almindelige tekstfragmenter, ikke
-regulære udtryk. En post skal matche mindst én tekst i Kig efter, medmindre
-listen er tom. Undgå har altid forrang: `Politijagt` i Undgå springer fx
-`Politijagt.S01E02` over i et dansk TV-feed. Store/små bogstaver, punktummer,
-bindestreger, underscores og mellemrum normaliseres ved sammenligning.
-Listerne kan have op til 50 tekster på 120 tegn hver. Træk en titel til den anden
-liste, eller markér titler og brug **Flyt**/**Fjern valgte** på mobil og tastatur.
-**Brug filter** overfører ændringen til RSS-formularen; **Gem feed** gemmer den.
-Filtreringen bruger feedpostens titel før metadata hentes og kontrolleres igen
-før download. Poster uden titel springes over, når et titelfilter er indstillet.
-Ændringer påvirker nye downloads; eksisterende torrents fortsætter.
+Storage and folders selects an existing writable directory on the Docker host. Hub administrators also see available LXC paths under Proxmox disks/storage; attach missing or read-only storage correctly first. Standalone has a folder picker without Proxmox inventory. Seed does not recursively change shared-directory ownership.
 
-RSS-feedkortene viser **Krediteret upload i alt** fra feedets torrents, beregnet
-med samme Green-regler som torrenternes krediterede ratio. Totalen gemmes i
-`DATA_DIR/qbit/green-credit.json` og bevares, når torrents slettes eller et feed
-sættes på pause. Gentagne statusopdateringer tæller ikke samme upload flere gange.
-Eksisterende torrents med tilgængelige uploadtal medregnes ved første kontrol;
-upload fra torrents slettet før funktionen blev tilføjet kan ikke genskabes.
-Ukendt Green-historik beregnes konservativt. Tallet er appens beregning, ikke en
-bekræftet opgørelse fra trackeren. **Afventer uploadtal** vises, indtil historikken
-kan læses. Backup af appdata skal derfor også bevare kreditregnskabet.
+New manual/RSS transfers begin in `.fjordseed-buffer/<id>`. Completed **keep files** torrents move into a unique destination directory, under an RSS subfolder if selected; qBittorrent performs the move and continues seeding there. **Delete files** torrents remain buffered until their automatic seeding condition can safely finish. Move errors are shown; existing releases are not overwritten.
 
-### Lager, buffer og færdige downloads
+New location choices affect future torrents. Older paths remain mounted for existing transfers, and saving restarts the worker briefly. Back up every `settings.json` storage location. Update Hub, Seed and Flix together: Flix skips the active buffer when scanning. Add the completed directory as a Flix library source and scan retained films.
 
-Under **Lager og mapper** kan en FjordHub-administrator vælge en eksisterende
-skrivbar mappe på Docker-serveren. **Proxmox-diske og storage** viser lagerets
-tilgængelige LXC-stier gennem FjordHub; nye eller skrivebeskyttede mounts skal
-først tilsluttes med skriveadgang i FjordHub/Proxmox. Standalone har mappevælgeren,
-men ingen Proxmox-oversigt. FjordSeed ændrer ikke ejerskab på delte mapper.
+## Manual downloads and removal
 
-Nye manuelle og RSS-downloads starter i `.fjordseed-buffer/<id>` i den valgte
-mappe. Først når hele torrenten er færdig, flyttes downloads med **behold filerne**
-til en særskilt mappe med et unikt id (under RSS-undermappen, hvis valgt).
-qBittorrent udfører flytningen og fortsætter seeding fra den nye placering.
-Downloads med **slet filerne** forbliver i bufferen frem til automatisk sletning
-efter seedingmålet og afsluttede aktive downloadere. Flyttefejl vises i status;
-FjordSeed overskriver ikke en eksisterende udgivelse.
+Adding a magnet/file opens source selection followed by Seeding and files. File action comes first. **Keep files** means unlimited seeding until manual stop; automatic ratio/time deletion is inactive. **Delete files** requires explicit selection and uses a minimum credited target ratio of 1 or 49 hours of active seeding (48 hours plus a one-hour safety buffer).
 
-Valget gælder kun fremtidige torrents. Tidligere placeringer forbliver monteret,
-så eksisterende downloads kan fortsætte. Gemning genstarter kort torrentklienten.
-Backup skal også omfatte alle placeringer i `settings.json` under `storage`.
-Opdatér FjordHub og FjordFlix sammen med FjordSeed: FjordFlix springer bufferen
-over ved biblioteksscanning. Tilføj den færdige mappe som biblioteksmappe i
-FjordFlix og scan den for at indeksere de beholdte film.
+Before automatic removal, the worker waits until no connected downloaders need data and upload is zero. Unknown peer status delays the action. This uses connected qBittorrent `num_leechs`, not tracker-wide swarm totals. Native qBittorrent stop limits are disabled so they do not cut downloaders off between checks. Worker checks run roughly every ten seconds without an open browser and survive restarts. Control errors retain seeding; VPN protection remains active.
 
-Appen kræver Docker-socket som FjordVPN og skal behandles som administration af
-Docker-værten. Brug et betroet lokalnet eller HTTPS og adgangskontrol. FjordSeed
-har ingen direkte Proxmox-adgang og får ikke VPN-profiler eller private nøgler monteret.
-Den læser kun en filtreret profiloversigt og VPN-statusfiler.
+Pause/start is a combined control, and paused time does not advance Seed's active seeding clock. Ratio-only temporary downloads can use credited ratio without elapsed-time completion. Editing Ratio changes a torrent's goal/file action without restarting or lifting a manual pause. An already met deletion goal is highlighted before saving. Calls omitting file action preserve the stored choice.
 
-Backup: `DATA_DIR` og `DOWNLOADS_DIR`. `docker compose down --remove-orphans`
-fjerner appens runtime; bind-mounts bevares. Stop seedboxen før rollback.
-En igangværende VPN-download kan blive afbrudt kort under opdatering og genoptages
-fra de gemte qBittorrent-data.
+Manual stop/removal remains available with confirmation. If credited ratio is below 1 and active seeding is below 49 hours, an early-stop warning shows current figures regardless of a custom automatic target. The server rechecks on execution.
 
-## Test
+**Remove opens a confirmation modal with two distinct choices: remove only the torrent and retain downloaded files, or remove the torrent and downloaded files.** Retained files are not deleted merely because the torrent disappears from the list. Automatic deletion follows the stored file action, rather than this manual choice. Review early-stop warnings before confirming.
 
-`python -m pytest tests -q` og `python tests/browser_check.py`.
-`tests/container_check.py` køres i app-imaget med `--network none`; den tester
-ægte qBittorrent-konfiguration, portskift og blokering uden VPN, uden downloads.
-En rigtig end-to-end-test med Proton kræver en ny brugerleveret VPN-profil.
+## Tracker accounts, benefits and covers
 
-## Klar til installation
+Add a NordicBytes account with a read-capable API key. Cards show account upload/download/ratio/buffer/seeding/bonus/warnings separately from local qBittorrent statistics. Refresh runs at most every five minutes and after configuration changes. Outages retain the last sample with timestamp/error. Keys are stored in `DATA_DIR/trackers.json`, mode 0600, never returned to the UI/worker. Blank key edits preserve the key; removing an account keeps torrents/files. Other providers need their own integration.
 
-- Build, login, mobil/desktop, VPN-binding, automatisk portskift, stop ved
-  manglende VPN og mappeflytning er testet. Før brug med egne downloads:
-  kontrollér offentlig VPN-IP, test et lovligt testdownload, stop VPN'en og
-  kontrollér at trafikken stopper. Denne Proton-test er endnu ikke udført.
-- Opdatér både FjordHub (flytning af lager) og FjordVPN (profilintegration).
-  Vælg lager under installation, opret en separat Proton-profil og vælg den i appen.
-- Ved fejl: stop FjordSeed, bevar data/downloads og vend tilbage til den
-  tidligere appversion. Flytning af lager beholder originalerne ved kopiering.
-- Mulige senere forbedringer: kategorier, hastighedsgrænser og søgning i torrents.
+Exact info-hash matches determine benefits; torrent announce URLs are never called for metadata lookup. Searches are bounded to 50 results/page and three pages per name variant, cached five minutes. V1, pure v2 SHA-256 and hybrid hashes are supported. Featured entries are interpreted as 100% freeleech/double upload according to the [NordicBytes definition](https://github.com/Prowlarr/Indexers/blob/master/definitions/v11/nordicbytes.yml). Unknown benefits do not block ordinary downloads; configured RSS badge requirements do.
 
-Netværksmodellen følger [Gluetuns containerintegration](https://github.com/qdm12/gluetun-wiki/blob/main/setup/connect-a-container-to-gluetun.md).
-Klientstyring følger [qBittorrents Web API](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-%28qBittorrent-5.0%29).
+Manual additions can estimate account ratio after a full download: `upload / (recorded download + torrent size × (1 − freeleech / 100))`. File size comes from torrent metadata or an exact tracker match. Full freeleech adds no download charge; unknown freeleech is treated conservatively as ordinary download. Account data must be at most ten minutes old. A chosen account can be used with file size when benefits are unknown. Estimated ratio ≤ 0.5 warns without blocking. Future uploads/other downloads/benefit changes are excluded; double upload only contributes when uploaded. This is distinct from the per-torrent seeding goal.
 
-## Seeding-ratio
+Manual and RSS cards use NordicBytes `meta.poster` from an exact hash match, with no separate title service/key. Existing torrents get asynchronous cover lookup without changing seeding state. Allowed images are fetched without tracker credentials and served locally to authenticated users. The temporary `DATA_DIR/cover-cache` is limited to 64 MiB, 2 MiB/image, 24-hour refresh and seven-day cleanup; failures keep normal cards/downloads.
 
-Efter valg af magnetlink eller torrentfil angives stop-ratio og filhandling i et separat trin, inden torrenten starter. FjordSeed gemmer målet pr. torrent og kontrollerer det i baggrunden cirka hvert 10. sekund, også efter en genstart og uden en åben browser. Standardhandlingen "Behold filerne" bevarer filerne og fortsætter seeding uden automatisk ratio- eller tidsstop, indtil brugeren stopper manuelt. Filhandlingen vælges først; stop-ratio vises kun ved "Slet filerne". Dette gælder også eksisterende torrents og RSS. Automatisk sletning skal vælges aktivt og fjerner både torrenten og dens downloadede filer. Stop-ratio under 1 bliver hævet til 1. Når den valgte krediterede ratio eller 49 timers seeding er nået, afventer automatisk sletning (kun ved "Slet filerne"), at ingen tilsluttede downloadere mangler data, og uploadhastigheden er nul. Ukendt peer-status udskyder handlingen. Kontrollen bruger qBittorrents tilsluttede `num_leechs`, ikke trackerens samlede swarm-tal ([API-dokumentation](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-5.0))). Eksisterende torrents bevarer deres mål og filhandling. qBittorrents egne ratio- og tidsstop deaktiveres, så de ikke afbryder downloadere mellem kontrollerne. Ved fejl i seedingkontrollen fortsætter seeding; VPN-kontrollen er stadig aktiv. Gemte mål og uploadregnskab i `qbit/green-credit.json` skal bevares ved backup.
+## RSS feeds and shared download queue
 
-Ved manuel tilføjelse vises også forventet tracker-ratio efter fuldt download: upload / (registreret download + torrentstørrelse × (1 − freeleech/100)). Størrelsen læses fra torrentfilen (v1/v2) eller et eksakt tracker-match for magnetlinks. 100 % freeleech tæller som 0 ekstra download; delvis freeleech reducerer det tilsvarende. Ukendt freeleech regnes forsigtigt som almindelig download og markeres. Kontotal skal være tilgængelige og højst ti minutter gamle. Ved manglende tracker-match kan en eksplicit valgt konto bruges med filens størrelse og ukendt freeleech. Ratio ≤ 0,5 viser en advarsel, men blokerer ikke download. Beregningen medregner hverken fremtidig upload, andre aktive downloads eller eventuelle senere ændringer af trackerfordele. Dobbelt upload tæller først ved faktisk upload. Den forventede kontoratio er adskilt fra qBittorrents stop-ratio pr. torrent.
+Manual downloads and RSS have separate views but share one native queue with **eight active downloads total**. Seeding, manual pauses and errors take no download slot. The worker prioritizes RSS before manual transfers, maintaining order within each group and leaving manually paused entries paused. Queue reconciliation runs about every ten seconds; RSS arrivals can push manual transfers back into waiting.
 
-## Trackerkonti
+Create/edit a feed in the modal. Set a subfolder (empty uses root), seeding/file rules and a fixed start time: now, 1/3/7 days ago, custom date/time or all feed entries. New feeds start paused; each card has an independent on/off switch. The inclusive UTC timestamp is shown in local browser time and does not shift on restart/edit. The feed must still publish those entries; no hidden tracker archive is downloaded. Removing a feed keeps its existing torrents/files and their RSS origin. Setting changes affect new transfers.
 
-Tilføj NordicBytes under Trackere med en API-nøgle, der må læse kontodata. Downloads viser trackerens samlede upload, download, ratio, buffer, seeding, bonuspoint og advarsler pr. konto. Disse tal kan afvige fra qBittorrents lokale tal og ratio. Kontodata hentes i baggrunden højst hvert femte minut samt efter ændring af opsætningen. Ved udfald vises senest hentede tal med tidspunkt og fejlstatus. Nøgler lagres i /data/trackers.json med rettigheder 0600, returneres aldrig til browseren og deles ikke med qBittorrent-containeren. Redigering med tomt nøglefelt bevarer den eksisterende nøgle. Fjernelse af tracker berører ikke torrents eller filer. Andre udbydere kræver en separat API-integration.
+qBittorrent fetches feed URLs through the VPN; the administration container does not fetch them. Native auto-download rules remain off so Seed enforces shared seeding rules and readiness before starting. Secret URLs/passkeys stay in 0600 files and are not returned to the browser; a blank URL edit preserves the old one.
 
-## Fordele pr. torrent
+### Title filters and required badges
 
-Næste i torrentdialogen læser filens info-hash og navn (eller magnetlinkets btih/btmh), og viser opslaget ved seed-indstillingerne. Der foretages aldrig kald til announce-URLer fra filen. NordicBytes ignorerer de testede hash-filterparametre, så appen laver et afgrænset navneopslag og kræver et eksakt info-hash-match. Rene v2-filer bruger SHA-256; hybridfiler understøtter begge hashes. Manglende match eller API-adgang vises som ukendte fordele og blokerer ikke download. Opslag kører i baggrunden, caches fem minutter og begrænses til 50 resultater pr. side og tre sider pr. navnevariant. Torrentkort slås også op automatisk, når deres navn og hash er kendt. Featured-torrents behandles som 100 % freeleech og dobbelt upload efter [NordicBytes-definitionen i Prowlarr](https://github.com/Prowlarr/Indexers/blob/master/definitions/v11/nordicbytes.yml). Badgefordele som Double upload ændrer ikke den lokale ratio. Green-reglen nedenfor korrigerer stop-ratioen for halv uploadkredit.
+Title filter has **Look for** and **Avoid** lists of plain fragments, not regexes. Any include matches unless that list is empty; exclusions always win. Matching normalizes case, punctuation, underscores, hyphens and spaces. Each list permits 50 fragments of 120 characters. Drag across lists, or select and Move/Remove selected for keyboard/mobile use. Apply transfers changes to the feed form; Save feed persists them. Filters run before metadata lookup and again before download. Missing titles are skipped when filters are configured; existing transfers are unaffected.
 
-## RSS-feeds og adskilte downloads
+Size/leecher filters belong in the tracker's RSS link. Seed's optional required badges are conjunctive: all selected badges must be confirmed on the same exact hash with a fresh account lookup. 100% Freeleech requires exactly 100%; Double upload, Featured, Internal and Refundable require confirmed flags. Unknown/error/stale responses do not start a badge-gated download. NordicBytes badge gating requires active API access and survives outages. With no badges, no badge restriction applies.
 
-Downloads viser manuelt tilføjede torrents. RSS-feeds har sin egen oversigt over feeds og deres torrents. Begge viser fremdrift, procent, resterende tid og hastigheder. RSS-torrents beholder deres oprindelse, selv hvis feedet fjernes.
+Date filtering occurs before metadata retrieval. Entries without usable dates are skipped when a start date is set; all entries requires none. qBittorrent may substitute malformed RSS dates, so providers should publish proper dates. RSS does not itself require a tracker API key. History/pending metadata under `DATA_DIR/qbit/rss-*` must be backed up. Ambiguous add failures record the attempt to prevent duplicate downloads; inspect the client before repeating manually.
 
-RSS og manuelle downloads deler én native kø med højst 8 aktive downloads tilsammen. Begge sider viser den samme samlede tæller, antal ventende og fordelingen mellem RSS og manuelle downloads. Seeding, manuelle pauser og fejl optager ingen downloadpladser. Arbejdsklienten prioriterer RSS foran manuelle downloads og bevarer rækkefølgen inden for hver gruppe. Prioriteringen kontrolleres cirka hvert 10. sekund, og pausede torrents startes ikke. Nye RSS-downloads kan skubbe manuelle downloads tilbage i den native kø.
+### Persistent feed history and credited upload
 
-Hvert feed har en undermappe i den downloadplacering, der blev valgt i FjordHub, en stop-ratio og valg mellem at bevare filer eller automatisk slette torrent og filer. Tom mappe bruger hovedmappen. Nye feeds er på pause. Vælg “Fra nu”, 1, 3 eller 7 dage siden, en selvvalgt dato og tidspunkt eller “Alle poster i feedet”. Starttidspunktet gemmes som en fast UTC-dato og vises i browserens lokale tidszone; det flytter sig ikke ved genstart eller senere redigering. Datoen er inklusiv, så en post præcis på starttidspunktet også hentes. Feedet skal stadig indeholde de ønskede poster; datoen kan ikke hente et arkiv, trackeren ikke udgiver i RSS. Indstillingsændringer gælder nye downloads. Fjernelse af et feed bevarer eksisterende torrents og filer.
+Feed cards show **Total credited upload** with the same Green accounting as torrent ratios. Under feed details, **Downloaded titles** lists started titles and their credited upload, including unfinished downloads. The ledger/title history persists in `DATA_DIR/qbit/green-credit.json` after torrent/file deletion or feed pause. Repeated status samples do not count bytes twice, and re-downloading the same torrent collects credit under the same title.
 
-qBittorrents indbyggede RSS-motor henter feeds gennem VPN-forbindelsen. RSS-torrents tilføjes gennem FjordSeeds fælles seedingstyring. FjordSeed henter ikke RSS-adresser fra administrationscontaineren. RSS starter først, når reglerne er synkroniseret og VPN-kontrollen er bestået. Feed-adresser kan indeholde passkeys og gemmes med rettigheder 0600; de returneres ikke til browseren. Tomt adressefelt ved redigering bevarer den gemte adresse.
+Existing visible torrents register on the next accounting pass. Already deleted entries without saved titles/counters cannot be recovered. Unknown Green history is marked conservatively. These figures are app calculations, not a verified tracker statement; Awaiting upload figures appears until the ledger is readable.
 
-RSS-feeds oprettes og redigeres i en modal. Filtre på titel, størrelse og leechere vælges hos trackeren i RSS-linket. Badgekrav i FjordSeed er valgfrie: Ingen afkrydsninger giver intet badgekrav. Vælges flere badges, skal alle være bekræftet på samme torrent hos den valgte tracker før download. 100 % Freeleech kræver præcis 100 %, mens Double upload, Featured, Internal og Refundable kræver et bekræftet flag. Der bruges et frisk API-opslag på det eksakte info-hash; visningens gemte fordele bruges ikke til at godkende en ny download. Ukendt status, API-fejl, manglende match og for gamle svar starter ingen download med badgekrav. Badgekontrol understøtter aktuelt NordicBytes og kræver aktiv API-adgang. Kravene bevares ved API-fejl, og feedet kan stadig sættes på pause. Gemte RSS-adresser, badgekrav, seeding-regler, torrents og downloadhistorik bevares ved opdateringen. Eksisterende feeds uden startdato får “Alle poster i feedet”.
+## Green upload accounting
 
-Alle feeds har qBittorrents native downloadregel slået fra, så hver torrent starter gennem FjordSeeds fælles seeding-logik. Ved valgt startdato kontrolleres RSS-datoen før metadata hentes i VPN-containeren. Poster uden en læsbar dato springes da over; “Alle poster” kræver ingen dato. Kontrollen bruger qBittorrents rapporterede dato; RSS med ugyldige datoer kan få en erstatningsdato fra qBittorrent, så trackeren bør levere korrekte udgivelsesdatoer. Der kræves ingen tracker-API-nøgle for at hente RSS. Historik og afventende metadata ligger under `DATA_DIR/qbit/rss-*`; bevar dem ved backup. Ved en tvetydig fejl under tilføjelse registreres forsøget for at undgå gentagne downloads; kontrollér klienten før manuel gentagelse.
+An exact NordicBytes match uses the timezone-aware tracker `created_at`, not the local addition date. The conservative Green period is 24 hours plus 30 minutes. Upload during it receives half credit, later upload full credit: `credited upload = total uploaded − Green upload / 2`. A target of 1 needs local ratio 2 if all upload falls in that period. Expiry never retroactively doubles old credit. Verified own uploads are exempt; anonymous ownership stays conservative.
 
-Oprettelse af RSS følger samme to trin som manuel tilføjelse: først kilde og startdato, derefter “Seeding og filer”. Stop-ratio, filhandling og Green-forklaring kommer fra den samme skabelon. For hver RSS-torrent foretages samme asynkrone hash- og datoopslag som ved manuel tilføjelse, også uden en åben browser. Begge starter med samme `initial_managed_ratio` og bruger samme uploadregnskab, kø, torrentkort, fremdrift, ratio-redigering og advarsler ved tidligt stop. Et RSS-link med trackerens 100 % freeleech-filter leverer kun trackerens udvalgte poster; FjordSeed udvider ikke udvalget og fortolker ikke hemmelige URL-parametre som en verificeret freeleech-status. Afkrydsede badgekrav i FjordSeed kontrolleres selvstændigt via API. De konkrete fordele vises ud fra det fælles trackeropslag. Green-perioden regnes fra trackerens verificerede oprettelsesdato, uafhængigt af RSS-startdatoen.
+The worker samples at least every ten seconds; an interval crossing expiry is fully half-credited. The atomic, process-locked ledger in `DATA_DIR/qbit/green-credit.json` retains targets/credits and must be backed up. Historic bytes cannot be precisely apportioned for older torrents; possible Green bytes are conservatively estimated. Torrents added after the period receive full credit.
 
-Ved rollback til en version uden datokontrol skal feeds med startdato først sættes på pause, da ældre versioner ikke forstår datoen.
-
-Manuelt stop og fjernelse er altid muligt efter bekræftelse. Hvis torrenten hverken har krediteret ratio mindst 1:1 eller 49 timers aktiv seeding, vises en advarsel med den aktuelle ratio og tid. Den manuelle advarsel afhænger ikke af den valgte automatiske stop-ratio. Serveren genkontrollerer tallene ved handlingen og kræver eksplicit bekræftelse ved tidligt stop. Torrentkortene viser seedingtid, ratio og om seeding fortsætter for aktive downloadere. qBittorrents gemte seedingtid bruges på tværs af genstarter. Eksisterende torrents overtages af den fælles baggrundskontrol med deres filhandling og mål bevaret; stop-ratio hæves til mindst 1. Manuelt stoppede torrents genstartes ikke.
-
-
-Under et feeds **Vis detaljer** åbner **Hentede titler** en dialog med titler og
-krediteret upload pr. titel. Historikken gemmes som tekst i
-`DATA_DIR/qbit/green-credit.json` sammen med uploadregnskabet og bevares efter
-sletning af torrents og filer. Nye titler registreres ved accepteret tilføjelse;
-eksisterende RSS-torrents registreres ved næste uploadkontrol. Listen viser
-startede downloads, også dem som endnu ikke er færdige. Tidligere slettede
-torrents uden gemt titel kan ikke genskabes. Green-estimater markeres som
-konservative, og genhentning af samme torrent samler uploaden på samme titel.
-
-## Green-upload og redigering af ratio
-
-Ratio-knappen kan ændre stopmålet og valget mellem at beholde eller slette filerne på en eksisterende torrent uden genstart. Det aktuelle valg vises i dialogen, og manuel pause ophæves ikke. Hvis målet allerede er nået, advarer dialogen om, at automatisk sletning kan ske ved gemning. API-kald uden filhandling bevarer den eksisterende handling. Målet eller 49 timers seeding udløser kun automatisk afslutning ved "Slet filerne".
-
-Et eksakt NordicBytes-match bruger trackerens tidszoneangivne `created_at`, ikke tidspunktet for lokal tilføjelse. Green-perioden regnes konservativt som 24 timer plus 30 minutters buffer. Upload i perioden tæller halvt, senere upload tæller fuldt. Et mål på 1 kræver dermed lokal ratio 2, hvis al upload sker i perioden. Ved blandet upload bruges `uploadkredit = uploadet i alt - Green-upload / 2`. Tidligere Green-upload får aldrig ekstra kredit ved udløb. Uploadkredit og krediteret ratio vises separat fra de faktiske uploadbytes. Verificerbare egne uploads er undtaget; anonyme uploadere kan ikke identificeres sikkert og behandles konservativt.
-
-Arbejdsklienten registrerer uploadtælleren mindst hvert 10. sekund og tilpasser qBittorrents native ratio-grænse til det valgte kreditmål. Et interval over udløbstidspunktet regnes helt til halv kredit, så den kan seede en smule ekstra. Regnskab og brugerens mål gemmes atomisk under `DATA_DIR/qbit/green-credit.json` med en proceslås. Denne fil skal med i backup. Ved eksisterende torrents kan historiske uploadbytes ikke fordeles præcist; hvis de kan være uploadet i Green-perioden, regnes de forsigtigt til halv kredit og markeres som et estimat. Torrents tilføjet efter perioden får fuld kredit.
-
-Datoer hentes også i baggrunden for RSS-torrents uden en åben browser. Gemte trackerfordele behøver kun et ekstra opslag ved migrering fra en version uden oprettelsesdato. API-nøglen deles ikke med arbejdsklienten. Mens et opslag afventer, er målet konservativt fordoblet. Uden en konfigureret API-konto kan Green ikke dokumenteres, og normal ratio anvendes. Med en API-konto, men uden verificerbar dato, bevares det konservativt fordoblede mål og markeres i visningen. Mislykkede/ukendte opslag prøves igen efter opslagscachens fem minutter; et verificeret resultat fryses fortsat. Green-regnskabet beregner stopmålet pr. torrent, ikke trackerens samlede kontoratio eller andre bonusmultiplikatorer. Bufferen forlænger ikke trackerens faktiske freeleech-periode.
-
-Ved "Slet filerne" er seedinggrænsen 49 timer: 48 timer plus én times buffer. Bufferen gælder automatisk stop, fremdrift og advarslen ved manuelt stop. Ratio-målet kan stadig opfyldes først. Eksisterende torrents får automatisk den nye tidsgrænse med deres mål og filhandling bevaret.
-
+Date checks also run for RSS without a browser. During pending verified-date lookup, targets are conservatively doubled. Without an API account, Green cannot be established and ordinary ratio applies. With an account but no provable date, the conservative doubled target remains marked. Unknown lookups retry after the five-minute cache; verified findings remain frozen. This governs the per-torrent credited target, not account-wide ratio or other bonus multipliers. The buffer does not extend the tracker's real freeleech period.
 
 ## Chrome extension
 
-`chrome-extension/` contains the Manifest V3 extension for the NordicBytes link context menu. Torrent links open the existing manual torrent dialog; RSS links open the add-feed dialog with the full address prefilled. The user confirms the download or saves the feed with their settings. RSS URLs are transferred through extension session storage without fetching the feed or placing its private parameters in the destination tab URL. Installation instructions are in `chrome-extension/README.md`.
+The Manifest V3 [extension](chrome-extension/README.md) sends NordicBytes torrent/RSS links into an existing Seed tab. Torrent links open the normal manual dialog; RSS opens the feed form with its full address. Users confirm settings before starting/saving. Private parameters are handed off through extension session storage, never a destination URL, and RSS is not fetched by the extension.
 
-Build the downloadable ZIP with `python tools/package_chrome_extension.py`. It is served at `/static/fjordseed-chrome.zip` and linked from FjordSeed. Run `node --test tests/test_chrome_extension.mjs` and `python tests/browser_extension_check.py` to verify validation and the isolated browser handoff without contacting a tracker.
+Package with `python tools/package_chrome_extension.py`; the ZIP is served at `/static/fjordseed-chrome.zip`. Extension tests: `node --test tests/test_chrome_extension.mjs` and `python tests/browser_extension_check.py`.
+
+## Operations and tests
+
+Back up `DATA_DIR`, every storage/download location, qBittorrent state, RSS metadata and the credit ledger. `docker compose down --remove-orphans` removes runtime while preserving bind mounts. Stop Seed before rollback. Updates briefly interrupt VPN-bound transfers, then resume saved state. Shared directories need appropriate permissions; existing ownership is not changed recursively.
+
+The Docker socket makes this host-administration software; use trusted access/HTTPS. Seed has no direct Proxmox key and receives only filtered VPN profiles/status, not private VPN keys.
+
+```sh
+python -m pytest tests -q
+python tests/browser_check.py
+```
+
+`tests/container_check.py` runs in the app image with `--network none` and exercises real client configuration/readiness without downloads. A live Proton end-to-end test needs a dedicated test profile: verify exit IP, perform a permitted test transfer and verify stopping VPN stops traffic. Isolated fixtures are not proof of every real tunnel.
+
+References: [Gluetun container networking](https://github.com/qdm12/gluetun-wiki/blob/main/setup/connect-a-container-to-gluetun.md), [qBittorrent Web API](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-%28qBittorrent-5.0%29).
