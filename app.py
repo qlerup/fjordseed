@@ -69,12 +69,15 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             return
         if session.get('authenticated') and hub.enabled:
             try:
-                hub.current(session.get('hub_uid'))
+                member = hub.current(session.get('hub_uid'), force=request.path == '/api/auth/access' and request.args.get('fresh') == '1')
             except HubError as exc:
                 if exc.status != 503:
                     session.clear()
                     session['hub_access_revoked'] = True
                 return jsonify(error=str(exc), error_code='access_revoked' if exc.status != 503 else 'hub_unavailable'), exc.status
+            if member.get('email_required') and request.endpoint != 'hub_email_update':
+                from hub_email import required_response
+                return required_response()
         if not session.get('authenticated'):
             if request.path.startswith('/api/'):
                 return jsonify(error='Log ind for at fortsætte.', authenticated=False),401
@@ -151,6 +154,19 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     @app.get('/api/auth/access')
     def access():
         return {'ok':True,'authenticated':True}
+
+    @app.post('/api/auth/email')
+    def hub_email_update():
+        from hub_email import submit_email
+        if not hub.enabled:
+            return jsonify(ok=False, error='Kræver FjordHub-login.'), 403
+        try:
+            member = hub.current(session.get('hub_uid'), force=True)
+            response = submit_email(member, hub.call)
+            hub.expires = 0
+            return response
+        except HubError as exc:
+            return jsonify(ok=False, error=str(exc)), exc.status
 
     @app.get('/')
     def index():

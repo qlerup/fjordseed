@@ -48,6 +48,32 @@ def test_auth_csrf_host_and_stopped_gate(app):
     app.extensions['runtime'].rpc.assert_not_called()
 
 
+def test_required_email_blocks_existing_hub_login_and_preserves_it_after_save(tmp_path, monkeypatch):
+    monkeypatch.setenv('FJORDHUB_URL','http://hub')
+    monkeypatch.setenv('FJORDHUB_API_KEY','synthetic-key')
+    app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
+    hub=app.extensions['hub']
+    member={'id':7,'role':'admin','must_change_password':False,'email_required':False}
+    calls=[]
+    def call(path,payload=None,method='POST',**kwargs):
+        if path.endswith('/sso-verify'): return dict(member,ok=True)
+        if path.endswith('/users'): return {'ok':True,'items':[dict(member)]}
+        calls.append((path,payload));member['email_required']=False
+        return {'ok':True,'accepted':True,'user':dict(member)}
+    hub.call=call
+    c=app.test_client();assert c.get('/hub-login?token=test').status_code==302
+    assert c.get('/api/status').status_code==200
+    member['email_required']=True
+    blocked=c.get('/api/auth/access?fresh=1')
+    assert blocked.status_code==403 and blocked.json['error_code']=='email_update_required'
+    assert c.get('/api/status').status_code==403
+    h={'X-CSRF-Token':blocked.json['csrf_token']}
+    assert c.post('/api/auth/email',json={'email':'new@example.test'},headers=h).json['accepted'] is True
+    assert calls==[('/api/hub/apps/users/7/email',{'email':'new@example.test'})]
+    assert c.get('/api/status').status_code==200
+    with c.session_transaction() as s:assert s['hub_uid']==7
+
+
 def test_add_and_actions_are_allowlisted(app):
     c,h=login(app)
     app.extensions['state'].save('a'*32, True)
