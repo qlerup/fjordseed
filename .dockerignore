@@ -1,6 +1,7 @@
 *
 !requirements.txt
 !app.py
+!hub_email.py
 !hub.py
 !runtime.py
 !state.py
