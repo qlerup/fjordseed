@@ -266,6 +266,8 @@ def execute(action, data):
         if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}', data.get('hash','')):
             raise ValueError('Invalid hash')
         payload = {'hashes':data['hash']}
+        if action=='delete' and type(data.get('delete_files',False)) is not bool:
+            raise ValueError('Invalid file deletion choice')
         if action in ('stop','delete'):
             with CreditLedger().transaction() as ledger:
                 rows=call('torrents/info?hashes='+data['hash']).json()
@@ -276,7 +278,7 @@ def execute(action, data):
             if not requirement['seeding_requirement_met'] and data.get('confirm_early_stop') is not True:
                 raise SeedingRequirementError(requirement['stop_reason'])
         if action == 'delete':
-            payload['deleteFiles'] = 'false'
+            payload['deleteFiles'] = 'true' if data.get('delete_files',False) else 'false'
         call('torrents/' + action, payload)
         if action=='delete':
             from download_storage import forget

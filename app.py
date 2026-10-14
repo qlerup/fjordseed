@@ -399,7 +399,12 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             if 'ratio_action' in payload:
                 data['ratio_action']=policy['ratio_action']
             return invoke(action,data)
-        return invoke(action, {'hash':ident,'confirm_early_stop':payload.get('confirm_early_stop',False)})
+        data={'hash':ident,'confirm_early_stop':payload.get('confirm_early_stop',False)}
+        if action=='delete':
+            if type(payload.get('delete_files',False)) is not bool:
+                return jsonify(error='Vælg om downloadede filer skal slettes.'),400
+            data['delete_files']=payload.get('delete_files',False)
+        return invoke(action, data)
 
     def invoke(action, data):
         try:

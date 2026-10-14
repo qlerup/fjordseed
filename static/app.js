@@ -143,7 +143,7 @@ function card(t){const row=node('article','torrent'),head=node('div','torrent-he
  if(t.cover&&/^\/api\/covers\/[a-f0-9]{64}$/.test(t.cover)){const cover=node('img','torrent-cover');cover.src=t.cover;cover.alt='';cover.width=64;cover.height=96;cover.loading='lazy';cover.decoding='async';cover.onerror=()=>{cover.remove();row.classList.remove('has-cover');};row.classList.add('has-cover');row.append(cover);}
  const heading=node('h3'),titleToggle=node('button','torrent-title-toggle');titleToggle.type='button';
  const arrow=node('span','torrent-chevron');arrow.setAttribute('aria-hidden','true');
- titleToggle.append(arrow,node('span','torrent-name',t.name));heading.append(titleToggle);head.append(heading);const actions=node('div','torrent-actions');for(const [action,label] of [(['pausedUP','pausedDL','stoppedUP','stoppedDL'].includes(t.state)?['start','Start']:['stop','Pause']),['ratio','Ratio'],['delete','Fjern']]){const b=node('button','secondary',label);b.type='button';b.disabled=!current.ready||(action==='start'||action==='stop')&&t.state==='moving';b.setAttribute('aria-label',label+' '+t.name);b.onclick=async()=>{if(action==='ratio'){openRatioEditor(t);return;}if(action==='delete'){deleting=t;$('#delete-name').textContent=t.name;$('#delete-error').hidden=true;$('#delete-warning').hidden=t.seeding_requirement_met===true;$('#delete-warning').textContent=seedingWarning(t);$('#delete-dialog').showModal();return;}if(action==='stop'&&t.seeding_requirement_met!==true){stopping=t;$('#stop-name').textContent=t.name;$('#stop-warning').textContent=seedingWarning(t);$('#stop-error').hidden=true;$('#stop-dialog').showModal();return;}b.disabled=true;try{await api(`/api/torrents/${t.hash}/${action}`,{method:'POST'});await refresh();}catch(e){toast(e.message);}finally{b.disabled=false;}};actions.append(b);}const key=t.hash||t.name;
+ titleToggle.append(arrow,node('span','torrent-name',t.name));heading.append(titleToggle);head.append(heading);const actions=node('div','torrent-actions');for(const [action,label] of [(['pausedUP','pausedDL','stoppedUP','stoppedDL'].includes(t.state)?['start','Start']:['stop','Pause']),['ratio','Ratio'],['delete','Fjern']]){const b=node('button','secondary',label);b.type='button';b.disabled=!current.ready||(action==='start'||action==='stop')&&t.state==='moving';b.setAttribute('aria-label',label+' '+t.name);b.onclick=async()=>{if(action==='ratio'){openRatioEditor(t);return;}if(action==='delete'){openDeleteEditor(t);return;}if(action==='stop'&&t.seeding_requirement_met!==true){stopping=t;$('#stop-name').textContent=t.name;$('#stop-warning').textContent=seedingWarning(t);$('#stop-error').hidden=true;$('#stop-dialog').showModal();return;}b.disabled=true;try{await api(`/api/torrents/${t.hash}/${action}`,{method:'POST'});await refresh();}catch(e){toast(e.message);}finally{b.disabled=false;}};actions.append(b);}const key=t.hash||t.name;
  const panel=node('div','torrent-extra');panel.id='torrent-details-'+key;
  panel.append(torrentMetrics(t),torrentDetails(t));
  if(t.rss_feed)panel.append(node('p','torrent-policy','RSS: '+t.rss_feed));
@@ -278,7 +278,32 @@ updateSeedingFields('ratio');
 $('#ratio-dialog').addEventListener('cancel',e=>{if($('#ratio-save').disabled)e.preventDefault();});
 $('#ratio-back').onclick=()=>{$('#ratio-dialog').close();$('#add-dialog').showModal();};
 $('#ratio-form').onsubmit=async e=>{e.preventDefault();if(!pendingTorrent)return;$('#ratio-save').disabled=true;$('#ratio-back').disabled=true;$('#ratio-dialog .close').disabled=true;$('#ratio-error').hidden=true;try{pendingTorrent.set('ratio_limit',$('#ratio-limit').value);pendingTorrent.set('ratio_action',$('#ratio-action').value);await api('/api/torrents',{method:'POST',body:pendingTorrent});pendingTorrent=null;$('#ratio-dialog').close();toast('Torrent tilføjet');await refresh();}catch(e){error('#ratio-error',e);}finally{$('#ratio-save').disabled=false;$('#ratio-back').disabled=false;$('#ratio-dialog .close').disabled=false;}};
-$('#delete-form').onsubmit=async e=>{e.preventDefault();$('#delete-save').disabled=true;try{await api(`/api/torrents/${deleting.hash}/delete`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_early_stop:deleting.seeding_requirement_met!==true})});$('#delete-dialog').close();await refresh();}catch(e){error('#delete-error',e);}finally{$('#delete-save').disabled=false;}};
+function openDeleteEditor(t){
+ deleting=t;$('#delete-form').reset();$('#delete-name').textContent=t.name;
+ $('#delete-choice').hidden=t.share_limit_action==='RemoveWithContent';
+ $('#delete-error').hidden=true;$('#delete-warning').hidden=t.seeding_requirement_met===true;
+ $('#delete-warning').textContent=seedingWarning(t);updateDeleteChoice();
+ $('#delete-dialog').showModal();
+ ($('#delete-choice').hidden?$('#delete-dialog .close'):$('#delete-files')).focus();
+}
+function updateDeleteChoice(){
+ const files=!$('#delete-choice').hidden&&$('#delete-files').value==='delete';
+ $('#delete-description').textContent=files?'Torrenten fjernes fra qBittorrent, og de downloadede filer slettes permanent.':'Torrenten fjernes fra qBittorrent. Downloadede filer bevares.';
+ $('#delete-description').className=files?'error':'muted';
+ $('#delete-save').textContent=files?'Fjern torrent og slet filer':'Fjern kun torrenten';
+}
+$('#delete-files').onchange=updateDeleteChoice;
+$('#delete-dialog').addEventListener('cancel',e=>{if($('#delete-save').disabled)e.preventDefault();});
+$('#delete-form').onsubmit=async e=>{
+ e.preventDefault();if(!deleting||$('#delete-save').disabled)return;
+ const torrent=deleting,files=!$('#delete-choice').hidden&&$('#delete-files').value==='delete';
+ const controls=[...$('#delete-form').querySelectorAll('button,select')];
+ controls.forEach(control=>control.disabled=true);$('#delete-error').hidden=true;
+ try{
+  await api(`/api/torrents/${torrent.hash}/delete`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_early_stop:torrent.seeding_requirement_met!==true,delete_files:files})});
+  $('#delete-dialog').close();await refresh();toast(files?'Torrent og downloadede filer er slettet.':'Torrenten er fjernet. Downloadede filer er bevaret.');
+ }catch(e){error('#delete-error',e);}finally{controls.forEach(control=>control.disabled=false);}
+};
 function showView(focus=false){
  const view=location.hash==='#storage'?'storage':location.hash==='#connection'?'connection':location.hash==='#trackers'?'trackers':location.hash==='#rss'?'rss':'torrents';
  const vpn=view==='connection',trackers=view==='trackers',rss=view==='rss',storage=view==='storage';

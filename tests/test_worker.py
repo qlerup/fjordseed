@@ -46,7 +46,7 @@ def test_config_binds_before_launch_and_preserves_other_settings(tmp_path):
     assert 'Keep=1' in path.read_text() and 'Session\\Port=40002' in path.read_text()
 
 
-def test_rpc_refuses_unbound_client_and_never_deletes_files(monkeypatch):
+def test_rpc_refuses_unbound_client_and_preserves_files_by_default(monkeypatch):
     fake=Mock(return_value=Mock(json=lambda:{'current_network_interface':'','upnp':False}))
     monkeypatch.setattr(qbit_rpc,'call',fake)
     with pytest.raises(RuntimeError):qbit_rpc.execute('add',{'magnet':'magnet:?x'})
