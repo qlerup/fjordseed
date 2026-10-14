@@ -12,7 +12,7 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import requests
 
-from rss import PREFIX, validate_feed, folder_path, date_matches, title_matches
+from rss import PREFIX, validate_feed, folder_path, date_matches, title_matches, size_matches
 from state import atomic
 from torrent_meta import magnet_meta, torrent_meta
 from qbit_rpc import seed_ratio, initial_managed_ratio
@@ -92,6 +92,7 @@ def gate_rpc(action,data,api,root=Path('/config')):
         pending_path.unlink(missing_ok=True)
         pending={}
     if action=='rss_prepare':
+        size_skipped=0
         if not pending:
             item=api('rss/items?withData=true').json().get(name,{})
             if item.get('url')!=feed['url'] or item.get('hasError'):
@@ -118,13 +119,17 @@ def gate_rpc(action,data,api,root=Path('/config')):
                 history['retry']={k:v for k,v in history['retry'].items() if k in active_tokens}
                 atomic(history_path,json.dumps(history))
                 meta,payload=fetch_metadata(url)
+                if not size_matches(meta,feed):
+                    size_skipped+=1
+                    continue
                 if not meta.get('name'):
                     meta['name']=str(article.get('title',''))[:200]
                 pending={'token':token,'meta':meta,'payload':payload,'date':article.get('date'),'title':article.get('title'),'article_id':article.get('id'),
                          'revision':data['revision'],'created_at':now}
                 atomic(pending_path,json.dumps(pending))
                 break
-        return {k:pending[k] for k in ('token','meta') if k in pending}
+        return ({k:pending[k] for k in ('token','meta') if k in pending} if pending else
+                {'size_skipped':size_skipped} if size_skipped else {})
     if action!='rss_resolve' or not pending or pending['token']!=data.get('token'):
         raise ValueError('Candidate expired')
     if data.get('approved') is True:
@@ -134,6 +139,8 @@ def gate_rpc(action,data,api,root=Path('/config')):
             raise ValueError('Article predates feed start or has no date')
         if not title_matches(pending,feed):
             raise ValueError('Article does not match title filters')
+        if not size_matches(pending['meta'],feed):
+            raise ValueError('Torrent exceeds maximum size or size is unknown')
         hashes=pending['meta']['hashes']
         if sorted(hashes)!=sorted(data.get('hashes',[])):
             raise ValueError('Torrent identity changed')
@@ -202,6 +209,9 @@ class RssGate:
                     with trackers.lock:
                         tracker=next((e for e in trackers.entries() if e['id']==feed['tracker_id']),None)
                 candidate=self.runtime.rpc('rss_prepare',{'feed_id':feed['id'],'revision':fingerprint(feed)})
+                if candidate and candidate.get('size_skipped'):
+                    self.reports[feed['id']]='Feedposter sprunget over: for store eller med ukendt størrelse. Kontrolleres igen senere.'
+                    continue
                 if not candidate:
                     self.reports[feed['id']]=('Afventer nye feedposter, der matcher titelfilteret og startdatoen.'
                                              if feed.get('title_include') or feed.get('title_exclude') else
@@ -209,6 +219,11 @@ class RssGate:
                                              if feed.get('download_from') else 'Afventer nye feedposter.')
                     continue
                 result={}
+                if not size_matches(candidate['meta'],feed):
+                    self.runtime.rpc('rss_resolve',{'feed_id':feed['id'],'revision':fingerprint(feed),
+                        'token':candidate['token'],'approved':False})
+                    self.reports[feed['id']]='Torrent sprunget over: for stor eller med ukendt størrelse.'
+                    continue
                 if required:
                     # Fresh request rather than the frozen display snapshot.
                     result=self.benefits.request(candidate['meta'],feed['tracker_id'],priority=1,max_age=30)

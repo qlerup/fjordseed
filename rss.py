@@ -50,6 +50,15 @@ def title_matches(article,feed):
     return not any(title_key(t) in key for t in exclude) and (not include or any(title_key(t) in key for t in include))
 
 
+def size_matches(meta,feed):
+    """An optional inclusive total-size cap; unknown metadata fails closed."""
+    limit=feed.get('max_size_bytes')
+    if limit is None:
+        return True
+    size=meta.get('size')
+    return type(size) is int and 0<=size<=limit
+
+
 def article_timestamp(value):
     """qBittorrent exposes ISO dates; also accept RFC dates from RSS fixtures."""
     if not isinstance(value, str) or not value or len(value) > 100:
@@ -122,6 +131,9 @@ def validate_feed(data):
         start=None
     folder=data.get('folder','')
     folder_path(folder)
+    max_size=data.get('max_size_bytes')
+    if max_size is not None and (type(max_size) is not int or not 1<=max_size<=2**53-1):
+        raise ValueError('Vælg en gyldig maksimal størrelse større end nul, eller lad feltet være tomt.')
     badges=data.get('required_badges',[])
     tracker=data.get('tracker_id','')
     if not isinstance(badges,list) or any(not isinstance(b,str) or b not in BADGES for b in badges) or len(badges)>len(BADGES):
@@ -135,6 +147,7 @@ def validate_feed(data):
     return {'name':name.strip(),'url':url,'folder':folder.strip().strip('/'),
             'title_include':validate_title_filters(data.get('title_include',[])),
             'title_exclude':validate_title_filters(data.get('title_exclude',[])),
+            'max_size_bytes':max_size,
             'enabled':data['enabled'],'download_from':start,'required_badges':list(dict.fromkeys(badges)),
             'tracker_id':tracker if badges else '',**policy}
 
@@ -169,6 +182,8 @@ class Rss:
             if ident and not existing:
                 raise ValueError('Feedet findes ikke længere.')
             data={**data}
+            if existing and 'max_size_bytes' not in data:
+                data['max_size_bytes']=existing.get('max_size_bytes')
             if existing and 'required_badges' not in data:
                 data['required_badges']=existing.get('required_badges',[])
                 data['tracker_id']=existing.get('tracker_id','')
