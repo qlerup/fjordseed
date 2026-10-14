@@ -1,5 +1,24 @@
 let rssFeeds=[],rssRoot='',rssBusy=false,rssLoading=false,rssTrackerGeneration=0;
 let rssRefreshPromise;
+let rssHistoryGeneration=0;
+async function openRssHistory(feed){
+ const generation=++rssHistoryGeneration;
+ const list=$('#rss-history-list'),status=$('#rss-history-status');
+ $('#rss-history-title').textContent='Hentede titler · '+feed.name;
+ list.replaceChildren();status.textContent='Henter historik…';
+ $('#rss-history-dialog').showModal();
+ try{
+  const result=await api('/api/rss/'+feed.id+'/history');
+  if(generation!==rssHistoryGeneration)return;
+  status.textContent=result.downloads.length?result.downloads.length+' titler · Krediteret upload pr. titel':'Ingen hentede titler registreret endnu.';
+  for(const item of result.downloads){
+   const row=node('li','rss-history-row'),title=node('span','',item.title),upload=node('span','rss-history-credit');
+   upload.append(node('strong','',size(item.credited_uploaded)));
+   if(item.estimated)upload.append(node('span','muted small','Beregnet konservativt'));
+   row.append(title,upload);list.append(row);
+  }
+ }catch(e){if(generation===rssHistoryGeneration)status.textContent=e.message;}
+}
 const expandedRssFeeds=new Set(),rssToggleBusy=new Set();
 const rssBadgeNames={freeleech:'100 % Freeleech',double_upload:'Double upload',featured:'Featured',internal:'Internal',refundable:'Refundable'};
 function selectedRssBadges(){return [...document.querySelectorAll('[name=rss-badge]:checked')].map(e=>e.value);}
@@ -111,6 +130,7 @@ function rssFeedCard(feed){
  if(feed.title_exclude?.length)panel.append(node('p','torrent-policy','Undgå: '+feed.title_exclude.join(', ')));
  if(feed.enabled&&feed.download_status)panel.append(node('p','muted small',feed.download_status));
  if(feed.status==='error')panel.append(node('p','error small','Feedet eller RSS-reglerne kunne ikke indlæses. Kontrollér RSS-adressen og VPN-status.'));
+ const history=node('button','secondary','Hentede titler');history.type='button';history.onclick=()=>openRssHistory(feed);panel.append(history);
  const actions=node('div','tracker-actions'),edit=node('button','secondary','Rediger'),remove=node('button','quiet','Fjern feed');edit.type=remove.type='button';
  edit.disabled=remove.disabled=rssToggleBusy.has(feed.id);
  edit.onclick=()=>openRssForm(feed);
@@ -136,6 +156,7 @@ async function refreshRss(){
 }
 
 $('#rss-new').onclick=()=>openRssForm();
+$('#rss-history-dialog').addEventListener('close',()=>rssHistoryGeneration++);
 $('#rss-folder').oninput=updateRssPath;
 $('#rss-start').onchange=updateRssStart;
 document.querySelectorAll('[name=rss-badge]').forEach(e=>e.onchange=updateRssBadges);

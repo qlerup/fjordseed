@@ -162,6 +162,10 @@ def gate_rpc(action,data,api,root=Path('/config')):
                     history['done']=[k for k in history['done'] if k not in keys]
                     atomic(history_path,json.dumps(history))
                     raise ValueError('Torrent rejected')
+        if not already_added or any('FjordSeed-RSS-'+ident in str(row.get('tags','')).split(',') for row in existing):
+            from green_credit import CreditLedger
+            with CreditLedger().transaction() as ledger:
+                ledger.record_rss_title(ident, hashes[0], pending['meta'].get('name') or pending.get('title'))
         # Share read history with native RSS when the user switches to "All".
         # Never omit articleId: qBittorrent would mark the entire feed as read.
         if isinstance(pending.get('article_id'),str) and pending['article_id']:

@@ -175,6 +175,17 @@ class CreditLedger:
                     and not until and policy.get('has_date') is False),
                 'green_history_estimated': entry.get('history_estimated', False)}
 
+    def record_rss_title(self, feed_id, ident, title, now=None):
+        """Archive text independently of the live torrent/sample lifecycle."""
+        now = time.time() if now is None else now
+        history = self.entries.setdefault('_rss_upload', {'started_at': now, 'feeds': {}})
+        total = history['feeds'].setdefault(feed_id, {'credited_uploaded': 0, 'estimated': False})
+        item = total.setdefault('downloads', {}).setdefault(ident.lower(), {
+            'title': 'Ukendt titel', 'added_at': now, 'credited_uploaded': 0, 'estimated': False})
+        if isinstance(title, str) and title.strip():
+            item['title'] = title.strip()[:1000]
+        return item
+
     def record_rss_upload(self, row, entry, credited, previous_uploaded, now, pending):
         """Keep feed totals in the same atomic ledger as per-torrent samples.
 
@@ -197,4 +208,11 @@ class CreditLedger:
             previous_credit = 0
         total['credited_uploaded'] = max(0, total['credited_uploaded'] + credited - previous_credit)
         total['estimated'] = total['estimated'] or pending or entry.get('history_estimated', False)
+        item = self.record_rss_title(feed_id, row['hash'], row.get('name'), now)
+        # When upgrading an existing sample, its old contribution is already in
+        # the feed total, but the new per-title archive needs the full credit.
+        item_previous = previous_credit if entry.get('rss_title_recorded') else 0
+        item['credited_uploaded'] = max(0, item['credited_uploaded'] + credited - item_previous)
+        item['estimated'] = item['estimated'] or pending or bool(entry.get('history_estimated'))
+        entry['rss_title_recorded'] = True
         entry['rss_credited_uploaded'] = credited

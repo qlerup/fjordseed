@@ -194,6 +194,15 @@ Ved rollback til en version uden datokontrol skal feeds med startdato først sæ
 Manuelt stop og fjernelse er altid muligt efter bekræftelse. Hvis torrenten hverken har krediteret ratio mindst 1:1 eller 49 timers aktiv seeding, vises en advarsel med den aktuelle ratio og tid. Den manuelle advarsel afhænger ikke af den valgte automatiske stop-ratio. Serveren genkontrollerer tallene ved handlingen og kræver eksplicit bekræftelse ved tidligt stop. Torrentkortene viser seedingtid, ratio og om seeding fortsætter for aktive downloadere. qBittorrents gemte seedingtid bruges på tværs af genstarter. Eksisterende torrents overtages af den fælles baggrundskontrol med deres filhandling og mål bevaret; stop-ratio hæves til mindst 1. Manuelt stoppede torrents genstartes ikke.
 
 
+Under et feeds **Vis detaljer** åbner **Hentede titler** en dialog med titler og
+krediteret upload pr. titel. Historikken gemmes som tekst i
+`DATA_DIR/qbit/green-credit.json` sammen med uploadregnskabet og bevares efter
+sletning af torrents og filer. Nye titler registreres ved accepteret tilføjelse;
+eksisterende RSS-torrents registreres ved næste uploadkontrol. Listen viser
+startede downloads, også dem som endnu ikke er færdige. Tidligere slettede
+torrents uden gemt titel kan ikke genskabes. Green-estimater markeres som
+konservative, og genhentning af samme torrent samler uploaden på samme titel.
+
 ## Green-upload og redigering af ratio
 
 Ratio-knappen kan ændre stopmålet og valget mellem at beholde eller slette filerne på en eksisterende torrent uden genstart. Det aktuelle valg vises i dialogen, og manuel pause ophæves ikke. Hvis målet allerede er nået, advarer dialogen om, at automatisk sletning kan ske ved gemning. API-kald uden filhandling bevarer den eksisterende handling. Målet eller 49 timers seeding udløser kun automatisk afslutning ved "Slet filerne".

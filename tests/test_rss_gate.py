@@ -137,6 +137,16 @@ def test_native_read_history_is_preserved_when_start_date_added(gate):
     assert not invoke('rss_prepare')
 
 
+def test_successful_add_archives_title_before_torrent_can_disappear(gate):
+    from green_credit import CreditLedger
+    invoke, calls, _, _, _, entry = gate
+    candidate = invoke('rss_prepare')
+    resolve(invoke, candidate)
+    with CreditLedger().transaction() as ledger:
+        item = ledger.entries['_rss_upload']['feeds'][entry['id']]['downloads'][candidate['meta']['hashes'][0]]
+        assert item['title'] == 'Linux' and item['credited_uploaded'] == 0
+
+
 def test_prepared_before_pause_cannot_add(gate):
     invoke,calls,_,_,root,entry=gate
     candidate=invoke('rss_prepare');entry['enabled']=False

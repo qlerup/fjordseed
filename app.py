@@ -266,6 +266,15 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             feed['download_status']=rss_gate.reports.get(feed['id'],'Afventer feedposter.')
         return jsonify({**result,'download_path':Storage(runtime).public()['path'] if hasattr(runtime,'host_downloads') else '/downloads'})
 
+    @app.get('/api/rss/<ident>/history')
+    def rss_download_history(ident):
+        try:
+            return jsonify(downloads=rss.download_history(ident))
+        except (OSError, json.JSONDecodeError):
+            return jsonify(error='Historikken kunne ikke læses. Prøv igen.'),503
+        except ValueError as exc:
+            return jsonify(error=str(exc)),404
+
     @app.post('/api/rss')
     def save_rss():
         return save_rss_data(request.get_json(silent=True))

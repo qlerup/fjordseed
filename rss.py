@@ -192,6 +192,17 @@ class Rss:
                 raise ValueError('Feedet findes ikke længere.')
             atomic(self.path,json.dumps([e for e in entries if e['id']!=ident]))
 
+    def download_history(self, ident):
+        with self.lock:
+            if not any(e['id'] == ident for e in self.entries()):
+                raise ValueError('Feedet findes ikke længere.')
+        path = self.root/'qbit/green-credit.json'
+        if not path.exists():
+            return []
+        ledger = json.loads(path.read_text(encoding='utf-8'))
+        items = ledger.get('_rss_upload', {}).get('feeds', {}).get(ident, {}).get('downloads', {})
+        return sorted(items.values(), key=lambda item: item['added_at'], reverse=True)
+
     def public(self):
         with self.lock:
             entries=self.entries()
