@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory() as folder:
     manifest['host_permissions'].append('http://127.0.0.1/*')
     (extension/'manifest.json').write_text(json.dumps(manifest), encoding='utf-8')
     with (extension/'background.js').open('a', encoding='utf-8') as script:
-        script.write('\nself.fixtureBegin = begin;\n')
+        script.write('\nself.fixtureBegin = begin; self.fixtureRetry = retry;\n')
     try:
         with sync_playwright() as p:
             context = p.chromium.launch_persistent_context(str(work/'chrome'), channel='chromium', headless=True,
@@ -92,15 +92,60 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#ratio-dialog .close').click()
             page.set_viewport_size({'width': 390, 'height': 844})
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+            # RSS handoff retains the private URL only in the form/session,
+            # does not fetch it, and waits for explicit feed settings and save.
+            rss_url = 'https://nordicbytes.org/rss/1283.'+'a'*32
+            fetches = worker.evaluate('self.fetches')
+            page.locator('.nav[href="#torrents"]').click()
+            page.locator('#new-torrent').click()
+            worker.evaluate('url => self.fixtureBegin(url)', rss_url)
+            expect(page.locator('#add-dialog')).to_be_visible()
+            assert worker.evaluate("async () => (await chrome.storage.session.get('pending')).pending.kind") == 'rss'
+            assert worker.evaluate('self.fetches') == fetches
+            page.locator('#add-dialog .close').first.click()
+            worker.evaluate("() => self.fixtureRetry()")
+            expect(page.locator('#rss-dialog')).to_be_visible()
+            expect(page.locator('#rss-url')).to_have_value(rss_url)
+            expect(page.locator('#rss-name')).to_be_focused()
+            assert page.url == address+'#rss'
+            assert app.extensions['rss'].entries() == []
+            assert len(context.pages) == before
+            page.locator('#rss-name').fill('RSS fra udvidelsen')
+            page.locator('#rss-next').click()
+            page.locator('#rss-action').select_option('delete_ratio')
+            page.locator('#rss-ratio').fill('3')
+            page.locator('#rss-save').click()
+            expect(page.locator('#rss-dialog')).not_to_be_visible()
+            feed = app.extensions['rss'].entries()[0]
+            assert feed['url'] == rss_url and feed['ratio_action'] == 'delete_ratio' and feed['ratio_limit'] == 3
+            assert feed['enabled'] is False
+            app.extensions['runtime'].rpc.assert_called_once()
+            # A feed can be prepared with VPN offline, including a login redirect.
+            runtime = app.extensions['runtime']
+            runtime.status = lambda: FakeRuntime.status(runtime)
+            context.clear_cookies()
+            page.goto(address)
+            worker.evaluate('url => self.fixtureBegin(url)', rss_url)
+            page.locator('[name=username]').fill('admin')
+            page.locator('[name=password]').fill((work/'app'/'initial-login.txt').read_text().strip())
+            page.get_by_role('button', name='Log ind', exact=True).click()
+            expect(page.locator('#rss-dialog')).to_be_visible(timeout=20000)
+            expect(page.locator('#rss-url')).to_have_value(rss_url)
+            expect(page.locator('#new-torrent')).to_be_disabled()
+            (root/'test-results').mkdir(exist_ok=True)
+            page.screenshot(path=str(root/'test-results'/'chrome-rss-import-mobile.png'))
+            page.locator('#rss-cancel').click()
+            assert worker.evaluate('self.fetches') == fetches
+            assert len(app.extensions['rss'].entries()) == 1
             popup = context.new_page()
             popup.set_viewport_size({'width': 370, 'height': 600})
             popup.goto(worker.url.replace('background.js', 'popup.html'))
             expect(popup.locator('#address')).to_have_value(address)
-            expect(popup.locator('#status')).to_contain_text('Klar i FjordSeed')
+            expect(popup.locator('#status')).to_contain_text('RSS-linket er klar i FjordSeed')
             assert popup.evaluate('document.documentElement.scrollWidth <= innerWidth')
             (root/'test-results').mkdir(exist_ok=True)
             popup.screenshot(path=str(root/'test-results'/'chrome-extension.png'))
             context.close()
     finally:
         server.shutdown()
-print('Extension handoff, login, duplicate guard and manual confirmation passed; no real download.')
+print('Torrent/RSS handoff, login, duplicate guard, tab reuse and explicit confirmation passed; no real download.')

@@ -15,10 +15,10 @@ $('#settings').onsubmit = async event => {
   try {
     const address = seedAddress($('#address').value);
     const granted = await chrome.permissions.request({origins: [permissionOrigin(address)]});
-    if (!granted) throw Error('Giv adgang til FjordSeed for at kunne åbne torrentdialogen.');
+    if (!granted) throw Error('Giv adgang til FjordSeed for at kunne åbne dialogerne.');
     await chrome.storage.local.set({seedUrl: address});
     $('#address').value = address;
-    $('#status').textContent = 'Adressen er gemt. Højreklik nu på et NordicBytes-downloadlink.';
+    $('#status').textContent = 'Adressen er gemt. Højreklik nu på et NordicBytes-downloadlink eller RSS-feed.';
   } catch (e) { $('#status').textContent = e.message; }
   finally { $('#save').disabled = false; }
 };

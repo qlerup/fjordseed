@@ -1,4 +1,4 @@
-import {torrentLink, seedAddress, permissionOrigin, readTorrent, showTorrent, selectSeedTab, MAX_AGE} from './common.mjs';
+import {sourceLink, seedAddress, permissionOrigin, readTorrent, showTorrent, showRss, selectSeedTab, MAX_AGE} from './common.mjs';
 
 const MENU = 'send-fjordseed';
 let working = false;
@@ -14,7 +14,8 @@ async function status(message, error = false) {
 chrome.runtime.onInstalled.addListener(async () => {
   await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({id: MENU, title: 'Send til FjordSeed', contexts: ['link'],
-    targetUrlPatterns: ['https://nordicbytes.org/torrents/download/*']});
+    targetUrlPatterns: ['https://nordicbytes.org/torrents/download/*',
+      'https://nordicbytes.org/rss*', 'https://nordicbytes.org/torrents/rss*']});
 });
 
 async function destination() {
@@ -41,24 +42,30 @@ async function begin(link) {
   if (working) throw Error('En overførsel er allerede i gang.');
   working = true;
   try {
-    const url = torrentLink(link), seedUrl = await destination();
+    const {kind, url} = sourceLink(link), seedUrl = await destination();
     const {pending} = await chrome.storage.session.get('pending');
     if (pending && Date.now() - pending.created < MAX_AGE) {
-      throw Error('Der ligger allerede en torrent klar. Åbn udvidelsen for at fortsætte eller rydde den.');
+      throw Error('Der ligger allerede et link klar. Åbn udvidelsen for at fortsætte eller rydde det.');
     }
     await chrome.storage.session.remove('pending');
-    await status('Henter torrentfilen fra NordicBytes…');
-    let response;
-    try {
-      response = await fetch(url, {credentials: 'include', redirect: 'error', cache: 'no-store',
-        signal: AbortSignal.timeout(20000)});
-    } catch {
-      throw Error('Torrentfilen kunne ikke hentes. Kontrollér dit NordicBytes-login og prøv igen.');
+    let item;
+    if (kind === 'rss') {
+      // RSS URLs can contain passkeys: never put them in the destination URL or fetch them here.
+      item = {id: crypto.randomUUID(), kind, seedUrl, url, created: Date.now()};
+    } else {
+      await status('Henter torrentfilen fra NordicBytes…');
+      let response;
+      try {
+        response = await fetch(url, {credentials: 'include', redirect: 'error', cache: 'no-store',
+          signal: AbortSignal.timeout(20000)});
+      } catch {
+        throw Error('Torrentfilen kunne ikke hentes. Kontrollér dit NordicBytes-login og prøv igen.');
+      }
+      const base64 = await readTorrent(response);
+      const id = new URL(url).pathname.split('/').filter(Boolean).at(-1);
+      // Keep metadata in session memory, not sync storage or the destination URL.
+      item = {id: crypto.randomUUID(), kind, seedUrl, base64, name: `NordicBytes-${id}.torrent`, created: Date.now()};
     }
-    const base64 = await readTorrent(response);
-    const id = new URL(url).pathname.split('/').filter(Boolean).at(-1);
-    // Keep metadata in session memory, not sync storage or the destination URL.
-    const item = {id: crypto.randomUUID(), seedUrl, base64, name: `NordicBytes-${id}.torrent`, created: Date.now()};
     await chrome.storage.session.set({pending: item});
     const tab = await openDestination(seedUrl);
     item.tabId = tab.id;
@@ -83,15 +90,17 @@ async function deliver(tabId) {
     if (tab.status !== 'complete') return;
     const target = new URL(tab.url);
     if (target.origin !== new URL(pending.seedUrl).origin) return;
-    const result = await chrome.scripting.executeScript({target: {tabId}, func: showTorrent,
-      args: [pending.base64, pending.name, pending.id, new URL(pending.seedUrl).origin]});
+    const rss = pending.kind === 'rss';
+    const origin = new URL(pending.seedUrl).origin;
+    const result = await chrome.scripting.executeScript({target: {tabId}, func: rss ? showRss : showTorrent,
+      args: rss ? [pending.url, pending.id, origin] : [pending.base64, pending.name, pending.id, origin]});
     const outcome = result[0]?.result;
     if (outcome === 'delivered') {
       await chrome.storage.session.remove('pending');
-      await status('Klar i FjordSeed. Vælg indstillinger og tryk Start download.');
+      await status(rss ? 'RSS-linket er klar i FjordSeed. Vælg navn og indstillinger, og tryk Gem feed.' : 'Klar i FjordSeed. Vælg indstillinger og tryk Start download.');
     } else {
       const messages = {
-        login: 'Log ind i FjordSeed-fanen. Torrentfilen venter, indtil du er logget ind.',
+        login: 'Log ind i FjordSeed-fanen. Linket venter, indtil du er logget ind.',
         busy: 'Luk den åbne dialog i FjordSeed, og tryk Fortsæt her.',
         offline: 'FjordSeed er ikke klar. Kontrollér VPN-forbindelsen, og tryk Fortsæt her.',
         incompatible: 'FjordSeeds dialog kunne ikke åbnes. Opdatér FjordSeed og prøv igen.'
@@ -103,7 +112,7 @@ async function deliver(tabId) {
 
 async function retry() {
   const {pending} = await chrome.storage.session.get('pending');
-  if (!pending) throw Error('Der er ingen ventende torrent.');
+  if (!pending) throw Error('Der er intet ventende link.');
   const tab = await openDestination(pending.seedUrl, pending.tabId);
   pending.tabId = tab.id;
   await chrome.storage.session.set({pending});
@@ -123,7 +132,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     else if (message.type === 'clear') {
       if (working || delivering) throw Error('Vent, til overførslen er færdig.');
       await chrome.storage.session.remove('pending');
-      await status('Ventende torrent ryddet. Ingen download er startet.');
+      await status('Ventende link ryddet. Ingen download er startet.');
     } else throw Error('Ukendt handling.');
   };
   run().then(() => reply({ok: true})).catch(async e => {await status(e.message, true); reply({error: e.message});});

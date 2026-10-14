@@ -1,6 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {torrentLink, seedAddress, permissionOrigin, readTorrent, selectSeedTab, MAX_BYTES} from '../chrome-extension/common.mjs';
+import {torrentLink, rssLink, sourceLink, seedAddress, permissionOrigin, readTorrent, selectSeedTab, MAX_BYTES} from '../chrome-extension/common.mjs';
+
+test('RSS addresses preserve private query parameters and are classified without fetching', () => {
+  for (const path of ['/rss/1283.'+'a'.repeat(32), '/rss/42?passkey=fixture&freeleech=1', '/rss?token=fixture', '/torrents/rss/42?key=fixture', '/rss.xml?key=fixture']) {
+    const url = 'https://nordicbytes.org'+path;
+    assert.equal(rssLink(url+'#fragment'), url);
+    assert.deepEqual(sourceLink(url), {kind:'rss', url});
+  }
+  assert.deepEqual(sourceLink('https://nordicbytes.org/torrents/download/42'),
+    {kind:'torrent', url:'https://nordicbytes.org/torrents/download/42'});
+  for (const url of ['http://nordicbytes.org/rss/42', 'https://nordicbytes.org.evil.test/rss/42',
+    'https://user:pass@nordicbytes.org/rss/42', 'https://nordicbytes.org:444/rss/42',
+    'https://nordicbytes.org/rss/edit/42', 'https://nordicbytes.org/rss/create',
+    'https://nordicbytes.org/torrents/42', 'javascript:alert(1)',
+    'https://nordicbytes.org/rss?key='+'a'.repeat(4096)]) assert.throws(() => sourceLink(url));
+});
 
 test('reuse only the configured FjordSeed origin and preserve pending tab preference', () => {
   const address = 'http://192.168.1.110:8099/';

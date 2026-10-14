@@ -1,6 +1,22 @@
 export const MAX_BYTES = 4 * 1024 * 1024;
 export const MAX_AGE = 15 * 60 * 1000;
 
+export function rssLink(value) {
+  const url = new URL(value);
+  if (url.origin !== 'https://nordicbytes.org' || url.username || url.password ||
+      url.href.length > 4096 || !/^\/(?:torrents\/)?rss(?:\.(?:xml|php))?(?:\/|$)/i.test(url.pathname) ||
+      /\/(?:create|edit|delete|manage)(?:\/|$)/i.test(url.pathname)) {
+    throw Error('Vælg et RSS-feedlink fra nordicbytes.org.');
+  }
+  url.hash = '';
+  return url.href;
+}
+
+export function sourceLink(value) {
+  try { return {kind: 'torrent', url: torrentLink(value)}; }
+  catch { return {kind: 'rss', url: rssLink(value)}; }
+}
+
 export function torrentLink(value) {
   const url = new URL(value);
   if (url.origin !== 'https://nordicbytes.org' || url.username || url.password ||
@@ -68,6 +84,24 @@ export async function readTorrent(response) {
 }
 
 // Runs in the isolated extension world, in the configured FjordSeed tab only.
+export function showRss(url, transferId, expectedOrigin) {
+  if (location.origin !== expectedOrigin) return 'wrong-host';
+  const form = document.querySelector('#rss-form'), add = document.querySelector('#rss-new');
+  const input = document.querySelector('#rss-url'), dialog = document.querySelector('#rss-dialog');
+  if (!form || !add || !input || !dialog) return 'login';
+  if (form.dataset.fjordseedTransfer === transferId) return 'delivered';
+  if (document.querySelector('dialog[open]')) return 'busy';
+  location.hash = '#rss';
+  add.click();
+  if (!dialog.open) return 'incompatible';
+  input.value = url;
+  input.dispatchEvent(new Event('input', {bubbles: true}));
+  input.dispatchEvent(new Event('change', {bubbles: true}));
+  form.dataset.fjordseedTransfer = transferId;
+  document.querySelector('#rss-name')?.focus();
+  return 'delivered';
+}
+
 export async function showTorrent(base64, name, transferId, expectedOrigin) {
   if (location.origin !== expectedOrigin) return 'wrong-host';
   const form = document.querySelector('#add-form');

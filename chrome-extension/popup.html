@@ -1,13 +1,13 @@
 <!doctype html>
 <html lang="da"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>FjordSeed</title><link rel="stylesheet" href="popup.css"><script type="module" src="popup.js"></script></head>
-<body><header><img src="icon.png" width="42" height="42" alt=""><div><h1>FjordSeed</h1><p>Fra link til manuel download</p></div></header>
-<main><p>Højreklik på et downloadlink på NordicBytes og vælg <strong>Send til FjordSeed</strong>.</p>
+<body><header><img src="icon.png" width="42" height="42" alt=""><div><h1>FjordSeed</h1><p>Torrentlinks og RSS-feeds</p></div></header>
+<main><p>Højreklik på et downloadlink eller RSS-feed på NordicBytes og vælg <strong>Send til FjordSeed</strong>.</p>
 <form id="settings"><label for="address">Din FjordSeed-adresse</label>
 <input id="address" type="url" placeholder="https://seed.example.dk" required autocomplete="url">
 <button id="save" type="submit">Gem adresse</button></form>
 <p class="hint">Brug den adresse, du normalt åbner FjordSeed på. Du skal være logget ind på NordicBytes i Chrome.</p>
 <section aria-labelledby="status-title"><h2 id="status-title">Status</h2><p id="status" role="status">Klar til dit første link.</p>
-<div id="pending" hidden><button id="retry" type="button">Fortsæt i FjordSeed</button><button id="clear" type="button" class="quiet">Ryd ventende torrent</button></div></section>
-<p class="hint">Du vælger behold/slet og seeding i FjordSeed. Download starter først, når du trykker <strong>Start download</strong>.</p>
+<div id="pending" hidden><button id="retry" type="button">Fortsæt i FjordSeed</button><button id="clear" type="button" class="quiet">Ryd ventende link</button></div></section>
+<p class="hint">Du vælger indstillinger i FjordSeed. Torrents starter med <strong>Start download</strong>. RSS-feeds oprettes først med <strong>Gem feed</strong>.</p>
 </main></body></html>

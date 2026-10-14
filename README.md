@@ -218,6 +218,6 @@ Ved "Slet filerne" er seedinggrænsen 49 timer: 48 timer plus én times buffer. 
 
 ## Chrome extension
 
-`chrome-extension/` contains the Manifest V3 extension for the NordicBytes link context menu. It opens the existing manual torrent dialog; only the user can submit the final download. Installation instructions are in `chrome-extension/README.md`.
+`chrome-extension/` contains the Manifest V3 extension for the NordicBytes link context menu. Torrent links open the existing manual torrent dialog; RSS links open the add-feed dialog with the full address prefilled. The user confirms the download or saves the feed with their settings. RSS URLs are transferred through extension session storage without fetching the feed or placing its private parameters in the destination tab URL. Installation instructions are in `chrome-extension/README.md`.
 
 Build the downloadable ZIP with `python tools/package_chrome_extension.py`. It is served at `/static/fjordseed-chrome.zip` and linked from FjordSeed. Run `node --test tests/test_chrome_extension.mjs` and `python tests/browser_extension_check.py` to verify validation and the isolated browser handoff without contacting a tracker.
