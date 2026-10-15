@@ -118,3 +118,20 @@ python tests/browser_check.py
 `tests/container_check.py` runs in the app image with `--network none` and exercises real client configuration/readiness without downloads. A live Proton end-to-end test needs a dedicated test profile: verify exit IP, perform a permitted test transfer and verify stopping VPN stops traffic. Isolated fixtures are not proof of every real tunnel.
 
 References: [Gluetun container networking](https://github.com/qdm12/gluetun-wiki/blob/main/setup/connect-a-container-to-gluetun.md), [qBittorrent Web API](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-%28qBittorrent-5.0%29).
+
+
+### FjordHub Matrix notifications and daily downloads
+
+When managed by FjordHub, the existing torrent status poll reports actual
+transitions to active downloading for RSS-tagged torrents, including the file
+name and RSS feed name. A start push is sent only once per torrent, not whenever
+the application is refreshed or restarted. Completion of RSS or manually added
+torrents is also recorded in FjordHub, allowing the Matrix bot to answer
+questions such as "Er der downloadet noget nyt i dag?" without pushing a
+notification for every completion. Previously existing torrents are
+baselined on the first healthy poll to prevent an alert storm.
+
+The `event_notifier.py` durable queue survives restarts, deduplicates
+events, and retries when FjordHub is unavailable. Only the existing managed
+`FJORDHUB_URL`/`FJORDHUB_API_KEY` credentials are used. Update FjordHub
+before FjordSeed.

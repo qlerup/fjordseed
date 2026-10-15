@@ -14,6 +14,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from hub import Hub, HubError
 from runtime import Runtime
+from event_notifier import EventNotifier
 from qbit_rpc import share_policy, extra_seed_hours
 from trackers import Trackers
 from torrent_meta import torrent_meta, magnet_meta
@@ -39,12 +40,13 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         atomic(state.root/'initial-login.txt', password + '\n')
     runtime = runtime_factory(state)
     stop = threading.Event()
+    notifier = EventNotifier(state.root, hub, 'fjordseed')
     trackers = Trackers(state.root)
     covers = Covers(state.root)
     trackers.benefits.publish_green()
     rss = Rss(state.root)
     rss_gate = RssGate(rss,runtime,state,trackers.benefits)
-    app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers, rss=rss, covers=covers)
+    app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers, rss=rss, covers=covers, event_notifier=notifier)
     failures, auth_lock = {}, threading.Lock()
     allowed_hosts = {'localhost','127.0.0.1'} | set(filter(None, os.environ.get('UI_ALLOWED_HOSTS','').split(',')))
 
@@ -451,6 +453,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                     # Dates for RSS downloads must be discovered with no open UI.
                     with state.lock:
                         result=runtime.status()
+                    if result.get('torrents_available'):
+                        notifier.observe_seed(result.get('torrents', []), rss.entries())
                     for row in result.get('torrents',[]):
                         trackers.benefits.snapshot({'hashes':[row.get(k) for k in ('hash','infohash_v1','infohash_v2')],
                             'name':row.get('name','')})
@@ -461,6 +465,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
 
     if not testing:
         threading.Thread(target=worker, daemon=True).start()
+        threading.Thread(target=notifier.run, args=(stop,), daemon=True).start()
         threading.Thread(target=trackers.run, args=(stop,), daemon=True).start()
         threading.Thread(target=trackers.benefits.run, args=(stop,), daemon=True).start()
         threading.Thread(target=covers.run, args=(stop,), daemon=True).start()
