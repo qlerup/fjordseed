@@ -163,6 +163,9 @@ async function refreshRss(){
    const result=await api('/api/rss');
    if(rssToggleBusy.size)return;
    rssFeeds=result.feeds;rssRoot=result.download_path;updateRssPath();
+   const summary=rssFeeds.length+' feeds · '+rssFeeds.filter(feed=>feed.enabled).length+' tændt';
+   $('#rss-feed-summary').textContent=summary;
+   $('#rss-feeds-summary').textContent=summary;
    const focused=document.activeElement?.dataset,key=focused?.rssToggle,control=focused?.rssToggleControl;
    $('#rss-feed-list').replaceChildren(...(rssFeeds.length?rssFeeds.map(rssFeedCard):[node('p','empty','Ingen RSS-feeds tilføjet endnu.')]));
    if(key)for(const button of document.querySelectorAll('[data-rss-toggle]'))if(button.dataset.rssToggle===key&&button.dataset.rssToggleControl===control){button.focus({preventScroll:true});break;}
@@ -173,6 +176,8 @@ async function refreshRss(){
 }
 
 $('#rss-new').onclick=()=>openRssForm();
+$('#rss-feeds-add').onclick=()=>openRssForm();
+$('#rss-manage').onclick=()=>{$('#rss-feeds-dialog').showModal();refreshRss();};
 $('#rss-history-dialog').addEventListener('close',()=>rssHistoryGeneration++);
 $('#rss-folder').oninput=updateRssPath;
 $('#rss-start').onchange=updateRssStart;

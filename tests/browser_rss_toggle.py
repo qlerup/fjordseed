@@ -35,6 +35,10 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
             page.get_by_role('button',name='Log ind').click()
             page.locator('.nav[href="#rss"]').click()
+            expect(page.locator('#rss-feeds-dialog')).not_to_be_visible()
+            expect(page.locator('#rss-feed-summary')).to_have_text('2 feeds · 1 tændt')
+            page.locator('#rss-manage').click()
+            expect(page.locator('#rss-feeds-dialog')).to_be_visible()
             switch=page.get_by_role('switch',name='Automatisk hentning for Politijagt',exact=True)
             expect(switch).to_have_attribute('aria-checked','true')
             card=page.locator('.rss-feed-card').first
@@ -51,6 +55,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(switch).to_have_attribute('aria-checked','false')
             assert store.entries()[0]['enabled'] is False
             page.reload()
+            page.locator('#rss-manage').click()
             expect(switch).to_have_attribute('aria-checked','false')
             expect(card.locator('.rss-feed-upload-value')).to_have_text('6.3 GB')
             switch.focus()
@@ -69,6 +74,12 @@ with tempfile.TemporaryDirectory() as folder:
             assert store.entries()[0]['enabled'] is True
             expect(card.locator('.rss-feed-details')).to_be_visible()
             page.unroute(endpoint)
+            # A feed editor opens above the list and returns to it after closing.
+            card.get_by_role('button',name='Rediger',exact=True).click()
+            expect(page.locator('#rss-dialog')).to_be_visible()
+            expect(page.locator('#rss-name')).to_have_value('Politijagt')
+            page.locator('#rss-dialog .close').click()
+            expect(page.locator('#rss-feeds-dialog')).to_be_visible()
             # A pending save disables repeat clicks and competing edit actions.
             pending=[]
             page.route(endpoint,lambda route:pending.append(route))
@@ -89,7 +100,14 @@ with tempfile.TemporaryDirectory() as folder:
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             switch.click()
             expect(switch).to_have_attribute('aria-checked','true')
+            expect(page.locator('#rss-feed-summary')).to_have_text('2 feeds · 1 tændt')
+            assert page.locator('#rss-feeds-dialog').evaluate('el=>el.scrollWidth<=el.clientWidth')
             page.screenshot(path=str(output/'rss-upload-mobile.png'),full_page=True)
+            page.keyboard.press('Escape')
+            expect(page.locator('#rss-feeds-dialog')).not_to_be_visible()
+            expect(page.locator('#rss-manage')).to_be_focused()
+            page.keyboard.press('Enter')
+            expect(page.locator('#rss-feeds-dialog')).to_be_visible()
             assert not errors,errors
             browser.close()
     finally:
