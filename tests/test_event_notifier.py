@@ -78,3 +78,16 @@ def test_manual_downloads_recorded_for_today_query_without_rss_tag(tmp_path):
     notifier.observe_seed([new], [])
     notifier.flush()
     assert hub.calls[-1][1]["type"] == "download_completed"
+
+
+def test_docker_includes_notifications_module():
+    from pathlib import Path
+    import shlex
+    root = Path(__file__).resolve().parents[1]
+    included = {line[1:].strip().rstrip("/") for line in
+                (root / ".dockerignore").read_text().splitlines() if line.startswith("!")}
+    for line in (root / "Dockerfile").read_text().splitlines():
+        if line.startswith("COPY ") and "--from=" not in line:
+            for source in shlex.split(line)[1:-1]:
+                assert (root / source).exists(), source
+                assert source.rstrip("/") in included, source
