@@ -67,6 +67,11 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             actual = request.headers.get('X-CSRF-Token') or request.form.get('csrf','')
             if not expected or not secrets.compare_digest(expected, actual):
                 return jsonify(error='Genindlæs siden og prøv igen.'),403
+        if request.endpoint == 'bot_seeding':
+            supplied = request.headers.get('X-Hub-Key', '')
+            if not hub.enabled or not hub.key or not secrets.compare_digest(hub.key, supplied):
+                return jsonify(ok=False, error='Ugyldig appnøgle.'), 403
+            return
         if request.endpoint in ('login','hub_login','static','health','logout'):
             return
         if session.get('authenticated') and hub.enabled:
@@ -188,6 +193,20 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             torrent['cover']=next((url for m in torrent['benefits'].get('matches',[])
                                   if (url:=covers.request(m.get('poster')))),None)
         return jsonify(result)
+
+    @app.get('/api/hub/bot/seeding')
+    def bot_seeding():
+        # A separate read-only projection: no session, paths, tracker URLs or keys.
+        with state.lock:
+            result = runtime.status()
+        if not result.get('torrents_available'):
+            return jsonify(ok=False, error='FjordSeed kan ikke hente torrentstatus lige nu.'), 503
+        fields = ('name', 'state', 'progress', 'upspeed', 'credited_ratio', 'ratio',
+                  'ratio_limit', 'ratio_only', 'seeding_time', 'seeding_time_limit',
+                  'seeding_unlimited', 'seeding_goal_reached', 'waiting_for_downloaders')
+        rows = result.get('torrents', [])
+        return jsonify(ok=True, total=len(rows), more=len(rows) > 500,
+                       torrents=[{k: row[k] for k in fields if k in row} for row in rows[:500]])
 
     @app.get('/api/covers/<ident>')
     def cover(ident):

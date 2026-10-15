@@ -135,3 +135,9 @@ The `event_notifier.py` durable queue survives restarts, deduplicates
 events, and retries when FjordHub is unavailable. Only the existing managed
 `FJORDHUB_URL`/`FJORDHUB_API_KEY` credentials are used. Update FjordHub
 before FjordSeed.
+
+### Torrent pages and bot status
+
+Manual and RSS download lists each show five torrents per page, with independent Previous/Next controls. Counts and transfer rates cover the entire list. The selected page survives status refreshes and clamps when torrents are removed.
+
+The FjordHub Matrix bot can read a dedicated live torrent summary using the existing app key at `GET /api/hub/bot/seeding`. Browser login alone does not grant this access. Only titles, transfer state, progress and seeding goal metrics are exposed; tracker URLs, paths and credentials are excluded. Both applications and the bot must be updated.

@@ -159,6 +159,30 @@ function card(t){const row=node('article','torrent'),head=node('div','torrent-he
  row.append(head,torrentProgress(t),panel);updateExpanded();return row;}
 function eta(seconds){if(!Number.isFinite(Number(seconds))||Number(seconds)<0||Number(seconds)>=8640000)return 'Ukendt tid tilbage';seconds=Math.round(seconds);if(seconds<60)return seconds+' sek. tilbage';if(seconds<3600)return Math.ceil(seconds/60)+' min. tilbage';return Math.floor(seconds/3600)+' t. '+Math.ceil((seconds%3600)/60)+' min. tilbage';}
 function renderDownloadLists(data){
+ const pages=renderDownloadLists.pages??={manual:1,rss:1};
+ function renderPage(items,key,listId){
+  const pageCount=Math.max(1,Math.ceil(items.length/5));
+  pages[key]=Math.max(1,Math.min(pages[key],pageCount));
+  const start=(pages[key]-1)*5,list=$('#'+listId);
+  list.replaceChildren(...items.slice(start,start+5).map(card));
+  if(typeof document==='undefined')return;
+  let pager=$('#'+key+'-pagination');
+  if(!pager&&pageCount<=1)return;
+  if(!pager){pager=node('nav','torrent-pagination');pager.id=key+'-pagination';pager.setAttribute('aria-label',key==='rss'?'Sider med RSS-downloads':'Sider med manuelle downloads');list.after(pager);}
+  const focused=document.activeElement?.dataset?.pageControl;
+  const previous=node('button','secondary','← Forrige'),next=node('button','secondary','Næste →');
+  previous.type=next.type='button';previous.disabled=pages[key]===1;next.disabled=pages[key]===pageCount;
+  previous.dataset.pageControl=key+'-previous';next.dataset.pageControl=key+'-next';
+  previous.onclick=()=>{pages[key]--;renderDownloadLists(data);};
+  next.onclick=()=>{pages[key]++;renderDownloadLists(data);};
+  const label=node('span','muted small','Side '+pages[key]+' af '+pageCount+' · '+(items.length?start+1:0)+'–'+Math.min(start+5,items.length)+' af '+items.length);
+  label.setAttribute('aria-live','polite');
+  pager.replaceChildren(previous,label,next);pager.hidden=pageCount<=1;
+  if(focused===previous.dataset.pageControl||focused===next.dataset.pageControl){
+   const target=focused===previous.dataset.pageControl?previous:next;
+   (target.disabled?(target===previous?next:previous):target).focus({preventScroll:true});
+  }
+ }
  const queue=data.download_queue||{active:data.torrents.filter(t=>['downloading','stalledDL','forcedDL','metaDL','forcedMetaDL'].includes(t.state)).length,
   waiting:data.torrents.filter(t=>t.state==='queuedDL').length,limit:8};
  if($('#shared-download-count')){
@@ -171,8 +195,8 @@ function renderDownloadLists(data){
  const focusedControl=typeof document!=='undefined'?document.activeElement?.dataset?.torrentToggleControl:undefined;
  const newestFirst=data.torrents.slice().sort((a,b)=>(Number(b.added_on)||0)-(Number(a.added_on)||0));
  const manual=newestFirst.filter(t=>!t.rss_feed),rss=newestFirst.filter(t=>t.rss_feed);
- $('#torrent-list').replaceChildren(...manual.map(card));$('#empty').hidden=manual.length>0;
- $('#rss-torrent-list').replaceChildren(...rss.map(card));$('#rss-empty').hidden=rss.length>0;$('#rss-count').textContent=rss.length;
+ renderPage(manual,'manual','torrent-list');$('#empty').hidden=manual.length>0;
+ renderPage(rss,'rss','rss-torrent-list');$('#rss-empty').hidden=rss.length>0;$('#rss-count').textContent=rss.length;
  if(focusedToggle)for(const button of document.querySelectorAll('[data-torrent-toggle]'))if(button.dataset.torrentToggle===focusedToggle&&button.dataset.torrentToggleControl===focusedControl){button.focus({preventScroll:true});break;}
  for(const [items,prefix] of [[manual,''],[rss,'rss-']])for(const [field,id] of [['dlspeed','dl'],['upspeed','ul']])$('#'+prefix+id).textContent=size(items.reduce((sum,t)=>sum+(Number(t[field])||0),0))+'/s';
  if(data.torrents_available===false){
