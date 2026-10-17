@@ -205,6 +205,15 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                   'ratio_limit', 'ratio_only', 'seeding_time', 'seeding_time_limit',
                   'seeding_unlimited', 'seeding_goal_reached', 'waiting_for_downloaders')
         rows = result.get('torrents', [])
+        activity = request.args.get('activity', 'all')
+        if activity not in {'all', 'seeding', 'downloading'}:
+            return jsonify(ok=False, error='Ugyldig aktivitet'), 400
+        if activity == 'seeding':
+            rows = [row for row in rows if row.get('state') in {'uploading', 'stalledUP', 'forcedUP'}]
+        elif activity == 'downloading':
+            rows = [row for row in rows if row.get('state') in
+                    {'downloading', 'forcedDL', 'stalledDL', 'metaDL', 'forcedMetaDL'}
+                    and isinstance(row.get('progress'), (int, float)) and row['progress'] < 1]
         return jsonify(ok=True, total=len(rows), more=len(rows) > 500,
                        torrents=[{k: row[k] for k in fields if k in row} for row in rows[:500]])
 
