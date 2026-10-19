@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
                 page.screenshot(path=str(screenshots/f'storage-picker-{width}.png'))
                 page.locator('#storage-select').click()
                 expect(page.locator('#storage-dialog')).not_to_be_visible()
-                expect(page.locator('#storage-buffer')).to_contain_text('fjordflix-media/.fjordseed-buffer')
+                expect(page.locator('#storage-buffer')).to_contain_text('fjordflix-media/.incomplete')
                 page.screenshot(path=str(screenshots/f'storage-{width}.png'))
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
                 page.reload()

@@ -137,9 +137,10 @@ def test_removal_retains_files_but_readd_uses_current_destination(tmp_path,monke
     assert Path(ds.prepare(['a'*40])).is_relative_to(tmp_path/'new')
 
 
-def test_rss_cannot_publish_into_reserved_buffer():
+@pytest.mark.parametrize('buffer_name',['.incomplete','.fjordseed-buffer'])
+def test_rss_cannot_publish_into_reserved_buffer(buffer_name):
     from rss import folder_path
-    with pytest.raises(ValueError):folder_path('film/.fjordseed-buffer')
+    with pytest.raises(ValueError):folder_path('film/'+buffer_name)
 
 
 def test_storage_selection_retains_previous_mounts_and_checks_writable(tmp_path):
@@ -160,7 +161,7 @@ def test_storage_selection_retains_previous_mounts_and_checks_writable(tmp_path)
     r.stop.assert_not_called()
 
 
-@pytest.mark.parametrize('path',['/etc','/mnt','/mnt/pool/../other','/mnt/pool/.fjordseed-buffer','/srv/a\n','/opt/data',None])
+@pytest.mark.parametrize('path',['/etc','/mnt','/mnt/pool/../other','/mnt/pool/.fjordseed-buffer','/mnt/pool/.incomplete','/srv/a\n','/opt/data',None])
 def test_reject_invalid_roots_before_docker(tmp_path,path):
     storage=Storage(Mock(state=State(tmp_path)))
     storage.helper=Mock()
@@ -174,7 +175,7 @@ def test_storage_api_auth_csrf_and_global_admin(tmp_path,monkeypatch):
     assert app.test_client().get('/api/storage').status_code==401
     client,headers=login(app)
     assert client.post('/api/storage',json={'path':'/mnt/media'}).status_code==403
-    assert client.get('/api/storage').json['buffer']=='/downloads/.fjordseed-buffer'
+    assert client.get('/api/storage').json['buffer']=='/downloads/.incomplete'
     hub=app.extensions['hub'];hub.enabled=True
     hub.current=Mock(return_value={'id':1,'role':'admin','hub_role':'user'})
     with client.session_transaction() as session:session['hub_uid']=1

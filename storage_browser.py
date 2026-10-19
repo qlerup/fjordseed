@@ -107,7 +107,7 @@ def create(root, relative):
 
 def writable():
     import tempfile
-    folder = Path('/folder/.fjordseed-buffer')
+    folder = Path('/folder/.incomplete')
     if folder.is_symlink():
         raise ValueError('Buffermappen må ikke være et link.')
     folder.mkdir(mode=0o755, exist_ok=True)

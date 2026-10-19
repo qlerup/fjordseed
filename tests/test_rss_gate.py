@@ -116,7 +116,7 @@ def test_ratio_only_rss_add_stays_in_buffer_and_persists_goal(gate):
     options=next(d for p,d in calls if p=='torrents/add')
     assert options['shareLimitAction']=='RemoveWithContent'
     assert options['seedingTimeLimit']==-1
-    assert Path(options['savepath']).parent==root/'downloads'/'.fjordseed-buffer'
+    assert Path(options['savepath']).parent==root/'downloads'/'.incomplete'
     with CreditLedger().transaction() as ledger:
         assert ledger.update({'hash':candidate['meta']['hashes'][0],'state':'downloading'})['ratio_only'] is True
 
@@ -132,7 +132,7 @@ def test_skip_old_and_undated_before_metadata_then_add_boundary_and_future(gate)
     added=next(d for p,d in calls if p=='torrents/add')
     assert f'{4:040x}' in added['urls'] and added['forceStart']=='false'
     assert added['ratioLimit']==-1 and added['seedingTimeLimit']==-1 and added['shareLimitAction']=='Stop'
-    assert added['tags']=='FjordSeed-RSS-'+entry['id'] and __import__('pathlib').Path(added['savepath']).parent==root/'downloads'/'.fjordseed-buffer'
+    assert added['tags']=='FjordSeed-RSS-'+entry['id'] and __import__('pathlib').Path(added['savepath']).parent==root/'downloads'/'.incomplete'
     articles[3]['torrentURL']='https://tracker.example/3'
     next_candidate=invoke('rss_prepare');resolve(invoke,next_candidate)
     assert fetched==['https://tracker.example/3','https://tracker.example/4']

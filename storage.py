@@ -24,7 +24,7 @@ class Storage:
         selected = next((p for p in settings['locations'] if p['id'] == settings['selected']), None)
         path = selected['path'] if selected else str(self.runtime.host_downloads)
         enabled=buffer_enabled(self.runtime.state.get().get('streaming',{}))
-        return {**settings, 'path':path, 'buffer':path.rstrip('/')+'/.fjordseed-buffer' if enabled else None,
+        return {**settings, 'path':path, 'buffer':path.rstrip('/')+'/.incomplete' if enabled else None,
                 'streaming_enabled':enabled}
 
     def helper(self, action, value='', source='/'):
@@ -47,7 +47,7 @@ class Storage:
 
     def select(self, path):
         if (not isinstance(path,str) or len(path)>1024 or any(ord(c)<32 for c in path)
-                or '..' in PurePosixPath(path).parts or '.fjordseed-buffer' in PurePosixPath(path).parts
+                or any(p in ('..','.incomplete','.fjordseed-buffer') for p in PurePosixPath(path).parts)
                 or not any(path.startswith(p+'/') for p in ROOTS)):
             raise ValueError('Vælg en mediemappe under /mnt, /media eller /srv.')
         path = str(PurePosixPath(path))

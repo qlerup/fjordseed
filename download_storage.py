@@ -13,7 +13,7 @@ from state import atomic
 
 CONFIG = Path('/config')
 SETTINGS = Path('/rpc/download-settings.json')
-BUFFER = '.fjordseed-buffer'
+BUFFER = '.incomplete'
 PUBLISHING_MARKER = '.fjordseed-publishing'
 _lock = threading.RLock()
 

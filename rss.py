@@ -83,7 +83,7 @@ def date_matches(article, feed):
 
 def folder_path(folder, root=Path('/downloads')):
     if (not isinstance(folder,str) or len(folder)>240 or folder.startswith('/') or '\\' in folder
-            or any(part in ('.','..','.fjordseed-buffer') for part in folder.split('/')) or any(ord(c)<32 for c in folder)):
+            or any(part in ('.','..','.incomplete','.fjordseed-buffer') for part in folder.split('/')) or any(ord(c)<32 for c in folder)):
         raise ValueError('Vælg en undermappe i din downloadmappe, fx serier eller film/freeleech.')
     folder=folder.strip().strip('/')
     path=root / PurePosixPath(folder)

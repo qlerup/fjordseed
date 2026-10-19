@@ -42,6 +42,26 @@ def test_buffer_preference_survives_flix_toggle_and_invalid_values(tmp_path):
     assert r.state.path.read_text()==before
 
 
+def test_new_buffer_name_and_old_in_progress_downloads_are_preserved(tmp_path):
+    r=runtime(tmp_path)
+    assert Storage(r).public()['buffer']=='/mnt/downloads/.incomplete'
+    old=tmp_path/'downloads'/'.fjordseed-buffer'/('a'*32)
+    old.mkdir(parents=True)
+    record={'stage':str(old),'target':str(tmp_path/'downloads'/'Existing'),'published':False}
+    with ds.transaction() as entries:entries['a'*40]=record
+    assert ds.prepare(['a'*40],name='Existing')==str(old)
+    new=Path(ds.prepare(['b'*40],name='New'))
+    assert new.parent==tmp_path/'downloads'/'.incomplete'
+    assert ds.read(ds.CONFIG/'download-storage.json',{})['a'*40]==record
+
+
+@pytest.mark.parametrize('name',['.incomplete','.fjordseed-buffer'])
+def test_flix_connection_rejects_buffer_folders(name):
+    from streaming import safe_path
+    assert not safe_path('/mnt/Film/'+name)
+    assert not safe_path('/mnt/Film/'+name+'/Torrent')
+
+
 def test_api_cannot_disable_buffer_while_using_flix(tmp_path):
     app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
     app.extensions['runtime'].host_downloads=Path('/mnt/downloads')

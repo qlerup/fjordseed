@@ -26,7 +26,8 @@ print(json.dumps(data))
 def safe_path(value):
     return (isinstance(value,str) and len(value)<=1024 and value.startswith('/')
             and not any(ord(c)<32 for c in value) and '..' not in PurePosixPath(value).parts
-            and str(PurePosixPath(value))==value and '.fjordseed-buffer' not in PurePosixPath(value).parts)
+            and str(PurePosixPath(value))==value
+            and not any(p in ('.incomplete','.fjordseed-buffer') for p in PurePosixPath(value).parts))
 
 
 class Streaming:
