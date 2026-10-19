@@ -2,6 +2,17 @@
 
 A separate FjordHub seedbox with bundled qBittorrent. FjordVPN manages Proton profiles; installation starts no torrents. The interface currently uses Danish labels.
 
+The image bundles **qBittorrent 5.2.4**, built from the official release source
+with a pinned SHA-256 checksum on the same stable Alpine base as the app.
+Build tools stay in a separate stage; no Alpine edge packages are used.
+The first build takes longer because it compiles qBittorrent (two parallel jobs
+by default; `QBITTORRENT_BUILD_JOBS` can be set as a Docker build argument).
+Updating an existing installation requires rebuilding and recreating the app
+(`docker compose up -d --build` for standalone installations); its worker then
+uses the new image. Keep the existing data/download directories to retain
+torrents, resume data and settings. For rollback, retain the previous app image
+and back up the data directory before updating.
+
 ## Installation
 
 1. Install/update FjordVPN on the same Docker host.
