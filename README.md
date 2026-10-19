@@ -73,6 +73,18 @@ Add a NordicBytes account with a read-capable API key. Cards show account upload
 
 Exact info-hash matches determine benefits; torrent announce URLs are never called for metadata lookup. Searches are bounded to 50 results/page and three pages per name variant, cached five minutes. V1, pure v2 SHA-256 and hybrid hashes are supported. Featured entries are interpreted as 100% freeleech/double upload according to the [NordicBytes definition](https://github.com/Prowlarr/Indexers/blob/master/definitions/v11/nordicbytes.yml). Unknown benefits do not block ordinary downloads; configured RSS badge requirements do.
 
+NordicBytes global freeleech is also checked through the account API's typed
+`global_freeleech` events. Fresh account data (refreshed every minute, accepted
+for at most two minutes) and a valid future expiry are required. The preview
+shows a Global freeleech badge and local expiry time, and uses 100% freeleech
+in its ratio estimate while active. This does not grant double upload. The
+torrent's own discount is retained underneath; global events are re-evaluated
+even for cached lookups and saved torrent cards, and are never frozen into
+saved benefits. RSS freeleech filters also recheck expiry before starting.
+Failed/stale account reads do not grant a global discount. The estimate applies
+to the current event window; downloads continuing after it expires can count
+toward account download again.
+
 Manual additions can estimate account ratio after a full download: `upload / (recorded download + torrent size × (1 − freeleech / 100))`. File size comes from torrent metadata or an exact tracker match. Full freeleech adds no download charge; unknown freeleech is treated conservatively as ordinary download. Account data must be at most ten minutes old. A chosen account can be used with file size when benefits are unknown. Estimated ratio ≤ 0.5 warns without blocking. Future uploads/other downloads/benefit changes are excluded; double upload only contributes when uploaded. This is distinct from the per-torrent seeding goal.
 
 Manual and RSS cards use NordicBytes `meta.poster` from an exact hash match, with no separate title service/key. Existing torrents get asynchronous cover lookup without changing seeding state. Allowed images are fetched without tracker credentials and served locally to authenticated users. The temporary `DATA_DIR/cover-cache` is limited to 64 MiB, 2 MiB/image, 24-hour refresh and seven-day cleanup; failures keep normal cards/downloads.

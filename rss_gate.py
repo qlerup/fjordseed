@@ -16,6 +16,7 @@ from rss import PREFIX, validate_feed, folder_path, date_matches, title_matches,
 from state import atomic
 from torrent_meta import magnet_meta, torrent_meta
 from qbit_rpc import seed_ratio, initial_managed_ratio
+from benefits import effective_freeleech
 
 
 def fingerprint(feed):
@@ -32,7 +33,7 @@ def badges_match(result,feed,now=None):
     if result.get('status')!='matched' or type(stamp) not in (int,float) or not 0<=now-stamp<30:
         return False
     return any(m.get('tracker_id')==feed['tracker_id'] and all(
-        type(m.get(b)) in (int,float) and m[b]==100 if b=='freeleech' else m.get(b) is True
+        type(effective_freeleech(m,now)) in (int,float) and effective_freeleech(m,now)==100 if b=='freeleech' else m.get(b) is True
         for b in badges) for m in result.get('matches',[]))
 
 

@@ -126,7 +126,10 @@ class Trackers:
         events = data.get('events', {})
         events = events.get('global', []) if isinstance(events,dict) else []
         return {'username':str(data.get('username',''))[:80], 'stats':stats,
-                'events':[{'title':str(event.get('title',''))[:200], 'ends_at':str(event.get('ends_at',''))[:40]}
+                'events':[{'title':str(event.get('title') or ('Global freeleech' if event.get('type')=='global_freeleech' else ''))[:200],
+                           'type':str(event.get('type',''))[:80],
+                           'starts_at':str(event.get('starts_at',''))[:40],
+                           'ends_at':str(event.get('ends_at',''))[:40]}
                           for event in events[:20] if isinstance(event,dict)] if isinstance(events,list) else []}
 
     def refresh(self):

@@ -8,9 +8,28 @@ import queue
 import re
 import threading
 import time
+from datetime import datetime
 from state import atomic
 from green_credit import policy_from_result
 from covers import poster_url
+
+
+def event_timestamp(value):
+    parsed=datetime.fromisoformat(value.replace('Z','+00:00'))
+    if parsed.tzinfo is None:
+        raise ValueError('Event timezone missing')
+    return parsed.timestamp()
+
+
+def effective_freeleech(match,now=None):
+    if match.get('global_freeleech') is not True:
+        return match.get('freeleech')
+    try:
+        if event_timestamp(match['global_freeleech_ends_at'])>(time.time() if now is None else now):
+            return 100
+    except (KeyError,TypeError,ValueError,OverflowError,AttributeError):
+        pass
+    return match.get('torrent_freeleech')
 
 
 def byte_size(value):
@@ -37,7 +56,7 @@ def ratio_estimate(match,account,size,now=None):
     uploaded,downloaded=stats.get('uploaded'),stats.get('downloaded')
     if any(type(n) not in (int,float) or not math.isfinite(n) or not 0<=n<=2**63-1 for n in (uploaded,downloaded)):
         return {**result,'message':'Ratio kan ikke beregnes: upload/download-tal mangler.'}
-    free=match.get('freeleech')
+    free=effective_freeleech(match,now)
     known=type(free) in (int,float) and free in (0,25,50,75,100)
     charged=size*(1-(free if known else 0)/100)
     denominator=downloaded+charged
@@ -66,6 +85,51 @@ class Benefits:
         except (OSError,ValueError):
             self.snapshots={}
         self.snapshot_pending=set()
+
+    @staticmethod
+    def without_global(result):
+        result=copy.deepcopy(result)
+        for match in result.get('matches',[]):
+            if 'torrent_freeleech' in match:
+                match['freeleech']=match.pop('torrent_freeleech')
+            match.pop('global_freeleech',None)
+            match.pop('global_freeleech_ends_at',None)
+        return result
+
+    def with_global(self,result,now=None):
+        """Overlay current account events without freezing them into torrent history."""
+        result=self.without_global(result)
+        now=time.time() if now is None else now
+        with self.trackers.lock:
+            accounts=copy.deepcopy(self.trackers.cache)
+        for match in result.get('matches',[]):
+            account=accounts.get(match.get('tracker_id'),{})
+            if 'events' not in account:
+                continue
+            stamp=account.get('updated_at')
+            match['torrent_freeleech']=match.get('freeleech')
+            match['global_freeleech']=None
+            if (account.get('status')!='ok' or type(stamp) not in (int,float)
+                    or not 0<=now-stamp<=120 or not isinstance(account.get('events'),list)):
+                continue
+            ends=[];invalid=False
+            for event in account['events']:
+                if not isinstance(event,dict) or event.get('type')!='global_freeleech':
+                    continue
+                try:
+                    end=event_timestamp(event['ends_at'])
+                    start=event_timestamp(event['starts_at']) if event.get('starts_at') else None
+                    if start is not None and start>=end:
+                        raise ValueError('Invalid event interval')
+                    if end>now and (start is None or start<=now):
+                        ends.append((end,event['ends_at']))
+                except (KeyError,TypeError,ValueError,OverflowError,AttributeError):
+                    invalid=True
+            match['global_freeleech']=True if ends else None if invalid else False
+            if ends:
+                match['freeleech']=100
+                match['global_freeleech_ends_at']=max(ends)[1]
+        return result
 
     def publish_green(self):
         """Only verified dates and an enable flag cross into the VPN worker."""
@@ -97,6 +161,7 @@ class Benefits:
         """Freeze display data only; RSS approval keeps using fresh request()."""
         if result.get('status')=='pending':
             return
+        result=self.without_global(result)
         hashes=self.hashes(meta)
         if not hashes:
             return
@@ -125,7 +190,7 @@ class Benefits:
             if saved is not None and not self.needs_date(saved):
                 active={e['id'] for e in self.trackers.entries() if e.get('provider')=='nordicbytes'}
                 if all('poster' in m or m.get('tracker_id') not in active for m in saved.get('matches',[])):
-                    return copy.deepcopy(saved)
+                    return self.with_global(saved)
         if not str(meta.get('name','')).strip():
             return {'status':'unknown','message':'Afventer torrentoplysninger.'}
         with self.lock:
@@ -133,7 +198,7 @@ class Benefits:
         result=self.request(meta,priority=1)
         self.remember(meta,result)
         with self.lock:
-            return copy.deepcopy(next((self.snapshots[h] for h in hashes if h in self.snapshots),result))
+            return self.with_global(next((self.snapshots[h] for h in hashes if h in self.snapshots),result))
 
     def request(self, meta, selected='', priority=0, max_age=300):
         hashes=tuple(sorted({h.lower() for h in meta.get('hashes',[]) if isinstance(h,str) and re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',h)}))
@@ -150,7 +215,7 @@ class Benefits:
             cached=self.cache.get(key)
             promote=cached and cached['result']['status']=='pending' and priority<cached['priority']
             if cached and not promote and (cached['result']['status']=='pending' or time.time()-cached['at']<max_age):
-                return cached['result']
+                return self.with_global(cached['result'])
             result={'status':'pending','message':'Slår trackerfordele op…'}
             if priority>0 and self.jobs.qsize()>=150:
                 return result

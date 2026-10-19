@@ -12,6 +12,12 @@ function benefitView(data){
  for(const match of data.matches||[]){
   const group=node('div','benefit-group');group.append(node('span','benefit-tracker',match.tracker_name));
   if(match.freeleech>0)group.append(node('span','benefit-badge',match.freeleech+' % Freeleech'));
+  if(match.global_freeleech===true){
+   const until=new Date(match.global_freeleech_ends_at);
+   group.append(node('span','benefit-badge','Global freeleech'));
+   if(!Number.isNaN(until.getTime()))group.append(node('span','muted small','Gælder indtil '+until.toLocaleString('da-DK')));
+  }
+  if(match.global_freeleech===null)group.append(node('span','muted small','Global freeleech kunne ikke bekræftes.'));
   if(match.double_upload===true)group.append(node('span','benefit-badge double','Dobbelt upload'));
   if(match.featured)group.append(node('span','benefit-badge','Featured'));
   if(match.internal)group.append(node('span','benefit-badge subtle','Internal'));
