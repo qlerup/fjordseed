@@ -17,6 +17,7 @@ from runtime import Runtime
 from event_notifier import EventNotifier
 from qbit_rpc import share_policy, extra_seed_hours
 from trackers import Trackers
+from tracker_providers import PROVIDERS
 from torrent_meta import torrent_meta, magnet_meta
 from rss import Rss,write_snapshot,validate_feed
 from rss_gate import RssGate
@@ -178,7 +179,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
 
     @app.get('/')
     def index():
-        return render_template('index.html',csrf=session['csrf'])
+        return render_template('index.html',csrf=session['csrf'],tracker_providers=PROVIDERS)
 
     @app.get('/api/status')
     def status():
@@ -374,10 +375,11 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                     from urllib.parse import urlsplit
                     with trackers.lock:
                         tracker=next((e for e in trackers.entries() if e['id']==validated['tracker_id']),None)
-                        if not tracker or tracker['provider']!='nordicbytes':
-                            raise ValueError('Vælg en NordicBytes-tracker til badgekontrol.')
-                        if urlsplit(validated['url']).hostname not in ('nordicbytes.org','www.nordicbytes.org'):
-                            raise ValueError('Badgekontrol understøttes aktuelt for NordicBytes-feeds.')
+                        provider=PROVIDERS.get(tracker['provider']) if tracker else None
+                        if not provider:
+                            raise ValueError('Vælg en understøttet tracker til badgekontrol.')
+                        if urlsplit(validated['url']).hostname not in provider['hosts']:
+                            raise ValueError('RSS-feedet skal høre til den valgte tracker.')
                         if validated['enabled'] and not trackers.badge_ready(tracker['id']):
                             raise ValueError('Trackerens API-adgang skal være aktiv, før feedet kan startes med badgekrav.')
                 ident=rss.save(merged)

@@ -10,8 +10,8 @@ import requests
 
 from state import atomic
 from benefits import Benefits
+from tracker_providers import PROVIDERS
 
-PROVIDERS = {'nordicbytes': {'name':'NordicBytes', 'url':'https://nordicbytes.org/api/user'}}
 STAT_FIELDS = ('uploaded','downloaded','ratio','buffer','seeding','leeching','seedbonus',
                'hit_and_runs','seeding_size','total_uploads')
 
@@ -38,7 +38,7 @@ class Trackers:
         with self.lock:
             status=self.cache.get(ident,{})
             return (status.get('status')=='ok' and 0<=time.time()-status.get('updated_at',0)<600
-                    and any(e['id']==ident and e['provider']=='nordicbytes' and e.get('api_key') for e in self.entries()))
+                    and any(e['id']==ident and e['provider'] in PROVIDERS and e.get('api_key') for e in self.entries()))
 
     def public(self):
         with self.lock:
@@ -91,6 +91,9 @@ class Trackers:
 
     @staticmethod
     def read_json(entry, url, params=None):
+        provider = PROVIDERS.get(entry.get('provider'))
+        if not provider or url not in (provider['url'], provider['torrents_url']):
+            raise TrackerError('API-adressen passer ikke til den valgte tracker.')
         with requests.Session() as client:
             client.trust_env = False
             with client.get(url, params=params,

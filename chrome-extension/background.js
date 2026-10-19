@@ -1,4 +1,4 @@
-import {sourceLink, seedAddress, permissionOrigin, readTorrent, showTorrent, showRss, selectSeedTab, MAX_AGE} from './common.mjs';
+import {sourceLink, seedAddress, permissionOrigin, readTorrent, showTorrent, showRss, selectSeedTab, MAX_AGE, TRACKER_ORIGINS} from './common.mjs';
 
 const MENU = 'send-fjordseed';
 let working = false;
@@ -14,8 +14,7 @@ async function status(message, error = false) {
 chrome.runtime.onInstalled.addListener(async () => {
   await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({id: MENU, title: 'Send til FjordSeed', contexts: ['link'],
-    targetUrlPatterns: ['https://nordicbytes.org/torrents/download/*',
-      'https://nordicbytes.org/rss*', 'https://nordicbytes.org/torrents/rss*']});
+    targetUrlPatterns: Object.keys(TRACKER_ORIGINS).flatMap(origin => [origin+'/torrents/download/*', origin+'/rss*', origin+'/torrents/rss*'])});
 });
 
 async function destination() {
@@ -53,18 +52,19 @@ async function begin(link) {
       // RSS URLs can contain passkeys: never put them in the destination URL or fetch them here.
       item = {id: crypto.randomUUID(), kind, seedUrl, url, created: Date.now()};
     } else {
-      await status('Henter torrentfilen fra NordicBytes…');
+      const trackerName = TRACKER_ORIGINS[new URL(url).origin];
+      await status('Henter torrentfilen fra '+trackerName+'…');
       let response;
       try {
         response = await fetch(url, {credentials: 'include', redirect: 'error', cache: 'no-store',
           signal: AbortSignal.timeout(20000)});
       } catch {
-        throw Error('Torrentfilen kunne ikke hentes. Kontrollér dit NordicBytes-login og prøv igen.');
+        throw Error('Torrentfilen kunne ikke hentes. Kontrollér dit '+trackerName+'-login og prøv igen.');
       }
-      const base64 = await readTorrent(response);
+      const base64 = await readTorrent(response, trackerName);
       const id = new URL(url).pathname.split('/').filter(Boolean).at(-1);
       // Keep metadata in session memory, not sync storage or the destination URL.
-      item = {id: crypto.randomUUID(), kind, seedUrl, base64, name: `NordicBytes-${id}.torrent`, created: Date.now()};
+      item = {id: crypto.randomUUID(), kind, seedUrl, base64, name: `${trackerName}-${id}.torrent`, created: Date.now()};
     }
     await chrome.storage.session.set({pending: item});
     const tab = await openDestination(seedUrl);

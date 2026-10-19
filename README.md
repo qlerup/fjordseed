@@ -100,11 +100,11 @@ cancelling the dialog.
 
 ## Tracker accounts, benefits and covers
 
-Add a NordicBytes account with a read-capable API key. Cards show account upload/download/ratio/buffer/seeding/bonus/warnings separately from local qBittorrent statistics. Refresh runs at most every five minutes and after configuration changes. Outages retain the last sample with timestamp/error. Keys are stored in `DATA_DIR/trackers.json`, mode 0600, never returned to the UI/worker. Blank key edits preserve the key; removing an account keeps torrents/files. Other providers need their own integration.
+Add a NordicBytes or Sagmire account with a read-capable API key. Both use the same account/torrent API format and support account statistics, exact-hash benefits, covers, global freeleech, Green accounting and RSS badge requirements. Provider destinations are fixed; each key is sent only to its own tracker. Cards show account upload/download/ratio/buffer/seeding/bonus/warnings separately from local qBittorrent statistics. Account refresh runs every minute and after configuration changes. Outages retain the last sample with timestamp/error. Keys are stored in `DATA_DIR/trackers.json`, mode 0600, never returned to the UI/worker. Blank key edits preserve the key; removing an account keeps torrents/files. Other providers need their own integration. Sagmire's matching API format is supplied by the operator; authenticated live behavior still requires the user's Sagmire API key.
 
 Exact info-hash matches determine benefits; torrent announce URLs are never called for metadata lookup. Searches are bounded to 50 results/page and three pages per name variant, cached five minutes. V1, pure v2 SHA-256 and hybrid hashes are supported. Featured entries are interpreted as 100% freeleech/double upload according to the [NordicBytes definition](https://github.com/Prowlarr/Indexers/blob/master/definitions/v11/nordicbytes.yml). Unknown benefits do not block ordinary downloads; configured RSS badge requirements do.
 
-NordicBytes global freeleech is also checked through the account API's typed
+NordicBytes and Sagmire global freeleech is also checked through the account API's typed
 `global_freeleech` events. Fresh account data (refreshed every minute, accepted
 for at most two minutes) and a valid future expiry are required. The preview
 shows a Global freeleech badge and local expiry time, and uses 100% freeleech
@@ -118,7 +118,7 @@ toward account download again.
 
 Manual additions can estimate account ratio after a full download: `upload / (recorded download + torrent size × (1 − freeleech / 100))`. File size comes from torrent metadata or an exact tracker match. Full freeleech adds no download charge; unknown freeleech is treated conservatively as ordinary download. Account data must be at most ten minutes old. A chosen account can be used with file size when benefits are unknown. Estimated ratio ≤ 0.5 warns without blocking. Future uploads/other downloads/benefit changes are excluded; double upload only contributes when uploaded. This is distinct from the per-torrent seeding goal.
 
-Manual and RSS cards use NordicBytes `meta.poster` from an exact hash match, with no separate title service/key. Existing torrents get asynchronous cover lookup without changing seeding state. Allowed images are fetched without tracker credentials and served locally to authenticated users. The temporary `DATA_DIR/cover-cache` is limited to 64 MiB, 2 MiB/image, 24-hour refresh and seven-day cleanup; failures keep normal cards/downloads.
+Manual and RSS cards use the selected tracker's `meta.poster` from an exact hash match, with no separate title service/key. Existing torrents get asynchronous cover lookup without changing seeding state. Allowed images are fetched without tracker credentials and served locally to authenticated users. The temporary `DATA_DIR/cover-cache` is limited to 64 MiB, 2 MiB/image, 24-hour refresh and seven-day cleanup; failures keep normal cards/downloads.
 
 Existing torrents can fetch tracker details and a missing poster after being
 added: open **Vis detaljer → Hent trackerdata igen**. This queues a fresh
@@ -151,7 +151,7 @@ Each feed also has an optional **maximum total torrent size**, entered in MB, GB
 
 Title filter has **Look for** and **Avoid** lists of plain fragments, not regexes. Any include matches unless that list is empty; exclusions always win. Matching normalizes case, punctuation, underscores, hyphens and spaces. Each list permits 50 fragments of 120 characters. Drag across lists, or select and Move/Remove selected for keyboard/mobile use. Apply transfers changes to the feed form; Save feed persists them. Filters run before metadata lookup and again before download. Missing titles are skipped when filters are configured; existing transfers are unaffected.
 
-Size/leecher filters belong in the tracker's RSS link. Seed's optional required badges are conjunctive: all selected badges must be confirmed on the same exact hash with a fresh account lookup. 100% Freeleech requires exactly 100%; Double upload, Featured, Internal and Refundable require confirmed flags. Unknown/error/stale responses do not start a badge-gated download. NordicBytes badge gating requires active API access and survives outages. With no badges, no badge restriction applies.
+Size/leecher filters belong in the tracker's RSS link. Seed's optional required badges are conjunctive: all selected badges must be confirmed on the same exact hash with a fresh account lookup. 100% Freeleech requires exactly 100%; Double upload, Featured, Internal and Refundable require confirmed flags. Unknown/error/stale responses do not start a badge-gated download. NordicBytes and Sagmire badge gating requires active API access and survives outages. With no badges, no badge restriction applies.
 
 Date filtering occurs before metadata retrieval. Entries without usable dates are skipped when a start date is set; all entries requires none. qBittorrent may substitute malformed RSS dates, so providers should publish proper dates. RSS does not itself require a tracker API key. History/pending metadata under `DATA_DIR/qbit/rss-*` must be backed up. Ambiguous add failures record the attempt to prevent duplicate downloads; inspect the client before repeating manually.
 
@@ -163,7 +163,7 @@ Existing visible torrents register on the next accounting pass. Already deleted 
 
 ## Green upload accounting
 
-An exact NordicBytes match uses the timezone-aware tracker `created_at`, not the local addition date. The conservative Green period is 24 hours plus 30 minutes. Upload during it receives half credit, later upload full credit: `credited upload = total uploaded − Green upload / 2`. A target of 1 needs local ratio 2 if all upload falls in that period. Expiry never retroactively doubles old credit. Verified own uploads are exempt; anonymous ownership stays conservative.
+An exact NordicBytes or Sagmire match uses the timezone-aware tracker `created_at`, not the local addition date. The conservative Green period is 24 hours plus 30 minutes. Upload during it receives half credit, later upload full credit: `credited upload = total uploaded − Green upload / 2`. A target of 1 needs local ratio 2 if all upload falls in that period. Expiry never retroactively doubles old credit. Verified own uploads are exempt; anonymous ownership stays conservative.
 
 The worker samples at least every ten seconds; an interval crossing expiry is fully half-credited. The atomic, process-locked ledger in `DATA_DIR/qbit/green-credit.json` retains targets/credits and must be backed up. Historic bytes cannot be precisely apportioned for older torrents; possible Green bytes are conservatively estimated. Torrents added after the period receive full credit.
 
@@ -171,7 +171,7 @@ Date checks also run for RSS without a browser. During pending verified-date loo
 
 ## Chrome extension
 
-The Manifest V3 [extension](chrome-extension/README.md) sends NordicBytes torrent/RSS links into an existing Seed tab. Torrent links open the normal manual dialog; RSS opens the feed form with its full address. Users confirm settings before starting/saving. Private parameters are handed off through extension session storage, never a destination URL, and RSS is not fetched by the extension.
+The Manifest V3 [extension](chrome-extension/README.md) sends NordicBytes/Sagmire torrent/RSS links into an existing Seed tab. Torrent links open the normal manual dialog; RSS opens the feed form with its full address. Users confirm settings before starting/saving. Private parameters are handed off through extension session storage, never a destination URL, and RSS is not fetched by the extension.
 
 Package with `python tools/package_chrome_extension.py`; the ZIP is served at `/static/fjordseed-chrome.zip`. Extension tests: `node --test tests/test_chrome_extension.mjs` and `python tests/browser_extension_check.py`.
 

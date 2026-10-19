@@ -9,6 +9,7 @@ import threading
 import time
 
 from state import atomic
+from tracker_providers import PROVIDERS
 
 CONFIG = Path('/config')
 POLICIES = Path('/rpc/green-policy.json')
@@ -29,7 +30,7 @@ def created_timestamp(value):
 
 def policy_from_result(result):
     dates = [created_timestamp(m.get('created_at')) for m in result.get('matches', [])
-             if m.get('tracker_provider') == 'nordicbytes' and not m.get('own_upload')]
+             if m.get('tracker_provider') in PROVIDERS and not m.get('own_upload')]
     dates = [date for date in dates if date is not None]
     return {'until': max(dates) + GREEN_SECONDS if dates else None,
             'known': result.get('status') != 'pending' and all('created_at' in m for m in result.get('matches', [])),

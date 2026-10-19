@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory() as folder:
             worker.evaluate('''() => {
               self.fetches = 0;
               self.fetch = async (url, options) => {
-                if (url !== 'https://nordicbytes.org/torrents/download/42') throw Error('Unexpected external request');
+                if (!['https://nordicbytes.org/torrents/download/42','https://sagmire.org/torrents/download/42'].includes(url)) throw Error('Unexpected external request');
                 if (options.credentials !== 'include' || options.redirect !== 'error') throw Error('Unsafe request');
                 self.fetches++;
                 return new Response('d4:infod6:lengthi1e4:name7:fixture12:piece lengthi16384e6:pieces20:aaaaaaaaaaaaaaaaaaaaee',
@@ -83,8 +83,9 @@ with tempfile.TemporaryDirectory() as folder:
             # A subsequent import reuses the same document instead of opening/reloading a tab.
             page.evaluate("window.reuseMarker = 'preserved'; location.hash = '#trackers'")
             before = len(context.pages)
-            worker.evaluate("() => self.fixtureBegin('https://nordicbytes.org/torrents/download/42')")
+            worker.evaluate("() => self.fixtureBegin('https://sagmire.org/torrents/download/42')")
             expect(page.locator('#ratio-dialog')).to_be_visible()
+            expect(page.locator('#ratio-source')).to_have_text('Sagmire-42.torrent')
             assert len(context.pages) == before
             assert page.evaluate('window.reuseMarker') == 'preserved'
             assert worker.evaluate("async () => (await chrome.tabs.query({active:true})).some(t => t.url.includes('#trackers'))")
@@ -94,7 +95,7 @@ with tempfile.TemporaryDirectory() as folder:
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             # RSS handoff retains the private URL only in the form/session,
             # does not fetch it, and waits for explicit feed settings and save.
-            rss_url = 'https://nordicbytes.org/rss/1283.'+'a'*32
+            rss_url = 'https://sagmire.org/rss/1283.'+'a'*32
             fetches = worker.evaluate('self.fetches')
             page.locator('.nav[href="#torrents"]').click()
             page.locator('#new-torrent').click()

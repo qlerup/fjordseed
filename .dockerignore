@@ -11,6 +11,7 @@
 !qbit_worker.py
 !torrent_port.py
 !trackers.py
+!tracker_providers.py
 !benefits.py
 !covers.py
 !torrent_meta.py

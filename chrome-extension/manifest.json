@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
   "name": "FjordSeed – Send links",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "minimum_chrome_version": "120",
-  "description": "Højreklik på et NordicBytes-downloadlink eller RSS-feed og åbn den relevante dialog i FjordSeed.",
+  "description": "Send torrentlinks og RSS-feeds fra NordicBytes og Sagmire til FjordSeed.",
   "icons": {"16": "icon.png", "48": "icon.png", "128": "icon.png"},
   "permissions": ["contextMenus", "storage", "scripting"],
-  "host_permissions": ["https://nordicbytes.org/*"],
+  "host_permissions": ["https://nordicbytes.org/*", "https://sagmire.org/*"],
   "optional_host_permissions": ["https://*/*", "http://*/*"],
   "background": {"service_worker": "background.js", "type": "module"},
   "action": {"default_title": "FjordSeed", "default_popup": "popup.html"}

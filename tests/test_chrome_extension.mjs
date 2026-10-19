@@ -2,6 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {torrentLink, rssLink, sourceLink, seedAddress, permissionOrigin, readTorrent, selectSeedTab, MAX_BYTES} from '../chrome-extension/common.mjs';
 
+test('Sagmire uses the same link rules with an exact HTTPS host allowlist', () => {
+  assert.equal(torrentLink('https://sagmire.org/torrents/download/42?key=test#fragment'), 'https://sagmire.org/torrents/download/42?key=test');
+  assert.deepEqual(sourceLink('https://sagmire.org/rss/42?key=private'), {kind:'rss',url:'https://sagmire.org/rss/42?key=private'});
+  for (const url of ['http://sagmire.org/torrents/download/42','https://sagmire.org.evil.test/torrents/download/42',
+    'https://sagmire.org:444/torrents/download/42','https://user:password@sagmire.org/torrents/download/42',
+    'https://sagmire.org/rss/edit/42']) assert.throws(() => sourceLink(url));
+  assert.throws(() => seedAddress('https://sagmire.org'));
+});
+
 test('RSS addresses preserve private query parameters and are classified without fetching', () => {
   for (const path of ['/rss/1283.'+'a'.repeat(32), '/rss/42?passkey=fixture&freeleech=1', '/rss?token=fixture', '/torrents/rss/42?key=fixture', '/rss.xml?key=fixture']) {
     const url = 'https://nordicbytes.org'+path;

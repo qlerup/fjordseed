@@ -18,7 +18,7 @@ $('#settings').onsubmit = async event => {
     if (!granted) throw Error('Giv adgang til FjordSeed for at kunne åbne dialogerne.');
     await chrome.storage.local.set({seedUrl: address});
     $('#address').value = address;
-    $('#status').textContent = 'Adressen er gemt. Højreklik nu på et NordicBytes-downloadlink eller RSS-feed.';
+    $('#status').textContent = 'Adressen er gemt. Højreklik nu på et NordicBytes eller Sagmire-downloadlink eller RSS-feed.';
   } catch (e) { $('#status').textContent = e.message; }
   finally { $('#save').disabled = false; }
 };

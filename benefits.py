@@ -12,6 +12,7 @@ from datetime import datetime
 from state import atomic
 from green_credit import policy_from_result, created_timestamp
 from covers import poster_url
+from tracker_providers import PROVIDERS
 
 
 def event_timestamp(value):
@@ -141,7 +142,10 @@ class Benefits:
         now=time.time() if now is None else now
         with self.trackers.lock:
             accounts=copy.deepcopy(self.trackers.cache)
+            providers={e['id']:e['provider'] for e in self.trackers.entries()}
         for match in result.get('matches',[]):
+            if match.get('tracker_provider') and match['tracker_provider'] != providers.get(match.get('tracker_id')):
+                continue
             account=accounts.get(match.get('tracker_id'),{})
             if 'events' not in account:
                 continue
@@ -188,7 +192,7 @@ class Benefits:
         ids={entry['id'] for entry in self.trackers.entries()}
         if ids and result.get('status') in ('unknown','unavailable'):
             return True
-        return any('created_at' not in m and (m.get('tracker_provider')=='nordicbytes' or m.get('tracker_id') in ids)
+        return any('created_at' not in m and (m.get('tracker_provider') in PROVIDERS or m.get('tracker_id') in ids)
                    for m in result.get('matches',[]))
 
     @staticmethod
@@ -270,7 +274,7 @@ class Benefits:
             entries=[e for e in self.trackers.entries() if not selected or e['id']==selected]
         if not entries:
             return {'status':'unknown','message':'Tilføj en tracker under Trackere for at se fordelene.'}
-        signature=tuple((e['id'],e['name'],hashlib.sha256(e['api_key'].encode()).hexdigest()) for e in entries)
+        signature=tuple((e['id'],e['name'],e['provider'],hashlib.sha256(e['api_key'].encode()).hexdigest()) for e in entries)
         key=(hashes,name,signature)
         with self.lock:
             cached=self.cache.get(key)
@@ -343,7 +347,7 @@ class Benefits:
                             if self.stop.wait(max(0,1-(time.monotonic()-self.last_request))):
                                 raise RuntimeError('Stopping')
                             self.last_request=time.monotonic()
-                        data=self.trackers.read_json(entry,'https://nordicbytes.org/api/torrents/filter',params)
+                        data=self.trackers.read_json(entry,PROVIDERS[entry['provider']]['torrents_url'],params)
                         rows=data.get('data',[]) if isinstance(data,dict) else []
                         if not isinstance(rows,list):
                             raise ValueError('Unknown tracker response')

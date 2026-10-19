@@ -1,12 +1,13 @@
 export const MAX_BYTES = 4 * 1024 * 1024;
 export const MAX_AGE = 15 * 60 * 1000;
+export const TRACKER_ORIGINS = {'https://nordicbytes.org':'NordicBytes', 'https://sagmire.org':'Sagmire'};
 
 export function rssLink(value) {
   const url = new URL(value);
-  if (url.origin !== 'https://nordicbytes.org' || url.username || url.password ||
+  if (!Object.hasOwn(TRACKER_ORIGINS, url.origin) || url.username || url.password ||
       url.href.length > 4096 || !/^\/(?:torrents\/)?rss(?:\.(?:xml|php))?(?:\/|$)/i.test(url.pathname) ||
       /\/(?:create|edit|delete|manage)(?:\/|$)/i.test(url.pathname)) {
-    throw Error('Vælg et RSS-feedlink fra nordicbytes.org.');
+    throw Error('Vælg et RSS-feedlink fra NordicBytes eller Sagmire.');
   }
   url.hash = '';
   return url.href;
@@ -19,9 +20,9 @@ export function sourceLink(value) {
 
 export function torrentLink(value) {
   const url = new URL(value);
-  if (url.origin !== 'https://nordicbytes.org' || url.username || url.password ||
+  if (!Object.hasOwn(TRACKER_ORIGINS, url.origin) || url.username || url.password ||
       !/^\/torrents\/download\/[1-9]\d*\/?$/.test(url.pathname)) {
-    throw Error('Vælg et torrent-downloadlink fra nordicbytes.org.');
+    throw Error('Vælg et torrent-downloadlink fra NordicBytes eller Sagmire.');
   }
   url.hash = '';
   return url.href;
@@ -33,7 +34,7 @@ export function seedAddress(value) {
       url.search || url.hash || url.pathname !== '/') {
     throw Error('Indtast FjordSeeds grundadresse, fx https://seed.example.dk eller http://192.168.1.110:8099.');
   }
-  if (url.hostname === 'nordicbytes.org') throw Error('Indtast adressen til FjordSeed.');
+  if (Object.hasOwn(TRACKER_ORIGINS, url.origin)) throw Error('Indtast adressen til FjordSeed.');
   return url.origin + '/';
 }
 
@@ -55,10 +56,10 @@ export function selectSeedTab(tabs, address, preferredId) {
     (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
 }
 
-export async function readTorrent(response) {
-  if (!response.ok) throw Error(`NordicBytes svarede med HTTP ${response.status}. Log ind på NordicBytes og prøv igen.`);
+export async function readTorrent(response, name = 'Trackeren') {
+  if (!response.ok) throw Error(`${name} svarede med HTTP ${response.status}. Log ind på trackeren og prøv igen.`);
   if (/text\/html|application\/json/i.test(response.headers.get('content-type') || '')) {
-    throw Error('NordicBytes sendte en side i stedet for en torrentfil. Log ind på NordicBytes og prøv igen.');
+    throw Error(`${name} sendte en side i stedet for en torrentfil. Log ind på trackeren og prøv igen.`);
   }
   if (Number(response.headers.get('content-length')) > MAX_BYTES) throw Error('Torrentfilen er større end 4 MiB.');
   if (!response.body) throw Error('Torrentfilen er tom.');

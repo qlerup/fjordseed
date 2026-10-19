@@ -15,6 +15,7 @@ import requests
 from rss import PREFIX, validate_feed, folder_path, date_matches, title_matches, size_matches
 from state import atomic
 from torrent_meta import magnet_meta, torrent_meta
+from tracker_providers import PROVIDERS
 from qbit_rpc import seed_ratio, initial_managed_ratio
 from benefits import effective_freeleech
 
@@ -209,6 +210,10 @@ class RssGate:
                         continue
                     with trackers.lock:
                         tracker=next((e for e in trackers.entries() if e['id']==feed['tracker_id']),None)
+                    provider=PROVIDERS.get(tracker['provider']) if tracker else None
+                    if not provider or urlsplit(feed['url']).hostname not in provider['hosts']:
+                        self.reports[feed['id']]='RSS-feedet og den valgte tracker passer ikke sammen. Ret trackerkontoen før download.'
+                        continue
                 candidate=self.runtime.rpc('rss_prepare',{'feed_id':feed['id'],'revision':fingerprint(feed)})
                 if candidate and candidate.get('size_skipped'):
                     self.reports[feed['id']]='Feedposter sprunget over: for store eller med ukendt størrelse. Kontrolleres igen senere.'
