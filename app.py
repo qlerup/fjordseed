@@ -431,6 +431,24 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                 pass
         return response
 
+    @app.post('/api/torrents/<ident>/refresh-metadata')
+    def refresh_torrent_metadata(ident):
+        if not re.fullmatch('[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):
+            return jsonify(error='Ugyldig torrent.'),400
+        with state.lock:
+            result=runtime.status()
+        if result.get('torrents_available') is False:
+            return jsonify(error='Torrentstatus er ikke tilgængelig lige nu.'),503
+        torrent=next((t for t in result.get('torrents',[]) if ident.lower() in
+                      [str(t.get(k,'')).lower() for k in ('hash','infohash_v1','infohash_v2')]),None)
+        if torrent is None:
+            return jsonify(error='Torrenten findes ikke.'),404
+        if not str(torrent.get('name','')).strip():
+            return jsonify(error='Afventer torrentens navn og metadata.'),409
+        meta={'hashes':[torrent.get(k) for k in ('hash','infohash_v1','infohash_v2')],
+              'name':torrent['name']}
+        return jsonify(ok=True,benefits=trackers.benefits.refresh_snapshot(meta))
+
     @app.post('/api/torrents/<ident>/<action>')
     def torrent_action(ident, action):
         if action not in ('start','stop','delete','ratio') or not re.fullmatch('[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):

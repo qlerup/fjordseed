@@ -230,6 +230,14 @@ class Benefits:
             self.cache[key]={'at':time.time(),'result':result,'priority':priority}
             return result
 
+    def refresh_snapshot(self,meta):
+        """Queue a fresh exact-hash lookup, preserving saved accounting and metadata."""
+        with self.lock:
+            self.snapshot_pending.update(self.hashes(meta))
+        result=self.request(meta,priority=0,max_age=0)
+        self.remember(meta,result)
+        return result
+
     @staticmethod
     def flags(attributes):
         free=attributes.get('freeleech')

@@ -89,6 +89,12 @@ Manual additions can estimate account ratio after a full download: `upload / (re
 
 Manual and RSS cards use NordicBytes `meta.poster` from an exact hash match, with no separate title service/key. Existing torrents get asynchronous cover lookup without changing seeding state. Allowed images are fetched without tracker credentials and served locally to authenticated users. The temporary `DATA_DIR/cover-cache` is limited to 64 MiB, 2 MiB/image, 24-hour refresh and seven-day cleanup; failures keep normal cards/downloads.
 
+Existing torrents can fetch tracker details and a missing poster after being
+added: open **Vis detaljer → Hent trackerdata igen**. This queues a fresh
+exact-hash lookup immediately, including after a cached API failure. Repeated
+clicks share the pending lookup. Downloads and seeding keep running; verified
+Green/accounting data is preserved while missing display data is enriched.
+
 ## RSS feeds and shared download queue
 
 Manual downloads and RSS have separate views but share one native queue with **eight active downloads total**. Seeding, manual pauses and errors take no download slot. The worker prioritizes RSS before manual transfers, maintaining order within each group and leaving manually paused entries paused. Queue reconciliation runs about every ten seconds; RSS arrivals can push manual transfers back into waiting.
