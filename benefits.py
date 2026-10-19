@@ -10,7 +10,7 @@ import threading
 import time
 from datetime import datetime
 from state import atomic
-from green_credit import policy_from_result
+from green_credit import policy_from_result, created_timestamp
 from covers import poster_url
 
 
@@ -69,6 +69,9 @@ def ratio_estimate(match,account,size,now=None):
 
 
 class Benefits:
+    RETRY_INTERVAL=120
+    MAX_RETRIES=3
+
     def __init__(self, trackers):
         self.trackers=trackers
         self.lock=threading.RLock()
@@ -85,6 +88,42 @@ class Benefits:
         except (OSError,ValueError):
             self.snapshots={}
         self.snapshot_pending=set()
+        self.retry_path=trackers.path.with_name('torrent-benefit-retries.json')
+        try:
+            retries=json.loads(self.retry_path.read_text())
+            self.retries={h:{'count':v['count'],'next_at':v['next_at'],'in_flight':False}
+                          for h,v in retries.items() if isinstance(h,str) and re.fullmatch(r'[a-f0-9]{40}|[a-f0-9]{64}',h)
+                          and isinstance(v,dict) and type(v.get('count')) is int
+                          and 0<=v['count']<=self.MAX_RETRIES
+                          and type(v.get('next_at')) in (int,float) and math.isfinite(v['next_at'])}
+        except (OSError,ValueError,AttributeError,TypeError):
+            self.retries={}
+
+    def needs_retry(self,result):
+        active={e['id'] for e in self.trackers.entries()}
+        if not active:
+            return False
+        if result.get('status') in ('unknown','unavailable'):
+            return True
+        return any(m.get('tracker_id') in active and (
+            (created_timestamp(m.get('created_at')) is None and not m.get('own_upload'))
+            or type(m.get('freeleech')) not in (int,float) or m.get('freeleech') not in (0,25,50,75,100)
+            or type(m.get('double_upload')) is not bool or not poster_url(m.get('poster')))
+            for m in result.get('matches',[]))
+
+    def save_retries(self):
+        atomic(self.retry_path,json.dumps(self.retries),mode=0o600)
+
+    def update_retry(self,ident,result,lookup_finished=False):
+        previous=copy.deepcopy(self.retries.get(ident))
+        if not self.needs_retry(result):
+            self.retries.pop(ident,None)
+        elif (ident in self.retries or result.get('status') in ('unknown','unavailable')
+                or all('created_at' in m and 'poster' in m for m in result.get('matches',[]))):
+            retry=self.retries.setdefault(ident,{'count':0,'next_at':time.time()+self.RETRY_INTERVAL,'in_flight':False})
+            if lookup_finished and retry['in_flight']:
+                retry.update(in_flight=False,next_at=time.time()+self.RETRY_INTERVAL)
+        return previous!=self.retries.get(ident)
 
     @staticmethod
     def without_global(result):
@@ -157,7 +196,7 @@ class Benefits:
         return tuple(sorted({h.lower() for h in meta.get('hashes',[]) if isinstance(h,str)
                              and re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',h)}))
 
-    def remember(self, meta, result):
+    def remember(self, meta, result, lookup_finished=False):
         """Freeze display data only; RSS approval keeps using fresh request()."""
         if result.get('status')=='pending':
             return
@@ -167,29 +206,51 @@ class Benefits:
             return
         with self.lock:
             changed=False
+            retry_changed=False
             for ident in hashes:
-                if ident not in self.snapshots or (self.needs_date(self.snapshots[ident]) and self.snapshots[ident]!=result):
+                if ident not in self.snapshots or (self.snapshots[ident].get('status')!='matched' and self.snapshots[ident]!=result):
                     self.snapshots[ident]=copy.deepcopy(result)
                     changed=True
                 elif result.get('status')=='matched':
-                    # Enrich old snapshots without rewriting frozen Green/accounting data.
-                    posters={m['tracker_id']:m.get('poster') for m in result.get('matches',[]) if 'poster' in m}
+                    # Fill missing verified fields; retain already known accounting data.
+                    fresh={m['tracker_id']:m for m in result.get('matches',[])}
                     for match in self.snapshots[ident].get('matches',[]):
-                        if match.get('tracker_id') in posters and match.get('poster','missing')!=posters[match['tracker_id']]:
-                            match['poster']=posters[match['tracker_id']]
-                            changed=True
+                        for key,value in fresh.get(match.get('tracker_id'),{}).items():
+                            missing=(key not in match or match[key] is None
+                                     or key=='created_at' and created_timestamp(match[key]) is None
+                                     or key=='freeleech' and (type(match[key]) not in (int,float) or match[key] not in (0,25,50,75,100))
+                                     or key=='double_upload' and type(match[key]) is not bool)
+                            if (missing or key=='poster') and match.get(key,'missing')!=value:
+                                match[key]=value
+                                changed=True
+                retry_changed=self.update_retry(ident,self.snapshots[ident],lookup_finished) or retry_changed
                 self.snapshot_pending.discard(ident)
             if changed:
                 atomic(self.snapshot_path,json.dumps(self.snapshots),mode=0o600)
                 self.publish_green()
+            if retry_changed:
+                self.save_retries()
 
     def snapshot(self, meta):
         hashes=self.hashes(meta)
         with self.lock:
             saved=next((self.snapshots[h] for h in hashes if h in self.snapshots),None)
-            if saved is not None and not self.needs_date(saved):
-                active={e['id'] for e in self.trackers.entries() if e.get('provider')=='nordicbytes'}
-                if all('poster' in m or m.get('tracker_id') not in active for m in saved.get('matches',[])):
+            if saved is not None:
+                if not self.needs_retry(saved) and not self.needs_date(saved):
+                    return self.with_global(saved)
+                retries=[self.retries[h] for h in hashes if h in self.retries]
+                retry=max(retries,key=lambda v:v['count']) if retries else None
+                if retry and (retry['in_flight'] or retry['count']>=self.MAX_RETRIES or time.time()<retry['next_at']):
+                    return self.with_global(saved)
+                if retry:
+                    if not str(meta.get('name','')).strip():
+                        return self.with_global(saved)
+                    self.snapshot_pending.update(hashes)
+                    result=self.request(meta,priority=1,max_age=0)
+                    if result.get('status')=='pending':
+                        for h in hashes:
+                            self.retries[h]={'count':retry['count']+1,'next_at':time.time()+self.RETRY_INTERVAL,'in_flight':True}
+                        self.save_retries()
                     return self.with_global(saved)
         if not str(meta.get('name','')).strip():
             return {'status':'unknown','message':'Afventer torrentoplysninger.'}
@@ -233,7 +294,12 @@ class Benefits:
     def refresh_snapshot(self,meta):
         """Queue a fresh exact-hash lookup, preserving saved accounting and metadata."""
         with self.lock:
-            self.snapshot_pending.update(self.hashes(meta))
+            hashes=self.hashes(meta)
+            self.snapshot_pending.update(hashes)
+            if any(h in self.retries for h in hashes):
+                for h in hashes:
+                    self.retries.pop(h,None)
+                self.save_retries()
         result=self.request(meta,priority=0,max_age=0)
         self.remember(meta,result)
         return result
@@ -341,7 +407,7 @@ class Benefits:
                     self.cache.pop(key,None)
                 snapshot_needed=still_current and any(h in self.snapshot_pending for h in hashes)
             if snapshot_needed:
-                self.remember({'hashes':hashes},result)
+                self.remember({'hashes':hashes},result,lookup_finished=True)
             self.jobs.task_done()
             # Keep automatic torrent lookups at most one job per second.
             stop.wait(1)

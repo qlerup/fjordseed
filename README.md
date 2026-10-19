@@ -95,6 +95,17 @@ exact-hash lookup immediately, including after a cached API failure. Repeated
 clicks share the pending lookup. Downloads and seeding keep running; verified
 Green/accounting data is preserved while missing display data is enriched.
 
+Missing tracker details, an unknown Green date, unknown freeleech/double-upload
+flags or a missing poster trigger up to **three additional automatic lookups**,
+with **two minutes between completed attempts**. The existing background worker
+does this without an open browser. Retry counts and deadlines survive app
+restarts. A complete result ends retries; after three unsuccessful retries,
+the manual button can start a new series. Newly verified Green dates are
+published to the running worker's accounting policy, while already verified
+dates and seeding goals are preserved. Until a date is known, conservative
+Green accounting continues; an API failure never invents freeleech or stops
+an existing transfer.
+
 ## RSS feeds and shared download queue
 
 Manual downloads and RSS have separate views but share one native queue with **eight active downloads total**. Seeding, manual pauses and errors take no download slot. The worker prioritizes RSS before manual transfers, maintaining order within each group and leaving manually paused entries paused. Queue reconciliation runs about every ten seconds; RSS arrivals can push manual transfers back into waiting.
