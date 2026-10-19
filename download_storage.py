@@ -168,7 +168,18 @@ def download_root():
     return root
 
 
-def prepare(hashes, folder=''):
+def download_name(name):
+    """One readable path component, also usable from Windows/NAS file browsers."""
+    name=re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]', '_', str(name or ''))
+    name=name.encode('utf-8',errors='ignore')[:160].decode('utf-8',errors='ignore').strip(' .')
+    if not name:return 'Download-'+uuid.uuid4().hex[:8]
+    if name.startswith('.') or name.split('.')[0].upper() in {
+            'CON','PRN','AUX','NUL',*(f'COM{i}' for i in range(1,10)),*(f'LPT{i}' for i in range(1,10))}:
+        name='_'+name
+    return name
+
+
+def prepare(hashes, folder='', name=''):
     """Capture destination at add time, including across default-folder changes."""
     from rss import folder_path
     root = download_root()
@@ -177,15 +188,25 @@ def prepare(hashes, folder=''):
         # A repeated add must never overwrite an existing destination or policy.
         record = next((entries[h] for h in hashes if h in entries), None)
         if record is None:
-            token = uuid.uuid4().hex
             buffered=read(SETTINGS,{}).get('streaming_enabled',True)
-            stage = root/BUFFER/token if buffered else target/token
+            parent=root/BUFFER if buffered else target
             if buffered and (root/BUFFER).is_symlink():
                 raise ValueError('Buffermappen må ikke være et link.')
-            if any(p.is_symlink() for p in (stage,*stage.parents)):
+            if any(p.is_symlink() for p in (parent,*parent.parents,target,*target.parents)):
                 raise ValueError('Downloadmappen må ikke indeholde links.')
-            stage.mkdir(parents=True, exist_ok=False)
-            record = {'stage': str(stage), 'target': str(target/token), 'published': False}
+            base=download_name(name)
+            reserved={v[k].casefold() for v in entries.values() for k in ('stage','target')}
+            for attempt in range(100):
+                token=base if attempt==0 else base+'-'+uuid.uuid4().hex[:8]
+                stage=parent/token
+                destination=target/token
+                if any(str(p).casefold() in reserved or p.exists() or p.is_symlink() for p in (stage,destination)):
+                    continue
+                try:stage.mkdir(parents=True, exist_ok=False)
+                except FileExistsError:continue
+                break
+            else:raise ValueError('Kunne ikke oprette en unik downloadmappe.')
+            record = {'stage': str(stage), 'target': str(destination), 'published': False}
             if not buffered:
                 # Lightweight marker also protects a future Flix connection from
                 # indexing these files before the entire torrent is complete.

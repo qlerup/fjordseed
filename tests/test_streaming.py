@@ -111,10 +111,11 @@ def test_manual_torrent_add_uses_final_path_when_streaming_is_off(tmp_path,monke
     response.json.return_value={'current_network_interface':'tun0','upnp':False}
     api=Mock(return_value=response)
     monkeypatch.setattr('qbit_rpc.call',api)
-    execute('add',{'magnet':'magnet:?xt=urn:btih:'+'a'*40,'ratio_action':'keep','ratio_limit':1})
+    execute('add',{'magnet':'magnet:?xt=urn:btih:'+'a'*40+'&dn=My.Show.S01E01','ratio_action':'keep','ratio_limit':1})
     options=next(call.args[1] for call in api.call_args_list if call.args[0]=='torrents/add')
     assert ds.BUFFER not in Path(options['savepath']).parts
     assert Path(options['savepath']).parent==tmp_path/'downloads'
+    assert Path(options['savepath']).name=='My.Show.S01E01'
 
 
 def flix_mock(r):

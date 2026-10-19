@@ -14,6 +14,55 @@ def row(stage, **changes):
     return {'hash':'a'*40,'progress':1,'state':'stalledUP','share_limit_action':'Stop','save_path':stage,**changes}
 
 
+@pytest.mark.parametrize('buffered',[True,False])
+def test_named_download_keeps_readable_name_after_publish(tmp_path,monkeypatch,buffered):
+    settings=tmp_path/'download-settings.json'
+    settings.write_text(json.dumps({'streaming_enabled':buffered}))
+    monkeypatch.setattr(ds,'SETTINGS',settings)
+    stage=ds.prepare(['a'*40],'Serier',name='The.Show.S01E02.1080p')
+    record=ds.read(ds.CONFIG/'download-storage.json',{})['a'*40]
+    assert Path(stage).name=='The.Show.S01E02.1080p'
+    assert Path(record['target'])==tmp_path/'downloads'/'Serier'/'The.Show.S01E02.1080p'
+    api=Mock()
+    assert ds.publish_complete(api,[row(stage)])==[]
+    if buffered:
+        api.assert_called_once_with('torrents/setLocation',{'hashes':'a'*40,'location':record['target']})
+    else:api.assert_not_called()
+    assert ds.publish_complete(api,[row(record['target'])])==[]
+    assert ds.read(ds.CONFIG/'download-storage.json',{})['a'*40]['published']
+
+
+def test_name_collision_includes_reserved_destinations_and_preserves_files(tmp_path):
+    first=ds.prepare(['a'*40],name='Show')
+    second=ds.prepare(['b'*40],name='Show')
+    assert Path(first).name=='Show'
+    assert Path(second).name.startswith('Show-') and len(Path(second).name)==13
+    target=tmp_path/'downloads'/'Existing'
+    target.mkdir();(target/'keep.txt').write_text('keep')
+    third=ds.prepare(['c'*40],name='Existing')
+    assert Path(third).name.startswith('Existing-')
+    assert (target/'keep.txt').read_text()=='keep'
+    assert ds.prepare(['a'*40],name='Changed name')==first
+
+
+def test_existing_uuid_records_are_not_renamed(tmp_path):
+    old={'stage':str(tmp_path/'downloads'/ds.BUFFER/('a'*32)),
+         'target':str(tmp_path/'downloads'/('a'*32)),'published':True}
+    with ds.transaction() as entries:entries['b'*40]=old
+    assert ds.prepare(['b'*40],name='Readable name')==old['stage']
+    assert ds.read(ds.CONFIG/'download-storage.json',{})['b'*40]==old
+
+
+@pytest.mark.parametrize('name',['../../outside','a/b\\c:bad?*<>|"','..','.fjordseed-buffer','CON','NUL.txt','a\x00\nb','\u00e6'*200,''])
+def test_untrusted_torrent_name_is_one_safe_bounded_component(tmp_path,name):
+    stage=Path(ds.prepare(['a'*40],name=name))
+    assert stage.parent==tmp_path/'downloads'/ds.BUFFER
+    assert stage.name not in ('.','..',ds.BUFFER)
+    assert not stage.name.startswith('.')
+    assert not any(c in stage.name for c in '/\\<>:"|?*\x00\n')
+    assert len(stage.name.encode('utf-8'))<=170
+
+
 def test_only_complete_retained_new_downloads_publish_and_keep_original_destination(tmp_path, monkeypatch):
     stage = ds.prepare(['a'*40], 'film')
     assert Path(stage).parent == tmp_path/'downloads'/ds.BUFFER

@@ -226,7 +226,7 @@ def execute(action, data):
         from torrent_meta import magnet_meta, torrent_meta
         meta=magnet_meta(data['magnet']) if data.get('magnet') else torrent_meta(base64.b64decode(data['torrent'],validate=True))
         from download_storage import prepare
-        options = {'savepath':prepare(meta['hashes']), 'autoTMM':'false', 'stopped':'false', 'forceStart':'false',
+        options = {'savepath':prepare(meta['hashes'],name=meta.get('name','')), 'autoTMM':'false', 'stopped':'false', 'forceStart':'false',
                    'ratioLimit':initial_managed_ratio(meta['hashes'],seed_ratio(policy['ratio_limit']),ratio_only=policy['ratio_action']=='delete_ratio'),
                    'seedingTimeLimit':-1, 'inactiveSeedingTimeLimit':-1,
                    'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] != 'keep' else 'Stop'}

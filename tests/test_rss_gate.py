@@ -104,6 +104,7 @@ def test_rss_downloads_directly_when_streaming_is_disabled(gate,monkeypatch):
     options=next(d for p,d in calls if p=='torrents/add')
     assert storage.BUFFER not in Path(options['savepath']).parts
     assert Path(options['savepath']).parent==root/'downloads'
+    assert Path(options['savepath']).name=='Linux'
 
 
 @pytest.mark.parametrize('gate',[{'ratio_action':'delete_ratio'}],indirect=True)
