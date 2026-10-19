@@ -4,7 +4,7 @@
  async function load(){
   if(location.hash!=='#storage')return;
   $('#storage-error').hidden=true;
-  try{const data=await api('/api/storage');$('#storage-current').textContent=data.path;$('#storage-buffer').textContent=data.buffer||'Slået fra · direkte download';document.querySelectorAll('[data-storage-mode-note]').forEach(n=>n.textContent=data.streaming_enabled?'Nye downloads starter i bufferen. Færdige filer, der skal beholdes, flyttes til den valgte mappe.':'Streaming er slået fra. Nye downloads skriver direkte til deres endelige mappe.');}
+  try{const data=await api('/api/storage');$('#storage-current').textContent=data.path;$('#storage-buffer').textContent=data.buffer||'Slået fra · direkte download';document.querySelectorAll('[data-storage-mode-note]').forEach(n=>n.textContent=data.streaming_enabled?'Nye downloads starter i bufferen. Færdige filer, der skal beholdes, flyttes til den valgte mappe.':'Buffer er slået fra. Nye downloads skriver direkte til deres endelige mappe.');}
   catch(e){error('#storage-error',e);}
  }
  async function browse(path=''){

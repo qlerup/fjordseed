@@ -1,10 +1,19 @@
 (() => {
- let choices=[];
+ let choices=[],bufferWithoutFlix=false;
+ function updateBuffer(){
+  const flix=$('#streaming-enabled').checked;
+  $('#streaming-buffer').disabled=flix;
+  $('#streaming-buffer').checked=flix||bufferWithoutFlix;
+  $('#streaming-mode').textContent=flix?'FjordFlix er slået til: buffer er altid slået til. Færdige filer, der skal beholdes, flyttes til biblioteket.':bufferWithoutFlix?'FjordFlix er slået fra. Buffer er slået til for nye downloads.':'Fra: nye downloads skriver direkte til deres endelige mappe uden buffer eller efterfølgende flytning.';
+ }
  function render(data){
   $('#streaming-enabled').checked=data.enabled;
-  $('#streaming-mode').textContent=data.enabled?'Til: nye downloads starter i bufferen. Færdige filer, der skal beholdes, flyttes til biblioteket.':'Fra: nye downloads skriver direkte til deres endelige mappe uden buffer eller efterfølgende flytning.';
+  bufferWithoutFlix=data.buffer_when_disabled??(!data.enabled&&!!data.buffer_enabled);
+  updateBuffer();
   $('#streaming-link-status').textContent=data.connected?'Forbundet mappe: '+data.host_path+' → '+data.library_path:'Ingen fælles mappe forbundet til den aktuelle downloadplacering.';
  }
+ $('#streaming-enabled').onchange=updateBuffer;
+ $('#streaming-buffer').onchange=()=>{bufferWithoutFlix=$('#streaming-buffer').checked;updateBuffer();};
  async function load(){
   if(location.hash!=='#streaming')return;
   $('#streaming-error').hidden=true;
@@ -12,7 +21,7 @@
  }
  $('#streaming-form').onsubmit=async e=>{
   e.preventDefault();const button=$('#streaming-save');button.disabled=true;$('#streaming-error').hidden=true;
-  try{render(await api('/api/streaming',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:$('#streaming-enabled').checked})}));toast('Streamingvalget er gemt. Gælder nye downloads.');}
+  try{render(await api('/api/streaming',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:$('#streaming-enabled').checked,buffer_enabled:bufferWithoutFlix})}));toast('Streamingvalget er gemt. Gælder nye downloads.');}
   catch(e){error('#streaming-error',e);}finally{button.disabled=false;}
  };
  $('#streaming-find').onclick=async()=>{

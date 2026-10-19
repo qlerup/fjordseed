@@ -16,6 +16,43 @@ def runtime(tmp_path):
     return Mock(state=State(tmp_path),host_downloads=PurePosixPath('/mnt/downloads'))
 
 
+@pytest.mark.parametrize('flix,buffer,effective',[(False,False,False),(False,True,True),(True,False,True),(True,True,True)])
+def test_buffer_setting_controls_downloads_and_flix_always_requires_it(tmp_path,monkeypatch,flix,buffer,effective):
+    r=runtime(tmp_path)
+    result=Streaming(r).save(flix,buffer_enabled=buffer)
+    assert result['enabled'] is flix
+    assert result['buffer_enabled'] is effective
+    assert result['buffer_when_disabled'] is buffer
+    assert bool(Storage(r).public()['buffer']) is effective
+    settings=tmp_path/'rpc/download-settings.json'
+    assert json.loads(settings.read_text())['streaming_enabled'] is effective
+    monkeypatch.setattr(ds,'SETTINGS',settings)
+    path=Path(ds.prepare(['a'*40]))
+    assert (ds.BUFFER in path.parts) is effective
+    r.stop.assert_not_called()
+
+
+def test_buffer_preference_survives_flix_toggle_and_invalid_values(tmp_path):
+    r=runtime(tmp_path);streaming=Streaming(r)
+    streaming.save(False,buffer_enabled=True)
+    assert streaming.save(True)['buffer_enabled'] is True
+    assert streaming.save(False)['buffer_enabled'] is True
+    before=r.state.path.read_text()
+    with pytest.raises(ValueError):streaming.save(False,buffer_enabled='false')
+    assert r.state.path.read_text()==before
+
+
+def test_api_cannot_disable_buffer_while_using_flix(tmp_path):
+    app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
+    app.extensions['runtime'].host_downloads=Path('/mnt/downloads')
+    client,headers=login(app)
+    result=client.post('/api/streaming',headers=headers,json={'enabled':True,'buffer_enabled':False})
+    assert result.status_code==200 and result.json['buffer_enabled'] is True
+    result=client.post('/api/streaming',headers=headers,json={'enabled':False,'buffer_enabled':True})
+    assert result.status_code==200 and result.json['buffer_enabled'] is True
+    assert client.post('/api/streaming',headers=headers,json={'enabled':False,'buffer_enabled':'false'}).status_code==400
+
+
 def test_toggle_preserves_vpn_storage_and_existing_torrents_without_restart(tmp_path):
     r=runtime(tmp_path);r.state.save('a'*32,True)
     streaming=Streaming(r)

@@ -36,16 +36,21 @@ class Streaming:
     def public(self):
         data=self.runtime.state.get().get('streaming',{})
         storage=Storage(self.runtime).public()
-        return {'enabled':data.get('enabled',True),'connected':bool(data.get('library_path') and data.get('host_path')==storage['path']),
+        return {'enabled':data.get('enabled',True),'buffer_enabled':storage['streaming_enabled'],
+                'buffer_when_disabled':data.get('buffer_enabled',False),
+                'connected':bool(data.get('library_path') and data.get('host_path')==storage['path']),
                 'host_path':storage['path'],'library_path':data.get('library_path'),
                 'connected_host_path':data.get('host_path')}
 
-    def save(self,enabled,connection=None):
+    def save(self,enabled,connection=None,buffer_enabled=None):
         if type(enabled) is not bool:
             raise ValueError('Vælg om streaming skal være slået til.')
+        if buffer_enabled is not None and type(buffer_enabled) is not bool:
+            raise ValueError('Vælg om buffer skal være slået til.')
         with self.runtime.state.lock:
             data=self.runtime.state.get()
             data['streaming']={**data.get('streaming',{}),'enabled':enabled,**(connection or {})}
+            if buffer_enabled is not None:data['streaming']['buffer_enabled']=buffer_enabled
             atomic(self.runtime.state.path,json.dumps(data))
             Storage(self.runtime).publish()
         return self.public()
