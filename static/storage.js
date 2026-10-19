@@ -4,7 +4,7 @@
  async function load(){
   if(location.hash!=='#storage')return;
   $('#storage-error').hidden=true;
-  try{const data=await api('/api/storage');$('#storage-current').textContent=data.path;$('#storage-buffer').textContent=data.buffer;}
+  try{const data=await api('/api/storage');$('#storage-current').textContent=data.path;$('#storage-buffer').textContent=data.buffer||'Slået fra · direkte download';document.querySelectorAll('[data-storage-mode-note]').forEach(n=>n.textContent=data.streaming_enabled?'Nye downloads starter i bufferen. Færdige filer, der skal beholdes, flyttes til den valgte mappe.':'Streaming er slået fra. Nye downloads skriver direkte til deres endelige mappe.');}
   catch(e){error('#storage-error',e);}
  }
  async function browse(path=''){
@@ -27,7 +27,7 @@
  $('#storage-browse').onclick=()=>browse();
  $('#storage-select').onclick=async()=>{
   const button=$('#storage-select');button.disabled=true;$('#storage-browser-error').hidden=true;
-  try{await api('/api/storage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:selectedPath})});dialog.close();toast('Mappe gemt. Nye downloads starter i bufferen.');await load();}
+  try{await api('/api/storage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:selectedPath})});dialog.close();toast('Downloadmappen er gemt. Gælder nye downloads.');await load();}
   catch(e){error('#storage-browser-error',e);}
   finally{button.disabled=false;}
  };

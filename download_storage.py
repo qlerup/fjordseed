@@ -1,4 +1,4 @@
-"""New torrents are staged privately; qBittorrent moves retained complete payloads."""
+"""Capture direct or buffered torrent storage and publish complete retained payloads."""
 from contextlib import contextmanager
 import json
 import os
@@ -10,6 +10,7 @@ import uuid
 from state import atomic
 
 CONFIG = Path('/config')
+SETTINGS = Path('/rpc/download-settings.json')
 BUFFER = '.fjordseed-buffer'
 PUBLISHING_MARKER = '.fjordseed-publishing'
 _lock = threading.RLock()
@@ -42,7 +43,7 @@ def transaction():
 
 
 def download_root():
-    settings = read(Path('/rpc/download-settings.json'), {})
+    settings = read(SETTINGS, {})
     root = Path(settings.get('path', '/downloads'))
     if root != Path('/downloads') and not re.fullmatch(r'/download-locations/[a-f0-9]{32}', root.as_posix()):
         raise ValueError('Ugyldig downloadplacering.')
@@ -59,11 +60,18 @@ def prepare(hashes, folder=''):
         record = next((entries[h] for h in hashes if h in entries), None)
         if record is None:
             token = uuid.uuid4().hex
-            stage = root/BUFFER/token
-            if (root/BUFFER).is_symlink():
+            buffered=read(SETTINGS,{}).get('streaming_enabled',True)
+            stage = root/BUFFER/token if buffered else target/token
+            if buffered and (root/BUFFER).is_symlink():
                 raise ValueError('Buffermappen må ikke være et link.')
+            if any(p.is_symlink() for p in (stage,*stage.parents)):
+                raise ValueError('Downloadmappen må ikke indeholde links.')
             stage.mkdir(parents=True, exist_ok=False)
             record = {'stage': str(stage), 'target': str(target/token), 'published': False}
+            if not buffered:
+                # Lightweight marker also protects a future Flix connection from
+                # indexing these files before the entire torrent is complete.
+                (stage/PUBLISHING_MARKER).touch(exist_ok=False)
             for ident in hashes:
                 entries[ident] = record
         return record['stage']

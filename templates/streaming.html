@@ -1,0 +1,25 @@
+<section id="streaming-view" hidden>
+ <div class="connection">
+  <p class="eyebrow">FJORDSEED + FJORDFLIX</p><h2>Streaming</h2>
+  <p class="muted storage-note">Bruger du FjordFlix til dine downloads? Hold ufærdige filer i bufferen, og lad færdige downloads blive tilgængelige i dit bibliotek.</p>
+  <form id="streaming-form">
+   <label class="check-label"><input type="checkbox" id="streaming-enabled"> Jeg bruger FjordFlix</label>
+   <p id="streaming-mode" class="muted storage-note" role="status">Henter indstillinger…</p>
+   <button id="streaming-save" class="primary" type="submit">Gem streamingvalg</button>
+  </form>
+  <p class="muted small storage-note">Valget gælder nye downloads, både manuelle og RSS. Eksisterende torrents beholder deres placering og fortsætter som før.</p>
+ </div>
+ <div class="connection">
+  <h2>Forbind FjordFlix</h2>
+  <p class="muted storage-note">Brug en af de mapper, som FjordFlix allerede indekserer og afspiller fra. FjordSeed får skriveadgang til den samme mappe, så færdige downloads automatisk indgår i biblioteket.</p>
+  <p id="streaming-link-status" class="muted small" role="status"></p>
+  <button id="streaming-find" type="button" class="secondary">Find FjordFlix</button>
+  <div id="streaming-folders" hidden>
+   <label for="streaming-library">Fælles biblioteksmappe</label><select id="streaming-library"></select>
+   <p id="streaming-folder-help" class="muted small storage-note"></p>
+   <button id="streaming-connect" type="button" class="primary">Forbind og brug mappen</button>
+  </div>
+  <p class="muted small storage-note">Begge apps skal være opdateret. FjordFlix beholder sine nuværende monteringer. Vælger du en ny downloadmappe, genstarter torrentklienten kort; gamle mapper bevares til eksisterende torrents. At slå streaming fra fjerner ingen biblioteker eller filer.</p>
+ </div>
+ <p id="streaming-error" class="error" role="alert" hidden></p>
+</section>

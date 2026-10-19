@@ -94,6 +94,18 @@ def resolve(invoke,candidate):
     return invoke('rss_resolve',token=candidate['token'],hashes=candidate['meta']['hashes'],approved=True)
 
 
+def test_rss_downloads_directly_when_streaming_is_disabled(gate,monkeypatch):
+    import download_storage as storage
+    from pathlib import Path
+    invoke,calls,_,_,root,_=gate
+    settings=root/'direct-settings.json';settings.write_text('{"streaming_enabled":false}')
+    monkeypatch.setattr(storage,'SETTINGS',settings)
+    candidate=invoke('rss_prepare');resolve(invoke,candidate)
+    options=next(d for p,d in calls if p=='torrents/add')
+    assert storage.BUFFER not in Path(options['savepath']).parts
+    assert Path(options['savepath']).parent==root/'downloads'
+
+
 @pytest.mark.parametrize('gate',[{'ratio_action':'delete_ratio'}],indirect=True)
 def test_ratio_only_rss_add_stays_in_buffer_and_persists_goal(gate):
     from green_credit import CreditLedger

@@ -23,4 +23,5 @@
 
 !download_storage.py
 !storage.py
+!streaming.py
 !storage_browser.py

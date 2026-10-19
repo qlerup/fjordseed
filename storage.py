@@ -19,7 +19,9 @@ class Storage:
         settings = self.settings()
         selected = next((p for p in settings['locations'] if p['id'] == settings['selected']), None)
         path = selected['path'] if selected else str(self.runtime.host_downloads)
-        return {**settings, 'path':path, 'buffer':path.rstrip('/')+'/.fjordseed-buffer'}
+        enabled=self.runtime.state.get().get('streaming',{}).get('enabled',True)
+        return {**settings, 'path':path, 'buffer':path.rstrip('/')+'/.fjordseed-buffer' if enabled else None,
+                'streaming_enabled':enabled}
 
     def helper(self, action, value='', source='/'):
         r = self.runtime
@@ -76,4 +78,5 @@ class Storage:
         settings = self.settings()
         path = '/download-locations/'+settings['selected'] if settings['selected'] else '/downloads'
         (self.runtime.state.root/'rpc').mkdir(exist_ok=True)
-        atomic(self.runtime.state.root/'rpc/download-settings.json',json.dumps({'path':path}),mode=0o644)
+        enabled=self.runtime.state.get().get('streaming',{}).get('enabled',True)
+        atomic(self.runtime.state.root/'rpc/download-settings.json',json.dumps({'path':path,'streaming_enabled':enabled}),mode=0o644)

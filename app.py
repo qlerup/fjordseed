@@ -24,6 +24,7 @@ from benefits import ratio_estimate
 from state import State, atomic
 from covers import Covers
 from storage import Storage
+from streaming import Streaming
 
 
 def create_app(root=None, testing=False, runtime_factory=Runtime):
@@ -262,6 +263,30 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             return jsonify(error=str(exc)),400
         except Exception:
             return jsonify(error='FjordVPN kunne ikke kontaktes. Opdatér og start FjordVPN.'),503
+
+    @app.route('/api/streaming',methods=['GET','POST'])
+    @app.route('/api/streaming/flix',methods=['GET'])
+    @app.route('/api/streaming/connect',methods=['POST'])
+    def streaming_settings():
+        try:
+            if hub.enabled and hub.current(session.get('hub_uid'),force=True).get('hub_role')!='admin':
+                return jsonify(error='Streaming og fælles mapper kræver en FjordHub-administrator.'),403
+            streaming=Streaming(runtime)
+            if request.path.endswith('/flix'):
+                return jsonify(ok=True,**streaming.candidates())
+            if request.method=='GET':return jsonify(ok=True,**streaming.public())
+            data=request.get_json(silent=True)
+            if not isinstance(data,dict):raise ValueError('Ugyldige streamingindstillinger.')
+            if request.path.endswith('/connect'):
+                return jsonify(ok=True,**streaming.connect(data.get('library_id')))
+            return jsonify(ok=True,**streaming.save(data.get('enabled')))
+        except HubError as exc:
+            return jsonify(error=str(exc)),exc.status
+        except ValueError as exc:
+            return jsonify(error=str(exc)),400
+        except Exception:
+            app.logger.exception('Streaming operation failed')
+            return jsonify(error='Streaming kunne ikke indstilles. Kontrollér FjordFlix og lageradgangen.'),503
 
     @app.route('/api/storage', methods=['GET','POST'])
     def storage_settings():

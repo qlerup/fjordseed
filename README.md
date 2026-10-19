@@ -49,9 +49,30 @@ Proton must permit the extra non-symmetric mapping. If it cannot be obtained, qB
 
 ## Storage and completed files
 
+### Streaming and FjordFlix
+
+The **Streaming** menu controls storage for new manual and RSS downloads.
+**Jeg bruger FjordFlix** preserves the existing buffer-and-publish workflow.
+Turn it off to download directly into each torrent's final directory, without
+a buffer or subsequent move. A small publishing marker keeps unfinished files
+out of a Flix library if that directory is indexed later. Existing torrents
+retain their original destinations and finish using their captured workflow.
+Existing installations keep buffering enabled until explicitly changed.
+
+**Find FjordFlix** reads the existing indexed library folders from the updated
+FjordFlix app on the same Docker host. Choose one and connect: Seed translates
+the existing Flix bind mount to its host directory, validates write access as
+the torrent UID/GID, and mounts that exact directory for new downloads. This
+enables streaming; retained completed downloads appear in Flix's normal scans.
+Flix's mounts and library sources stay unchanged. A different Seed directory
+briefly recreates the torrent worker, retaining all previous torrent mounts.
+Both apps must be updated; this link requires a managed Flix installation with
+its FjordHub app credential configured. No credential is sent to the browser.
+Switching streaming off retains existing library sources and files.
+
 Storage and folders selects an existing writable directory on the Docker host. Hub administrators also see available LXC paths under Proxmox disks/storage; attach missing or read-only storage correctly first. Standalone has a folder picker without Proxmox inventory. Seed does not recursively change shared-directory ownership.
 
-New manual/RSS transfers begin in `.fjordseed-buffer/<id>`. Completed **keep files** torrents move into a unique destination directory, under an RSS subfolder if selected; qBittorrent performs the move and continues seeding there. **Delete files** torrents remain buffered until their automatic seeding condition can safely finish. Move errors are shown; existing releases are not overwritten.
+With streaming enabled, new manual/RSS transfers begin in `.fjordseed-buffer/<id>`. Completed **keep files** torrents move into a unique destination directory, under an RSS subfolder if selected; qBittorrent performs the move and continues seeding there. **Delete files** torrents remain buffered until their automatic seeding condition can safely finish. Move errors are shown; existing releases are not overwritten. With streaming disabled, both file actions download directly into unique final directories instead.
 
 New location choices affect future torrents. Older paths remain mounted for existing transfers, and saving restarts the worker briefly. Back up every `settings.json` storage location. Update Hub, Seed and Flix together: Flix skips the active buffer when scanning. Add the completed directory as a Flix library source and scan retained films.
 
