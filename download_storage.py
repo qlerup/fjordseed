@@ -230,20 +230,76 @@ def forget(hashes):
                 pass
 
 
+def managed_directory(value):
+    if not isinstance(value,str) or len(value)>4096 or '\\' in value or any(ord(c)<32 for c in value):return False
+    path=PurePosixPath(value)
+    if not path.is_absolute() or '..' in path.parts or str(path)!=value:return False
+    return path.is_relative_to('/downloads') or (
+        path.is_relative_to('/download-locations') and len(path.parts)>=3
+        and re.fullmatch('[a-f0-9]{32}',path.parts[2]) is not None)
+
+
+def migration_target(root,name,entries):
+    base=download_name(name)
+    reserved={v[k].casefold() for v in entries.values() for k in ('stage','target')}
+    for attempt in range(100):
+        path=root/(base if attempt==0 else base+'-'+uuid.uuid4().hex[:8])
+        if str(path).casefold() not in reserved and not path.exists() and not path.is_symlink():return path
+    raise ValueError('Kunne ikke finde en ledig biblioteksmappe.')
+
+
+def retained_library():
+    settings=read(SETTINGS,{})
+    library=settings.get('retained_library_path')
+    if (library!=settings.get('path') or not managed_directory(library)
+            or not re.fullmatch(r'/downloads|/download-locations/[a-f0-9]{32}',library or '')):
+        return None
+    return library
+
+
 def publish_complete(api, rows):
-    """Existing unregistered torrents never move. Native moves preserve seeding."""
+    """Publish retained payloads; optionally migrate older torrents via qBittorrent."""
     errors = []
+    library=retained_library()
     with transaction() as entries:
+        active={row.get(k) for row in rows for k in ('hash','infohash_v1','infohash_v2') if row.get(k)}
+        migration_busy=any(entries.get(h,{}).get('migration') and not entries[h].get('published')
+                           and not entries[h].get('files_deleted') for h in active) or any(
+            row.get('state')=='moving' for row in rows)
         for row in rows:
             record = next((entries.get(row.get(k)) for k in ('hash','infohash_v1','infohash_v2')
                            if entries.get(row.get(k))), None)
-            if not record or record.get('published') or record.get('files_deleted'):
+            if record and record.get('files_deleted'):
                 continue
             state = row.get('state', '')
             if (row.get('progress') != 1 or state not in {'uploading','stalledUP','forcedUP','stoppedUP','pausedUP','queuedUP'}
                     or row.get('share_limit_action') not in ('Stop', 'Remove')):
                 continue
             current = str(row.get('save_path', '')).rstrip('/')
+            # Only a connected, explicitly enabled library may adopt old downloads.
+            # One migration at a time; native setLocation moves this torrent's files only.
+            if (library and not migration_busy and managed_directory(current)
+                    and not PurePosixPath(current).is_relative_to(library)
+                    and (not record or record.get('published') or current==record['stage'])):
+                try:
+                    source=Path(current)
+                    if not source.is_dir() or any(p.is_symlink() for p in (source,*source.parents)):
+                        raise ValueError('Downloadmappen er ikke tilgængelig.')
+                    destination=migration_target(Path(library),row.get('name',''),entries)
+                    previous=record
+                    record={'stage':current,'target':destination.as_posix(),'published':False,'migration':True,
+                            'cleanup_stage':bool(previous and current in (previous['stage'],previous['target']))}
+                    if previous:
+                        for ident,value in list(entries.items()):
+                            if value['stage']==previous['stage']:entries[ident]=record
+                    for field in ('hash','infohash_v1','infohash_v2'):
+                        ident=row.get(field)
+                        if isinstance(ident,str) and re.fullmatch('[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):entries[ident]=record
+                    migration_busy=True
+                except (OSError,ValueError):
+                    errors.append('En tidligere download kunne ikke klargøres til FjordFlix. Kontrollér lager og skriverettigheder.')
+                    continue
+            if not record or record.get('published'):continue
             if current == record['target']:
                 # setLocation is asynchronous: acknowledge only on a later poll.
                 try:
@@ -255,10 +311,11 @@ def publish_complete(api, rows):
                 for key, value in entries.items():
                     if value['stage'] == record['stage']:
                         value['published'] = True
-                try:
-                    Path(record['stage']).rmdir()
-                except OSError:
-                    pass
+                if record.get('cleanup_stage',True):
+                    try:
+                        Path(record['stage']).rmdir()
+                    except OSError:
+                        pass
                 continue
             if current != record['stage']:
                 errors.append('En torrent har skiftet placering; automatisk flytning er sat på pause.')

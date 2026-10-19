@@ -6,10 +6,12 @@
    <label class="check-label"><input type="checkbox" id="streaming-enabled"> Jeg bruger FjordFlix</label>
    <label class="check-label"><input type="checkbox" id="streaming-buffer"> Brug midlertidig buffer til downloads</label>
    <p id="streaming-buffer-help" class="muted small storage-note">Buffer er altid slået til med FjordFlix. Uden FjordFlix vælger du selv.</p>
+   <label class="check-label"><input type="checkbox" id="streaming-move-retained"> Flyt også tidligere, færdige downloads til FjordFlix</label>
+   <p class="muted small storage-note">Kræver en forbundet FjordFlix-mappe. Færdige torrents, som skal beholdes, flyttes gennem qBittorrent, så seeding kan fortsætte. Downloads med automatisk filsletning og filer uden en torrent i qBittorrent flyttes ikke.</p>
    <p id="streaming-mode" class="muted storage-note" role="status">Henter indstillinger…</p>
    <button id="streaming-save" class="primary" type="submit">Gem streamingvalg</button>
   </form>
-  <p class="muted small storage-note">Valget gælder nye downloads, både manuelle og RSS. Eksisterende torrents beholder deres placering og fortsætter som før.</p>
+  <p class="muted small storage-note">Buffer gælder nye downloads, både manuelle og RSS. Tidligere downloads beholder deres placering, medmindre du slår automatisk flytning til. En igangværende flytning færdiggøres, selvom valget slås fra.</p>
  </div>
  <div class="connection">
   <h2>Forbind FjordFlix</h2>

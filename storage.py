@@ -82,5 +82,9 @@ class Storage:
         settings = self.settings()
         path = '/download-locations/'+settings['selected'] if settings['selected'] else '/downloads'
         (self.runtime.state.root/'rpc').mkdir(exist_ok=True)
-        enabled=buffer_enabled(self.runtime.state.get().get('streaming',{}))
-        atomic(self.runtime.state.root/'rpc/download-settings.json',json.dumps({'path':path,'streaming_enabled':enabled}),mode=0o644)
+        streaming=self.runtime.state.get().get('streaming',{})
+        config={'path':path,'streaming_enabled':buffer_enabled(streaming)}
+        if (streaming.get('enabled',True) and streaming.get('move_retained') is True
+                and streaming.get('library_path') and streaming.get('host_path')==self.public()['path']):
+            config['retained_library_path']=path
+        atomic(self.runtime.state.root/'rpc/download-settings.json',json.dumps(config),mode=0o644)

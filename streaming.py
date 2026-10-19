@@ -37,20 +37,24 @@ class Streaming:
         data=self.runtime.state.get().get('streaming',{})
         storage=Storage(self.runtime).public()
         return {'enabled':data.get('enabled',True),'buffer_enabled':storage['streaming_enabled'],
+                'move_retained':data.get('move_retained',False),
                 'buffer_when_disabled':data.get('buffer_enabled',False),
                 'connected':bool(data.get('library_path') and data.get('host_path')==storage['path']),
                 'host_path':storage['path'],'library_path':data.get('library_path'),
                 'connected_host_path':data.get('host_path')}
 
-    def save(self,enabled,connection=None,buffer_enabled=None):
+    def save(self,enabled,connection=None,buffer_enabled=None,move_retained=None):
         if type(enabled) is not bool:
             raise ValueError('Vælg om streaming skal være slået til.')
         if buffer_enabled is not None and type(buffer_enabled) is not bool:
             raise ValueError('Vælg om buffer skal være slået til.')
+        if move_retained is not None and type(move_retained) is not bool:
+            raise ValueError('Vælg om tidligere downloads skal flyttes.')
         with self.runtime.state.lock:
             data=self.runtime.state.get()
             data['streaming']={**data.get('streaming',{}),'enabled':enabled,**(connection or {})}
             if buffer_enabled is not None:data['streaming']['buffer_enabled']=buffer_enabled
+            if move_retained is not None:data['streaming']['move_retained']=move_retained
             atomic(self.runtime.state.path,json.dumps(data))
             Storage(self.runtime).publish()
         return self.public()

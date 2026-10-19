@@ -279,7 +279,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             if not isinstance(data,dict):raise ValueError('Ugyldige streamingindstillinger.')
             if request.path.endswith('/connect'):
                 return jsonify(ok=True,**streaming.connect(data.get('library_id')))
-            return jsonify(ok=True,**streaming.save(data.get('enabled'),buffer_enabled=data.get('buffer_enabled')))
+            return jsonify(ok=True,**streaming.save(data.get('enabled'),buffer_enabled=data.get('buffer_enabled'),move_retained=data.get('move_retained')))
         except HubError as exc:
             return jsonify(error=str(exc)),exc.status
         except ValueError as exc:
