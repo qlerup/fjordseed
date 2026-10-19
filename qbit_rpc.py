@@ -262,13 +262,13 @@ def execute(action, data):
             ledger.save()
             selected=('RemoveWithContent' if policy['ratio_action']!='keep' else 'Stop') if 'ratio_action' in data else None
             apply_limits(call,rows[0],action=selected)
-    elif action in ('start','stop','delete'):
+    elif action in ('start','stop','delete','delete-files'):
         if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}', data.get('hash','')):
             raise ValueError('Invalid hash')
         payload = {'hashes':data['hash']}
         if action=='delete' and type(data.get('delete_files',False)) is not bool:
             raise ValueError('Invalid file deletion choice')
-        if action in ('stop','delete'):
+        if action in ('stop','delete','delete-files'):
             with CreditLedger().transaction() as ledger:
                 rows=call('torrents/info?hashes='+data['hash']).json()
                 if len(rows)!=1 or rows[0].get('hash','').lower()!=data['hash'].lower():
@@ -277,9 +277,22 @@ def execute(action, data):
             requirement=stop_requirement({**rows[0],**credit})
             if not requirement['seeding_requirement_met'] and data.get('confirm_early_stop') is not True:
                 raise SeedingRequirementError(requirement['stop_reason'])
+        if action=='delete-files':
+            from download_storage import delete_torrent_files
+            # The background publisher/auto-remover uses the same ledger lock.
+            with CreditLedger().transaction():
+                return delete_torrent_files(call,rows[0],prefs)
         if action == 'delete':
             payload['deleteFiles'] = 'true' if data.get('delete_files',False) else 'false'
+        if action=='start':
+            from download_storage import files_deleted,prepare_file_restart
+            if files_deleted(data['hash'].lower()):
+                prepare_file_restart(data['hash'].lower())
+                call('torrents/recheck',payload)
         call('torrents/' + action, payload)
+        if action=='start':
+            from download_storage import set_files_deleted
+            set_files_deleted([data['hash'].lower()],False)
         if action=='delete':
             from download_storage import forget
             forget([data['hash'].lower()])

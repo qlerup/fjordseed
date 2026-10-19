@@ -47,6 +47,7 @@ function renderRatioPreview(data){
  }
 }
 function torrentStatus(t) {
+ if(t.files_deleted)return 'Filer slettet – torrent stoppet';
  if(t.waiting_for_downloaders)return t.seeding_peer_status_known
   ?'Seeder videre \u2013 venter p\u00e5 aktive downloadere'
   :'Seeder videre \u2013 afventer peer-status';
@@ -315,28 +316,28 @@ $('#ratio-back').onclick=()=>{$('#ratio-dialog').close();$('#add-dialog').showMo
 $('#ratio-form').onsubmit=async e=>{e.preventDefault();if(!pendingTorrent)return;$('#ratio-save').disabled=true;$('#ratio-back').disabled=true;$('#ratio-dialog .close').disabled=true;$('#ratio-error').hidden=true;try{pendingTorrent.set('ratio_limit',$('#ratio-limit').value);pendingTorrent.set('ratio_action',$('#ratio-action').value);await api('/api/torrents',{method:'POST',body:pendingTorrent});pendingTorrent=null;$('#ratio-dialog').close();toast('Torrent tilføjet');await refresh();}catch(e){error('#ratio-error',e);}finally{$('#ratio-save').disabled=false;$('#ratio-back').disabled=false;$('#ratio-dialog .close').disabled=false;}};
 function openDeleteEditor(t){
  deleting=t;$('#delete-form').reset();$('#delete-name').textContent=t.name;
- $('#delete-choice').hidden=t.share_limit_action==='RemoveWithContent';
+ $('#delete-choice').hidden=false;
  $('#delete-error').hidden=true;$('#delete-warning').hidden=t.seeding_requirement_met===true;
  $('#delete-warning').textContent=seedingWarning(t);updateDeleteChoice();
  $('#delete-dialog').showModal();
- ($('#delete-choice').hidden?$('#delete-dialog .close'):$('#delete-files')).focus();
+ $('#delete-files').focus();
 }
 function updateDeleteChoice(){
- const files=!$('#delete-choice').hidden&&$('#delete-files').value==='delete';
- $('#delete-description').textContent=files?'Torrenten fjernes fra qBittorrent, og de downloadede filer slettes permanent.':'Torrenten fjernes fra qBittorrent. Downloadede filer bevares.';
- $('#delete-description').className=files?'error':'muted';
- $('#delete-save').textContent=files?'Fjern torrent og slet filer':'Fjern kun torrenten';
+ const choice=$('#delete-files').value;
+ $('#delete-description').textContent=choice==='files'?'De downloadede filer slettes permanent. Torrenten beholdes stoppet. Starter du den igen, kan filerne blive hentet på ny.':choice==='delete'?'Torrenten fjernes fra qBittorrent, og de downloadede filer slettes permanent.':'Torrenten fjernes fra qBittorrent. Downloadede filer bevares.';
+ $('#delete-description').className=choice==='keep'?'muted':'error';
+ $('#delete-save').textContent=choice==='files'?'Slet kun filer':choice==='delete'?'Fjern torrent og slet filer':'Fjern kun torrenten';
 }
 $('#delete-files').onchange=updateDeleteChoice;
 $('#delete-dialog').addEventListener('cancel',e=>{if($('#delete-save').disabled)e.preventDefault();});
 $('#delete-form').onsubmit=async e=>{
  e.preventDefault();if(!deleting||$('#delete-save').disabled)return;
- const torrent=deleting,files=!$('#delete-choice').hidden&&$('#delete-files').value==='delete';
+ const torrent=deleting,choice=$('#delete-files').value,files=choice==='delete';
  const controls=[...$('#delete-form').querySelectorAll('button,select')];
  controls.forEach(control=>control.disabled=true);$('#delete-error').hidden=true;
  try{
-  await api(`/api/torrents/${torrent.hash}/delete`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_early_stop:torrent.seeding_requirement_met!==true,delete_files:files})});
-  $('#delete-dialog').close();await refresh();toast(files?'Torrent og downloadede filer er slettet.':'Torrenten er fjernet. Downloadede filer er bevaret.');
+  await api(`/api/torrents/${torrent.hash}/${choice==='files'?'delete-files':'delete'}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_early_stop:torrent.seeding_requirement_met!==true,...(choice==='files'?{}:{delete_files:files})})});
+  $('#delete-dialog').close();await refresh();toast(choice==='files'?'Filerne er slettet. Torrenten er beholdt stoppet.':files?'Torrent og downloadede filer er slettet.':'Torrenten er fjernet. Downloadede filer er bevaret.');
  }catch(e){error('#delete-error',e);}finally{controls.forEach(control=>control.disabled=false);}
 };
 function showView(focus=false){

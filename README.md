@@ -86,7 +86,17 @@ Pause/start is a combined control, and paused time does not advance Seed's activ
 
 Manual stop/removal remains available with confirmation. If credited ratio is below 1 and active seeding is below 49 hours, an early-stop warning shows current figures regardless of a custom automatic target. The server rechecks on execution.
 
-**Remove opens a confirmation modal with two distinct choices: remove only the torrent and retain downloaded files, or remove the torrent and downloaded files.** Retained files are not deleted merely because the torrent disappears from the list. Automatic deletion follows the stored file action, rather than this manual choice. Review early-stop warnings before confirming.
+**Remove always offers three choices:** remove the torrent and its files,
+remove only the torrent and retain its files, or delete only the files and
+retain the torrent stopped. All three are available regardless of the saved
+automatic seeding/file rule. The default retains files until explicitly changed.
+Files-only deletion confirms the seeding warning, stops the client torrent,
+then deletes only its API-listed files under the mounted download directories.
+Links and path traversal are refused. The torrent/accounting history remains;
+the UI shows files deleted and zero completed bytes. Explicit Start rechecks
+the files and can download them again. Automatic deletion still follows the
+saved seeding rule. Existing payloads are never deleted merely by opening or
+cancelling the dialog.
 
 ## Tracker accounts, benefits and covers
 

@@ -47,13 +47,17 @@ with tempfile.TemporaryDirectory() as folder:
                 page.screenshot(path=f'test-results/manual-delete-{width}.png')
                 page.get_by_role('button', name='Annuller', exact=True).click()
                 rpc.assert_not_called()
-            for choice in ('keep', 'delete'):
+            for choice in ('keep', 'delete','files'):
                 page.get_by_role('button', name='Fjern '+row['name'], exact=True).click()
                 expect(page.locator('#delete-files')).to_have_value('keep')
                 page.locator('#delete-files').select_option(choice)
                 page.locator('#delete-save').click()
                 expect(dialog).not_to_be_visible()
-                assert rpc.call_args.args[1]['delete_files'] is (choice=='delete')
+                if choice=='files':
+                    assert rpc.call_args.args[0]=='delete-files'
+                else:
+                    assert rpc.call_args.args[0]=='delete'
+                    assert rpc.call_args.args[1]['delete_files'] is (choice=='delete')
             rpc.reset_mock()
             row['seeding_requirement_met'] = False
             page.reload()
@@ -70,8 +74,10 @@ with tempfile.TemporaryDirectory() as folder:
             row['share_limit_action'] = 'RemoveWithContent'
             page.reload()
             page.get_by_role('button', name='Fjern '+row['name'], exact=True).click()
-            expect(page.locator('#delete-choice')).not_to_be_visible()
+            expect(page.locator('#delete-choice')).to_be_visible()
             expect(page.locator('#delete-description')).to_contain_text('bevares')
+            page.locator('#delete-files').select_option('delete')
+            expect(page.locator('#delete-description')).to_contain_text('permanent')
             assert not errors, errors
             browser.close()
             print('PASS: choices, cancel, reset, early warning, errors, keyboard and desktop/mobile layout')

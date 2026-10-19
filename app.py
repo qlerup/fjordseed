@@ -476,7 +476,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
 
     @app.post('/api/torrents/<ident>/<action>')
     def torrent_action(ident, action):
-        if action not in ('start','stop','delete','ratio') or not re.fullmatch('[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):
+        if action not in ('start','stop','delete','delete-files','ratio') or not re.fullmatch('[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):
             return jsonify(error='Ugyldig handling.'),400
         payload=request.get_json(silent=True)
         if payload is None:
