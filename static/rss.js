@@ -139,7 +139,7 @@ function rssFeedCard(feed){
  if(feed.credit_estimated)upload.append(node('span','muted small','Beregnet konservativt'));
  upload.title='Samlet beregnet kredit fra feedets torrents, inkl. Green-periodens halve kredit. Gemmes også efter sletning af torrents. Tidligere slettede torrents kan mangle i historikken.';
  card.append(upload);
- panel.append(node('p','torrent-policy','Mappe: '+rssRoot+(feed.folder?'/'+feed.folder:'')+(feed.ratio_action!=='keep'?' · Slet ved ratio '+feed.ratio_limit+(feed.ratio_action==='delete_ratio'?' uden tidsgrænse':' eller 49 timers seeding'):' · Behold filer og seed uden grænse')));
+ panel.append(node('p','torrent-policy','Mappe: '+rssRoot+(feed.folder?'/'+feed.folder:'')+(feed.ratio_action==='automatic'?' · Automatisk: optimer ratio og slet · mindst ratio '+feed.ratio_limit+' eller 49 timers seedtid':feed.ratio_action!=='keep'?' · Slet ved ratio '+feed.ratio_limit+(feed.ratio_action==='delete_ratio'?' uden tidsgrænse':' eller 49 timers seeding'):' · Behold filer og seed uden grænse')));
  panel.append(node('p','torrent-policy',feed.download_from?'Hent fra: '+new Date(feed.download_from).toLocaleString('da-DK'):'Hent alle poster i feedet'));
  if(feed.max_size_bytes)panel.append(node('p','torrent-policy','Maksimal torrentstørrelse: '+size(feed.max_size_bytes)));
  if(feed.required_badges?.length)panel.append(node('p','torrent-policy','Kræver alle: '+feed.required_badges.map(b=>rssBadgeNames[b]).join(' + ')));

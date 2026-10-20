@@ -23,7 +23,7 @@ def test_delete_requires_explicit_finite_ratio():
 
 
 @pytest.mark.parametrize('method', ['magnet','torrent'])
-@pytest.mark.parametrize('action,expected', [('keep','Stop'),('delete','RemoveWithContent')])
+@pytest.mark.parametrize('action,expected', [('keep','Stop'),('delete','RemoveWithContent'),('automatic','RemoveWithContent')])
 def test_add_sets_native_per_torrent_policy_before_start(monkeypatch,method,action,expected):
     call=Mock(side_effect=[Mock(json=lambda:{'current_network_interface':'tun0','upnp':False}),Mock(text='Ok.')])
     monkeypatch.setattr('qbit_rpc.call',call)
@@ -38,6 +38,10 @@ def test_add_sets_native_per_torrent_policy_before_start(monkeypatch,method,acti
     assert args[1]['inactiveSeedingTimeLimit']==-1
     assert args[1]['stopped']=='false'
     assert args[1]['forceStart']=='false'
+    from green_credit import CreditLedger
+    with CreditLedger().transaction() as ledger:
+        entries=[value for key,value in ledger.entries.items() if not key.startswith('_')]
+        assert all(entry.get('adaptive_seeding',False)==(action=='automatic') for entry in entries)
 
 
 def test_http_policy_validation_before_rpc(tmp_path):

@@ -83,6 +83,37 @@ New location choices affect future torrents. Older paths remain mounted for exis
 
 ## Manual downloads and removal
 
+The explicit **Automatisk: optimer ratio og slet** choice adds an adaptive upload
+forecast to manual downloads, RSS feeds and existing torrent edits. Standard
+ratio/49-hour deletion, ratio-only deletion and existing torrents keep their
+previous behavior; the adaptive policy is opt-in and uses ratio/49-hour goals.
+Its minimum ratio defaults to 1:1 and can be raised. It retains
+the user's original goals, Green credit and extra-time preference. After a goal
+is reached, the worker keeps seeding while the forecast is worthwhile, in addition
+to the existing protection for connected downloaders and actual ongoing upload.
+It never starts paused torrents or changes the behavior of **keep files**.
+
+The forecast uses measured credited upload-counter growth with an exponential
+10-minute smoothing time constant, after at least two minutes of observations.
+Let `r` be the smoothed credited bytes/second, `D` the downloaded bytes used for
+credited ratio, `L` the swarm's downloaders and `S` its seeders. When swarm counts
+are known, the next 30 minutes' forecast is
+`E = min(r * 1800 * min(1, L / (S + 1)), D * L / (S + 1))`.
+With unknown swarm counts it uses measured `r * 1800`; a known zero downloader
+count gives zero. Extension requires both `E >= 64 MiB` and `E / D >= 0.05`.
+The swarm counts are qBittorrent's documented `num_incomplete`/`num_complete`,
+distinct from connected peers (`num_leechs`): see the
+[official API](https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-%28qBittorrent-5.0%29).
+
+The persisted estimate is shared by status requests and the worker, which
+rechecks about every ten seconds without an open browser. It decays with no
+traffic, expires after 15 minutes without measured upload, and resets after a
+pause, move, counter reset, clock rollback or observation gap longer than two
+minutes. Swarm demand or a high lifetime ratio alone cannot trigger extension.
+When potential falls, normal deletion resumes once no connected downloader or
+upload needs protection. The UI labels automatic extensions and shows estimated
+extra credited upload and ratio gain. These are forecasts, not guaranteed upload.
+
 Adding a magnet/file opens source selection followed by Seeding and files. File action comes first. **Keep files** means unlimited seeding until manual stop; automatic ratio/time deletion is inactive. **Delete files** requires explicit selection and uses a minimum credited target ratio of 1 or 49 hours of active seeding (48 hours plus a one-hour safety buffer).
 
 Before automatic removal, the worker waits until no connected downloaders need data and upload is zero. Unknown peer status delays the action. This uses connected qBittorrent `num_leechs`, not tracker-wide swarm totals. Native qBittorrent stop limits are disabled so they do not cut downloaders off between checks. Worker checks run roughly every ten seconds without an open browser and survive restarts. Control errors retain seeding; VPN protection remains active.

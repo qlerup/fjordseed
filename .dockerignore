@@ -8,6 +8,7 @@
 !state.py
 !qbit_rpc.py
 !green_credit.py
+!seed_potential.py
 !qbit_worker.py
 !torrent_port.py
 !trackers.py

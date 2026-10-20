@@ -56,6 +56,24 @@ with sync_playwright() as p:
  for power,unit in [(1,'KB'),(2,'MB'),(3,'GB'),(4,'TB')]:
   page.evaluate("uploaded=>document.querySelector('main').replaceChildren(card({name:'Upload check',state:'stalledUP',progress:1,uploaded}))",1024**power)
   assert page.locator('.torrent-metrics dd').nth(4).inner_text()=='1.0 '+unit
+ for width in [390,1440]:
+  page.set_viewport_size({'width':width,'height':900})
+  page.evaluate("t=>document.querySelector('main').replaceChildren(card(t))",{
+   'name':'Adaptive seeding example','state':'stalledUP','progress':1,'size':10*1024**3,
+   'ratio':1,'credited_ratio':1,'ratio_limit':1,'seeding_time_limit':2940,
+   'share_limit_action':'RemoveWithContent',
+   'seeding_auto_extended':True,'seeding_predicted_upload':1024**3,
+   'seeding_predicted_ratio_gain':.1,'seeding_forecast_seconds':1800,
+   'upspeed':0,'dlspeed':0})
+  assert 'ekstra upload forventes' in page.locator('.seed-state').inner_text()
+  assert 'fortsætter for bedre ratio' in page.locator('.seed-complete').inner_text()
+  page.locator('.torrent-toggle').click()
+  assert '1.0 GB' in page.locator('.seed-extension').inner_text()
+  assert '+0,1 i ratio' in page.locator('.seed-extension').inner_text()
+  assert '30 minutter' in page.locator('.seed-extension').inner_text()
+  assert page.locator('.torrent').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
+  assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+  page.screenshot(path=str(root/'test-results'/f'adaptive-seeding-{width}.png'),full_page=True)
  assert not errors,errors
  browser.close()
  print('PASS layered progress, configured targets, time alternative, active/paused and downloads at 390/1440px')
