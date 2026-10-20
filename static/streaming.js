@@ -40,7 +40,7 @@
  };
  $('#streaming-connect').onclick=async()=>{
   const button=$('#streaming-connect');button.disabled=true;$('#streaming-error').hidden=true;
-  try{render(await api('/api/streaming/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({library_id:$('#streaming-library').value})}));toast('FjordFlix er forbundet. Streaming er slået til for nye downloads.');}
+  try{render(await api('/api/streaming/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({library_id:$('#streaming-library').value})}));window.dispatchEvent(new Event('storage-changed'));toast('FjordFlix er forbundet. Streaming er slået til for nye downloads.');}
   catch(e){error('#streaming-error',e);}finally{button.disabled=false;}
  };
  window.addEventListener('hashchange',load);load();

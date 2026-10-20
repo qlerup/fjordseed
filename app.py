@@ -290,11 +290,16 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             return jsonify(error='Streaming kunne ikke indstilles. Kontrollér FjordFlix og lageradgangen.'),503
 
     @app.route('/api/storage', methods=['GET','POST'])
+    @app.get('/api/storage/usage')
     def storage_settings():
         try:
             if hub.enabled and hub.current(session.get('hub_uid'), force=True).get('hub_role') != 'admin':
                 return jsonify(error='Valg af servermapper kræver en FjordHub-administrator.'),403
             storage = Storage(runtime)
+            if request.path.endswith('/usage'):
+                current = storage.public()
+                usage = storage.helper('usage',source=current['path'])
+                return jsonify(ok=True,path=current['path'],**usage)
             if request.method == 'POST':
                 data = request.get_json(silent=True)
                 if not isinstance(data,dict):

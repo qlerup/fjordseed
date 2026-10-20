@@ -38,7 +38,7 @@
  $('#storage-select').onclick=async()=>{
   if(locked)return;
   const button=$('#storage-select');button.disabled=true;$('#storage-browser-error').hidden=true;
-  try{await api('/api/storage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:selectedPath})});dialog.close();toast('Downloadmappen er gemt. Gælder nye downloads.');await load();}
+  try{await api('/api/storage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:selectedPath})});dialog.close();window.dispatchEvent(new Event('storage-changed'));toast('Downloadmappen er gemt. Gælder nye downloads.');await load();}
   catch(e){error('#storage-browser-error',e);}
   finally{button.disabled=false;}
  };

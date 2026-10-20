@@ -32,8 +32,9 @@ class Storage:
         r = self.runtime
         script = Path(__file__).with_name('storage_browser.py').read_text(encoding='utf-8')
         writable = action == 'writable'
+        scoped = writable or action == 'usage'
         worker = r.client.containers.create(r.image, entrypoint=['python','-c',script], command=[action,value],
-            mounts=[Mount('/folder' if writable else '/host', source, type='bind', read_only=not writable)],
+            mounts=[Mount('/folder' if scoped else '/host', source, type='bind', read_only=not writable)],
             user=f'{r.uid}:{r.gid}' if writable else '0:0', network_disabled=True, read_only=True,
             cap_drop=['ALL'], security_opt=['no-new-privileges:true'])
         try:

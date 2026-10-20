@@ -118,10 +118,15 @@ def writable():
     return {'writable':True}
 
 
+def usage(directory):
+    disk = shutil.disk_usage(directory)
+    return {'total_bytes':disk.total, 'used_bytes':disk.used, 'free_bytes':disk.free}
+
+
 if __name__ == '__main__':
     try:
         action, value = sys.argv[1:3]
-        result = writable() if action == 'writable' else mount_status(Path('/host'), value) if action == 'mount' else create(Path('/folder'), value) if action == 'create' else (
+        result = usage(Path('/folder')) if action == 'usage' else writable() if action == 'writable' else mount_status(Path('/host'), value) if action == 'mount' else create(Path('/folder'), value) if action == 'create' else (
             probe(Path('/host'), value) if action == 'probe' else browse(Path('/host'), value))
         print(json.dumps(result))
     except Exception as exc:

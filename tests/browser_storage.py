@@ -14,6 +14,7 @@ from test_app import FakeRuntime
 
 
 def helper(self,action,value='',source='/'):
+    if action=='usage':return {'total_bytes':4*1024**4,'used_bytes':3*1024**4,'free_bytes':1024**4}
     if action=='mount':return {'ready':True}
     if action=='writable':return {'writable':True}
     return {'path':value,'parent':None if not value else '', 'free_bytes':1024**4,
@@ -39,6 +40,13 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             expect(page.locator('#storage-browse')).to_be_disabled()
             expect(page.locator('#storage-proxmox')).to_be_disabled()
             expect(page.locator('[data-storage-mode-note]').first).to_contain_text('Bruger FjordFlix-lager')
+            for view in ('storage','streaming'):
+                page.goto(base+'/#'+view)
+                card=page.locator('#'+view+'-view [data-storage-usage]')
+                expect(card.locator('[data-usage-percent]')).to_have_text('75 % brugt')
+                expect(card.locator('[data-usage-used]')).to_have_text('3.0 TB')
+                expect(card.locator('[data-usage-free]')).to_have_text('1.0 TB')
+                expect(card.locator('[data-usage-bar]')).to_have_attribute('value','75')
             page.goto(base+'/#streaming')
             page.locator('#streaming-enabled').uncheck()
             page.locator('#streaming-buffer').check()
@@ -65,7 +73,14 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
                 page.locator('#storage-select').click()
                 expect(page.locator('#storage-dialog')).not_to_be_visible()
                 expect(page.locator('#storage-buffer')).to_contain_text('fjordflix-media/.incomplete')
+                expect(page.locator('#toast')).not_to_be_visible()
                 page.screenshot(path=str(screenshots/f'storage-{width}.png'))
+                page.goto(base+'/#streaming')
+                expect(page.locator('#streaming-view [data-usage-percent]')).to_have_text('75 % brugt')
+                assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
+                page.screenshot(path=str(screenshots/f'streaming-storage-{width}.png'))
+                page.locator('#streaming-view [data-storage-usage]').screenshot(path=str(screenshots/f'streaming-capacity-{width}.png'))
+                page.goto(base+'/#storage')
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
                 page.reload()
             page.unroute('**/api/storage?proxmox=1')
@@ -77,6 +92,16 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             expect(page.locator('#page-title')).to_have_text('Lager og mapper')
             assert '/login' not in page.url
             assert app.extensions['state'].get()['storage']['locations'][0]['path'].endswith('fjordflix-media')
+            page.route('**/api/storage/usage',lambda route:route.fulfill(status=503,json={'error':'offline'}))
+            page.goto(base+'/#streaming')
+            expect(page.locator('#streaming-view [data-usage-status]')).to_contain_text('Lagerplads kunne ikke hentes')
+            expect(page.locator('#streaming-view [data-usage-details]')).not_to_be_visible()
+            page.unroute('**/api/storage/usage')
+            page.route('**/api/storage/usage',lambda route:route.fulfill(json={
+                'path':'/mnt/media','total_bytes':1000,'used_bytes':950,'free_bytes':50}))
+            page.goto(base+'/#storage')
+            expect(page.locator('#storage-view [data-storage-usage]')).to_have_attribute('data-level','critical')
+            expect(page.locator('#storage-view [data-usage-percent]')).to_have_text('95 % brugt')
             assert not errors,errors
             browser.close()
     finally:

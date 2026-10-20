@@ -205,3 +205,50 @@ def test_storage_integration_rejection_does_not_expire_valid_login(tmp_path):
     hub.current.side_effect=HubError('Access removed',401)
     assert client.get('/api/storage?proxmox=1').status_code==401
     with client.session_transaction() as session:assert not session.get('authenticated')
+
+
+def test_storage_usage_reads_selected_host_mount_and_requires_admin(tmp_path,monkeypatch):
+    app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
+    app.extensions['runtime'].host_downloads='/downloads'
+    helper=Mock(return_value={'total_bytes':1000,'used_bytes':750,'free_bytes':250})
+    monkeypatch.setattr(Storage,'helper',helper)
+    assert app.test_client().get('/api/storage/usage').status_code==401
+    client,_=login(app)
+    result=client.get('/api/storage/usage')
+    assert result.status_code==200
+    assert result.json=={'ok':True,'path':'/downloads','total_bytes':1000,'used_bytes':750,'free_bytes':250}
+    helper.assert_called_once_with('usage',source='/downloads')
+    storage=Storage(app.extensions['runtime'])
+    app.extensions['runtime'].stop=Mock()
+    helper.return_value['ready']=True
+    storage.select('/mnt/media')
+    del helper.return_value['ready']
+    helper.reset_mock()
+    assert client.get('/api/storage/usage').json['path']=='/mnt/media'
+    helper.assert_called_once_with('usage',source='/mnt/media')
+    hub=app.extensions['hub'];hub.enabled=True
+    hub.current=Mock(return_value={'id':1,'hub_role':'user'})
+    assert client.get('/api/storage/usage').status_code==403
+    hub.enabled=False
+    helper.side_effect=OSError('unavailable')
+    assert client.get('/api/storage/usage').status_code==503
+
+
+def test_usage_helper_only_mounts_selected_folder_read_only(tmp_path):
+    runtime=Mock(state=State(tmp_path),image='seed',uid=1000,gid=1000)
+    worker=runtime.client.containers.create.return_value
+    worker.wait.return_value={'StatusCode':0}
+    worker.logs.return_value=b'{"total_bytes":1000,"used_bytes":750,"free_bytes":250}'
+    assert Storage(runtime).helper('usage',source='/mnt/media')['free_bytes']==250
+    mount=runtime.client.containers.create.call_args.kwargs['mounts'][0]
+    assert mount['Source']=='/mnt/media' and mount['Target']=='/folder' and mount['ReadOnly'] is True
+    worker.remove.assert_called_once_with(force=True)
+
+
+def test_usage_measures_filesystem_without_scanning_directories(tmp_path,monkeypatch):
+    from types import SimpleNamespace
+    import storage_browser
+    disk=Mock(return_value=SimpleNamespace(total=1000,used=750,free=250))
+    monkeypatch.setattr(storage_browser.shutil,'disk_usage',disk)
+    assert storage_browser.usage(tmp_path)=={'total_bytes':1000,'used_bytes':750,'free_bytes':250}
+    disk.assert_called_once_with(tmp_path)
