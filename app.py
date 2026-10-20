@@ -299,7 +299,10 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                 data = request.get_json(silent=True)
                 if not isinstance(data,dict):
                     raise ValueError('Vælg en mappe.')
-                return jsonify(ok=True, **storage.select(data.get('path')))
+                with runtime.state.lock:
+                    if storage.public()['fjordflix_enabled']:
+                        return jsonify(error='Lager og mapper styres af FjordFlix. Slå FjordFlix fra under Streaming for at vælge en anden mappe.'),409
+                    return jsonify(ok=True, **storage.select(data.get('path')))
             if request.args.get('browse') == '1':
                 return jsonify(storage.helper('browse',request.args.get('path','')))
             if request.args.get('proxmox') == '1':

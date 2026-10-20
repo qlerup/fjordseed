@@ -1,13 +1,23 @@
 (() => {
- let selectedPath='', requestId=0;
+ let selectedPath='', requestId=0, locked=true;
  const dialog=$('#storage-dialog');
  async function load(){
   if(location.hash!=='#storage')return;
   $('#storage-error').hidden=true;
-  try{const data=await api('/api/storage');$('#storage-current').textContent=data.path;$('#storage-buffer').textContent=data.buffer||'Slået fra · direkte download';document.querySelectorAll('[data-storage-mode-note]').forEach(n=>n.textContent=data.streaming_enabled?'Nye downloads starter i bufferen. Færdige filer, der skal beholdes, flyttes til den valgte mappe.':'Buffer er slået fra. Nye downloads skriver direkte til deres endelige mappe.');}
+  locked=true;
+  $('#storage-browse').disabled=true;$('#storage-proxmox').disabled=true;
+  $('#storage-pools').hidden=true;
+  try{
+   const data=await api('/api/storage');locked=data.fjordflix_enabled!==false;
+   $('#storage-current').textContent=data.path;$('#storage-buffer').textContent=data.buffer||'Slået fra · direkte download';
+   $('#storage-browse').disabled=locked;$('#storage-proxmox').disabled=locked;
+   $('#storage-selection-note').hidden=locked;
+   document.querySelectorAll('[data-storage-mode-note]').forEach(n=>n.textContent=locked?'Bruger FjordFlix-lager. Lager og mapper styres af FjordFlix. Slå “Jeg bruger FjordFlix” fra under Streaming for at vælge en anden mappe.':data.streaming_enabled?'Nye downloads starter i bufferen. Færdige filer, der skal beholdes, flyttes til den valgte mappe.':'Buffer er slået fra. Nye downloads skriver direkte til deres endelige mappe.');
+  }
   catch(e){error('#storage-error',e);}
  }
  async function browse(path=''){
+  if(locked)return;
   const id=++requestId;selectedPath='';$('#storage-select').disabled=true;
   $('#storage-browser-error').hidden=true;$('#storage-directories').replaceChildren(node('p','muted','Henter mapper…'));
   if(!dialog.open)dialog.showModal();
@@ -26,12 +36,14 @@
  }
  $('#storage-browse').onclick=()=>browse();
  $('#storage-select').onclick=async()=>{
+  if(locked)return;
   const button=$('#storage-select');button.disabled=true;$('#storage-browser-error').hidden=true;
   try{await api('/api/storage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:selectedPath})});dialog.close();toast('Downloadmappen er gemt. Gælder nye downloads.');await load();}
   catch(e){error('#storage-browser-error',e);}
   finally{button.disabled=false;}
  };
  $('#storage-proxmox').onclick=async()=>{
+  if(locked)return;
   const button=$('#storage-proxmox');button.disabled=true;$('#storage-error').hidden=true;
   $('#storage-pools').hidden=false;const list=$('#storage-pool-list');list.replaceChildren(node('p','muted','Henter Proxmox-lagre…'));
   try{

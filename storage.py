@@ -25,7 +25,8 @@ class Storage:
         path = selected['path'] if selected else str(self.runtime.host_downloads)
         enabled=buffer_enabled(self.runtime.state.get().get('streaming',{}))
         return {**settings, 'path':path, 'buffer':path.rstrip('/')+'/.incomplete' if enabled else None,
-                'streaming_enabled':enabled}
+                'streaming_enabled':enabled,
+                'fjordflix_enabled':self.runtime.state.get().get('streaming',{}).get('enabled',True)}
 
     def helper(self, action, value='', source='/'):
         r = self.runtime

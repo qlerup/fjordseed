@@ -36,6 +36,16 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
             page.get_by_role('button',name='Log ind').click()
             page.goto(base+'/#storage')
+            expect(page.locator('#storage-browse')).to_be_disabled()
+            expect(page.locator('#storage-proxmox')).to_be_disabled()
+            expect(page.locator('[data-storage-mode-note]').first).to_contain_text('Bruger FjordFlix-lager')
+            page.goto(base+'/#streaming')
+            page.locator('#streaming-enabled').uncheck()
+            page.locator('#streaming-buffer').check()
+            page.locator('#streaming-save').click()
+            expect(page.locator('#streaming-mode')).to_contain_text('FjordFlix er slået fra')
+            page.goto(base+'/#storage')
+            expect(page.locator('#storage-browse')).to_be_enabled()
             page.route('**/api/storage?proxmox=1',lambda route:route.fulfill(json={
                 'storages':[{'id':'Storage-pool1','type':'dir','free_bytes':1024**4,
                     'paths':['/mnt/fjordhub/Storage-pool1','/mnt/fjordflix/pool-readonly']}],

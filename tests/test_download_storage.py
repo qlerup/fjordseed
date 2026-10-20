@@ -181,6 +181,7 @@ def test_storage_api_auth_csrf_and_global_admin(tmp_path,monkeypatch):
     with client.session_transaction() as session:session['hub_uid']=1
     assert client.get('/api/storage?browse=1').status_code==403
     hub.current.return_value['hub_role']='admin'
+    assert client.post('/api/streaming',headers=headers,json={'enabled':False}).status_code==200
     monkeypatch.setattr(Storage,'select',lambda self,path:{'path':path})
     assert client.post('/api/storage',headers=headers,json={'path':'/mnt/media'}).json['path']=='/mnt/media'
 

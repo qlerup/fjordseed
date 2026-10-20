@@ -72,6 +72,11 @@ Switching streaming off retains existing library sources and files.
 
 Storage and folders selects an existing writable directory on the Docker host. Hub administrators also see available LXC paths under Proxmox disks/storage; attach missing or read-only storage correctly first. Standalone has a folder picker without Proxmox inventory. Seed does not recursively change shared-directory ownership.
 
+While **Jeg bruger FjordFlix** is enabled, Storage and folders shows that
+FjordFlix manages storage and disables both folder selection and Proxmox storage
+choices. Manual storage changes are also rejected by the API. Connect or change
+the shared library under Streaming, or disable FjordFlix to select storage manually.
+
 With buffering enabled, new manual/RSS transfers begin in `.incomplete/<torrent-name>` (a short ID is added on name conflicts). Existing torrents keep their stored paths, including the previous `.fjordseed-buffer` folder. FjordFlix excludes both buffer folder names. Completed **keep files** torrents move into a unique destination directory, under an RSS subfolder if selected; qBittorrent performs the move and continues seeding there. **Delete files** torrents remain buffered until their automatic seeding condition can safely finish. Move errors are shown; existing releases are not overwritten. With buffering disabled, both file actions download directly into unique final directories instead. FjordFlix mode always requires buffering.
 
 New location choices affect future torrents. Older paths remain mounted for existing transfers, and saving restarts the worker briefly. Back up every `settings.json` storage location. Update Hub, Seed and Flix together: Flix skips the active buffer when scanning. Add the completed directory as a Flix library source and scan retained films.
