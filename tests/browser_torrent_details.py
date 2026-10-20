@@ -8,7 +8,7 @@ end=source.index('function renderFlow(')
 code="const current={ready:true}; const $=s=>document.querySelector(s); function node(tag,cls,text){const n=document.createElement(tag);n.className=cls||'';if(text!==undefined)n.textContent=text;return n;} function benefitView(){return node('div');}"+source[start:end]
 code+=source[source.index('function size(n)'):source.index('function benefitView(')]
 torrents=[{'hash':str(i)*40,'name':('Very.long.torrent.name.'*8 if i==1 else 'Linux ISO '+str(i)),
-           'state':'stalledUP','progress':1,'size':1024**3,'uploaded':1024**2,
+           'state':'uploading','upspeed':1024,'progress':1,'size':1024**3,'uploaded':1024**2,
            'ratio':.25,'ratio_limit':1,'seeding_time':3600,'seeding_time_limit':2940,
            'green_active':True,'green_until':1791633600,'green_uploaded':1024**2,
            'credited_uploaded':512*1024,'credited_ratio':.125,
@@ -66,6 +66,21 @@ with sync_playwright() as p:
   expect(rss).to_have_attribute('aria-expanded','true')
   page.evaluate('torrents=>renderDownloadLists({torrents})',torrents)
   expect(rss).to_have_attribute('aria-expanded','true')
+  # An expanded card retains its details when it moves between activity groups.
+  migrating=[{**t,'upspeed':0,'dlspeed':0} if t['rss_feed'] else t for t in torrents]
+  page.evaluate('torrents=>renderDownloadLists({torrents})',migrating)
+  expect(page.locator('#rss-inactive-summary')).to_have_text('Inaktive torrents (1)')
+  expect(page.locator('#rss-inactive-list .torrent-toggle')).to_have_attribute('aria-expanded','true')
+  page.locator('#rss-inactive-summary').click()
+  expect(page.locator('#rss-inactive-list .torrent-extra')).to_be_visible()
+  page.evaluate('torrents=>renderDownloadLists({torrents})',torrents)
+  expect(rss).to_have_attribute('aria-expanded','true')
+  expect(page.locator('#rss-inactive')).to_be_hidden()
+  # Capture the complete real card layout with both active and idle torrents.
+  idle=[{**t,'hash':'idle'+t['hash'],'name':'Waiting '+t['name'],
+         'state':'stalledUP','upspeed':0,'dlspeed':0} for t in torrents]
+  page.evaluate('torrents=>renderDownloadLists({torrents})',torrents+idle)
+  page.locator('#manual-inactive-summary').click()
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
   assert page.locator('.torrent').evaluate_all('rows=>rows.every(e=>e.scrollWidth<=e.clientWidth+1)')
   assert not errors,errors

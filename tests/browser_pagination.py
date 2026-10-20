@@ -42,6 +42,43 @@ with sync_playwright() as p:
         expect(page.locator('#manual-pagination')).to_be_hidden()
         expect(page.locator('#empty')).to_be_visible()
         page.evaluate('torrents=>renderDownloadLists({torrents})', rows)
+        # Activity is measured by transfer rates, including idle seeding states.
+        idle = [{**r,'hash':'idle-'+r['hash'],'name':'Idle '+r['name'],
+                 'dlspeed':0,'upspeed':0,'state':'uploading','added_on':r['added_on']+20} for r in rows]
+        grouped=rows+idle
+        page.evaluate('torrents=>renderDownloadLists({torrents})', grouped)
+        expect(page.locator('#manual-inactive')).not_to_have_attribute('open','')
+        expect(page.locator('#manual-inactive-summary')).to_have_text('Inaktive torrents (13)')
+        expect(page.locator('#manual-inactive-list .torrent')).to_have_count(5)
+        expect(page.locator('#torrent-list')).not_to_contain_text('Idle')
+        page.locator('#manual-inactive-summary').focus()
+        page.keyboard.press('Enter')
+        expect(page.locator('#manual-inactive-list')).to_be_visible()
+        page.locator('#manual-inactive-pagination button').last.click()
+        expect(page.locator('#manual-inactive-pagination')).to_contain_text('Side 2 af 3')
+        expect(page.locator('#manual-pagination')).to_contain_text('Side 1 af 3')
+        page.locator('#rss-inactive-summary').click()
+        page.locator('#rss-inactive-pagination button').last.click()
+        page.locator('#rss-inactive-pagination button').last.click()
+        expect(page.locator('#rss-inactive-list .torrent')).to_have_count(3)
+        page.evaluate('torrents=>renderDownloadLists({torrents})', grouped)
+        expect(page.locator('#manual-inactive-list')).to_be_visible()
+        expect(page.locator('#manual-inactive-pagination')).to_contain_text('Side 2 af 3')
+        # Only uploading, only downloading and no transfer all move automatically.
+        changed=[{**r,'dlspeed':0,'upspeed':0} for r in rows]+[
+            {**r,'upspeed':1 if i==0 else 0,'dlspeed':1 if i==1 else 0} for i,r in enumerate(idle)]
+        page.evaluate('torrents=>renderDownloadLists({torrents})', changed)
+        expect(page.locator('#torrent-list .torrent')).to_have_count(2)
+        expect(page.locator('#torrent-list')).to_contain_text('Idle Manual')
+        expect(page.locator('#manual-inactive-summary')).to_have_text('Inaktive torrents (24)')
+        expect(page.locator('#manual-pagination')).to_be_hidden()
+        page.evaluate('torrents=>renderDownloadLists({torrents})', idle)
+        expect(page.locator('#manual-active-empty')).to_be_visible()
+        expect(page.locator('#empty')).not_to_be_visible()
+        page.evaluate('renderDownloadLists({torrents:[]})')
+        expect(page.locator('#manual-inactive')).to_be_hidden()
+        expect(page.locator('#rss-inactive')).to_be_hidden()
+        page.evaluate('torrents=>renderDownloadLists({torrents})', grouped)
         assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
         assert not errors, errors
         page.screenshot(path=str(root/'test-results'/f'pagination-{width}.png'), full_page=True)

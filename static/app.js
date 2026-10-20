@@ -174,13 +174,13 @@ function renderDownloadLists(data){
  const pages=renderDownloadLists.pages??={manual:1,rss:1};
  function renderPage(items,key,listId){
   const pageCount=Math.max(1,Math.ceil(items.length/5));
-  pages[key]=Math.max(1,Math.min(pages[key],pageCount));
+  pages[key]=Math.max(1,Math.min(pages[key]??1,pageCount));
   const start=(pages[key]-1)*5,list=$('#'+listId);
   list.replaceChildren(...items.slice(start,start+5).map(card));
   if(typeof document==='undefined')return;
   let pager=$('#'+key+'-pagination');
   if(!pager&&pageCount<=1)return;
-  if(!pager){pager=node('nav','torrent-pagination');pager.id=key+'-pagination';pager.setAttribute('aria-label',key==='rss'?'Sider med RSS-downloads':'Sider med manuelle downloads');list.after(pager);}
+  if(!pager){pager=node('nav','torrent-pagination');pager.id=key+'-pagination';pager.setAttribute('aria-label','Sider med '+(key.startsWith('rss')?'RSS-downloads':'manuelle downloads')+(key.endsWith('-inactive')?' uden aktivitet':' med aktivitet'));list.after(pager);}
   const focused=document.activeElement?.dataset?.pageControl;
   const previous=node('button','secondary','← Forrige'),next=node('button','secondary','Næste →');
   previous.type=next.type='button';previous.disabled=pages[key]===1;next.disabled=pages[key]===pageCount;
@@ -195,6 +195,28 @@ function renderDownloadLists(data){
    (target.disabled?(target===previous?next:previous):target).focus({preventScroll:true});
   }
  }
+ function renderGroup(items,key,listId){
+  const list=$('#'+listId);
+  let inactive=$('#'+key+'-inactive');
+  if(!inactive){
+   const heading=node('h3','torrent-active-heading');heading.id=key+'-active-heading';list.before(heading);
+   const idle=node('p','muted torrent-active-empty','Ingen torrents downloader eller uploader lige nu.');idle.id=key+'-active-empty';list.before(idle);
+   inactive=node('details','torrent-inactive');inactive.id=key+'-inactive';
+   const summary=node('summary');summary.id=key+'-inactive-summary';
+   const help=node('p','muted small torrent-inactive-help','Venter på peers eller downloadere, er i kø, på pause eller har ingen overførsel lige nu.');
+   const content=node('div');content.id=key+'-inactive-list';
+   inactive.append(summary,help,content);list.after(inactive);
+  }
+  const active=items.filter(t=>Number(t.dlspeed)>0||Number(t.upspeed)>0);
+  const waiting=items.filter(t=>!(Number(t.dlspeed)>0||Number(t.upspeed)>0));
+  $('#'+key+'-active-heading').textContent='Aktive torrents ('+active.length+')';
+  $('#'+key+'-active-heading').hidden=!items.length;
+  $('#'+key+'-active-empty').hidden=!items.length||active.length>0;
+  $('#'+key+'-inactive-summary').textContent='Inaktive torrents ('+waiting.length+')';
+  inactive.hidden=!waiting.length;
+  renderPage(active,key,listId);
+  renderPage(waiting,key+'-inactive',key+'-inactive-list');
+ }
  const queue=data.download_queue||{active:data.torrents.filter(t=>['downloading','stalledDL','forcedDL','metaDL','forcedMetaDL'].includes(t.state)).length,
   waiting:data.torrents.filter(t=>t.state==='queuedDL').length,limit:8};
  if($('#shared-download-count')){
@@ -207,8 +229,8 @@ function renderDownloadLists(data){
  const focusedControl=typeof document!=='undefined'?document.activeElement?.dataset?.torrentToggleControl:undefined;
  const newestFirst=data.torrents.slice().sort((a,b)=>(Number(b.added_on)||0)-(Number(a.added_on)||0));
  const manual=newestFirst.filter(t=>!t.rss_feed),rss=newestFirst.filter(t=>t.rss_feed);
- renderPage(manual,'manual','torrent-list');$('#empty').hidden=manual.length>0;
- renderPage(rss,'rss','rss-torrent-list');$('#rss-empty').hidden=rss.length>0;$('#rss-count').textContent=rss.length;
+ renderGroup(manual,'manual','torrent-list');$('#empty').hidden=manual.length>0;
+ renderGroup(rss,'rss','rss-torrent-list');$('#rss-empty').hidden=rss.length>0;$('#rss-count').textContent=rss.length;
  if(focusedToggle)for(const button of document.querySelectorAll('[data-torrent-toggle]'))if(button.dataset.torrentToggle===focusedToggle&&button.dataset.torrentToggleControl===focusedControl){button.focus({preventScroll:true});break;}
  for(const [items,prefix] of [[manual,''],[rss,'rss-']])for(const [field,id] of [['dlspeed','dl'],['upspeed','ul']])$('#'+prefix+id).textContent=size(items.reduce((sum,t)=>sum+(Number(t[field])||0),0))+'/s';
  if(data.torrents_available===false){
