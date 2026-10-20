@@ -94,8 +94,8 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             assert app.extensions['state'].get()['storage']['locations'][0]['path'].endswith('fjordflix-media')
             page.route('**/api/storage/usage',lambda route:route.fulfill(status=503,json={'error':'offline'}))
             page.goto(base+'/#streaming')
-            expect(page.locator('#streaming-view [data-usage-status]')).to_contain_text('Lagerplads kunne ikke hentes')
-            expect(page.locator('#streaming-view [data-usage-details]')).not_to_be_visible()
+            expect(page.locator('#streaming-view [data-usage-status]')).to_contain_text('Viser senest hentede tal')
+            expect(page.locator('#streaming-view [data-usage-details]')).to_be_visible()
             page.unroute('**/api/storage/usage')
             page.route('**/api/storage/usage',lambda route:route.fulfill(json={
                 'path':'/mnt/media','total_bytes':1000,'used_bytes':950,'free_bytes':50}))

@@ -240,6 +240,12 @@ function renderDownloadLists(data){
   if(!data.torrents.length){$('#count').textContent='—';$('#rss-count').textContent='—';}
  }
 }
+function renderPublicAddress(data){
+ const address=$('#public-address');
+ if(!data.public_ip){address.replaceChildren();return;}
+ const endpoint=node('span','vpn-endpoint',`${data.public_ip}:${data.port}${data.torrent_mode==='gateway'?' · Delt gateway-VPN · Åben torrentport':''}`);
+ address.replaceChildren(endpoint,countryInfo(data.country),node('span','vpn-interface','Netkort: tun0'));
+}
 function preserveTorrentSnapshot(data,previous){
  if(data.torrents_available!==false)return data;
  const sameProfile=previous&&previous.profile_id===data.profile_id&&previous.id===data.id;
@@ -274,7 +280,7 @@ function renderFlow(data){
  const icon=$('#flow-vpn-icon'),key=code||'unknown';
  if(icon.dataset.country!==key){icon.dataset.country=key;const content=code?node('img'):node('span','','VPN');if(code){content.src='/static/flags/'+code.toLowerCase()+'.svg';content.alt='';content.width=32;content.height=24;}icon.replaceChildren(content);}
 }
-function render(data){current=data;renderFlow(data);$('#vpn-message').textContent=data.message;$('#vpn-badge').textContent=data.ready?'VPN aktiv':data.torrents_available===false?'Afventer status':'Blokeret';$('#vpn-badge').className='badge'+(data.ready?' ready':'');$('#new-torrent').disabled=!data.ready;$('#stop').hidden=!data.enabled;$('#connect').textContent=data.enabled?'Gem VPN-valg':'Start seedbox';$('#dl').textContent=size(data.transfer?.dl_info_speed)+'/s';$('#ul').textContent=size(data.transfer?.up_info_speed)+'/s';$('#count').textContent=data.torrents.filter(t=>!t.rss_feed).length;$('#download-path').textContent='Downloadmappe: '+data.download_path;$('#qbit-version').textContent=data.version?'qBittorrent '+data.version:'qBittorrent inkluderet';$('#public-address').replaceChildren(...(data.public_ip?[document.createTextNode(`${data.public_ip}:${data.port}${data.torrent_mode==='gateway'?' · Delt gateway-VPN · Åben torrentport':''} · `),countryInfo(data.country),document.createTextNode(' · Netkort: tun0')]:[]));
+function render(data){current=data;renderFlow(data);$('#vpn-message').textContent=data.message;$('#vpn-badge').textContent=data.ready?'VPN aktiv':data.torrents_available===false?'Afventer status':'Blokeret';$('#vpn-badge').className='badge'+(data.ready?' ready':'');$('#new-torrent').disabled=!data.ready;$('#stop').hidden=!data.enabled;$('#connect').textContent=data.enabled?'Gem VPN-valg':'Start seedbox';$('#dl').textContent=size(data.transfer?.dl_info_speed)+'/s';$('#ul').textContent=size(data.transfer?.up_info_speed)+'/s';$('#count').textContent=data.torrents.filter(t=>!t.rss_feed).length;$('#download-path').textContent='Downloadmappe: '+data.download_path;$('#qbit-version').textContent=data.version?'qBittorrent '+data.version:'qBittorrent inkluderet';renderPublicAddress(data);
  const select=$('#profile'),chosen=select.value||data.profile_id;const options=[node('option','','Vælg VPN')];options[0].value='';for(const p of data.profiles){const o=node('option','',p.name+(p.gateway_enabled?' · delt VPN, egen torrentport':p.relay_enabled?' · bruges til TCP':p.desired?' · egen torrent-VPN, startet':' · slukket'));o.value=p.id;o.disabled=p.relay_enabled&&!p.gateway_enabled;options.push(o);}if(data.profile_id&&!data.profiles.some(p=>p.id===data.profile_id)){const o=node('option','','Valgt VPN er ikke tilgængelig');o.value=data.profile_id;options.push(o);}select.replaceChildren(...options);select.value=chosen;renderDownloadLists(data);$('#updated').textContent='Opdateret '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});}
 async function refresh(){
  if(busy||refreshing)return;

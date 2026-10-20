@@ -40,6 +40,12 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#profile').select_option('a'*32);page.locator('#connect').click()
             expect(page.locator('#public-address')).to_contain_text(':38850')
             expect(page.locator('#public-address')).not_to_contain_text('Delt gateway-VPN')
+            address=page.locator('#public-address')
+            parts=address.locator(':scope > span').all()
+            centers=[part.bounding_box()['y']+part.bounding_box()['height']/2 for part in parts]
+            assert max(centers)-min(centers)<1
+            flag=address.locator('img').bounding_box()
+            assert abs(flag['y']+flag['height']/2-centers[1])<1
             page.locator('#profile').select_option('b'*32);page.locator('#connect').click()
             expect(page.locator('#public-address')).to_contain_text(':57000 · Delt gateway-VPN · Åben torrentport')
             expect(page.locator('#vpn-message')).to_contain_text('sin egen åbne torrentport')
