@@ -29,7 +29,8 @@ def run():
                         page.locator('.nav[href="#rss"]').click();page.locator('#rss-new').click()
                         name='Size '+str(width)
                         page.locator('#rss-name').fill(name);page.locator('#rss-url').fill(f'https://tracker.example/rss?fixture={width}')
-                        page.locator('#rss-start').select_option('all')
+                        page.locator('#rss-start-trigger').click()
+                        page.get_by_role('option',name='Alle poster i feedet',exact=True).click()
                         page.locator('#rss-max-size').fill('0');page.locator('#rss-next').click()
                         expect(page.locator('#rss-source-step')).to_be_visible()
                         page.locator('#rss-max-size').fill('1.5');page.locator('#rss-size-unit').select_option('GB')
@@ -43,6 +44,8 @@ def run():
                         screenshot=Path(__file__).resolve().parents[1]/'test-results'/f'rss-size-{width}.png'
                         screenshot.parent.mkdir(exist_ok=True);page.screenshot(path=str(screenshot))
                         page.locator('#rss-next').click();page.locator('#rss-save').click()
+                        expect(page.locator('#rss-dialog')).not_to_be_visible()
+                        page.locator('#rss-manage').click()
                         card=page.locator('.rss-feed-card').filter(has=page.get_by_text(name,exact=True))
                         card.get_by_role('button',name='Rediger',exact=True).click()
                         expect(page.locator('#rss-max-size')).to_have_value('1.5')

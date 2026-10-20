@@ -10,7 +10,7 @@ from app import create_app
 from test_app import FakeRuntime
 
 row = {'hash':'a'*40, 'name':'Test torrent '+('long title '*15), 'state':'stalledUP',
-       'progress':1, 'size':1000, 'ratio':1, 'seeding_time':0,
+       'progress':1, 'size':1000, 'ratio':1, 'seeding_time':0, 'upspeed':1024,
        'seeding_unlimited':True, 'seeding_requirement_met':True, 'share_limit_action':'Stop'}
 
 class Demo(FakeRuntime):
@@ -39,8 +39,9 @@ with tempfile.TemporaryDirectory() as folder:
                 page.get_by_role('button', name='Fjern '+row['name'], exact=True).click()
                 expect(dialog).to_be_visible()
                 expect(page.locator('#delete-files')).to_have_value('keep')
-                expect(page.locator('#delete-files')).to_be_focused()
-                page.locator('#delete-files').select_option('delete')
+                expect(page.locator('#delete-files-trigger')).to_be_focused()
+                page.locator('#delete-files-trigger').click()
+                page.locator('#delete-files-options').get_by_role('option',name='Torrenten og alle downloadede filer',exact=True).click()
                 expect(page.locator('#delete-description')).to_contain_text('permanent')
                 assert dialog.evaluate('e=>e.scrollWidth<=e.clientWidth')
                 Path('test-results').mkdir(exist_ok=True)

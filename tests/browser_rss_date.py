@@ -23,14 +23,15 @@ with tempfile.TemporaryDirectory() as folder:
    page.goto(f'http://127.0.0.1:{server.server_port}/#rss')
    page.set_viewport_size({'width':1440,'height':1000})
    page.locator('#rss-new').click()
-   assert page.locator('#rss-include, #rss-max-size, #rss-badge-area, #rss-min-leechers').count()==0
+   assert page.locator('#rss-include, #rss-min-leechers').count()==0
    page.locator('#rss-name').fill('Date controlled feed')
    page.locator('#rss-url').fill('https://tracker.example/rss')
-   page.locator('#rss-start').select_option('3')
+   page.locator('#rss-start-trigger').click()
+   page.get_by_role('option',name='3 dage siden',exact=True).click()
    page.locator('#rss-enabled').check()
    page.locator('#rss-next').click()
    expect(page.locator('#rss-form-title')).to_have_text('Seeding og filer')
-   expect(page.locator('#rss-help')).to_contain_text('Green-upload')
+   expect(page.locator('#rss-help')).to_contain_text('krediteret upload')
    assert page.evaluate("document.querySelector('#rss-help').textContent===document.querySelector('#ratio-help').textContent")
    page.locator('#rss-back').click()
    expect(page.locator('#rss-name')).to_have_value('Date controlled feed')
@@ -42,9 +43,12 @@ with tempfile.TemporaryDirectory() as folder:
    original=app.extensions['rss'].entries()[0]['download_from']
    age=(datetime.now(timezone.utc)-datetime.fromisoformat(original)).total_seconds()
    assert 3*86400-5<age<3*86400+15
+   def edit_feed():
+    if not page.locator('#rss-feeds-dialog').is_visible():page.locator('#rss-manage').click()
+    page.locator('#rss-feed-list .tracker-actions .secondary').click()
    for width,value in [(1440,'2026-10-07T14:30'),(390,'2026-01-07T14:30')]:
     page.set_viewport_size({'width':width,'height':844})
-    page.locator('#rss-feed-list .tracker-actions .secondary').click()
+    edit_feed()
     expect(page.locator('#rss-start')).to_have_value('custom')
     page.locator('#rss-start-date').fill(value)
     screenshots=Path(__file__).resolve().parents[1]/'test-results';screenshots.mkdir(exist_ok=True)
@@ -58,13 +62,13 @@ with tempfile.TemporaryDirectory() as folder:
     saved=app.extensions['rss'].entries()[0]['download_from']
     assert saved==('2026-10-07T12:30:00+00:00' if width==1440 else '2026-01-07T13:30:00+00:00')
     page.reload()
-   page.locator('#rss-feed-list .tracker-actions .secondary').click()
+   edit_feed()
    expect(page.locator('#rss-start-date')).to_have_value('2026-01-07T14:30')
    page.locator('#rss-next').click()
    page.locator('#rss-save').click()
    expect(page.locator('#rss-dialog')).not_to_be_visible()
    assert app.extensions['rss'].entries()[0]['download_from']==saved
-   page.locator('#rss-feed-list .tracker-actions .secondary').click()
+   edit_feed()
    page.locator('#rss-start').select_option('all')
    expect(page.locator('#rss-start-date-label')).not_to_be_visible()
    page.locator('#rss-next').click()

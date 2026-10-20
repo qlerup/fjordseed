@@ -20,6 +20,7 @@ with sync_playwright() as p:
   page.on('pageerror',lambda e:errors.append(str(e)))
   page.set_content('<main><div id="torrent-list"></div><p id="empty"></p><div id="rss-torrent-list"></div><p id="rss-empty"></p><span id="rss-count"></span><span id="dl"></span><span id="ul"></span><span id="rss-dl"></span><span id="rss-ul"></span></main>')
   page.add_style_tag(content=(root/'static/style.css').read_text(encoding='utf-8'));page.add_script_tag(content=code)
+  page.evaluate('window.activityClock=0;performance.now=()=>activityClock')
   page.evaluate('torrents=>renderDownloadLists({torrents})',torrents)
   expect(page.locator('.torrent-extra:visible')).to_have_count(0)
   expect(page.locator('.torrent-progress:visible')).to_have_count(3)
@@ -68,6 +69,8 @@ with sync_playwright() as p:
   expect(rss).to_have_attribute('aria-expanded','true')
   # An expanded card retains its details when it moves between activity groups.
   migrating=[{**t,'upspeed':0,'dlspeed':0} if t['rss_feed'] else t for t in torrents]
+  page.evaluate('torrents=>renderDownloadLists({torrents})',migrating)
+  page.evaluate('activityClock+=30000')
   page.evaluate('torrents=>renderDownloadLists({torrents})',migrating)
   expect(page.locator('#rss-inactive-summary')).to_have_text('Inaktive torrents (1)')
   expect(page.locator('#rss-inactive-list .torrent-toggle')).to_have_attribute('aria-expanded','true')

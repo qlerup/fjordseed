@@ -177,6 +177,33 @@ function card(t){const row=node('article','torrent'),head=node('div','torrent-he
  row.append(head,torrentProgress(t),panel);updateExpanded();return row;}
 function eta(seconds){if(!Number.isFinite(Number(seconds))||Number(seconds)<0||Number(seconds)>=8640000)return 'Ukendt tid tilbage';seconds=Math.round(seconds);if(seconds<60)return seconds+' sek. tilbage';if(seconds<3600)return Math.ceil(seconds/60)+' min. tilbage';return Math.floor(seconds/3600)+' t. '+Math.ceil((seconds%3600)/60)+' min. tilbage';}
 function renderDownloadLists(data){
+ const context=JSON.stringify([data.id||'',data.profile_id||'']);
+ let activity=renderDownloadLists.activity;
+ if(!activity||activity.context!==context)activity=renderDownloadLists.activity={context,rows:new Map()};
+ // Pagination reuses the same snapshot and must not advance the idle clock.
+ if(activity.snapshot!==data){activity.snapshot=data;activity.sampleAt=performance.now();}
+ const now=activity.sampleAt;
+ const present=new Set(),activeKeys=new Set();
+ const keyOf=t=>t.hash||t.name;
+ for(const torrent of data.torrents){
+  const key=keyOf(torrent);present.add(key);
+  let state=activity.rows.get(key);
+  if(data.torrents_available===false){
+   // Cached samples cannot prove a continuous idle period. Keep the displayed
+   // group and require a fresh 30 seconds after status becomes available again.
+   if(state?.active){state.idleSince=null;activeKeys.add(key);}
+   continue;
+  }
+  const transferring=Number(torrent.dlspeed)>0||Number(torrent.upspeed)>0;
+  if(!state){state={active:transferring,idleSince:null};activity.rows.set(key,state);}
+  if(transferring){state.active=true;state.idleSince=null;}
+  else if(state.active){
+   state.idleSince??=now;
+   if(now-state.idleSince>=30000)state.active=false;
+  }
+  if(state.active)activeKeys.add(key);
+ }
+ if(data.torrents_available!==false)for(const key of activity.rows.keys())if(!present.has(key))activity.rows.delete(key);
  const pages=renderDownloadLists.pages??={manual:1,rss:1};
  function renderPage(items,key,listId){
   const pageCount=Math.max(1,Math.ceil(items.length/5));
@@ -213,8 +240,8 @@ function renderDownloadLists(data){
    const content=node('div');content.id=key+'-inactive-list';
    inactive.append(summary,help,content);list.after(inactive);
   }
-  const active=items.filter(t=>Number(t.dlspeed)>0||Number(t.upspeed)>0);
-  const waiting=items.filter(t=>!(Number(t.dlspeed)>0||Number(t.upspeed)>0));
+  const active=items.filter(t=>activeKeys.has(keyOf(t)));
+  const waiting=items.filter(t=>!activeKeys.has(keyOf(t)));
   $('#'+key+'-active-heading').textContent='Aktive torrents ('+active.length+')';
   $('#'+key+'-active-heading').hidden=!items.length;
   $('#'+key+'-active-empty').hidden=!items.length||active.length>0;

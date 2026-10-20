@@ -17,6 +17,7 @@ with sync_playwright() as p:
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.set_content('<main><div id="torrent-list"></div><p id="empty">Ingen downloads</p><div id="rss-torrent-list"></div><p id="rss-empty">Ingen RSS</p><span id="rss-count"></span><span id="dl"></span><span id="ul"></span><span id="rss-dl"></span><span id="rss-ul"></span></main>')
         page.add_style_tag(content=(root/'static/style.css').read_text(encoding='utf-8'))
+        page.evaluate('window.activityClock=0;performance.now=()=>activityClock')
         page.add_script_tag(content=code)
         page.evaluate('torrents=>renderDownloadLists({torrents})', rows)
         expect(page.locator('#torrent-list .torrent')).to_have_count(5)
@@ -68,10 +69,14 @@ with sync_playwright() as p:
         changed=[{**r,'dlspeed':0,'upspeed':0} for r in rows]+[
             {**r,'upspeed':1 if i==0 else 0,'dlspeed':1 if i==1 else 0} for i,r in enumerate(idle)]
         page.evaluate('torrents=>renderDownloadLists({torrents})', changed)
+        page.evaluate('activityClock+=30000')
+        page.evaluate('torrents=>renderDownloadLists({torrents})', changed)
         expect(page.locator('#torrent-list .torrent')).to_have_count(2)
         expect(page.locator('#torrent-list')).to_contain_text('Idle Manual')
         expect(page.locator('#manual-inactive-summary')).to_have_text('Inaktive torrents (24)')
         expect(page.locator('#manual-pagination')).to_be_hidden()
+        page.evaluate('torrents=>renderDownloadLists({torrents})', idle)
+        page.evaluate('activityClock+=30000')
         page.evaluate('torrents=>renderDownloadLists({torrents})', idle)
         expect(page.locator('#manual-active-empty')).to_be_visible()
         expect(page.locator('#empty')).not_to_be_visible()
