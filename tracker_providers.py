@@ -1,4 +1,6 @@
 """Fixed tracker API destinations and shared capabilities."""
+ACCOUNT_REFRESH_SECONDS = 10 * 60
+
 PROVIDERS = {
     'nordicbytes': {'name': 'NordicBytes', 'url': 'https://nordicbytes.org/api/user',
                     'torrents_url': 'https://nordicbytes.org/api/torrents/filter',

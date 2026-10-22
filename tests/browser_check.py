@@ -64,7 +64,8 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#new-torrent')).to_be_enabled()
             expect(page.locator('#traffic-flow')).to_have_attribute('data-state','active')
             expect(page.locator('#flow-vpn-icon img')).to_have_attribute('src','/static/flags/ps.svg')
-            assert page.locator('.flow-link i').first.evaluate("el=>getComputedStyle(el).animationName")=='flow-back'
+            expect(page.locator('.flow-canvas')).to_be_visible()
+            assert page.locator('[data-duck]').count()==0
             expect(page.locator('#public-address')).to_contain_text('Palæstina')
             page.locator('.nav[href="#torrents"]').click()
             expect(page.locator('#connection')).not_to_be_visible()

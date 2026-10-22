@@ -286,31 +286,24 @@ function preserveTorrentSnapshot(data,previous){
  return {...data,ready:false,transfer:{},torrents:sameProfile?previous.torrents:[],
   message:data.message+' Torrentstatus er utilgængelig.'+(sameProfile&&previous.torrents.length?' Viser senest kendte oplysninger; de er ikke live.':'')};
 }
+let transferFlow=null;
 function renderFlow(data){
  const state=data.ready?'active':'blocked',flow=$('#traffic-flow');
  flow.dataset.state=state;
  const rates=[data.transfer?.dl_info_speed,data.transfer?.up_info_speed].map(value=>
   typeof value==='number'&&Number.isFinite(value)&&value>=0?value:null);
- for(const [index,direction,tag] of [[0,'download','i'],[1,'upload','b']]){
+ for(const [index,direction] of [[0,'download'],[1,'upload']]){
   const rate=rates[index];
   $('#flow-'+direction+'-rate').textContent=data.ready&&rate!==null?size(rate)+'/s':'—';
-  // Logarithmic density keeps both small transfers and fast links readable.
-  const density=data.ready&&rate>0?Math.min(6,Math.ceil(Math.log2(1+rate/16384)/2)):0;
-  for(const lane of flow.querySelectorAll('.flow-'+direction)){
-   const count=Math.min(density,Math.max(1,Math.floor(lane.parentElement.clientWidth/30)));
-   if(lane.children.length===count)continue;
-   while(lane.children.length>count)lane.lastElementChild.remove();
-   while(lane.children.length<count){const duck=node(tag);duck.dataset.duck=String((lane.children.length+index)%4);lane.append(duck);}
-   [...lane.children].forEach((dot,i)=>{
-    dot.style.animationDelay=(-3.6*i/count)+'s';
-    dot.style.setProperty('--dot-position',((i+.5)/count*95)+'%');
-   });
-  }
+  flow.dataset[direction]=data.ready&&rate>0?'moving':'idle';
  }
- $('#flow-note').textContent=!data.ready?'Afventer bekræftet trafikstatus.':rates.some(rate=>rate===null)?'Afventer trafikdata.':rates.every(rate=>rate===0)?'Ingen download eller upload lige nu.':'Flere ænder betyder højere hastighed · samlet trafik fra manuelle downloads og RSS.';
+ if(!transferFlow&&window.FjordTransferFlow)transferFlow=new window.FjordTransferFlow(flow);
+ transferFlow?.update({ready:data.ready,download:rates[0],upload:rates[1]});
+ $('#flow-note').textContent=!data.ready?'Afventer bekræftet forbindelse og trafikstatus.':rates.some(rate=>rate===null)?'Forbindelsen er klar. Afventer trafikdata.':rates.every(rate=>rate===0)?'Forbindelsen er klar. Ingen download eller upload lige nu.':'Samlet trafik fra dine manuelle downloads og RSS · mere lys, mere fart.';
  $('#flow-status').textContent=data.ready?'VPN aktiv':!data.enabled?'Seedbox stoppet':data.torrents_available===false?'Afventer status':'Forbindelse blokeret';
  const code=data.ready?countryCode(data.country):null;
  $('#flow-country').textContent=data.ready?(countryName(data.country)||'Ukendt land'):'Afventer forbindelse';
+ $('#flow-vpn-label').textContent=data.ready?'Krypteret via VPN':'VPN afventer';
  const icon=$('#flow-vpn-icon'),key=code||'unknown';
  if(icon.dataset.country!==key){icon.dataset.country=key;const content=code?node('img'):node('span','','VPN');if(code){content.src='/static/flags/'+code.toLowerCase()+'.svg';content.alt='';content.width=32;content.height=24;}icon.replaceChildren(content);}
 }

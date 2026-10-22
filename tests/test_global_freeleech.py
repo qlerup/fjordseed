@@ -64,13 +64,24 @@ def test_only_typed_active_events_with_valid_dates_apply(tmp_path,events,active)
 
 
 @pytest.mark.parametrize('change',[
-    {'status':'error'}, {'updated_at':NOW-121}, {'updated_at':NOW+1}, {'updated_at':float('nan')},
+    {'status':'error'}, {'updated_at':NOW-601}, {'updated_at':NOW+1}, {'updated_at':float('nan')},
 ])
 def test_failed_stale_or_future_account_never_grants_global_freeleech(tmp_path,change):
     trackers,ident,base=setup_global(tmp_path)
     trackers.cache[ident].update(change)
     match=trackers.benefits.with_global(base,now=NOW)['matches'][0]
     assert match['freeleech']==25 and match['global_freeleech'] is None
+
+
+def test_global_freeleech_between_ten_minute_account_refreshes_still_expires_on_time(tmp_path):
+    trackers,_,base=setup_global(tmp_path,[{'type':'global_freeleech','ends_at':iso(NOW+550)}])
+    active=trackers.benefits.with_global(base,now=NOW+500)
+    assert active['matches'][0]['global_freeleech'] is True
+    assert active['matches'][0]['freeleech']==100
+    expired=trackers.benefits.with_global(active,now=NOW+550)['matches'][0]
+    assert expired['global_freeleech'] is False and expired['freeleech']==25
+    stale=trackers.benefits.with_global(base,now=NOW+601)['matches'][0]
+    assert stale['global_freeleech'] is None and stale['freeleech']==25
 
 
 def test_accounts_are_isolated_and_existing_full_freeleech_survives_expiry(tmp_path):

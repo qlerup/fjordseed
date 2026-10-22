@@ -136,13 +136,13 @@ cancelling the dialog.
 
 ## Tracker accounts, benefits and covers
 
-Add a NordicBytes or Sagmire account with a read-capable API key. Both use the same account/torrent API format and support account statistics, exact-hash benefits, covers, global freeleech, Green accounting and RSS badge requirements. Provider destinations are fixed; each key is sent only to its own tracker. Cards show account upload/download/ratio/buffer/seeding/bonus/warnings separately from local qBittorrent statistics. Account refresh runs every minute and after configuration changes. Outages retain the last sample with timestamp/error. Keys are stored in `DATA_DIR/trackers.json`, mode 0600, never returned to the UI/worker. Blank key edits preserve the key; removing an account keeps torrents/files. Other providers need their own integration. Sagmire's matching API format is supplied by the operator; authenticated live behavior still requires the user's Sagmire API key.
+Add a NordicBytes or Sagmire account with a read-capable API key. Both use the same account/torrent API format and support account statistics, exact-hash benefits, covers, global freeleech, Green accounting and RSS badge requirements. Provider destinations are fixed; each key is sent only to its own tracker. Cards show account upload/download/ratio/buffer/seeding/bonus/warnings separately from local qBittorrent statistics. Account refresh runs every ten minutes and after configuration changes. Outages retain the last sample with timestamp/error. Keys are stored in `DATA_DIR/trackers.json`, mode 0600, never returned to the UI/worker. Blank key edits preserve the key; removing an account keeps torrents/files. Other providers need their own integration. Sagmire's matching API format is supplied by the operator; authenticated live behavior still requires the user's Sagmire API key.
 
 Exact info-hash matches determine benefits; torrent announce URLs are never called for metadata lookup. Searches are bounded to 50 results/page and three pages per name variant, cached five minutes. V1, pure v2 SHA-256 and hybrid hashes are supported. Featured entries are interpreted as 100% freeleech/double upload according to the [NordicBytes definition](https://github.com/Prowlarr/Indexers/blob/master/definitions/v11/nordicbytes.yml). Unknown benefits do not block ordinary downloads; configured RSS badge requirements do.
 
 NordicBytes and Sagmire global freeleech is also checked through the account API's typed
-`global_freeleech` events. Fresh account data (refreshed every minute, accepted
-for at most two minutes) and a valid future expiry are required. The preview
+`global_freeleech` events. Fresh account data (refreshed every ten minutes, accepted
+for at most ten minutes) and a valid future expiry are required. The preview
 shows a Global freeleech badge and local expiry time, and uses 100% freeleech
 in its ratio estimate while active. This does not grant double upload. The
 torrent's own discount is retained underneath; global events are re-evaluated

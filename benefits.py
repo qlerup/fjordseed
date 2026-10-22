@@ -12,7 +12,7 @@ from datetime import datetime
 from state import atomic
 from green_credit import policy_from_result, created_timestamp
 from covers import poster_url
-from tracker_providers import PROVIDERS
+from tracker_providers import PROVIDERS, ACCOUNT_REFRESH_SECONDS
 
 
 def event_timestamp(value):
@@ -51,7 +51,7 @@ def ratio_estimate(match,account,size,now=None):
                 'message':'Ratio kan ikke beregnes: aktuelle kontotal mangler.'}
     stamp=account.get('updated_at')
     now=time.time() if now is None else now
-    if type(stamp) not in (int,float) or not math.isfinite(stamp) or not 0<=now-stamp<=600:
+    if type(stamp) not in (int,float) or not math.isfinite(stamp) or not 0<=now-stamp<=ACCOUNT_REFRESH_SECONDS:
         return {**result,'message':'Ratio kan ikke beregnes: kontotallene er for gamle.'}
     stats=account.get('stats',{})
     uploaded,downloaded=stats.get('uploaded'),stats.get('downloaded')
@@ -153,7 +153,7 @@ class Benefits:
             match['torrent_freeleech']=match.get('freeleech')
             match['global_freeleech']=None
             if (account.get('status')!='ok' or type(stamp) not in (int,float)
-                    or not 0<=now-stamp<=120 or not isinstance(account.get('events'),list)):
+                    or not 0<=now-stamp<=ACCOUNT_REFRESH_SECONDS or not isinstance(account.get('events'),list)):
                 continue
             ends=[];invalid=False
             for event in account['events']:

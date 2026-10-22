@@ -10,7 +10,7 @@ import requests
 
 from state import atomic
 from benefits import Benefits
-from tracker_providers import PROVIDERS
+from tracker_providers import PROVIDERS, ACCOUNT_REFRESH_SECONDS
 
 STAT_FIELDS = ('uploaded','downloaded','ratio','buffer','seeding','leeching','seedbonus',
                'hit_and_runs','seeding_size','total_uploads')
@@ -37,7 +37,7 @@ class Trackers:
     def badge_ready(self,ident):
         with self.lock:
             status=self.cache.get(ident,{})
-            return (status.get('status')=='ok' and 0<=time.time()-status.get('updated_at',0)<600
+            return (status.get('status')=='ok' and 0<=time.time()-status.get('updated_at',0)<ACCOUNT_REFRESH_SECONDS
                     and any(e['id']==ident and e['provider'] in PROVIDERS and e.get('api_key') for e in self.entries()))
 
     def public(self):
@@ -154,4 +154,4 @@ class Trackers:
         while not stop.is_set():
             self.wake.clear()
             self.refresh()
-            self.wake.wait(60)
+            self.wake.wait(ACCOUNT_REFRESH_SECONDS)
