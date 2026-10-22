@@ -166,6 +166,9 @@ async function refreshRss(){
    const summary=rssFeeds.length+' feeds · '+rssFeeds.filter(feed=>feed.enabled).length+' tændt';
    $('#rss-feed-summary').textContent=summary;
    $('#rss-feeds-summary').textContent=summary;
+   const uploads=rssFeeds.map(feed=>feed.credited_uploaded);
+   const hasTotals=uploads.every(value=>typeof value==='number'&&Number.isFinite(value)&&value>=0);
+   $('#rss-feeds-upload-total').textContent=hasTotals?size(uploads.reduce((total,value)=>total+value,0)):'Afventer uploadtal';
    const focused=document.activeElement?.dataset,key=focused?.rssToggle,control=focused?.rssToggleControl;
    $('#rss-feed-list').replaceChildren(...(rssFeeds.length?rssFeeds.map(rssFeedCard):[node('p','empty','Ingen RSS-feeds tilføjet endnu.')]));
    if(key)for(const button of document.querySelectorAll('[data-rss-toggle]'))if(button.dataset.rssToggle===key&&button.dataset.rssToggleControl===control){button.focus({preventScroll:true});break;}

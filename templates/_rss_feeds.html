@@ -4,7 +4,16 @@
     <button type="button" class="close quiet" aria-label="Luk feedlisten">×</button>
   </div>
   <div class="dialog-body">
-    <div class="rss-feeds-toolbar"><p class="muted small" id="rss-feeds-summary"></p><button type="button" class="primary" id="rss-feeds-add">＋ Tilføj RSS-feed</button></div>
+    <div class="rss-feeds-toolbar">
+      <div class="rss-feeds-overview">
+        <p class="muted small" id="rss-feeds-summary"></p>
+        <div class="rss-feed-upload rss-total-upload" title="Summen af krediteret upload for alle dine feeds, også slukkede feeds. Green-periodens halve kredit er medregnet.">
+          <span class="muted small">Krediteret upload i alt</span>
+          <strong class="rss-feed-upload-value" id="rss-feeds-upload-total" aria-live="polite">Henter uploadtal…</strong>
+        </div>
+      </div>
+      <button type="button" class="primary" id="rss-feeds-add">＋ Tilføj RSS-feed</button>
+    </div>
     <div id="rss-feed-list"><p class="muted">Henter feeds…</p></div>
   </div>
   <div class="dialog-footer"><button type="button" class="secondary close">Luk</button></div>

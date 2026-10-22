@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory() as folder:
     store=app.extensions['rss']
     ident=store.save(dict(name='Politijagt',url='https://tracker.example/rss?passkey=private',
                          folder='',enabled=True,ratio_limit=2,ratio_action='keep'))
-    store.save(dict(name='Temptation Island Danmark med et meget langt feednavn',
+    other_ident=store.save(dict(name='Temptation Island Danmark med et meget langt feednavn',
                     url='https://tracker.example/other',folder='',enabled=False,ratio_limit=3,ratio_action='delete_ratio'))
     server=make_server('127.0.0.1',0,app,threaded=True)
     threading.Thread(target=server.serve_forever,daemon=True).start()
@@ -43,6 +43,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(switch).to_have_attribute('aria-checked','true')
             card=page.locator('.rss-feed-card').first
             expect(card.locator('.rss-feed-upload-value')).to_have_text('Afventer uploadtal')
+            expect(page.locator('#rss-feeds-upload-total')).to_have_text('Afventer uploadtal')
             with credit.CreditLedger().transaction() as ledger:
                 ledger.update({'hash':'a'*40,'uploaded':6*1024**3,'tags':'FjordSeed-RSS-'+ident},now=20)
                 ledger.update({'hash':'b'*40,'uploaded':256*1024**2,'tags':'FjordSeed-RSS-'+ident},now=20)
@@ -50,6 +51,12 @@ with tempfile.TemporaryDirectory() as folder:
             page.evaluate('refreshRss()')
             expect(card.locator('.rss-feed-upload-value')).to_have_text('6.3 GB')
             expect(page.locator('.rss-feed-card').nth(1).locator('.rss-feed-upload-value')).to_have_text('0.0 B')
+            expect(page.locator('#rss-feeds-upload-total')).to_have_text('6.3 GB')
+            # Disabled feeds count too; aggregate the raw bytes before formatting.
+            with credit.CreditLedger().transaction() as ledger:
+                ledger.update({'hash':'c'*40,'uploaded':1024**3,'tags':'FjordSeed-RSS-'+other_ident},now=20)
+            page.evaluate('refreshRss()')
+            expect(page.locator('#rss-feeds-upload-total')).to_have_text('7.3 GB')
             switch.click()
             expect(switch).to_be_enabled()
             expect(switch).to_have_attribute('aria-checked','false')
@@ -58,6 +65,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#rss-manage').click()
             expect(switch).to_have_attribute('aria-checked','false')
             expect(card.locator('.rss-feed-upload-value')).to_have_text('6.3 GB')
+            expect(page.locator('#rss-feeds-upload-total')).to_have_text('7.3 GB')
             switch.focus()
             page.keyboard.press('Space')
             expect(switch).to_have_attribute('aria-checked','true')
@@ -102,12 +110,18 @@ with tempfile.TemporaryDirectory() as folder:
             expect(switch).to_have_attribute('aria-checked','true')
             expect(page.locator('#rss-feed-summary')).to_have_text('2 feeds · 1 tændt')
             assert page.locator('#rss-feeds-dialog').evaluate('el=>el.scrollWidth<=el.clientWidth')
+            expect(page.locator('#rss-feeds-upload-total')).to_be_visible()
             page.screenshot(path=str(output/'rss-upload-mobile.png'),full_page=True)
             page.keyboard.press('Escape')
             expect(page.locator('#rss-feeds-dialog')).not_to_be_visible()
             expect(page.locator('#rss-manage')).to_be_focused()
             page.keyboard.press('Enter')
             expect(page.locator('#rss-feeds-dialog')).to_be_visible()
+            page.evaluate('refreshRss()')
+            page.route('**/api/rss',lambda route:route.fulfill(json={'feeds':[],'download_path':'/downloads/rss'}))
+            page.evaluate('refreshRss()')
+            expect(page.locator('#rss-feeds-upload-total')).to_have_text('0.0 B')
+            page.unroute('**/api/rss')
             assert not errors,errors
             browser.close()
     finally:
