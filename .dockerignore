@@ -27,3 +27,5 @@
 !storage.py
 !streaming.py
 !storage_browser.py
+
+!bot_upload.py

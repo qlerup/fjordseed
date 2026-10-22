@@ -69,7 +69,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             actual = request.headers.get('X-CSRF-Token') or request.form.get('csrf','')
             if not expected or not secrets.compare_digest(expected, actual):
                 return jsonify(error='Genindlæs siden og prøv igen.'),403
-        if request.endpoint == 'bot_seeding':
+        if request.endpoint in ('bot_seeding', 'bot_upload'):
             supplied = request.headers.get('X-Hub-Key', '')
             if not hub.enabled or not hub.key or not secrets.compare_digest(hub.key, supplied):
                 return jsonify(ok=False, error='Ugyldig appnøgle.'), 403
@@ -195,6 +195,11 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             torrent['cover']=next((url for m in torrent['benefits'].get('matches',[])
                                   if (url:=covers.request(m.get('poster')))),None)
         return jsonify(result)
+
+    @app.get('/api/hub/bot/upload')
+    def bot_upload():
+        from bot_upload import upload_choices
+        return jsonify(upload_choices(rss, trackers))
 
     @app.get('/api/hub/bot/seeding')
     def bot_seeding():
