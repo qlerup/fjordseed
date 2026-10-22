@@ -100,13 +100,17 @@ def sync_share_limits(api=None):
         rows=api('torrents/info').json()
         normalize_forced_downloads(api, rows)
         prioritize_rss_downloads(api,rows)
-        from download_storage import publish_complete
-        storage_errors = publish_complete(api, rows)
         credits=[ledger.update(row) for row in rows]
         ledger.save()
+        # Stop before publishing can start an asynchronous file move.
+        for row,credit in zip(rows,credits):
+            if credit.get('stop_on_complete'):
+                finish_seeding(api,row,credit)
+        from download_storage import publish_complete
+        storage_errors = publish_complete(api, rows)
         for row,credit in zip(rows,credits):
             apply_limits(api,row)
-            if finish_seeding(api,row,credit):
+            if not credit.get('stop_on_complete') and finish_seeding(api,row,credit):
                 from download_storage import forget
                 forget([row.get(k) for k in ('hash','infohash_v1','infohash_v2')])
                 for key in ('hash','infohash_v1','infohash_v2'):
@@ -125,8 +129,8 @@ def apply_limits(api,row,action=None):
             'shareLimitAction':action or row.get('share_limit_action') or 'Stop'})
 
 
-def initial_managed_ratio(hashes,target,ratio_only=False,adaptive=False):
-    initial_ratio_limit(hashes,target,ratio_only=ratio_only,adaptive=adaptive)  # Persist before add.
+def initial_managed_ratio(hashes,target,ratio_only=False,adaptive=False,stop_on_complete=False):
+    initial_ratio_limit(hashes,target,ratio_only=ratio_only,adaptive=adaptive,stop_on_complete=stop_on_complete)  # Persist before add.
     return -1
 
 
@@ -149,6 +153,14 @@ def seeding_completion(row,credit):
 
 
 def finish_seeding(api,row,credit):
+    if credit.get('stop_on_complete'):
+        # This explicit policy stops immediately, regardless of peers or ratio.
+        # Keep the torrent, files and durable policy; never resume paused torrents.
+        if (row.get('share_limit_action') == 'Stop'
+                and row.get('state') in {'uploading','stalledUP','forcedUP','queuedUP'}
+                and type(row.get('progress')) in (int,float) and row['progress'] >= 1):
+            api('torrents/stop', {'hashes':row['hash']})
+        return
     completion=seeding_completion(row,credit)
     if (row.get('state') not in {'uploading','stalledUP','forcedUP'}
             or not completion['seeding_goal_reached'] or completion['waiting_for_downloaders']
@@ -170,6 +182,8 @@ def extra_seed_hours(value):
 def share_policy(data):
     value = data.get('ratio_limit', -1)
     action = data.get('ratio_action', 'keep')
+    if action == 'stop_keep':
+        return {'ratio_limit':1.0, 'ratio_action':action}
     try:
         ratio = float(value)
     except (TypeError, ValueError):
@@ -230,9 +244,9 @@ def execute(action, data):
         meta=magnet_meta(data['magnet']) if data.get('magnet') else torrent_meta(base64.b64decode(data['torrent'],validate=True))
         from download_storage import prepare
         options = {'savepath':prepare(meta['hashes'],name=meta.get('name','')), 'autoTMM':'false', 'stopped':'false', 'forceStart':'false',
-                   'ratioLimit':initial_managed_ratio(meta['hashes'],seed_ratio(policy['ratio_limit']),ratio_only=policy['ratio_action']=='delete_ratio',adaptive=policy['ratio_action']=='automatic'),
+                   'ratioLimit':initial_managed_ratio(meta['hashes'],seed_ratio(policy['ratio_limit']),ratio_only=policy['ratio_action']=='delete_ratio',adaptive=policy['ratio_action']=='automatic',stop_on_complete=policy['ratio_action']=='stop_keep'),
                    'seedingTimeLimit':-1, 'inactiveSeedingTimeLimit':-1,
-                   'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] != 'keep' else 'Stop'}
+                   'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] not in ('keep','stop_keep') else 'Stop'}
         if data.get('magnet'):
             response = call('torrents/add', {**options, 'urls':data['magnet']})
         else:
@@ -261,12 +275,13 @@ def execute(action, data):
             if 'ratio_action' in data:
                 ledger.entries[ident.lower()]['ratio_only']=policy['ratio_action']=='delete_ratio'
                 ledger.entries[ident.lower()]['adaptive_seeding']=policy['ratio_action']=='automatic'
+                ledger.entries[ident.lower()]['stop_on_complete']=policy['ratio_action']=='stop_keep'
                 if policy['ratio_action']!='automatic':
                     ledger.entries[ident.lower()].pop('upload_potential',None)
             if extra is not None:
                 ledger.entries[ident.lower()]['extra_seed_hours']=extra
             ledger.save()
-            selected=('RemoveWithContent' if policy['ratio_action']!='keep' else 'Stop') if 'ratio_action' in data else None
+            selected=('RemoveWithContent' if policy['ratio_action'] not in ('keep','stop_keep') else 'Stop') if 'ratio_action' in data else None
             apply_limits(call,rows[0],action=selected)
     elif action in ('start','stop','delete','delete-files'):
         if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}', data.get('hash','')):

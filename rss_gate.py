@@ -156,9 +156,9 @@ def gate_rpc(action,data,api,root=Path('/config')):
             from download_storage import prepare
             path=prepare(hashes, feed['folder'],name=pending['meta'].get('name') or pending.get('title',''))
             options={'savepath':str(path),'stopped':'false','forceStart':'false','autoTMM':'false',
-                     'tags':'FjordSeed-RSS-'+ident,'ratioLimit':initial_managed_ratio(hashes,seed_ratio(feed['ratio_limit']),ratio_only=feed['ratio_action']=='delete_ratio',adaptive=feed['ratio_action']=='automatic'),
+                     'tags':'FjordSeed-RSS-'+ident,'ratioLimit':initial_managed_ratio(hashes,seed_ratio(feed['ratio_limit']),ratio_only=feed['ratio_action']=='delete_ratio',adaptive=feed['ratio_action']=='automatic',stop_on_complete=feed['ratio_action']=='stop_keep'),
                      'seedingTimeLimit':-1,'inactiveSeedingTimeLimit':-1,
-                     'shareLimitAction':'RemoveWithContent' if feed['ratio_action']!='keep' else 'Stop'}
+                     'shareLimitAction':'RemoveWithContent' if feed['ratio_action'] not in ('keep','stop_keep') else 'Stop'}
             payload=pending['payload']
             if payload.get('magnet'):
                 response=api('torrents/add',{**options,'urls':payload['magnet']})

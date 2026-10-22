@@ -133,6 +133,18 @@ def test_automatic_rss_add_persists_opt_in_before_start(gate):
         assert credit['adaptive_seeding'] is True and credit['ratio_only'] is False
 
 
+@pytest.mark.parametrize('gate',[{'ratio_action':'stop_keep'}],indirect=True)
+def test_stop_after_download_rss_add_preserves_files_and_policy(gate):
+    from green_credit import CreditLedger
+    invoke,calls,_,_,_,_=gate
+    candidate=invoke('rss_prepare');resolve(invoke,candidate)
+    options=next(d for p,d in calls if p=='torrents/add')
+    assert options['shareLimitAction']=='Stop' and options['ratioLimit']==-1
+    with CreditLedger().transaction() as ledger:
+        credit=ledger.update({'hash':candidate['meta']['hashes'][0],'state':'downloading'})
+        assert credit['stop_on_complete'] is True
+
+
 def test_skip_old_and_undated_before_metadata_then_add_boundary_and_future(gate):
     invoke,calls,fetched,articles,root,entry=gate
     candidate=invoke('rss_prepare')

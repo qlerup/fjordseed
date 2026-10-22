@@ -303,7 +303,7 @@ def sync_rss(feeds,api=call):
               'torrentParams':{'save_path':str(path),'use_auto_tmm':False,'stopped':False,'force_start':False,
                   'tags':['FjordSeed-RSS-'+entry['id']], 'ratio_limit':-1,
                   'seeding_time_limit':-1,'inactive_seeding_time_limit':-1,
-                  'share_limit_action':'RemoveWithContent' if entry['ratio_action']!='keep' else 'Stop'}}
+                  'share_limit_action':'RemoveWithContent' if entry['ratio_action'] not in ('keep','stop_keep') else 'Stop'}}
         api('rss/setRule',{'ruleName':name,'ruleDef':json.dumps(rule)})
     active=any(e['enabled'] for e in entries)
     # All RSS additions pass through the same startup policy as manual torrents.

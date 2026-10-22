@@ -49,11 +49,11 @@ def green_safety_factor():
     return 2 if read(POLICIES, {}).get('_enabled') else 1
 
 
-def initial_ratio_limit(hashes, target, now=None, ratio_only=False, adaptive=False):
+def initial_ratio_limit(hashes, target, now=None, ratio_only=False, adaptive=False, stop_on_complete=False):
     """Shared manual/RSS startup policy before any payload can download."""
     now=time.time() if now is None else now
     with CreditLedger().transaction() as ledger:
-        ledger.register(hashes,target,ratio_only=ratio_only,adaptive=adaptive)
+        ledger.register(hashes,target,ratio_only=ratio_only,adaptive=adaptive,stop_on_complete=stop_on_complete)
         policies=[ledger.policies.get(h,ledger.entries[h]['policy']) for h in hashes]
         pending=ledger.policies.get('_enabled',False) and (
             not policies or any(not p.get('known') or p.get('has_date') is False for p in policies))
@@ -109,10 +109,10 @@ class CreditLedger:
         """Persist goals before disabling qBittorrent's native stop limits."""
         atomic(CONFIG / 'green-credit.json', json.dumps(self.entries))
 
-    def register(self, hashes, target, policy=None, ratio_only=False, adaptive=False):
+    def register(self, hashes, target, policy=None, ratio_only=False, adaptive=False, stop_on_complete=False):
         for ident in hashes:
             if ident not in self.entries:
-                self.entries[ident] = {'target': max(1, target), 'ratio_only': ratio_only, 'adaptive_seeding':adaptive, 'uploaded': 0,
+                self.entries[ident] = {'target': max(1, target), 'ratio_only': ratio_only, 'adaptive_seeding':adaptive, 'stop_on_complete':stop_on_complete, 'uploaded': 0,
                     'green_uploaded': 0, 'at': time.time(), 'policy': policy or {'known': not self.policies.get('_enabled', False), 'until': None}}
 
     def update(self, row, target=None, now=None):
@@ -129,6 +129,7 @@ class CreditLedger:
             entry = {'target': max(1, number((fresh_feed or {}).get('ratio_limit', row.get('ratio_limit')))),
                      'ratio_only': (fresh_feed or {}).get('ratio_action') == 'delete_ratio',
                      'adaptive_seeding': (fresh_feed or {}).get('ratio_action') == 'automatic',
+                     'stop_on_complete': (fresh_feed or {}).get('ratio_action') == 'stop_keep',
                      'uploaded': 0, 'green_uploaded': 0, 'at': number(row.get('added_on')) or now,
                      'policy': {'known': not self.policies.get('_enabled', False), 'until': None}}
             self.entries[ident] = entry
@@ -171,6 +172,7 @@ class CreditLedger:
         return {'seeding_time': seed_time(entry, row), 'extra_seed_hours': entry.get('extra_seed_hours', 0),
                 'ratio_only': entry.get('ratio_only', False),
                 'adaptive_seeding': entry.get('adaptive_seeding', False),
+                'stop_on_complete': entry.get('stop_on_complete', False),
                 'ratio_limit': entry['target'], 'native_ratio_limit': native,
                 'credited_ratio': credited / denominator if denominator else raw_ratio / (2 if active or pending else 1),
                 'credited_uploaded': credited, 'green_uploaded': discounted,

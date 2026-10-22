@@ -1,5 +1,5 @@
 {% macro seeding_fields(prefix) -%}
-<label>Hvad skal der ske med filerne?<select id="{{ prefix }}-action"><option value="keep">Behold filerne og fortsæt seeding</option><option value="delete">Slet torrent og downloadede filer automatisk</option><option value="automatic">Automatisk: optimer ratio og slet</option><option value="delete_ratio">Slet ved ratio (uden tidsgrænse)</option></select></label>
+<label>Hvad skal der ske med filerne?<select id="{{ prefix }}-action"><option value="keep">Behold filerne og fortsæt seeding</option><option value="stop_keep">Stop seeding efter download og behold filerne</option><option value="delete">Slet torrent og downloadede filer automatisk</option><option value="automatic">Automatisk: optimer ratio og slet</option><option value="delete_ratio">Slet ved ratio (uden tidsgrænse)</option></select></label>
 <p class="muted small" id="{{ prefix }}-keep-info">Seeding fortsætter uden ratio- eller tidsgrænse, indtil du stopper den manuelt.</p>
 <div id="{{ prefix }}-limits" hidden>
 <label><span id="{{ prefix }}-ratio-label">Stop ved ratio</span><input type="number" id="{{ prefix }}-{{ 'limit' if prefix == 'ratio' else 'ratio' }}" min="1" max="10000" step="any" value="1" required inputmode="decimal" aria-describedby="{{ prefix }}-help"></label>
