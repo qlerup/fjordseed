@@ -1,10 +1,22 @@
+{% macro seeding_options() -%}
+<option value="keep" data-description="Ingen automatisk stop eller sletning. Du stopper selv seeding; torrenten og filerne beholdes.">Behold filer · seed indtil du stopper</option>
+<option value="stop_keep" data-description="Stopper, så snart download er færdig. Torrenten og filerne beholdes. Venter ikke på ratio 1 eller 49 timers seeding.">Behold filer · stop efter download</option>
+<option value="delete" data-description="Sletter torrent og filer ved målratioen eller seedtiden (som standard 49 timer) — det, der sker først. Venter på tilsluttede downloadere.">Slet ved målratio eller seedtid</option>
+<option value="automatic" data-description="Bruger målratio eller seedtid (som standard 49 timer), men seeder videre ved forventet ekstra upload. Sletter derefter torrent og filer.">Optimér upload · slet bagefter</option>
+<option value="delete_ratio" data-description="Sletter først torrent og filer, når målratioen er nået. 49 timer udløser ikke sletning. Venter på tilsluttede downloadere.">Slet kun ved målratio · ingen tidsgrænse</option>
+{%- endmacro %}
+
 {% macro seeding_fields(prefix) -%}
-<label>Hvad skal der ske med filerne?<select id="{{ prefix }}-action"><option value="keep">Behold filerne og fortsæt seeding</option><option value="stop_keep">Stop seeding efter download og behold filerne</option><option value="delete">Slet torrent og downloadede filer automatisk</option><option value="automatic">Automatisk: optimer ratio og slet</option><option value="delete_ratio">Slet ved ratio (uden tidsgrænse)</option></select></label>
-<p class="muted small" id="{{ prefix }}-keep-info">Seeding fortsætter uden ratio- eller tidsgrænse, indtil du stopper den manuelt.</p>
+<label>Seeding og oprydning<select id="{{ prefix }}-action" aria-describedby="{{ prefix }}-keep-info">{{ seeding_options() }}</select></label>
+<p class="seeding-choice-info small" id="{{ prefix }}-keep-info" aria-live="polite">Efter download fortsætter seeding uden tids- eller ratiogrænse. Du stopper selv. Torrenten og filerne beholdes.</p>
 <div id="{{ prefix }}-limits" hidden>
-<label><span id="{{ prefix }}-ratio-label">Stop ved ratio</span><input type="number" id="{{ prefix }}-{{ 'limit' if prefix == 'ratio' else 'ratio' }}" min="1" max="10000" step="any" value="1" required inputmode="decimal" aria-describedby="{{ prefix }}-help"></label>
-<p class="muted small" id="{{ prefix }}-help">Stopmålet bruger krediteret upload. Green-perioden varer 24 timer fra torrentens oprettelse hos trackeren; appen tilføjer 30 minutters buffer. Upload i perioden krediteres med 50 %, og upload efter perioden tæller 100 %. Totalen lægger de to bidrag sammen. Et mål på ratio 1 kræver derfor ratio 2, hvis al upload sker i Green-perioden. Ved det almindelige slettevalg afsluttes ved ratio eller 49 timers aktiv seeding. Ved “Slet ved ratio” bruges kun ratioen, uden tidsgrænse. Hvis tilsluttede downloadere stadig mangler data, fortsætter seeding, indtil de er færdige eller har afbrudt forbindelsen. Pauser tæller ikke med.</p>
-<p class="muted small">Samme Green-regnskab bruges til manuelle downloads og RSS. Afventer trackerens dato, hæves uploadmålet midlertidigt. Freeleech og dobbelt upload vises separat fra den krediterede upload.</p>
-<p class="error" id="{{ prefix }}-delete-notice" hidden>Downloadede filer slettes automatisk, når ratioen eller 49 timers seeding er nået, og aktive downloadere er færdige. De kan ikke gendannes fra FjordSeed.</p>
+<label><span id="{{ prefix }}-ratio-label">Målratio (krediteret upload)</span><input type="number" id="{{ prefix }}-{{ 'limit' if prefix == 'ratio' else 'ratio' }}" min="1" max="10000" step="any" value="1" required inputmode="decimal" aria-describedby="{{ prefix }}-help"></label>
+<details class="seeding-help"><summary>Sådan beregnes ratio og seedtid</summary>
+<p class="muted small" id="{{ prefix }}-help">Målratio 1 betyder, at den krediterede upload svarer til det downloadede. Under Green krediteres upload med 50 % i 24 timer fra torrentens oprettelse hos trackeren plus 30 minutters buffer. Upload bagefter tæller 100 %. Hvis al upload sker under Green, kræver målratio 1 derfor faktisk ratio 2.</p>
+<p class="muted small">Seedtiden tæller aktiv seeding efter download. Pauser og flytning tæller ikke med. 49 timer er 48 timer plus én times buffer. Ved “Slet kun ved målratio” bruges seedtiden ikke som stopmål.</p>
+<p class="muted small">Ved automatisk sletning venter FjordSeed, til ingen tilsluttede downloadere mangler data, og upload er nul. Ukendt peer-status udsætter sletningen. Samme regler gælder for manuelle downloads og RSS.</p>
+<p class="muted small">Hvis trackerens Green-dato endnu ikke er bekræftet, beregnes uploaden forsigtigt. Freeleech ændrer trackerens downloadkredit; det er adskilt fra Green og dit seedmål.</p>
+</details>
+<p class="error small" id="{{ prefix }}-delete-notice" hidden>Ved oprydning fjernes både torrenten og de downloadede filer permanent.</p>
 </div>
 {%- endmacro %}

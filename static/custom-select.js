@@ -40,7 +40,7 @@
   }
   function draw(){
    const choices=options();
-   const next=JSON.stringify(choices.map(option=>[option.value,option.textContent,disabled(option),option.selected]));
+   const next=JSON.stringify(choices.map(option=>[option.value,option.textContent,option.dataset.description,disabled(option),option.selected]));
    if(next===signature)return;
    signature=next;
    const focused=document.activeElement?.dataset?.value,scroll=list.scrollTop;
@@ -48,7 +48,14 @@
     const item=make('button','tracker-select-option custom-select-option');
     item.type='button';item.tabIndex=-1;item.id=id+'-option-'+index;item.dataset.value=option.value;
     item.setAttribute('role','option');item.setAttribute('aria-selected',String(option.selected));
-    item.disabled=Boolean(disabled(option));item.textContent=option.textContent;
+    item.disabled=Boolean(disabled(option));
+    if(option.dataset.description){
+     const copy=make('span','custom-select-copy'),title=make('span','custom-select-title'),description=make('span','custom-select-description');
+     title.textContent=option.textContent;description.textContent=option.dataset.description;
+     description.id=item.id+'-description';
+     item.setAttribute('aria-label',option.textContent);item.setAttribute('aria-describedby',description.id);
+     copy.append(title,description);item.append(copy);
+    }else item.textContent=option.textContent;
     item.onclick=event=>{
      event.preventDefault();
      if(item.disabled||select.matches(':disabled'))return;
@@ -81,10 +88,11 @@
    if(opened&&opened!==control)opened.close();
    draw();
    const box=trigger.getBoundingClientRect();
-   const below=innerHeight-box.bottom-12,above=box.top-12,up=below<160&&above>below;
+   const desired=options().some(option=>option.dataset.description)?520:300;
+   const below=innerHeight-box.bottom-12,above=box.top-12,up=below<desired&&above>below;
    list.style.width=Math.min(box.width,innerWidth-24)+'px';
    list.style.left=Math.max(12,Math.min(box.left,innerWidth-parseFloat(list.style.width)-12))+'px';
-   list.style.maxHeight=Math.max(44,Math.min(300,up?above:below))+'px';
+   list.style.maxHeight=Math.max(44,Math.min(desired,up?above:below))+'px';
    list.showPopover();list.style.top=(up?Math.max(6,box.top-list.getBoundingClientRect().height-5):box.bottom+5)+'px';
    trigger.setAttribute('aria-expanded','true');opened=control;
    const enabled=items();
@@ -128,7 +136,7 @@
    Object.defineProperty(select,property,{configurable:true,get(){return descriptor.get.call(this);},set(next){descriptor.set.call(this,next);sync();}});
   }
   new MutationObserver(sync).observe(select,{subtree:true,childList:true,characterData:true,attributes:true,
-   attributeFilter:['disabled','hidden','selected','label','value','required','aria-describedby']});
+   attributeFilter:['disabled','hidden','selected','label','value','required','aria-describedby','data-description']});
   select.form?.addEventListener('reset',()=>queueMicrotask(()=>{close();feedback.hidden=true;sync();}));
   sync();
  }

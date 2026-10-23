@@ -8,7 +8,7 @@ from app import create_app
 from test_app import FakeRuntime
 
 row = {'hash':'a'*40,'name':'Running Linux release','state':'stalledUP','progress':1,
-       'size':1073741824,'ratio':1,'ratio_limit':2,'seeding_time':7200,
+       'upspeed':1024,'size':1073741824,'ratio':1,'ratio_limit':2,'seeding_time':7200,
        'seeding_time_limit':2940,'share_limit_action':'RemoveWithContent'}
 class Demo(FakeRuntime):
     def status(self):
@@ -38,6 +38,7 @@ with tempfile.TemporaryDirectory() as folder:
                 page.get_by_role('button',name='Ratio Running Linux release',exact=True).click()
                 dialog=page.locator('#edit-ratio-dialog')
                 expect(dialog).to_be_visible()
+                page.locator('#edit-ratio-action').select_option('delete')
                 page.locator('#edit-ratio-limit').fill(str(target))
                 page.locator('#edit-ratio-action').select_option(action)
                 page.locator('#edit-ratio-save').click()

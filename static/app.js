@@ -355,13 +355,22 @@ async function loadPreviewBenefits(){
 }
 $('#benefit-tracker').onchange=loadPreviewBenefits;
 $('#ratio-dialog').addEventListener('close',()=>{clearTimeout(previewTimer);previewGeneration++;});
+function seedingExplanation(action,hours=49){
+ const time=hours.toLocaleString('da-DK')+' timers aktiv seeding';
+ const wait=' Sletter først, når ingen tilsluttede downloadere mangler data, og upload er nul. Ukendt peer-status udsætter sletningen.';
+ if(action==='keep')return 'Efter download fortsætter seeding uden tids- eller ratiogrænse. Du stopper selv. Torrenten og filerne beholdes.';
+ if(action==='stop_keep')return 'Stopper seeding, så snart download er færdig. Torrenten og filerne beholdes. Der kan uploades under download. Dette valg venter ikke på ratio 1 eller 49 timers seeding.';
+ if(action==='delete_ratio')return 'Downloader og seeder, indtil din målratio er nået. Der er ingen tidsgrænse: 49 timer udløser ikke sletning. Derefter fjernes både torrenten og filerne.'+wait;
+ const goal='Downloader og seeder indtil målratioen eller '+time+' — det, der sker først. Tiden kan derfor udløse oprydning, før målratioen er nået.';
+ if(action==='automatic')return goal+' Seeder videre efter målet, så længe beregningen viser ekstra uploadpotentiale. Når potentialet falder, fjernes torrenten og filerne.'+wait;
+ return goal+' Derefter fjernes både torrenten og filerne.'+wait;
+}
 function updateSeedingFields(prefix){
  const action=$('#'+prefix+'-action').value;const deleting=!['keep','stop_keep'].includes(action);
- $('#'+prefix+'-keep-info').textContent=action==='stop_keep'?'Seeding stoppes automatisk efter download. Torrenten og filerne beholdes. Der kan uploades under download.':'Seeding fortsætter uden ratio- eller tidsgrænse, indtil du stopper den manuelt.';
- $('#'+prefix+'-ratio-label').textContent=action==='automatic'?'Målratio':'Stop ved ratio';
- $('#'+prefix+'-delete-notice').textContent=action==='automatic'?'Kører automatisk: den valgte målratio eller 49 timers aktiv seeding. Tidsgrænsen kan nås før målratioen. Fortsætter, så længe beregningen viser ekstra uploadpotentiale. Derefter slettes torrent og filer, når aktive downloadere er færdige.':action==='delete_ratio'?'Torrent og filer slettes ved den valgte ratio, uden tidsgrænse, når aktive downloadere er færdige.':'Torrent og filer slettes ved ratio eller 49 timers aktiv seeding, når aktive downloadere er færdige.';
+ $('#'+prefix+'-keep-info').textContent=seedingExplanation(action);
+ $('#'+prefix+'-ratio-label').textContent='Målratio (krediteret upload)';
  $('#'+prefix+'-limits').hidden=!deleting;
- $('#'+prefix+'-keep-info').hidden=deleting;
+ $('#'+prefix+'-keep-info').hidden=false;
  $('#'+prefix+'-delete-notice').hidden=!deleting;
  const input=$('#'+prefix+(prefix==='ratio'?'-limit':'-ratio'));
  input.disabled=!deleting;input.required=deleting;if(!deleting&&!(Number(input.value)>=1))input.value=1;
@@ -428,20 +437,16 @@ function openRatioEditor(t) {
  $('#edit-ratio-dialog').showModal();
 }
 function updateRatioEditWarning() {
- const automatic=$('#edit-ratio-action').value==='automatic';
- $('#edit-ratio-label').textContent=automatic?'Målratio':'Stop ved ratio';
+ $('#edit-ratio-label').textContent='Målratio (krediteret upload)';
  const value=Number($('#edit-ratio-limit').value);
  const hours=49+Math.max(0,Number($('#edit-extra-seed-hours').value)||0);
  $('#edit-extra-seed-info').textContent='Samlet tidsgrænse: '+hours.toLocaleString('da-DK')+' timer (49 timer + tillæg). Ratio-målet kan stadig afslutte seeding tidligere.';
  const ratioOnly=$('#edit-ratio-action').value==='delete_ratio';
  const met=(Number(editingRatio?.credited_ratio??editingRatio?.ratio)||0)>=value||(!ratioOnly&&(Number(editingRatio?.seeding_time)||0)>=hours*3600);
- const stopKeep=$('#edit-ratio-action').value==='stop_keep';
  const deleting=!['keep','stop_keep'].includes($('#edit-ratio-action').value);
  $('#edit-extra-seed-hours').closest('label').hidden=ratioOnly;$('#edit-extra-seed-info').hidden=ratioOnly;
  $('#edit-extra-seed-hours').disabled=!deleting||ratioOnly;$('#edit-ratio-limits').hidden=!deleting;$('#edit-ratio-limit').disabled=!deleting;$('#edit-ratio-limit').required=deleting;if(!deleting&&!(value>=1))$('#edit-ratio-limit').value=1;
- $('#edit-ratio-info').textContent=!deleting?'Filerne beholdes. Seeding fortsætter, indtil du stopper den manuelt.':'Automatisk stop sker ved denne ratio'+(ratioOnly?' uden tidsgrænse':' eller '+hours.toLocaleString('da-DK')+' timers seeding')+', n\u00e5r aktive downloadere er f\u00e6rdige. '+(deleting?'Torrent og filer slettes automatisk.':'Filerne beholdes.');
- if(automatic)$('#edit-ratio-info').textContent='Automatisk: den valgte målratio eller '+hours.toLocaleString('da-DK')+' timers aktiv seeding. Tidsgrænsen kan nås før målratioen. Fortsætter ved forventet ekstra upload og sletter derefter torrent og filer, når aktive downloadere er færdige.';
- if(stopKeep)$('#edit-ratio-info').textContent='Seeding stoppes automatisk efter download. Torrenten og filerne beholdes. Der kan uploades under download.';
+ $('#edit-ratio-info').textContent=seedingExplanation($('#edit-ratio-action').value,hours);
  const warning=$('#edit-ratio-warning');
  warning.hidden=!deleting||!met||value<1;
  warning.textContent=deleting?'M\u00e5let er allerede n\u00e5et. Torrenten og filerne kan blive slettet automatisk efter gem, n\u00e5r aktive downloadere er f\u00e6rdige.':'M\u00e5let er allerede n\u00e5et. Seeding kan stoppe automatisk efter gem, n\u00e5r aktive downloadere er f\u00e6rdige.';

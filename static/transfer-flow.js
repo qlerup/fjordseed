@@ -104,13 +104,6 @@
    for(const path of this.paths){
     const i=path.direction,level=this.energy[i],color=i?'100,174,255':'102,246,191';
     this.stroke(path,0,1,active?`rgba(${color},${.09+level*.12})`:'#71808a25',.8);
-    if(path.strand===0){
-     const p=this.point(path,.58),before=this.point(path,.56);
-     const angle=Math.atan2(p.y-before.y,p.x-before.x);
-     c.beginPath();c.moveTo(p.x-7*Math.cos(angle-.5),p.y-7*Math.sin(angle-.5));
-     c.lineTo(p.x,p.y);c.lineTo(p.x-7*Math.cos(angle+.5),p.y-7*Math.sin(angle+.5));
-     c.strokeStyle=active?`rgba(${color},.65)`:'#71808a80';c.lineWidth=1.4;c.stroke();
-    }
     if(!active||!this.rates[i])continue;
     const count=2+Math.round(level*6),speed=.18+level*.36;
     for(let packet=0;packet<count;packet++){
