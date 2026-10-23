@@ -41,12 +41,13 @@
     const r=el.getBoundingClientRect();return {x:r.left+r.width/2-rect.left,y:r.top+r.height/2-rect.top};
    });
    this.paths=[];
-   for(let link=0;link<2;link++){
-    for(let direction=0;direction<2;direction++){
+   // Each route is ordered from sender to receiver, through the VPN.
+   for(const [direction,route] of [[0,[2,1,0]],[1,[0,1,3]]]){
+    for(let link=0;link<2;link++){
      for(let strand=0;strand<3;strand++){
-      const a=this.points[link],b=this.points[link+1];
+      const a=this.points[route[link]],b=this.points[route[link+1]];
       if(!a||!b)continue;
-      const lift=(direction?-1:1)*-(14+strand*14);
+      const lift=(direction?1:-1)*(12+strand*9);
       this.paths.push({direction,strand,link,a,b,
        c:{x:a.x+(b.x-a.x)*.32,y:a.y+lift},d:{x:b.x-(b.x-a.x)*.32,y:b.y+lift}});
      }
@@ -103,22 +104,29 @@
    for(const path of this.paths){
     const i=path.direction,level=this.energy[i],color=i?'100,174,255':'102,246,191';
     this.stroke(path,0,1,active?`rgba(${color},${.09+level*.12})`:'#71808a25',.8);
+    if(path.strand===0){
+     const p=this.point(path,.58),before=this.point(path,.56);
+     const angle=Math.atan2(p.y-before.y,p.x-before.x);
+     c.beginPath();c.moveTo(p.x-7*Math.cos(angle-.5),p.y-7*Math.sin(angle-.5));
+     c.lineTo(p.x,p.y);c.lineTo(p.x-7*Math.cos(angle+.5),p.y-7*Math.sin(angle+.5));
+     c.strokeStyle=active?`rgba(${color},.65)`:'#71808a80';c.lineWidth=1.4;c.stroke();
+    }
     if(!active||!this.rates[i])continue;
     const count=2+Math.round(level*6),speed=.18+level*.36;
     for(let packet=0;packet<count;packet++){
      const progress=(time*speed+packet/count+path.strand*.131+path.link*.23)%1;
-     const t=i?progress:1-progress;
-     const tail=clamp(t+(i?-.12:.12),0,1);
+     const t=progress;
+     const tail=clamp(t-.12,0,1);
      const alpha=Math.sin(progress*Math.PI)*(.55+level*.4);
      this.stroke(path,tail,t,`rgba(${color},${alpha*.07})`,11);
      this.stroke(path,tail,t,`rgba(${color},${alpha*.28})`,3.5);
-     this.stroke(path,clamp(t+(i?-.035:.035),0,1),t,`rgba(${color},${alpha})`,1.5);
+     this.stroke(path,clamp(t-.035,0,1),t,`rgba(${color},${alpha})`,1.5);
      const p=this.point(path,t);c.fillStyle=`rgba(${color},${alpha})`;
      c.beginPath();c.arc(p.x,p.y,1.7+level*.7,0,TAU);c.fill();
     }
    }
    // Receiving nodes echo the actual direction of traffic, never idle traffic.
-   if(active)for(const [i,index] of [[0,0],[1,2]]){
+   if(active)for(const [i,index] of [[0,0],[1,3]]){
     if(!this.rates[i]||!this.points[index])continue;
     const p=this.points[index],phase=(time*.6)%1;
     c.strokeStyle=i?`rgba(100,174,255,${(1-phase)*.28})`:`rgba(102,246,191,${(1-phase)*.28})`;

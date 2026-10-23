@@ -40,7 +40,10 @@ with tempfile.TemporaryDirectory() as folder:
             page.wait_for_function('() => transferFlow && transferFlow.frame !== null && transferFlow.paths.length === 12')
             first=page.locator('.flow-canvas').evaluate('el=>el.toDataURL()')
             page.wait_for_function('(snapshot)=>document.querySelector(".flow-canvas").toDataURL()!==snapshot',arg=first)
-            assert page.evaluate('transferFlow.point(transferFlow.paths[0],0).x < transferFlow.point(transferFlow.paths[0],1).x')
+            assert page.evaluate('transferFlow.paths.filter(p=>p.direction===0).every(p=>p.a.x>p.b.x)')
+            assert page.evaluate('transferFlow.paths.filter(p=>p.direction===1).every(p=>p.a.x<p.b.x)')
+            expect(page.locator('.flow-peers strong')).to_have_text('Peers')
+            assert page.evaluate('transferFlow.paths.filter(p=>p.direction===1&&p.link===1).every(p=>p.b===transferFlow.points[3])')
             assert page.locator('[data-duck]').count()==0
             flow.screenshot(path=str(output/'transfer-flow-desktop.png'))
             for width in (390,320):
