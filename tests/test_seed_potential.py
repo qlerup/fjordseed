@@ -44,7 +44,7 @@ def test_forecast_uses_recent_credited_counter_growth_and_survives_reload():
 @pytest.mark.parametrize('ratio_only',[False,True])
 def test_forecast_holds_both_goals_but_preserves_original_policy(trigger,ratio_only):
     row,credit=trained()
-    credit.update(credited_ratio=1 if trigger=='ratio' else .1,
+    credit.update(ratio=1 if trigger=='ratio' else .1,
                   seeding_time=SEEDING_SECONDS if trigger=='time' else 1,ratio_only=ratio_only)
     completion=seeding_completion(row,credit)
     reached=trigger=='ratio' or not ratio_only
@@ -99,7 +99,7 @@ def test_forecast_decays_and_stops_extending_even_if_tracker_demand_stays_high()
         assert credit['seeding_predicted_upload']<=previous
         previous=credit['seeding_predicted_upload']
     assert not credit['seeding_upload_potential']
-    credit['credited_ratio']=1
+    credit['ratio']=1
     assert finish_seeding(Mock(),row,credit)
 
 
@@ -107,7 +107,7 @@ def test_forecast_decays_and_stops_extending_even_if_tracker_demand_stays_high()
 def test_low_recent_upload_or_demand_does_not_extend(changes):
     row,credit=trained(torrent(**changes),rate=1 if not changes else MIB)
     assert not credit['seeding_upload_potential']
-    credit['credited_ratio']=1
+    credit['ratio']=1
     assert finish_seeding(Mock(),row,credit)
 
 
@@ -119,7 +119,7 @@ def test_nonseeding_state_clears_forecast_and_never_resumes(state):
         credit=ledger.update(row,now=1610)
         assert 'upload_potential' not in ledger.entries[HASH]
     assert not credit['seeding_upload_potential']
-    assert not finish_seeding(Mock(),row,{**credit,'credited_ratio':1})
+    assert not finish_seeding(Mock(),row,{**credit,'ratio':1})
 
 
 @pytest.mark.parametrize('change',[{'uploaded':0},{'share_limit_action':'Stop'},{'added_on':2},
@@ -140,15 +140,15 @@ def test_clock_rollback_and_long_observation_gap_discard_forecast(now):
     assert not credit['seeding_upload_potential']
 
 
-def test_green_upload_is_forecast_at_credited_rate_and_reclassification_adds_no_traffic():
+def test_physical_upload_is_forecast_without_green_discount():
     entry={'adaptive_seeding':True}
     row=torrent()
     for step in range(11):
         row['uploaded']=step*60*MIB
-        credit=upload_potential(entry,row,row['uploaded']/2,10*GIB,1000+step*60)
-    assert credit['seeding_predicted_upload']==pytest.approx(MIB/2*(1-math.exp(-1))*1800)
+        credit=upload_potential(entry,row,10*GIB,1000+step*60)
+    assert credit['seeding_predicted_upload']==pytest.approx(MIB*(1-math.exp(-1))*1800)
     previous=credit['seeding_predicted_upload']
-    credit=upload_potential(entry,row,row['uploaded'],10*GIB,1660)
+    credit=upload_potential(entry,row,10*GIB,1660)
     assert credit['seeding_predicted_upload']<previous
 
 
@@ -171,7 +171,7 @@ def test_poll_frequency_does_not_change_constant_rate_forecast():
         row=torrent()
         for elapsed in range(0,601,interval):
             row['uploaded']=elapsed*MIB
-            credit=upload_potential(entry,row,row['uploaded'],10*GIB,1000+elapsed)
+            credit=upload_potential(entry,row,10*GIB,1000+elapsed)
         estimates.append(credit['seeding_predicted_upload'])
     assert estimates==pytest.approx([estimates[0]]*3)
 
@@ -203,7 +203,7 @@ def test_existing_delete_policy_does_not_gain_adaptive_behavior():
             credit=ledger.update(row,now=1000+step*60)
     assert credit['adaptive_seeding'] is False
     assert credit['seeding_upload_potential'] is False
-    credit['credited_ratio']=1
+    credit['ratio']=1
     assert finish_seeding(Mock(),row,credit)
 
 

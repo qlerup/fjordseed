@@ -45,24 +45,24 @@ def read(path, default):
         return default
 
 
-def green_safety_factor():
-    return 2 if read(POLICIES, {}).get('_enabled') else 1
-
-
 def initial_ratio_limit(hashes, target, now=None, ratio_only=False, adaptive=False, stop_on_complete=False):
     """Shared manual/RSS startup policy before any payload can download."""
-    now=time.time() if now is None else now
     with CreditLedger().transaction() as ledger:
         ledger.register(hashes,target,ratio_only=ratio_only,adaptive=adaptive,stop_on_complete=stop_on_complete)
-        policies=[ledger.policies.get(h,ledger.entries[h]['policy']) for h in hashes]
-        pending=ledger.policies.get('_enabled',False) and (
-            not policies or any(not p.get('known') or p.get('has_date') is False for p in policies))
-        green=any(number(p.get('until'))>now for p in policies)
-    return target * (2 if green or pending else 1)
+    return target
 
 
 def number(value):
     return max(0, value) if type(value) in (int, float) and math.isfinite(value) else 0
+
+
+def real_ratio(row):
+    """Physical torrent traffic; tracker account credit never affects seeding."""
+    uploaded,downloaded=row.get('uploaded'),row.get('downloaded')
+    if (type(uploaded) in (int,float) and math.isfinite(uploaded) and uploaded>=0
+            and type(downloaded) in (int,float) and math.isfinite(downloaded) and downloaded>0):
+        return uploaded/downloaded
+    return number(row.get('ratio'))
 
 
 def seed_time(entry, row):
@@ -167,20 +167,19 @@ class CreditLedger:
         if not denominator and number(row.get('ratio')):
             denominator = uploaded / row['ratio']
         active = until > now
-        native = entry['target'] * 2 if active or pending else entry['target'] + (discounted / 2 / denominator if denominator else 0)
         raw_ratio = number(row.get('ratio'))
         return {'seeding_time': seed_time(entry, row), 'extra_seed_hours': entry.get('extra_seed_hours', 0),
                 'ratio_only': entry.get('ratio_only', False),
                 'adaptive_seeding': entry.get('adaptive_seeding', False),
                 'stop_on_complete': entry.get('stop_on_complete', False),
-                'ratio_limit': entry['target'], 'native_ratio_limit': native,
+                'ratio':real_ratio(row), 'ratio_limit': entry['target'], 'native_ratio_limit':entry['target'],
                 'credited_ratio': credited / denominator if denominator else raw_ratio / (2 if active or pending else 1),
                 'credited_uploaded': credited, 'green_uploaded': discounted,
                 'green_until': until or None, 'green_active': active, 'green_pending': pending,
                 'green_date_unavailable': bool(self.policies.get('_enabled') and policy.get('known')
                     and not until and policy.get('has_date') is False),
                 'green_history_estimated': entry.get('history_estimated', False),
-                **upload_potential(entry,row,credited,denominator,now)}
+                **upload_potential(entry,row,denominator,now)}
 
     def record_rss_title(self, feed_id, ident, title, now=None):
         """Archive text independently of the live torrent/sample lifecycle."""

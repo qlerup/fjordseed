@@ -88,15 +88,15 @@ forecast to manual downloads, RSS feeds and existing torrent edits. Standard
 ratio/49-hour deletion, ratio-only deletion and existing torrents keep their
 previous behavior; the adaptive policy is opt-in and uses ratio/49-hour goals.
 Its minimum ratio defaults to 1:1 and can be raised. It retains
-the user's original goals, Green credit and extra-time preference. After a goal
+the user's original goals and extra-time preference. After a goal
 is reached, the worker keeps seeding while the forecast is worthwhile, in addition
 to the existing protection for connected downloaders and actual ongoing upload.
 It never starts paused torrents or changes the behavior of **keep files**.
 
-The forecast uses measured credited upload-counter growth with an exponential
+The forecast uses measured physical upload-counter growth with an exponential
 10-minute smoothing time constant, after at least two minutes of observations.
-Let `r` be the smoothed credited bytes/second, `D` the downloaded bytes used for
-credited ratio, `L` the swarm's downloaders and `S` its seeders. When swarm counts
+Let `r` be the smoothed actual uploaded bytes/second, `D` the downloaded bytes used for
+the physical torrent ratio, `L` the swarm's downloaders and `S` its seeders. When swarm counts
 are known, the next 30 minutes' forecast is
 `E = min(r * 1800 * min(1, L / (S + 1)), D * L / (S + 1))`.
 With unknown swarm counts it uses measured `r * 1800`; a known zero downloader
@@ -112,15 +112,15 @@ pause, move, counter reset, clock rollback or observation gap longer than two
 minutes. Swarm demand or a high lifetime ratio alone cannot trigger extension.
 When potential falls, normal deletion resumes once no connected downloader or
 upload needs protection. The UI labels automatic extensions and shows estimated
-extra credited upload and ratio gain. These are forecasts, not guaranteed upload.
+extra physical upload and ratio gain. These are forecasts, not guaranteed upload.
 
-Adding a magnet/file opens source selection followed by Seeding and files. File action comes first. **Keep files** means unlimited seeding until manual stop; automatic ratio/time deletion is inactive. **Delete files** requires explicit selection and uses a minimum credited target ratio of 1 or 49 hours of active seeding (48 hours plus a one-hour safety buffer).
+Adding a magnet/file opens source selection followed by Seeding and files. File action comes first. **Keep files** means unlimited seeding until manual stop; automatic ratio/time deletion is inactive. **Delete files** requires explicit selection and uses a minimum physical upload/download target ratio of 1 or 49 hours of active seeding (48 hours plus a one-hour safety buffer).
 
 Before automatic removal, the worker waits until no connected downloaders need data and upload is zero. Unknown peer status delays the action. This uses connected qBittorrent `num_leechs`, not tracker-wide swarm totals. Native qBittorrent stop limits are disabled so they do not cut downloaders off between checks. Worker checks run roughly every ten seconds without an open browser and survive restarts. Control errors retain seeding; VPN protection remains active.
 
-Pause/start is a combined control, and paused time does not advance Seed's active seeding clock. Ratio-only temporary downloads can use credited ratio without elapsed-time completion. Editing Ratio changes a torrent's goal/file action without restarting or lifting a manual pause. An already met deletion goal is highlighted before saving. Calls omitting file action preserve the stored choice.
+Pause/start is a combined control, and paused time does not advance Seed's active seeding clock. Ratio-only temporary downloads use physical upload/download ratio without elapsed-time completion. Editing Ratio changes a torrent's goal/file action without restarting or lifting a manual pause. An already met deletion goal is highlighted before saving. Calls omitting file action preserve the stored choice.
 
-Manual stop/removal remains available with confirmation. If credited ratio is below 1 and active seeding is below 49 hours, an early-stop warning shows current figures regardless of a custom automatic target. The server rechecks on execution.
+Manual stop/removal remains available with confirmation. If physical torrent ratio is below 1 and active seeding is below 49 hours, an early-stop warning shows current figures regardless of a custom automatic target. The server rechecks on execution.
 
 **Remove always offers three choices:** remove the torrent and its files,
 remove only the torrent and retain its files, or delete only the files and
@@ -193,17 +193,17 @@ Date filtering occurs before metadata retrieval. Entries without usable dates ar
 
 ### Persistent feed history and credited upload
 
-Feed cards show **Total credited upload** with the same Green accounting as torrent ratios. Under feed details, **Downloaded titles** lists started titles and their credited upload, including unfinished downloads. The ledger/title history persists in `DATA_DIR/qbit/green-credit.json` after torrent/file deletion or feed pause. Repeated status samples do not count bytes twice, and re-downloading the same torrent collects credit under the same title.
+Feed cards show **Total credited upload** as an estimate of tracker account credit, separate from physical torrent ratios. Under feed details, **Downloaded titles** lists started titles and their credited upload, including unfinished downloads. The ledger/title history persists in `DATA_DIR/qbit/green-credit.json` after torrent/file deletion or feed pause. Repeated status samples do not count bytes twice, and re-downloading the same torrent collects credit under the same title.
 
 Existing visible torrents register on the next accounting pass. Already deleted entries without saved titles/counters cannot be recovered. Unknown Green history is marked conservatively. These figures are app calculations, not a verified tracker statement; Awaiting upload figures appears until the ledger is readable.
 
 ## Green upload accounting
 
-An exact NordicBytes or Sagmire match uses the timezone-aware tracker `created_at`, not the local addition date. The conservative Green period is 24 hours plus 30 minutes. Upload during it receives half credit, later upload full credit: `credited upload = total uploaded − Green upload / 2`. A target of 1 needs local ratio 2 if all upload falls in that period. Expiry never retroactively doubles old credit. Verified own uploads are exempt; anonymous ownership stays conservative.
+An exact NordicBytes or Sagmire match uses the timezone-aware tracker `created_at`, not the local addition date. The conservative Green period is 24 hours plus 30 minutes. Upload during it receives half credit, later upload full credit: `credited upload = total uploaded − Green upload / 2`. Torrent seeding goals always use actual upload/download: a target of 1 needs physical ratio 1, including during Green. Expiry never retroactively doubles old credit. Verified own uploads are exempt; anonymous ownership stays conservative.
 
 The worker samples at least every ten seconds; an interval crossing expiry is fully half-credited. The atomic, process-locked ledger in `DATA_DIR/qbit/green-credit.json` retains targets/credits and must be backed up. Historic bytes cannot be precisely apportioned for older torrents; possible Green bytes are conservatively estimated. Torrents added after the period receive full credit.
 
-Date checks also run for RSS without a browser. During pending verified-date lookup, targets are conservatively doubled. Without an API account, Green cannot be established and ordinary ratio applies. With an account but no provable date, the conservative doubled target remains marked. Unknown lookups retry after the five-minute cache; verified findings remain frozen. This governs the per-torrent credited target, not account-wide ratio or other bonus multipliers. The buffer does not extend the tracker's real freeleech period.
+Date checks also run for RSS without a browser, solely to estimate account credit. Green, pending or unavailable metadata, freeleech and other account multipliers never change per-torrent targets, early-stop warnings, seeding completion or adaptive upload forecasts. Existing saved goals and seed clocks are preserved. Old credit-based adaptive forecasts are discarded once and retrained from physical upload counters. The Green buffer does not extend the tracker's real freeleech period.
 
 ## Chrome extension
 

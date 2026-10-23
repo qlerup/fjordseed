@@ -40,12 +40,12 @@ with sync_playwright() as p:
    'name':'Green Linux ISO','state':'stalledUP','progress':1,'size':1024**3,
    'ratio':1,'credited_ratio':.5,'ratio_limit':1,'uploaded':1024**3,'credited_uploaded':1024**3/2,
    'green_until':1900000000,'green_active':True,'seeding_time_limit':2940})
-  assert page.locator('.seed-progress').evaluate('e=>e.value')==.5
-  assert page.locator('.torrent-metrics dt').nth(2).inner_text()=='Krediteret ratio'
-  assert page.locator('.torrent-metrics dd').nth(2).inner_text()=='0,5 / 1'
+  assert page.locator('.seed-progress').evaluate('e=>e.value')==1
+  assert page.locator('.torrent-metrics dt').nth(2).inner_text()=='Ratio'
+  assert page.locator('.torrent-metrics dd').nth(2).inner_text()=='1 / 1'
   assert page.locator('.torrent-metrics dd').nth(4).inner_text()=='1.0 GB'
   assert page.locator('.torrent-metrics dd').nth(5).inner_text()=='512 MB'
-  assert '30 min. buffer' in page.locator('.torrent-details').inner_text()
+  assert 'reel upload/download' in page.locator('.torrent-details').inner_text()
   assert page.locator('.torrent').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
   page.screenshot(path=str(root/'test-results'/f'green-credit-{width}.png'))
  for known in [True,False]:

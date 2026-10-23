@@ -9,12 +9,12 @@ HASH='c'*40
 
 def test_ratio_only_ignores_elapsed_time_but_respects_ratio_and_active_downloaders():
     row={'hash':HASH,'state':'stalledUP','share_limit_action':'RemoveWithContent','num_leechs':0,'upspeed':0}
-    credit={'ratio_only':True,'ratio_limit':2,'credited_ratio':1.9,'seeding_time':SEEDING_SECONDS*10}
+    credit={'ratio_only':True,'ratio_limit':2,'ratio':1.9,'seeding_time':SEEDING_SECONDS*10}
     api=Mock()
     assert not seeding_completion(row,credit)['seeding_goal_reached']
     assert not finish_seeding(api,row,credit)
     api.assert_not_called()
-    credit['credited_ratio']=2
+    credit['ratio']=2
     row['num_leechs']=1
     assert seeding_completion(row,credit)['waiting_for_downloaders']
     assert not finish_seeding(api,row,credit)
@@ -25,7 +25,7 @@ def test_ratio_only_ignores_elapsed_time_but_respects_ratio_and_active_downloade
 
 def test_default_timed_deletion_still_finishes_after_49_hours():
     row={'state':'stalledUP','share_limit_action':'RemoveWithContent','num_leechs':0,'upspeed':0}
-    credit={'ratio_limit':2,'credited_ratio':0,'seeding_time':SEEDING_SECONDS}
+    credit={'ratio_limit':2,'ratio':0,'seeding_time':SEEDING_SECONDS}
     assert seeding_completion(row,credit)['seeding_goal_reached']
     assert not seeding_completion({**row,'share_limit_action':'Stop'},credit)['seeding_goal_reached']
 

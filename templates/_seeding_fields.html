@@ -10,12 +10,12 @@
 <label>Seeding og oprydning<select id="{{ prefix }}-action" aria-describedby="{{ prefix }}-keep-info">{{ seeding_options() }}</select></label>
 <p class="seeding-choice-info small" id="{{ prefix }}-keep-info" aria-live="polite">Efter download fortsætter seeding uden tids- eller ratiogrænse. Du stopper selv. Torrenten og filerne beholdes.</p>
 <div id="{{ prefix }}-limits" hidden>
-<label><span id="{{ prefix }}-ratio-label">Målratio (krediteret upload)</span><input type="number" id="{{ prefix }}-{{ 'limit' if prefix == 'ratio' else 'ratio' }}" min="1" max="10000" step="any" value="1" required inputmode="decimal" aria-describedby="{{ prefix }}-help"></label>
+<label><span id="{{ prefix }}-ratio-label">Målratio (reel upload/download)</span><input type="number" id="{{ prefix }}-{{ 'limit' if prefix == 'ratio' else 'ratio' }}" min="1" max="10000" step="any" value="1" required inputmode="decimal" aria-describedby="{{ prefix }}-help"></label>
 <details class="seeding-help"><summary>Sådan beregnes ratio og seedtid</summary>
-<p class="muted small" id="{{ prefix }}-help">Målratio 1 betyder, at den krediterede upload svarer til det downloadede. Under Green krediteres upload med 50 % i 24 timer fra torrentens oprettelse hos trackeren plus 30 minutters buffer. Upload bagefter tæller 100 %. Hvis al upload sker under Green, kræver målratio 1 derfor faktisk ratio 2.</p>
+<p class="muted small" id="{{ prefix }}-help">Målratio 1 betyder, at du reelt har uploadet lige så meget, som du har downloadet på torrenten. Green og andre kreditfordele påvirker kun trackerens kontotal. De ændrer ikke torrentens ratio eller seedingmål.</p>
 <p class="muted small">Seedtiden tæller aktiv seeding efter download. Pauser og flytning tæller ikke med. 49 timer er 48 timer plus én times buffer. Ved “Slet kun ved målratio” bruges seedtiden ikke som stopmål.</p>
 <p class="muted small">Ved automatisk sletning venter FjordSeed, til ingen tilsluttede downloadere mangler data, og upload er nul. Ukendt peer-status udsætter sletningen. Samme regler gælder for manuelle downloads og RSS.</p>
-<p class="muted small">Hvis trackerens Green-dato endnu ikke er bekræftet, beregnes uploaden forsigtigt. Freeleech ændrer trackerens downloadkredit; det er adskilt fra Green og dit seedmål.</p>
+<p class="muted small">Ukendt Green-dato gør kontoens uploadkredit til et estimat. Hverken Green eller Freeleech ændrer torrentens reelle ratio eller seedmål.</p>
 </details>
 <p class="error small" id="{{ prefix }}-delete-notice" hidden>Ved oprydning fjernes både torrenten og de downloadede filer permanent.</p>
 </div>

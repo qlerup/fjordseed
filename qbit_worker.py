@@ -182,8 +182,7 @@ def run():
                         status['seeding_error']=seeding_error
                     try:
                         content=Path('/config/fjord-rss.json').read_text() if Path('/config/fjord-rss.json').exists() else '[]'
-                        from green_credit import green_safety_factor
-                        signature=(content,green_safety_factor())
+                        signature=content
                         if signature!=rss_content:
                             sync_snapshot()
                             rss_content=signature

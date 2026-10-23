@@ -31,7 +31,7 @@ with tempfile.TemporaryDirectory() as folder:
    page.locator('#rss-enabled').check()
    page.locator('#rss-next').click()
    expect(page.locator('#rss-form-title')).to_have_text('Seeding og filer')
-   expect(page.locator('#rss-help')).to_contain_text('krediteret upload')
+   expect(page.locator('#rss-help')).to_contain_text('reelt har uploadet')
    assert page.evaluate("document.querySelector('#rss-help').textContent===document.querySelector('#ratio-help').textContent")
    page.locator('#rss-back').click()
    expect(page.locator('#rss-name')).to_have_value('Date controlled feed')

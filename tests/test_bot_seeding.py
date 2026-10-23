@@ -19,7 +19,7 @@ def test_bot_endpoint_requires_app_key_even_with_browser_session(tmp_path, monke
     response = client.get('/api/hub/bot/seeding', headers={'X-Hub-Key':'seed-test-secret'})
     assert response.status_code == 200
     assert response.json['torrents'] == [dict(name='Test ISO', state='uploading', progress=1,
-                                             ratio=.4, credited_ratio=.2, seeding_time=3600)]
+                                             ratio=.4, seeding_time=3600)]
     assert response.headers['Cache-Control'] == 'no-store'
     runtime.status = lambda: dict(torrents_available=False, torrents=[])
     assert client.get('/api/hub/bot/seeding', headers={'X-Hub-Key':'seed-test-secret'}).status_code == 503

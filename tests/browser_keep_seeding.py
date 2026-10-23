@@ -55,7 +55,7 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
                 page.locator('#'+prefix+'-action').select_option('stop_keep')
                 expect(page.locator('#'+field)).not_to_be_visible()
                 expect(page.locator('#'+field)).to_be_disabled()
-                expect(page.locator('#'+prefix+'-keep-info')).to_contain_text('Seeding stoppes automatisk efter download')
+                expect(page.locator('#'+prefix+'-keep-info')).to_contain_text('Stopper seeding')
                 expect(page.locator('#'+prefix+'-delete-notice')).not_to_be_visible()
                 for width in (390,1440):
                     page.set_viewport_size({'width':width,'height':1000})
@@ -63,12 +63,12 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
                     page.screenshot(path=str(Path(__file__).resolve().parents[1]/'test-results'/f'stop-after-download-{prefix}-{width}.png'))
                 page.locator('#'+prefix+'-action').select_option('delete_ratio')
                 expect(page.locator('#'+field)).to_be_visible()
-                expect(page.locator('#'+prefix+'-delete-notice')).to_contain_text('uden tidsgrænse')
+                expect(page.locator('#'+prefix+'-keep-info')).to_contain_text('ingen tidsgrænse')
                 page.locator('#'+prefix+'-action').select_option('automatic')
-                expect(page.locator('#'+prefix+'-delete-notice')).to_contain_text('ekstra uploadpotentiale')
-                expect(page.locator('#'+prefix+'-delete-notice')).to_contain_text('Tidsgrænsen kan nås før målratioen')
-                expect(page.locator('#'+prefix+'-delete-notice')).to_contain_text('49 timers')
-                expect(page.locator('#'+prefix+'-ratio-label')).to_have_text('Målratio')
+                expect(page.locator('#'+prefix+'-keep-info')).to_contain_text('ekstra uploadpotentiale')
+                expect(page.locator('#'+prefix+'-keep-info')).to_contain_text('Tiden kan derfor udløse oprydning')
+                expect(page.locator('#'+prefix+'-keep-info')).to_contain_text('49 timers')
+                expect(page.locator('#'+prefix+'-ratio-label')).to_have_text('Målratio (reel upload/download)')
                 for width in (390,1440):
                     page.set_viewport_size({'width':width,'height':1000})
                     assert page.locator('#'+dialog).evaluate('e=>e.scrollWidth<=e.clientWidth+1')
@@ -94,9 +94,9 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             page.locator('#edit-ratio-action').select_option('delete_ratio')
             expect(page.locator('#edit-ratio-limit')).to_be_visible()
             expect(page.locator('#edit-extra-seed-hours')).not_to_be_visible()
-            expect(page.locator('#edit-ratio-info')).to_contain_text('uden tidsgrænse')
+            expect(page.locator('#edit-ratio-info')).to_contain_text('ingen tidsgrænse')
             page.locator('#edit-ratio-action').select_option('automatic')
-            expect(page.locator('#edit-ratio-info')).to_contain_text('forventet ekstra upload')
+            expect(page.locator('#edit-ratio-info')).to_contain_text('ekstra uploadpotentiale')
             page.evaluate("document.querySelector('#edit-ratio-dialog').close();openRatioEditor({name:'Automatic',share_limit_action:'RemoveWithContent',ratio_limit:1,adaptive_seeding:true})")
             expect(page.locator('#edit-ratio-action')).to_have_value('automatic')
             page.evaluate("""()=>{document.querySelectorAll('dialog[open]').forEach(d=>d.close());
@@ -135,8 +135,8 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
                 ratio_only:true,credited_ratio:.5,ratio:1,ratio_limit:2,
                 seeding_time:3600*1000,seeding_time_limit:2940});bar.id='ratio-only-test';
                 document.body.append(bar);}""")
-            assert page.locator('#ratio-only-test .seed-progress').evaluate('e=>e.value')==.25
-            assert '25 %' in page.locator('#ratio-only-test').inner_text()
+            assert page.locator('#ratio-only-test .seed-progress').evaluate('e=>e.value')==.5
+            assert '50 %' in page.locator('#ratio-only-test').inner_text()
             assert not errors,errors
             browser.close()
             print('PASS manual, RSS and existing-torrent keep/delete fields and warnings')

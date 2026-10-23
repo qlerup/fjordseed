@@ -1,4 +1,4 @@
-"""Decaying estimates of additional credited upload, never replacement goals."""
+"""Decaying estimates of additional physical upload, never replacement goals."""
 import math
 
 SEEDING_STATES = {'uploading', 'stalledUP', 'forcedUP'}
@@ -19,7 +19,7 @@ def peer_count(value):
     return value if type(value) is int and value >= 0 else None
 
 
-def upload_potential(entry, row, credited, denominator, now):
+def upload_potential(entry, row, denominator, now):
     """One durable EWMA shared by worker and status polls, with bounded history.
 
     Only measured counter growth earns a forecast. Current speed, lifetime ratio
@@ -31,24 +31,23 @@ def upload_potential(entry, row, credited, denominator, now):
     uploaded = row.get('uploaded')
     if (entry.get('adaptive_seeding') is not True or row.get('share_limit_action') != 'RemoveWithContent'
             or row.get('state') not in SEEDING_STATES
-            or not valid_number(uploaded) or not valid_number(credited)):
+            or not valid_number(uploaded)):
         entry.pop('upload_potential', None)
         return empty
     previous = entry.get('upload_potential')
-    if (previous is None or now < previous['at'] or now-previous['at'] > MAX_SAMPLE_GAP
-            or uploaded < previous['uploaded'] or credited < previous['credited']):
-        previous = {'at':now, 'since':now, 'uploaded':uploaded, 'credited':credited,
+    if (previous is None or previous.get('basis')!='physical-upload-v1'
+            or now < previous['at'] or now-previous['at'] > MAX_SAMPLE_GAP
+            or uploaded < previous['uploaded']):
+        previous = {'basis':'physical-upload-v1','at':now, 'since':now, 'uploaded':uploaded,
                     'rate':0, 'last_upload':None}
     elapsed = now-previous['at']
     if elapsed > 0:
-        # Green reclassification can increase credit without traffic. Capping
-        # it by actual new bytes prevents that from creating upload potential.
-        delta = min(uploaded-previous['uploaded'], credited-previous['credited'])
+        delta = uploaded-previous['uploaded']
         decay = math.exp(-elapsed/SMOOTHING_SECONDS)
         previous['rate'] = previous['rate']*decay + delta/elapsed*(1-decay)
         if delta > 0:
             previous['last_upload'] = now
-        previous.update(at=now, uploaded=uploaded, credited=credited)
+        previous.update(at=now, uploaded=uploaded)
     entry['upload_potential'] = previous
     if (now-previous['since'] < MIN_OBSERVATION_SECONDS
             or previous['last_upload'] is None or now-previous['last_upload'] > MAX_IDLE_SECONDS

@@ -8,7 +8,7 @@ import re
 import sys
 
 import requests
-from green_credit import CreditLedger, initial_ratio_limit
+from green_credit import CreditLedger, initial_ratio_limit, real_ratio
 
 BASE = 'http://127.0.0.1:8080/api/v2/'
 SEEDING_BASE_HOURS = 48
@@ -85,7 +85,7 @@ def seed_ratio(value):
 
 def stop_requirement(row):
     target=1.0
-    ratio=row.get('credited_ratio',row.get('ratio'))
+    ratio=real_ratio(row)
     seconds=row.get('seeding_time')
     ratio_done=type(ratio) in (int,float) and math.isfinite(ratio) and ratio>=target
     time_done=type(seconds) in (int,float) and math.isfinite(seconds) and seconds>=SEEDING_SECONDS
@@ -136,7 +136,7 @@ def initial_managed_ratio(hashes,target,ratio_only=False,adaptive=False,stop_on_
 
 def seeding_completion(row,credit):
     active=row.get('state') in {'uploading','stalledUP','forcedUP'}
-    ratio=credit['credited_ratio']
+    ratio=real_ratio(credit) if 'ratio' in credit else real_ratio(row)
     seconds=credit.get('seeding_time',row.get('seeding_time'))
     unlimited=row.get('share_limit_action') != 'RemoveWithContent'
     reached=not unlimited and (ratio>=credit['ratio_limit'] or (not credit.get('ratio_only',False) and

@@ -208,7 +208,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             result = runtime.status()
         if not result.get('torrents_available'):
             return jsonify(ok=False, error='FjordSeed kan ikke hente torrentstatus lige nu.'), 503
-        fields = ('name', 'state', 'progress', 'upspeed', 'credited_ratio', 'ratio',
+        fields = ('name', 'state', 'progress', 'upspeed', 'ratio',
                   'ratio_limit', 'ratio_only', 'seeding_time', 'seeding_time_limit',
                   'seeding_unlimited', 'seeding_goal_reached', 'waiting_for_downloaders')
         rows = result.get('torrents', [])

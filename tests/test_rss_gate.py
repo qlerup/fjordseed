@@ -290,6 +290,7 @@ def test_manual_and_rss_share_exact_start_policy_and_credit(gate,monkeypatch,kin
         result=ledger.update({'hash':ident,'uploaded':1000,'downloaded':1000,'ratio':1,
                               'added_on':now,'ratio_limit':expected},now=now+1)
     assert result['ratio_limit']==2 and result['credited_ratio']==(.5 if kind in ('green','unknown') else 1)
+    assert result['ratio']==1 and result['native_ratio_limit']==2
 
 
 def test_all_posts_follow_date_lookup_without_browser(tmp_path):

@@ -26,7 +26,7 @@ def test_move_time_frozen_across_pollers_restart_and_completion(action):
 def test_native_move_time_cannot_trigger_49_hour_deletion():
     row={'state':'stalledUP','seeding_time':SEEDING_SECONDS+100,
          'share_limit_action':'RemoveWithContent','num_leechs':0,'upspeed':0}
-    credit={'seeding_time':SEEDING_SECONDS-1,'credited_ratio':0,'ratio_limit':1}
+    credit={'seeding_time':SEEDING_SECONDS-1,'ratio':0,'ratio_limit':1}
     assert not seeding_completion(row,credit)['seeding_goal_reached']
     credit['seeding_time']+=1
     assert seeding_completion(row,credit)['seeding_goal_reached']

@@ -26,14 +26,15 @@ def update(value,now,target=None):
 
 
 @pytest.mark.parametrize('target',[1,2,5])
-def test_green_requires_double_upload_for_selected_goal(target):
+def test_green_does_not_change_physical_ratio_goal(target):
     policy()
     result=update(row(1000),CREATED+120,target)
-    assert result['native_ratio_limit']==target*2
+    assert result['native_ratio_limit']==target
+    assert result['ratio']==1
     assert result['credited_ratio']==.5
     assert result['ratio_limit']==target
-    result=update(row(target*2000),CREATED+130)
-    assert result['credited_ratio']==target
+    result=update(row(target*1000),CREATED+130)
+    assert result['ratio']==target and result['credited_ratio']==target/2
 
 
 def test_buffer_and_mixed_upload_survive_restart_and_goal_edit():
@@ -43,12 +44,12 @@ def test_buffer_and_mixed_upload_survive_restart_and_goal_edit():
     # At expiry old upload is not retroactively credited. A crossing sample
     # with no new bytes introduces no rounding/estimation difference.
     expiry=update(row(1000,2),END)
-    assert not expiry['green_active'] and expiry['native_ratio_limit']==1.5
+    assert not expiry['green_active'] and expiry['native_ratio_limit']==1
     full=update(row(1500,1.5),END+10)
     assert full['green_uploaded']==1000 and full['credited_uploaded']==1000
     assert full['credited_ratio']==1 and full['ratio_limit']==1
     changed=update(row(1500,1.5),END+20,target=5)
-    assert changed['native_ratio_limit']==5.5 and changed['credited_ratio']==1
+    assert changed['native_ratio_limit']==5 and changed['credited_ratio']==1
     assert update(row(1600,5.5),END+30)['credited_uploaded']==1100
 
 
@@ -77,7 +78,7 @@ def test_older_torrent_added_after_expiry_uses_full_credit():
 def test_pending_lookup_keeps_upload_bytes_and_later_classifies():
     policy(None,False)
     pending=update(row(1000),CREATED+100)
-    assert pending['green_pending'] and pending['native_ratio_limit']==2
+    assert pending['green_pending'] and pending['native_ratio_limit']==1
     assert pending['credited_uploaded']==500
     policy()
     verified=update(row(1100),CREATED+110)
@@ -93,13 +94,14 @@ def test_non_green_lookup_releases_conservative_pending_goal():
     assert result['credited_uploaded']==1100 and result['native_ratio_limit']==1
 
 
-def test_failed_date_lookup_cannot_allow_premature_stop():
+def test_missing_credit_date_does_not_block_met_physical_ratio():
     verified=credit.policy_from_result({'status':'unavailable','matches':[]})
     credit.POLICIES.write_text(json.dumps({HASH:verified,'_enabled':True}))
     result=update(row(1000),CREATED+120)
     assert result['green_pending'] and result['green_date_unavailable']
-    assert result['native_ratio_limit']==2 and result['credited_ratio']==.5
-    assert not stop_requirement({**row(1000),**result})['seeding_requirement_met']
+    assert result['native_ratio_limit']==1 and result['credited_ratio']==.5
+    assert result['ratio']==1
+    assert stop_requirement({**row(1000),**result})['seeding_requirement_met']
 
 
 def test_pending_lookup_for_old_torrent_does_not_discount_new_upload():
@@ -117,7 +119,7 @@ def test_native_rss_keeps_user_goal_and_existing_edits():
     (credit.CONFIG/'fjord-rss.json').write_text(json.dumps([{'id':'b'*32,'ratio_limit':5}]))
     tags='Other, FjordSeed-RSS-'+'b'*32
     fresh=update(row(1000,10,tags=tags),CREATED+120)
-    assert fresh['ratio_limit']==5 and fresh['native_ratio_limit']==10
+    assert fresh['ratio_limit']==5 and fresh['native_ratio_limit']==5
     old=update(row(1000,3,hash='c'*40,tags=tags,added_on=CREATED-100),CREATED+120)
     assert old['ratio_limit']==3  # Never overwrite an older per-torrent edit.
 
@@ -151,7 +153,7 @@ def test_worker_adjusts_after_expiry_and_keeps_49_hour_alternative(monkeypatch):
     assert calls[-1][1]['seedingTimeLimit']==-1
     assert calls[-1][1]['shareLimitAction']=='RemoveWithContent'
     effective=update(row(1000,1.5),END+10)
-    assert not stop_requirement({**row(1000),**effective})['seeding_requirement_met']
+    assert stop_requirement({**row(1000),**effective})['seeding_requirement_met']
     effective=update(row(1000,seeding_time=49*3600),END+20)
     assert stop_requirement({**row(1000,seeding_time=49*3600),**effective})['seeding_requirement_met']
 

@@ -64,7 +64,7 @@ function torrentStatus(t) {
  return states[t.state] || 'Ukendt status';
 }
 function seedingProgress(t) {
- const ratio = Math.max(0, Number(t.credited_ratio??t.ratio) || 0);
+ const ratio = Math.max(0, Number(t.ratio) || 0);
  const target = Number(t.ratio_limit) > 0 ? Number(t.ratio_limit) : 1;
  const seconds = Math.max(0, Number(t.seeding_time) || 0);
  const minutes = !t.ratio_only && Number(t.seeding_time_limit) > 0 ? Number(t.seeding_time_limit) : 0;
@@ -75,11 +75,11 @@ function torrentMetrics(t) {
  const seed=seedingProgress(t),values=node('dl','torrent-metrics');
  const number=n=>n.toLocaleString('da-DK',{maximumFractionDigits:2});
  const fields=[['Download',size(t.dlspeed)+'/s'],['Upload',size(t.upspeed)+'/s'],
-  [t.green_until||t.green_pending?'Krediteret ratio':'Ratio',number(seed.ratio)+(t.seeding_unlimited?'':' / '+number(seed.target))],
+  ['Ratio',number(seed.ratio)+(t.seeding_unlimited?'':' / '+number(seed.target))],
   ['Seedtid',number(seed.seconds/3600)+(!t.seeding_unlimited&&seed.minutes?' / '+number(seed.minutes/60):'')+' timer'],
   ['Uploadet i alt',typeof t.uploaded==='number'&&Number.isFinite(t.uploaded)&&t.uploaded>=0?size(t.uploaded):'—']];
  for(const [label,value] of fields){const item=node('div');item.append(node('dt','',label),node('dd','',value));values.append(item);}
- if(t.green_until||t.green_pending){const item=node('div');item.append(node('dt','','Krediteret upload'),node('dd','',size(t.credited_uploaded)));values.append(item);}
+ if(t.green_until||t.green_pending){const item=node('div');item.append(node('dt','','Krediteret upload (konto)'),node('dd','',size(t.credited_uploaded)));values.append(item);}
  return values;
 }
 function torrentDetails(t) {
@@ -89,15 +89,15 @@ function torrentDetails(t) {
  retry.setAttribute('aria-label','Hent trackerdata igen for '+t.name);
  retry.onclick=async()=>{retry.disabled=true;try{await api(`/api/torrents/${t.hash}/refresh-metadata`,{method:'POST'});toast('Nyt trackeropslag er sat i kø. Oplysninger og plakat opdateres automatisk.');await refresh();}catch(e){toast(e.message);}finally{retry.disabled=false;}};
  details.append(retry);
- if(t.green_active)details.append(node('p','torrent-rule','Green: upload t\u00e6ller halvt indtil '+new Date(t.green_until*1000).toLocaleString('da-DK')+' (inkl. 30 min. buffer).'));
+ if(t.green_active)details.append(node('p','torrent-rule','Green: kontoens uploadkredit estimeres til 50 % indtil '+new Date(t.green_until*1000).toLocaleString('da-DK')+'. Torrentens ratio og seedingmål bruger altid reel upload/download.'));
  else if(t.green_until&&t.green_uploaded>0)details.append(node('p','torrent-rule','Green-perioden er slut. Upload efter perioden t\u00e6ller 100 %. Den viste total tager h\u00f8jde for, at upload under Green-perioden blev krediteret med 50 %.'));
- else if(t.green_date_unavailable)details.append(node('p','torrent-rule','Green-dato ukendt. Upload t\u00e6ller forel\u00f8bigt halvt, og m\u00e5let er fordoblet.'));
- else if(t.green_pending)details.append(node('p','torrent-rule','Afventer trackerens oprettelsesdato. Uploadm\u00e5let er midlertidigt fordoblet.'));
+ else if(t.green_date_unavailable)details.append(node('p','torrent-rule','Green-dato ukendt. Kontoens uploadkredit er et estimat. Torrentens ratio og seedingmål bruger reel upload/download.'));
+ else if(t.green_pending)details.append(node('p','torrent-rule','Afventer trackerens oprettelsesdato til kontoens uploadkredit. Det ændrer ikke torrentens ratio eller seedingmål.'));
  if(t.green_history_estimated)details.append(node('p','torrent-rule','Tidligere upload kan ikke fordeles pr\u00e6cist. Ukendt uploadhistorik er forsigtigt regnet som halv kredit.'));
  if(t.stop_on_complete)details.append(node('p','torrent-rule','Seeding stoppes efter download. Torrenten og filerne beholdes. Der kan uploades under download.'));
  else if(t.seeding_unlimited)details.append(node('p','torrent-rule','Filerne beholdes. Seeding fortsætter, indtil du stopper den manuelt.'));
  if(t.seeding_auto_extended)details.append(node('p','torrent-rule seed-extension',
-  'Automatisk forlænget: forventet ekstra krediteret upload på ca. '+size(t.seeding_predicted_upload)+
+  'Automatisk forlænget: forventet ekstra reel upload på ca. '+size(t.seeding_predicted_upload)+
   ' (+'+Number(t.seeding_predicted_ratio_gain).toLocaleString('da-DK',{maximumFractionDigits:2})+
   ' i ratio) de næste '+Math.round(t.seeding_forecast_seconds/60)+' minutter. Estimatet opdateres løbende ud fra nylig upload og efterspørgsel.'));
  else if(t.adaptive_seeding)details.append(node('p','torrent-rule','Automatisk: den valgte målratio eller 49 timers aktiv seeding. Tidsgrænsen kan nås før målratioen. Fortsætter efter målet, hvis der forventes mere upload, og sletter derefter torrent og filer.'));
@@ -368,7 +368,7 @@ function seedingExplanation(action,hours=49){
 function updateSeedingFields(prefix){
  const action=$('#'+prefix+'-action').value;const deleting=!['keep','stop_keep'].includes(action);
  $('#'+prefix+'-keep-info').textContent=seedingExplanation(action);
- $('#'+prefix+'-ratio-label').textContent='Målratio (krediteret upload)';
+ $('#'+prefix+'-ratio-label').textContent='Målratio (reel upload/download)';
  $('#'+prefix+'-limits').hidden=!deleting;
  $('#'+prefix+'-keep-info').hidden=false;
  $('#'+prefix+'-delete-notice').hidden=!deleting;
@@ -423,7 +423,7 @@ function showView(focus=false){
 window.addEventListener('hashchange',()=>showView(true));
 showView();refresh();setInterval(refresh,4000);
 
-function seedingWarning(t){return (t.stop_reason||'Torrenten har endnu ikke opfyldt kravet om ratio 1:1 eller 49 timers seeding. Trackeren kan registrere et tidligt stop som hit-and-run.')+' Aktuelt: ratio '+Number(t.credited_ratio??t.ratio??0).toFixed(2)+' og '+(Math.max(0,Number(t.seeding_time)||0)/3600).toLocaleString('da-DK',{maximumFractionDigits:1})+' timers seeding.';}
+function seedingWarning(t){return (t.stop_reason||'Torrenten har endnu ikke opfyldt kravet om ratio 1:1 eller 49 timers seeding. Trackeren kan registrere et tidligt stop som hit-and-run.')+' Aktuelt: ratio '+Number(t.ratio??0).toFixed(2)+' og '+(Math.max(0,Number(t.seeding_time)||0)/3600).toLocaleString('da-DK',{maximumFractionDigits:1})+' timers seeding.';}
 $('#stop-form').onsubmit=async e=>{e.preventDefault();if(!stopping)return;$('#stop-save').disabled=true;$('#stop-error').hidden=true;try{await api(`/api/torrents/${stopping.hash}/stop`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_early_stop:true})});$('#stop-dialog').close();await refresh();toast('Torrent sat på pause.');}catch(e){error('#stop-error',e);}finally{$('#stop-save').disabled=false;}};
 
 function openRatioEditor(t) {
@@ -437,12 +437,12 @@ function openRatioEditor(t) {
  $('#edit-ratio-dialog').showModal();
 }
 function updateRatioEditWarning() {
- $('#edit-ratio-label').textContent='Målratio (krediteret upload)';
+ $('#edit-ratio-label').textContent='Målratio (reel upload/download)';
  const value=Number($('#edit-ratio-limit').value);
  const hours=49+Math.max(0,Number($('#edit-extra-seed-hours').value)||0);
  $('#edit-extra-seed-info').textContent='Samlet tidsgrænse: '+hours.toLocaleString('da-DK')+' timer (49 timer + tillæg). Ratio-målet kan stadig afslutte seeding tidligere.';
  const ratioOnly=$('#edit-ratio-action').value==='delete_ratio';
- const met=(Number(editingRatio?.credited_ratio??editingRatio?.ratio)||0)>=value||(!ratioOnly&&(Number(editingRatio?.seeding_time)||0)>=hours*3600);
+ const met=(Number(editingRatio?.ratio)||0)>=value||(!ratioOnly&&(Number(editingRatio?.seeding_time)||0)>=hours*3600);
  const deleting=!['keep','stop_keep'].includes($('#edit-ratio-action').value);
  $('#edit-extra-seed-hours').closest('label').hidden=ratioOnly;$('#edit-extra-seed-info').hidden=ratioOnly;
  $('#edit-extra-seed-hours').disabled=!deleting||ratioOnly;$('#edit-ratio-limits').hidden=!deleting;$('#edit-ratio-limit').disabled=!deleting;$('#edit-ratio-limit').required=deleting;if(!deleting&&!(value>=1))$('#edit-ratio-limit').value=1;
