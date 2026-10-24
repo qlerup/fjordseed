@@ -24,7 +24,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
             page.get_by_role('button',name='Log ind').click()
             canvas=page.locator('#skull-hologram');expect(canvas).to_have_attribute('aria-hidden','true')
-            page.wait_for_function('document.querySelector("#skull-hologram")?.width===Math.round(innerWidth*Math.min(devicePixelRatio,1.5))')
+            page.wait_for_function('document.querySelector("#skull-hologram")?.width===Math.round(innerWidth*Math.min(devicePixelRatio,3))')
             assert canvas.evaluate('e=>getComputedStyle(e).pointerEvents')=='none'
             before=canvas.evaluate('e=>e.toDataURL()');page.wait_for_timeout(250)
             assert canvas.evaluate('e=>e.toDataURL()')!=before
