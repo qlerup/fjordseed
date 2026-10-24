@@ -409,6 +409,7 @@ $('#delete-form').onsubmit=async e=>{
 };
 function showView(focus=false){
  const view=location.hash==='#streaming'?'streaming':location.hash==='#storage'?'storage':location.hash==='#connection'?'connection':location.hash==='#trackers'?'trackers':location.hash==='#rss'?'rss':'torrents';
+ document.body.dataset.view=view;
  const streaming=view==='streaming';$('#streaming-view').hidden=!streaming;
  const vpn=view==='connection',trackers=view==='trackers',rss=view==='rss',storage=view==='storage';
  $('#storage-view').hidden=!storage;
