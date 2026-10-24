@@ -245,6 +245,29 @@ events, and retries when FjordHub is unavailable. Only the existing managed
 `FJORDHUB_URL`/`FJORDHUB_API_KEY` credentials are used. Update FjordHub
 before FjordSeed.
 
+### Grouped RSS history
+
+Click a feed name to open its archived downloads, grouped by the series stem in
+the original torrent title. Expand a series and a release to inspect physical
+upload/download and calculated credit. Unknown historical measurements remain
+unknown. Download credit is accumulated only while recently verified freeleech
+metadata is available; missing intervals are never filled using today's badge.
+Existing Green upload credit is retained without recalculation.
+
+The per-series **Udeluk** action adds the original release's series stem to that
+feed's existing exclusion filter. It does not use the custom feed label and does
+not stop or delete existing downloads.
+
+History can include selected old feeds using persistent source IDs. Removing an
+old feed leaves its archive intact. Source links are direct (not recursive), and
+the overview counts each source's credit once. Administrators can provision a
+planned replacement feed before removing its predecessors with a private data
+file `rss-history-presets.json`, for example
+`[{"name":"Dansk TV","sources":["<old feed ID>"]}]`. A matching new feed inherits
+those sources even after their configuration was removed. Existing feeds from
+older versions with no history-source field are upgraded on startup. No RSS URL,
+tracker credential or downloading rule is copied by this history linkage.
+
 ### Torrent pages and bot status
 
 Manual and RSS download lists each show five torrents per page, with independent Previous/Next controls. Counts and transfer rates cover the entire list. The selected page survives status refreshes and clamps when torrents are removed.

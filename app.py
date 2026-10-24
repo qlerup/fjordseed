@@ -360,6 +360,54 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         except ValueError as exc:
             return jsonify(error=str(exc)),404
 
+    @app.get('/api/rss/<ident>/history/groups')
+    def rss_history_groups(ident):
+        from rss_history import grouped
+        try:
+            with rss.lock:
+                items=rss.download_history(ident)
+                feed=next(e for e in rss.entries() if e['id']==ident)
+            return jsonify(groups=grouped(items,feed.get('title_exclude',[])),count=len(items))
+        except (OSError,json.JSONDecodeError):
+            return jsonify(error='Historikken kunne ikke læses. Prøv igen.'),503
+        except ValueError as exc:
+            return jsonify(error=str(exc)),404
+
+    @app.post('/api/rss/<ident>/history/exclude')
+    def rss_history_exclude(ident):
+        from rss_history import grouped
+        data=request.get_json(silent=True)
+        if not isinstance(data,dict) or not isinstance(data.get('group'),str):
+            return jsonify(error='Vælg en serie fra historikken.'),400
+        with state.lock,rss.lock:
+            try:
+                feed=next((e for e in rss.entries() if e['id']==ident),None)
+                if not feed:raise ValueError('Feedet findes ikke længere.')
+                group=next((g for g in grouped(rss.download_history(ident),feed.get('title_exclude',[])) if g['key']==data['group']),None)
+                if not group:raise ValueError('Serien findes ikke i feedets historik.')
+                if group['excluded']:return jsonify(ok=True,excluded_title=group['exclude_title'])
+                result=save_rss_data({'id':ident,'title_exclude':[*feed.get('title_exclude',[]),group['exclude_title']]})
+                return result
+            except (OSError,json.JSONDecodeError):
+                return jsonify(error='Historikken kunne ikke læses. Prøv igen.'),503
+            except ValueError as exc:
+                return jsonify(error=str(exc)),400
+
+    @app.post('/api/rss/<ident>/history/sources')
+    def rss_history_sources(ident):
+        data=request.get_json(silent=True)
+        if not isinstance(data,dict) or not isinstance(data.get('sources'),list):
+            return jsonify(error='Vælg feeds til historikken.'),400
+        # History links have no effect on download rules or the VPN worker.
+        try:
+            with state.lock,rss.lock:
+                current=next((e for e in rss.entries() if e['id']==ident),None)
+                if not current:raise ValueError('Feedet findes ikke længere.')
+                rss.save({**current,'history_sources':data['sources']})
+            return jsonify(ok=True)
+        except ValueError as exc:
+            return jsonify(error=str(exc)),400
+
     @app.post('/api/rss')
     def save_rss():
         return save_rss_data(request.get_json(silent=True))

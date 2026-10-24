@@ -141,10 +141,14 @@ def validate_feed(data):
     if not isinstance(tracker,str) or (tracker and not re.fullmatch('[a-f0-9]{32}',tracker)) or (badges and not tracker):
         raise ValueError('Vælg den tracker, der skal bekræfte de valgte badges.')
     policy=share_policy(data)
+    sources=data.get('history_sources',[])
+    if (not isinstance(sources,list) or len(sources)>20 or
+            any(not isinstance(s,str) or not re.fullmatch('[a-f0-9]{32}',s) for s in sources)):
+        raise ValueError('Vælg gyldige feeds til historikken.')
     if policy['ratio_limit']<0:
         raise ValueError('Vælg en stop-ratio fra 0 til 10000.')
     policy['ratio_limit']=seed_ratio(policy['ratio_limit'])
-    return {'name':name.strip(),'url':url,'folder':folder.strip().strip('/'),
+    return {'name':name.strip(),'url':url,'folder':folder.strip().strip('/'), 'history_sources':list(dict.fromkeys(sources)),
             'title_include':validate_title_filters(data.get('title_include',[])),
             'title_exclude':validate_title_filters(data.get('title_exclude',[])),
             'max_size_bytes':max_size,
@@ -163,6 +167,15 @@ class Rss:
         # Retire legacy filters; preserve current title lists and badge requirements.
         saved=json.loads(self.path.read_text(encoding='utf-8'))
         migrated=[{**validate_feed(e),'id':e['id']} for e in saved]
+        preset_path=self.root/'rss-history-presets.json'
+        if preset_path.exists():
+            presets=json.loads(preset_path.read_text(encoding='utf-8'))
+            for old,feed in zip(saved,migrated):
+                if 'history_sources' not in old:
+                    preset=next((p for p in presets if title_key(p.get('name',''))==title_key(feed['name'])),None)
+                    if preset:
+                        feed.update(history_sources=preset['sources'])
+                        validate_feed(feed)
         if saved != migrated:
             atomic(self.path,json.dumps(migrated))
         self.path.chmod(0o600)
@@ -189,7 +202,20 @@ class Rss:
                 data['tracker_id']=existing.get('tracker_id','')
             if not data.get('url') and existing:
                 data['url']=existing['url']
+            # Optional administrator-provided history preset for a planned new
+            # feed. It links immutable source IDs, never guesses from RSS URLs.
+            preset={}
+            preset_path=self.root/'rss-history-presets.json'
+            if not existing and preset_path.exists():
+                presets=json.loads(preset_path.read_text(encoding='utf-8'))
+                preset=next((p for p in presets if title_key(p.get('name',''))==title_key(data.get('name',''))),{})
+                if preset:data={**data,'history_sources':preset['sources']}
             feed=validate_feed(data)
+            if ident in feed['history_sources']:
+                raise ValueError('Et feed kan ikke medtage sig selv som historikkilde.')
+            allowed={e['id'] for e in entries}|set((existing or {}).get('history_sources',[]))|set(preset.get('sources',[]))
+            if any(s not in allowed for s in feed['history_sources']):
+                raise ValueError('Et valgt historikfeed findes ikke længere.')
             folder_path(feed['folder'],self.downloads)
             if not existing and len(entries)>=20:
                 raise ValueError('Du kan tilføje op til 20 RSS-feeds.')
@@ -209,14 +235,38 @@ class Rss:
 
     def download_history(self, ident):
         with self.lock:
-            if not any(e['id'] == ident for e in self.entries()):
+            feed=next((e for e in self.entries() if e['id']==ident),None)
+            if not feed:
                 raise ValueError('Feedet findes ikke længere.')
         path = self.root/'qbit/green-credit.json'
         if not path.exists():
             return []
         ledger = json.loads(path.read_text(encoding='utf-8'))
-        items = ledger.get('_rss_upload', {}).get('feeds', {}).get(ident, {}).get('downloads', {})
-        return sorted(items.values(), key=lambda item: item['added_at'], reverse=True)
+        archived=ledger.get('_rss_upload',{}).get('feeds',{})
+        items={}
+        for source in dict.fromkeys([ident,*feed.get('history_sources',[])]):
+            for hash_id,record in archived.get(source,{}).get('downloads',{}).items():
+                if hash_id not in items:items[hash_id]={**record,'source_feeds':[source]}
+                else:
+                    merged=items[hash_id];merged['source_feeds'].append(source)
+                    merged['credited_uploaded']=merged.get('credited_uploaded',0)+record.get('credited_uploaded',0)
+                    for field in ('uploaded','downloaded','credited_downloaded'):
+                        if field in record and field in merged:merged[field]+=record[field]
+                        else:merged.pop(field,None)
+                    merged['added_at']=min(merged['added_at'],record['added_at'])
+                    for flag in ('estimated','download_credit_incomplete'):
+                        merged[flag]=merged.get(flag,False) or record.get(flag,False)
+        result=[]
+        for ident,item in items.items():
+            item={**item, 'hash':ident}
+            # Recover physical totals from the existing per-torrent ledger when
+            # available. Do not invent measurements for already removed torrents.
+            entry=ledger.get(ident,{})
+            traffic=entry.get('physical_traffic',{})
+            for field in ('uploaded','downloaded'):
+                if field not in item and field in traffic and len(item['source_feeds'])==1 and entry.get('rss_feed_id') in item['source_feeds']:item[field]=traffic[field]
+            result.append(item)
+        return sorted(result, key=lambda item: item['added_at'], reverse=True)
 
     def public(self):
         with self.lock:
@@ -243,12 +293,18 @@ class Rss:
             if upload_history is None:
                 return {'credited_uploaded':None,'credit_estimated':False,'credit_started_at':None}
             total=upload_history['feeds'].get(ident,{})
+            feed=next(e for e in entries if e['id']==ident)
+            related=[upload_history['feeds'].get(s,{}) for s in set(feed.get('history_sources',[]))-{ident}]
             value=total.get('credited_uploaded',0) if isinstance(total,dict) else None
+            own=value
+            if value is not None:value+=sum(t.get('credited_uploaded',0) for t in related)
             valid=type(value) in (int,float) and math.isfinite(value) and value>=0
-            return {'credited_uploaded':value if valid else None,
+            return {'credited_uploaded':value if valid else None,'own_credited_uploaded':own,
                     'credit_estimated':bool(isinstance(total,dict) and total.get('estimated')),
                     'credit_started_at':upload_history.get('started_at')}
-        return {'feeds':[{k:v for k,v in e.items() if k!='url'} | {
+        source_ids={source for e in entries for source in [e['id'],*e.get('history_sources',[])]}
+        total_credit=(sum(upload_history['feeds'].get(s,{}).get('credited_uploaded',0) for s in source_ids) if upload_history is not None else None)
+        return {'credited_uploaded_total':total_credit,'feeds':[{k:v for k,v in e.items() if k!='url'} | {
                 'ratio_limit':seed_ratio(e['ratio_limit']),
                 'host':urlsplit(e['url']).hostname,'has_url':True,
                 'status':('paused' if not e['enabled'] else 'pending' if not state else

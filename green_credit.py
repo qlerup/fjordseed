@@ -33,7 +33,12 @@ def policy_from_result(result):
     dates = [created_timestamp(m.get('created_at')) for m in result.get('matches', [])
              if m.get('tracker_provider') in PROVIDERS and not m.get('own_upload')]
     dates = [date for date in dates if date is not None]
-    return {'until': max(dates) + GREEN_SECONDS if dates else None,
+    matches=result.get('matches',[])
+    free=[m.get('freeleech') for m in matches]
+    verified_free=(free[0] if result.get('status')=='matched' and free
+        and all(type(v) in (int,float) and v in (0,25,50,75,100) and v==free[0] for v in free) else None)
+    download_policy=({'download_freeleech':verified_free,'benefits_checked_at':result.get('checked_at')} if verified_free is not None else {})
+    return {**download_policy,'until': max(dates) + GREEN_SECONDS if dates else None,
             'known': result.get('status') != 'pending' and all('created_at' in m for m in result.get('matches', [])),
             'has_date': bool(dates) or any(m.get('own_upload') for m in result.get('matches', []))}
 
@@ -252,5 +257,30 @@ class CreditLedger:
         item_previous = previous_credit if entry.get('rss_title_recorded') else 0
         item['credited_uploaded'] = max(0, item['credited_uploaded'] + credited - item_previous)
         item['estimated'] = item['estimated'] or pending or bool(entry.get('history_estimated'))
+        traffic=entry.get('physical_traffic',{})
+        previous=entry.setdefault('rss_traffic_sample',{})
+        first_sample=not previous
+        for field in ('uploaded','downloaded'):
+            if type(row.get(field)) not in (int,float):continue
+            total=number(traffic.get(field))
+            delta=max(0,total-number(previous.get(field)))
+            item[field]=number(item.get(field))+delta
+            if field=='downloaded' and delta:
+                rate=entry.get('policy',{}).get('download_freeleech')
+                checked=entry.get('policy',{}).get('benefits_checked_at')
+                valid=(type(rate) in (int,float) and rate in (0,25,50,75,100)
+                    and type(checked) in (int,float) and 0<=now-checked<=600)
+                # Previously downloaded bytes have no historical badge timeline.
+                # Keep that uncertainty permanently instead of applying today's
+                # freeleech percentage retrospectively to the entire download.
+                historic=first_sample and number(row.get('added_on'))<now-30
+                if valid and not historic:
+                    item['credited_downloaded']=number(item.get('credited_downloaded'))+delta*(1-rate/100)
+                else:item['download_credit_incomplete']=True
+            previous[field]=total
+        item['traffic_updated_at']=now
+        if type(row.get('size')) in (int,float):item['size']=number(row['size'])
+        if type(row.get('progress')) in (int,float):item['progress']=max(0,min(1,row['progress']))
+        if row.get('completion_on'):item['completed_at']=row['completion_on']
         entry['rss_title_recorded'] = True
         entry['rss_credited_uploaded'] = credited

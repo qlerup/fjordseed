@@ -17,6 +17,7 @@
 !covers.py
 !torrent_meta.py
 !rss.py
+!rss_history.py
 !rss_gate.py
 !templates/
 !templates/*.html

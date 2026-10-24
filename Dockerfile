@@ -31,6 +31,7 @@ COPY app.py bot_upload.py event_notifier.py hub_email.py hub.py runtime.py state
 COPY templates ./templates
 COPY streaming.py ./
 COPY seed_potential.py ./
+COPY rss_history.py ./
 COPY tracker_providers.py ./
 COPY static ./static
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
