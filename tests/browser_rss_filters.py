@@ -29,7 +29,6 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
             page.get_by_role('button',name='Log ind').click()
             page.locator('.nav[href="#rss"]').click()
-            page.locator('#rss-manage').click()
             page.locator('.rss-feed-card').first.get_by_role('button',name='Rediger',exact=True).click()
             page.locator('#rss-open-filters').click()
             dialog=page.locator('#rss-filter-dialog')
@@ -80,14 +79,12 @@ with tempfile.TemporaryDirectory() as folder:
             assert store.entries()[0]['title_include']==['Den store bagedyst']
             assert store.entries()[0]['title_exclude']==['Politijagt','<img src=x onerror=alert(1)>']
             page.reload()
-            page.locator('#rss-manage').click()
             page.locator('.rss-feed-card').first.get_by_role('button',name='Rediger',exact=True).click()
             page.locator('#rss-open-filters').click()
             expect(include).to_contain_text('Den store bagedyst')
             expect(exclude).to_contain_text('Politijagt')
             dialog.get_by_role('button',name='Annuller',exact=True).click()
             page.locator('#rss-cancel').click()
-            page.locator('#rss-feeds-dialog button.close').last.click()
             # A new feed starts with empty lists, independently of the edited feed.
             page.locator('#rss-new').click()
             page.locator('#rss-name').fill('Dansk TV uden Politijagt')
