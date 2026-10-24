@@ -6,7 +6,7 @@ source=(root/'static/app.js').read_text(encoding='utf-8')
 start=source.index('function torrentStatus(')
 end=source.index('function renderFlow(')
 code="const current={ready:true}; const $=s=>document.querySelector(s); function node(tag,cls,text){const n=document.createElement(tag);n.className=cls||'';if(text!==undefined)n.textContent=text;return n;} function benefitView(){return node('div');}"+source[start:end]
-code+=source[source.index('function size(n)'):source.index('function benefitView(')]
+code+=source[source.index('function size('):source.index('function benefitView(')]
 torrents=[{'hash':str(i)*40,'name':('Very.long.torrent.name.'*8 if i==1 else 'Linux ISO '+str(i)),
            'state':'uploading','upspeed':1024,'progress':1,'size':1024**3,'uploaded':1024**2,
            'ratio':.25,'ratio_limit':1,'seeding_time':3600,'seeding_time_limit':2940,
