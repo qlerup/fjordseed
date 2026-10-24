@@ -258,7 +258,7 @@ The per-series **Udeluk** action adds the original release's series stem to that
 feed's existing exclusion filter. It does not use the custom feed label and does
 not stop or delete existing downloads.
 
-History can include selected old feeds using persistent source IDs. Removing an
+Administrator history links can include old feeds using persistent source IDs. Removing an
 old feed leaves its archive intact. Source links are direct (not recursive), and
 the overview counts each source's credit once. Administrators can provision a
 planned replacement feed before removing its predecessors with a private data
@@ -267,6 +267,12 @@ file `rss-history-presets.json`, for example
 those sources even after their configuration was removed. Existing feeds from
 older versions with no history-source field are upgraded on startup. No RSS URL,
 tracker credential or downloading rule is copied by this history linkage.
+
+For permanent replacement, `tools/rss_history_migration.py` transfers archive
+ownership and the live ledger's feed association while writers are stopped.
+The operation is idempotent; original archives are retained for recovery. Clear
+the destination's source links afterwards to avoid counting copied history twice.
+The user history modal requires no feed-selection checkboxes.
 
 ### Torrent pages and bot status
 

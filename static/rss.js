@@ -29,21 +29,6 @@ async function openRssHistory(feed){
  try{
   const result=await api('/api/rss/'+feed.id+'/history/groups');
   if(generation!==rssHistoryGeneration)return;
-  const sources=$('#rss-history-source-options');sources.replaceChildren();
-  const selected=new Set(feed.history_sources||[]);
-  for(const source of rssFeeds.filter(f=>f.id!==feed.id)){
-   const label=node('label','check-label'),input=node('input');input.type='checkbox';input.value=source.id;input.checked=selected.has(source.id);
-   label.append(input,document.createTextNode(source.name));sources.append(label);
-  }
-  $('#rss-history-sources-save').onclick=async()=>{
-   const button=$('#rss-history-sources-save');button.disabled=true;$('#rss-history-source-error').hidden=true;
-   const ids=[...sources.querySelectorAll('input:checked')].map(input=>input.value);
-   // Preserve links whose original feed was removed after being imported.
-   for(const id of selected)if(!rssFeeds.some(f=>f.id===id))ids.push(id);
-   try{await api('/api/rss/'+feed.id+'/history/sources',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sources:ids})});feed.history_sources=ids;await refreshRss();await openRssHistory(feed);toast('Historikvalget er gemt.');}
-   catch(e){$('#rss-history-source-error').textContent=e.message;$('#rss-history-source-error').hidden=false;}
-   finally{button.disabled=false;}
-  };
   status.textContent=result.count?result.count+' torrents · '+result.groups.length+' grupper':'Ingen hentede titler registreret endnu.';
   let visible=0;
   function more(){
