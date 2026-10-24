@@ -70,18 +70,6 @@ with tempfile.TemporaryDirectory() as folder:
                 page.screenshot(path=str(output/f'feeds-{width}.png'))
                 page.locator('#rss-feeds-dialog button.close').last.click()
                 expect(page.locator('#rss-feeds-dialog')).not_to_be_visible()
-                expect(page.locator('#rss-feed-home .rss-feed-card')).to_have_count(2)
-                # The same live controls work directly in the page after closing.
-                page.locator('#rss-feed-home').get_by_role('button',name='Rediger',exact=True).first.click()
-                expect(page.locator('#rss-name')).to_have_value('Alt Dansk TV')
-                page.locator('#rss-dialog').evaluate('async d=>{await Promise.allSettled(d.getAnimations().map(a=>a.finished));}')
-                page.screenshot(path=str(output/f'feed-editor-{width}.png'))
-                assert page.locator('#rss-dialog').evaluate('d=>d.scrollWidth<=d.clientWidth')
-                page.locator('#rss-dialog .close').click()
-                page.locator('#rss-feed-home').get_by_role('button',name='Downloadhistorik for Alt Dansk TV',exact=True).click()
-                expect(page.locator('#rss-history-dialog')).to_be_visible()
-                page.keyboard.press('Escape')
-                assert page.locator('#rss-feed-list').count()==1
             # Confirm native lifecycle remains synchronous, with CSS-only motion.
             page.locator('.nav[href="#torrents"]').click()
             motion=page.evaluate('''async()=>{const d=document.querySelector('#add-dialog');d.showModal();await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);const active=d.getAnimations().length>0;d.close();return {active,closedImmediately:!d.open};}''')

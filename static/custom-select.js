@@ -32,14 +32,6 @@
   const options=()=>[...select.options].filter(option=>!option.hidden&&!option.parentElement.hidden);
   const disabled=option=>option.disabled||option.parentElement.disabled;
   const items=()=>[...list.querySelectorAll('[role="option"]')].filter(item=>!item.disabled);
-  function reveal(item){
-   if(!item)return;
-   // Only scroll the option list. scrollIntoView also scrolls the enclosing
-   // dialog, which moves the trigger and dismisses this popover.
-   const box=item.getBoundingClientRect(),bounds=list.getBoundingClientRect();
-   if(box.top<bounds.top)list.scrollTop-=bounds.top-box.top;
-   else if(box.bottom>bounds.bottom)list.scrollTop+=box.bottom-bounds.bottom;
-  }
   function close(focus=false){
    if(list.matches(':popover-open'))list.hidePopover();
    if(trigger.getAttribute('aria-expanded')!=='false')trigger.setAttribute('aria-expanded','false');
@@ -91,23 +83,21 @@
    if(trigger.disabled||wrapper.hidden)close();
    if(list.matches(':popover-open'))draw();
   }
-  function position(){
+  function open(edge){
+   sync();if(trigger.disabled||!trigger.getClientRects().length)return;
+   if(opened&&opened!==control)opened.close();
+   draw();
    const box=trigger.getBoundingClientRect();
    const desired=options().some(option=>option.dataset.description)?520:300;
    const below=innerHeight-box.bottom-12,above=box.top-12,up=below<desired&&above>below;
    list.style.width=Math.min(box.width,innerWidth-24)+'px';
    list.style.left=Math.max(12,Math.min(box.left,innerWidth-parseFloat(list.style.width)-12))+'px';
    list.style.maxHeight=Math.max(44,Math.min(desired,up?above:below))+'px';
-   list.style.top=(up?Math.max(6,box.top-list.getBoundingClientRect().height-5):box.bottom+5)+'px';
-  }
-  function open(edge){
-   sync();if(trigger.disabled||!trigger.getClientRects().length)return;
-   if(opened&&opened!==control)opened.close();
-   draw();list.showPopover();position();
+   list.showPopover();list.style.top=(up?Math.max(6,box.top-list.getBoundingClientRect().height-5):box.bottom+5)+'px';
    trigger.setAttribute('aria-expanded','true');opened=control;
    const enabled=items();
    (edge==='end'?enabled.at(-1):edge==='home'?enabled[0]:enabled.find(item=>item.getAttribute('aria-selected')==='true')||enabled[0])?.focus({preventScroll:true});
-   reveal(document.activeElement);
+   document.activeElement?.scrollIntoView({block:'nearest'});
   }
   function keyboard(event){
    const isOpen=list.matches(':popover-open');
@@ -118,7 +108,7 @@
     if(!isOpen){open(event.key==='Home'?'home':event.key==='End'?'end':undefined);return;}
     const enabled=items(),index=enabled.indexOf(document.activeElement);
     const target=event.key==='Home'?0:event.key==='End'?enabled.length-1:(index+(event.key==='ArrowDown'?1:-1)+enabled.length)%enabled.length;
-    enabled[target]?.focus({preventScroll:true});reveal(enabled[target]);return;
+    enabled[target]?.focus({preventScroll:true});enabled[target]?.scrollIntoView({block:'nearest'});return;
    }
    if((event.key==='Enter'||event.key===' ')&&isOpen){
     event.preventDefault();if(list.contains(document.activeElement))document.activeElement.click();return;
@@ -127,10 +117,10 @@
     event.preventDefault();if(!isOpen)open();
     const now=performance.now();search=now-searchAt<700?search+event.key:event.key;searchAt=now;
     const match=items().find(item=>item.textContent.trim().toLocaleLowerCase().startsWith(search.toLocaleLowerCase()));
-    match?.focus({preventScroll:true});reveal(match);
+    match?.focus({preventScroll:true});match?.scrollIntoView({block:'nearest'});
    }
   }
-  const control={sync,close,position,select,trigger,list};controls.set(select,control);
+  const control={sync,close,select,trigger,list};controls.set(select,control);
   trigger.onclick=()=>list.matches(':popover-open')?close():open();
   trigger.addEventListener('keydown',keyboard);list.addEventListener('keydown',keyboard);
   select.addEventListener('focus',()=>trigger.focus());
@@ -164,7 +154,7 @@
  document.addEventListener('focusin',event=>{
   if(opened&&event.target!==opened.trigger&&!opened.list.contains(event.target))opened.close();
  });
- document.addEventListener('scroll',event=>{if(opened&&!opened.list.contains(event.target))opened.position();},true);
+ document.addEventListener('scroll',event=>{if(opened&&!opened.list.contains(event.target))opened.close();},true);
  document.addEventListener('close',event=>{if(opened&&opened.select.closest('dialog')===event.target)opened.close();},true);
  window.addEventListener('resize',()=>opened?.close());
 })();

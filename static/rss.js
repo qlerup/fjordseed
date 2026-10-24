@@ -228,13 +228,7 @@ async function refreshRss(){
 
 $('#rss-new').onclick=()=>openRssForm();
 $('#rss-feeds-add').onclick=()=>openRssForm();
-// Reuse the same live list in the page and focused management dialog.
-// Moving it preserves controls, event handlers and unique detail IDs.
-$('#rss-manage').onclick=()=>{
- $('#rss-feed-modal-home').append($('#rss-feed-list'));
- $('#rss-feeds-dialog').showModal();refreshRss();
-};
-$('#rss-feeds-dialog').addEventListener('close',()=>$('#rss-feed-home').append($('#rss-feed-list')));
+$('#rss-manage').onclick=()=>{$('#rss-feeds-dialog').showModal();refreshRss();};
 $('#rss-history-dialog').addEventListener('close',()=>rssHistoryGeneration++);
 $('#rss-folder').oninput=updateRssPath;
 $('#rss-start').onchange=updateRssStart;
