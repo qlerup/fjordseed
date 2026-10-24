@@ -1,0 +1,7 @@
+/* Decorative background only. It never receives pointer or keyboard input. */
+body{isolation:isolate}
+#skull-hologram{position:fixed;inset:0;width:100%;height:100dvh;z-index:-1;pointer-events:none;opacity:.6}
+/* Let the background show through the existing surfaces, preserving their palette. */
+body:has(#skull-hologram) .connection,body:has(#skull-hologram) .torrent,
+body:has(#skull-hologram) .tracker-card,body:has(#skull-hologram) .stats>div{background:rgb(21 30 39 / 90%)}
+@media(max-width:800px){#skull-hologram{opacity:.4}}
