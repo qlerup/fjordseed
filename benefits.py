@@ -89,6 +89,11 @@ class Benefits:
         except (OSError,ValueError):
             self.snapshots={}
         self.snapshot_pending=set()
+        self.accounting_path=trackers.path.with_name('torrent-accounting.json')
+        try:self.accounting=json.loads(self.accounting_path.read_text())
+        except (OSError,ValueError):self.accounting={}
+        if not isinstance(self.accounting,dict):self.accounting={}
+        self.accounting_publish_lock=threading.Lock()
         self.retry_path=trackers.path.with_name('torrent-benefit-retries.json')
         try:
             retries=json.loads(self.retry_path.read_text())
@@ -187,6 +192,26 @@ class Benefits:
                 previous={}
             policies['_started_at']=previous.get('_started_at',time.time())
             atomic(directory/'green-policy.json',json.dumps(policies),mode=0o644)
+
+    def remember_accounting(self,hashes,result):
+        if result.get('status')!='matched':return
+        with self.lock:
+            for ident in hashes:self.accounting[ident]=self.without_global(result)
+            atomic(self.accounting_path,json.dumps(self.accounting),mode=0o600)
+        self.publish_accounting()
+
+    def publish_accounting(self):
+        from tracker_credit import policy
+        # Do not hold the snapshot lock while reading account events.
+        with self.accounting_publish_lock:
+            with self.lock:saved=copy.deepcopy(self.accounting)
+            policies={h:policy(self.with_global(result)) for h,result in saved.items()}
+            directory=self.snapshot_path.parent/'rpc';directory.mkdir(exist_ok=True)
+            atomic(directory/'tracker-credit.json',json.dumps({'_version':1,**policies}),mode=0o644)
+
+    def accounting_poll(self,meta):
+        result=self.request(meta,priority=0,max_age=300)
+        if result.get('status')=='matched':self.remember_accounting(self.hashes(meta),result)
 
     def needs_date(self,result):
         ids={entry['id'] for entry in self.trackers.entries()}
@@ -420,6 +445,7 @@ class Benefits:
                 snapshot_needed=still_current and any(h in self.snapshot_pending for h in hashes)
             if snapshot_needed:
                 self.remember({'hashes':hashes},result,lookup_finished=True)
+            if still_current:self.remember_accounting(hashes,result)
             self.jobs.task_done()
             # Keep automatic torrent lookups at most one job per second.
             stop.wait(1)

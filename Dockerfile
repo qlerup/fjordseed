@@ -32,6 +32,7 @@ COPY templates ./templates
 COPY streaming.py ./
 COPY seed_potential.py ./
 COPY rss_history.py ./
+COPY tracker_credit.py ./
 COPY tracker_providers.py ./
 COPY static ./static
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1

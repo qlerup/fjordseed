@@ -274,6 +274,18 @@ The operation is idempotent; original archives are retained for recovery. Clear
 the destination's source links afterwards to avoid counting copied history twice.
 The user history modal requires no feed-selection checkboxes.
 
+RSS tracker credit uses fresh exact-hash API results in a separate accounting
+stream. Physical traffic samples are retained with each archived torrent,
+including after removal. New upload combines the first **24 hours** of Green
+(×0.5) and verified double upload (×2). Downloads use verified freeleech and
+current global freeleech expiry. The conservative seeding-goal policy remains
+separate from this account-credit estimate and never replaces physical traffic.
+Active torrents refresh accounting metadata on a five-minute cache; old display
+snapshots do not freeze the accounting flags. Pending API lookups retain ten
+minutes of traffic samples, surviving restart/deletion. Backfilled short windows
+and samples crossing a timed boundary are marked estimated. Older unclassified
+traffic remains unknown; today's badges never rewrite the saved legacy total.
+
 ### Torrent pages and bot status
 
 Manual and RSS download lists each show five torrents per page, with independent Previous/Next controls. Counts and transfer rates cover the entire list. The selected page survives status refreshes and clamps when torrents are removed.

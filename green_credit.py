@@ -1,5 +1,6 @@
 """Persistent, conservative Green upload accounting shared by RPC and worker."""
 from contextlib import contextmanager
+from copy import deepcopy
 from datetime import datetime
 import json
 import math
@@ -133,7 +134,9 @@ class CreditLedger:
             try:
                 self.entries = read(CONFIG / 'green-credit.json', {})
                 self.policies = read(POLICIES, {})
+                self.tracker_policies=read(POLICIES.with_name('tracker-credit.json'),{})
                 self.feeds = read(CONFIG / 'fjord-rss.json', [])
+                self.reconcile_tracker_archives()
                 yield self
                 self.save()
             finally:
@@ -143,6 +146,24 @@ class CreditLedger:
     def save(self):
         """Persist goals before disabling qBittorrent's native stop limits."""
         atomic(CONFIG / 'green-credit.json', json.dumps(self.entries))
+
+    def reconcile_tracker_archives(self):
+        if self.tracker_policies.get('_version')!=1:return
+        from tracker_credit import accrue
+        now=time.time()
+        for feed in self.entries.get('_rss_upload',{}).get('feeds',{}).values():
+            if feed.get('migrated_to'):continue
+            for ident,item in feed.get('downloads',{}).items():
+                state=item.get('tracker_accounting')
+                if ident in self.entries or not state or not state.get('pending'):continue
+                up,down=accrue(state,0,0,state.get('at',now),now,self.tracker_policies.get(ident,{}))
+                feed['credited_uploaded']+=up;item['credited_uploaded']+=up
+                item['credited_downloaded']=number(item.get('credited_downloaded'))+down
+                item['upload_credit_pending']=sum(s['uploaded'] for s in state['pending'])
+                item['download_credit_pending']=sum(s['downloaded'] for s in state['pending'])
+                item['upload_credit_incomplete']=bool(state.get('unknown_uploaded') or state.get('legacy_upload_incomplete'))
+                item['download_credit_incomplete']=bool(state.get('unknown_downloaded') or state.get('legacy_download_incomplete'))
+                item['tracker_credit_estimated']=bool(state.get('estimated') or state.get('legacy_credit'))
 
     def register(self, hashes, target, policy=None, ratio_only=False, adaptive=False, stop_on_complete=False):
         for ident in hashes:
@@ -203,6 +224,10 @@ class CreditLedger:
         if not denominator and number(row.get('ratio')):
             denominator = uploaded / row['ratio']
         active = until > now
+        display_credit=entry.get('tracker_credited_uploaded',credited)
+        tracker_rules=self.tracker_policies.get(ident,{}) if entry.get('tracker_accounting') else {}
+        display_until=tracker_rules.get('green_until',until)
+        display_until=display_until if type(display_until) in (int,float) else until
         raw_ratio = number(row.get('ratio'))
         return {'seeding_time': seed_time(entry, row), 'extra_seed_hours': entry.get('extra_seed_hours', 0),
                 'ratio_only': entry.get('ratio_only', False),
@@ -214,8 +239,9 @@ class CreditLedger:
                 'ratio':real_ratio({**row,'uploaded':uploaded,'downloaded':traffic['downloaded']}),
                 'ratio_limit': entry['target'], 'native_ratio_limit':entry['target'],
                 'credited_ratio': credited / denominator if denominator else raw_ratio / (2 if active or pending else 1),
-                'credited_uploaded': credited, 'green_uploaded': discounted,
-                'green_until': until or None, 'green_active': active, 'green_pending': pending,
+                'credited_uploaded': display_credit, 'green_uploaded': discounted,
+                'tracker_double_upload':tracker_rules.get('double_upload'),
+                'green_until': display_until or None, 'green_active': display_until>now, 'green_pending': pending,
                 'green_date_unavailable': bool(self.policies.get('_enabled') and policy.get('known')
                     and not until and policy.get('has_date') is False),
                 'green_history_estimated': entry.get('history_estimated', False),
@@ -249,23 +275,56 @@ class CreditLedger:
             feed_id = entry['rss_feed_id'] = feed_ids.pop()
         total = history['feeds'].setdefault(feed_id, {'credited_uploaded': 0, 'estimated': False})
         previous_credit = number(entry.get('rss_credited_uploaded'))
-        total['credited_uploaded'] = max(0, total['credited_uploaded'] + credited - previous_credit)
+        live_accounting=self.tracker_policies.get('_version')==1
+        if not live_accounting:total['credited_uploaded'] = max(0, total['credited_uploaded'] + credited - previous_credit)
         total['estimated'] = total['estimated'] or pending or entry.get('history_estimated', False)
         item = self.record_rss_title(feed_id, row['hash'], row.get('name'), now)
         # When upgrading an existing sample, its old contribution is already in
         # the feed total, but the new per-title archive needs the full credit.
         item_previous = previous_credit if entry.get('rss_title_recorded') else 0
-        item['credited_uploaded'] = max(0, item['credited_uploaded'] + credited - item_previous)
+        if not live_accounting:item['credited_uploaded'] = max(0, item['credited_uploaded'] + credited - item_previous)
         item['estimated'] = item['estimated'] or pending or bool(entry.get('history_estimated'))
         traffic=entry.get('physical_traffic',{})
         previous=entry.setdefault('rss_traffic_sample',{})
         first_sample=not previous
+        if live_accounting:
+            from tracker_credit import accrue
+            rules=self.tracker_policies.get(row['hash'].lower(),{})
+            state=entry.get('tracker_accounting')
+            if state is None:
+                state={**deepcopy(item.get('tracker_accounting',{})),
+                       'at':(number(item.get('traffic_updated_at')) or now-1) if previous else number(row.get('added_on')) or now,
+                       'legacy_credit':item.get('credited_uploaded',0)>0,
+                       'legacy_upload_incomplete':item.get('upload_credit_incomplete',False),
+                       'legacy_download_incomplete':item.get('download_credit_incomplete',False),
+                       'unknown_downloaded':number(previous.get('downloaded')) if item.get('download_credit_incomplete') else 0}
+                entry['tracker_accounting']=state
+            delta_up=max(0,number(traffic.get('uploaded'))-number(previous.get('uploaded')))
+            delta_down=max(0,number(traffic.get('downloaded'))-number(previous.get('downloaded')))
+            if first_sample and number(row.get('added_on'))<now-30:
+                state['unknown_uploaded']=state.get('unknown_uploaded',0)+delta_up
+                state['unknown_downloaded']=state.get('unknown_downloaded',0)+delta_down
+                delta_up=delta_down=0
+            extra_up,extra_down=accrue(state,delta_up,delta_down,state['at'],now,rules)
+            state['at']=now
+            total['credited_uploaded']+=extra_up
+            item['credited_uploaded']+=extra_up
+            item['credited_downloaded']=number(item.get('credited_downloaded'))+extra_down
+            item['upload_credit_pending']=sum(s['uploaded'] for s in state['pending'])
+            item['download_credit_pending']=sum(s['downloaded'] for s in state['pending'])
+            item['upload_credit_incomplete']=bool(state.get('unknown_uploaded') or state.get('legacy_upload_incomplete'))
+            item['download_credit_incomplete']=bool(state.get('unknown_downloaded') or state.get('legacy_download_incomplete'))
+            item['tracker_credit_estimated']=bool(state.get('estimated') or state.get('legacy_credit'))
+            item['tracker_flags']={'green_until':rules.get('green_until'),'double_upload':rules.get('double_upload'),
+                'freeleech':rules.get('freeleech'),'checked_at':rules.get('checked_at')}
+            item['tracker_accounting']=state
+            entry['tracker_credited_uploaded']=item['credited_uploaded']
         for field in ('uploaded','downloaded'):
             if type(row.get(field)) not in (int,float):continue
             total=number(traffic.get(field))
             delta=max(0,total-number(previous.get(field)))
             item[field]=number(item.get(field))+delta
-            if field=='downloaded' and delta:
+            if field=='downloaded' and delta and not live_accounting:
                 rate=entry.get('policy',{}).get('download_freeleech')
                 checked=entry.get('policy',{}).get('benefits_checked_at')
                 valid=(type(rate) in (int,float) and rate in (0,25,50,75,100)

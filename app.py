@@ -46,6 +46,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     trackers = Trackers(state.root)
     covers = Covers(state.root)
     trackers.benefits.publish_green()
+    trackers.benefits.publish_accounting()
     rss = Rss(state.root)
     rss_gate = RssGate(rss,runtime,state,trackers.benefits)
     app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers, rss=rss, covers=covers, event_notifier=notifier)
@@ -590,8 +591,10 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                     if result.get('torrents_available'):
                         notifier.observe_seed(result.get('torrents', []), rss.entries())
                     for row in result.get('torrents',[]):
-                        trackers.benefits.snapshot({'hashes':[row.get(k) for k in ('hash','infohash_v1','infohash_v2')],
-                            'name':row.get('name','')})
+                        meta={'hashes':[row.get(k) for k in ('hash','infohash_v1','infohash_v2')],'name':row.get('name','')}
+                        trackers.benefits.snapshot(meta)
+                        if 'FjordSeed-RSS-' in str(row.get('tags','')):
+                            trackers.benefits.accounting_poll(meta)
                 except Exception:
                     pass
                 checked=time.monotonic()

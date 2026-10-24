@@ -9,15 +9,24 @@ function rssHistoryFile(item){
  summary.append(node('span','',item.title),node('span','rss-history-credit',size(item.credited_uploaded)));
  row.append(summary);
  const metrics=node('dl','rss-history-metrics');
- metrics.append(rssHistoryMetric('Upload',item.uploaded),rssHistoryMetric('Krediteret upload',item.credited_uploaded),rssHistoryMetric('Download',item.downloaded),rssHistoryMetric('Krediteret download',item.download_credit_incomplete?null:item.credited_downloaded));
+ metrics.append(rssHistoryMetric('Upload',item.uploaded),rssHistoryMetric('Krediteret upload',item.upload_credit_pending&&!item.credited_uploaded?null:item.credited_uploaded),rssHistoryMetric('Download',item.downloaded),rssHistoryMetric('Krediteret download',item.download_credit_incomplete||item.download_credit_pending?null:item.credited_downloaded));
  row.append(metrics);
  const facts=[];
  if(item.added_at)facts.push('Registreret '+new Date(item.added_at*1000).toLocaleString('da-DK'));
  if(typeof item.progress==='number')facts.push('Hentet '+Math.round(item.progress*100)+' %');
  if(item.size)facts.push('Torrentstørrelse '+size(item.size));
  row.append(node('p','muted small',facts.join(' · ')));
+ const flags=item.tracker_flags,labels=[];
+ if(flags){
+  if(flags.green_until>item.traffic_updated_at)labels.push('Green: halv uploadkredit i de første 24 timer');
+  if(flags.double_upload===true)labels.push('Dobbelt upload: ×2');
+  if(typeof flags.freeleech==='number')labels.push(flags.freeleech+' % freeleech');
+  if(labels.length)row.append(node('p','rss-history-flags small','Ved seneste måling: '+labels.join(' · ')));
+ }
+ if(item.upload_credit_pending||item.download_credit_pending)row.append(node('p','muted small','Afventer bekræftede trackerflag for den seneste trafik. Målingerne er gemt.'));
+ if(item.upload_credit_incomplete||item.download_credit_incomplete||item.uploaded===undefined||item.downloaded===undefined)row.append(node('p','muted small','Ældre målinger eller flag mangler. De kan ikke genskabes præcist ud fra dagens flag. Nye målinger gemmes løbende.'));
  row.append(node('p','muted small','Kredittal er beregnede ud fra de kendte trackerfordele. Ukendt betyder, at historiske målinger eller bekræftede fordele mangler.'));
- if(item.estimated)row.append(node('p','muted small','Uploadkredit er beregnet konservativt.'));
+ if(item.estimated||item.tracker_credit_estimated)row.append(node('p','muted small','Kredittal indeholder estimater eller bevaret ældre kredit.'));
  return row;
 }
 async function openRssHistory(feed){

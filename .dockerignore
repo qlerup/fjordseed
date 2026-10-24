@@ -18,6 +18,7 @@
 !torrent_meta.py
 !rss.py
 !rss_history.py
+!tracker_credit.py
 !rss_gate.py
 !templates/
 !templates/*.html

@@ -89,7 +89,8 @@ function torrentDetails(t) {
  retry.setAttribute('aria-label','Hent trackerdata igen for '+t.name);
  retry.onclick=async()=>{retry.disabled=true;try{await api(`/api/torrents/${t.hash}/refresh-metadata`,{method:'POST'});toast('Nyt trackeropslag er sat i kø. Oplysninger og plakat opdateres automatisk.');await refresh();}catch(e){toast(e.message);}finally{retry.disabled=false;}};
  details.append(retry);
- if(t.green_active)details.append(node('p','torrent-rule','Green: kontoens uploadkredit estimeres til 50 % indtil '+new Date(t.green_until*1000).toLocaleString('da-DK')+'. Torrentens ratio og seedingmål bruger altid reel upload/download.'));
+ if(t.green_active)details.append(node('p','torrent-rule','Green: halv uploadkredit indtil '+new Date(t.green_until*1000).toLocaleString('da-DK')+(t.tracker_double_upload?' · dobbelt upload giver samlet ×1.':' (×0,5).')+' Torrentens ratio og seedingmål bruger reel upload/download.'));
+ else if(t.tracker_double_upload)details.append(node('p','torrent-rule','Dobbelt upload: ny upload krediteres ×2. Torrentens ratio og seedingmål bruger reel trafik.'));
  else if(t.green_until&&t.green_uploaded>0)details.append(node('p','torrent-rule','Green-perioden er slut. Upload efter perioden t\u00e6ller 100 %. Den viste total tager h\u00f8jde for, at upload under Green-perioden blev krediteret med 50 %.'));
  else if(t.green_date_unavailable)details.append(node('p','torrent-rule','Green-dato ukendt. Kontoens uploadkredit er et estimat. Torrentens ratio og seedingmål bruger reel upload/download.'));
  else if(t.green_pending)details.append(node('p','torrent-rule','Afventer trackerens oprettelsesdato til kontoens uploadkredit. Det ændrer ikke torrentens ratio eller seedingmål.'));
