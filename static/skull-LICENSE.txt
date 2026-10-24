@@ -1,7 +1,0 @@
-Human Skull by CDmir
-Source: https://opengameart.org/content/human-skull-0
-License: CC0 1.0 Universal (public domain dedication)
-https://creativecommons.org/publicdomain/zero/1.0/
-
-skull-mesh.json contains normalized vertices, normals, triangles and deduplicated edges derived
-from skull-Low4K.obj. Textures are not included. Rendered locally as a hologram.
