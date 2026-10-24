@@ -33,8 +33,8 @@ def test_titles_and_green_credit_survive_removal_restart_and_reset(tmp_path, mon
     restarted = create_app(tmp_path, testing=True, runtime_factory=FakeRuntime)
     client, _ = login(restarted)
     items = client.get(url).json['downloads']
-    assert len(items) == 1 and items[0]['credited_uploaded'] == 950
-    assert client.get('/api/rss').json['feeds'][0]['credited_uploaded'] == 950
+    assert len(items) == 1 and items[0]['credited_uploaded'] == 900
+    assert client.get('/api/rss').json['feeds'][0]['credited_uploaded'] == 900
     assert 'tracker.example' not in json.dumps(items)
     assert restarted.test_client().get(url).status_code == 401
     assert client.get('/api/rss/not-a-feed/history').status_code == 404

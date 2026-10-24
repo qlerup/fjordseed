@@ -86,6 +86,13 @@ def stop_process(process, graceful=False):
             process.wait(3)
 
 
+def sync_resume_interval(prefs, api=None):
+    """Bound loss of qBittorrent's own checkpoint on an unclean restart."""
+    interval=prefs.get('save_resume_data_interval')
+    if type(interval) is int and interval!=1:
+        (api or call)('app/setPreferences',{'json':json.dumps({'save_resume_data_interval':1})})
+
+
 def run():
     process = None
     started = 0
@@ -162,6 +169,7 @@ def run():
                     # termination path short; extend only normal shutdown.
                     if type(prefs.get('stop_tracker_timeout')) is int and prefs['stop_tracker_timeout'] < 10:
                         call('app/setPreferences', {'json':json.dumps({'stop_tracker_timeout':10})})
+                    sync_resume_interval(prefs)
                     stage='download_queue'
                     sync_download_queue(prefs)
                     stage='listen_port'

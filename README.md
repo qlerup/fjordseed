@@ -122,6 +122,8 @@ Pause/start is a combined control, and paused time does not advance Seed's activ
 
 Manual stop/removal remains available with confirmation. If physical torrent ratio is below 1 and active seeding is below 49 hours, an early-stop warning shows current figures regardless of a custom automatic target. The server rechecks on execution.
 
+Physical upload/download totals are accumulated in the durable ledger. If qBittorrent restores an older resume checkpoint after a restart, recorded traffic remains in the ratio and future counter growth is added once. Legacy Green byte buckets can recover previously observed upload; tracker account credit is never used to invent physical traffic. Re-adding a torrent with a new addition date starts a new transfer lifetime. Adaptive forecasts reset at a counter rollback so recovered history cannot appear as a burst of new upload. qBittorrent's own resume-save interval is set to one minute when supported.
+
 **Remove always offers three choices:** remove the torrent and its files,
 remove only the torrent and retain its files, or delete only the files and
 retain the torrent stopped. All three are available regardless of the saved

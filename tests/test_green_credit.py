@@ -244,9 +244,9 @@ def test_feed_credit_survives_torrent_removal_restart_and_readdition():
     assert feed_totals()[FEED]['credited_uploaded']==1200
     # Counter reset cannot subtract upload already earned by this feed.
     update(row(50,tags=tags,added_on=END+15),END+30)
-    assert feed_totals()[FEED]['credited_uploaded']==1250
+    assert feed_totals()[FEED]['credited_uploaded']==1200
     update(row(100,tags=tags,added_on=END+15),END+35)
-    assert feed_totals()[FEED]['credited_uploaded']==1300
+    assert feed_totals()[FEED]['credited_uploaded']==1250
 
 
 def test_feed_credit_adjusts_pending_classification():

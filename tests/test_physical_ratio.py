@@ -40,7 +40,7 @@ def test_old_credit_forecast_is_retrained_without_changing_goal_or_seed_clock():
          'share_limit_action':'RemoveWithContent','num_complete':1,'num_incomplete':100}
     with CreditLedger().transaction() as ledger:
         result=ledger.update(row,now=1010)
-        assert ledger.entries[HASH]['upload_potential']['basis']=='physical-upload-v1'
+        assert ledger.entries[HASH]['upload_potential']['basis']=='physical-upload-v2'
     assert result['ratio_limit']==3 and result['seeding_time']==100
     assert not result['seeding_upload_potential']
 

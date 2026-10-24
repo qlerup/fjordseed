@@ -35,10 +35,10 @@ def upload_potential(entry, row, denominator, now):
         entry.pop('upload_potential', None)
         return empty
     previous = entry.get('upload_potential')
-    if (previous is None or previous.get('basis')!='physical-upload-v1'
+    if (previous is None or previous.get('basis')!='physical-upload-v2'
             or now < previous['at'] or now-previous['at'] > MAX_SAMPLE_GAP
             or uploaded < previous['uploaded']):
-        previous = {'basis':'physical-upload-v1','at':now, 'since':now, 'uploaded':uploaded,
+        previous = {'basis':'physical-upload-v2','at':now, 'since':now, 'uploaded':uploaded,
                     'rate':0, 'last_upload':None}
     elapsed = now-previous['at']
     if elapsed > 0:

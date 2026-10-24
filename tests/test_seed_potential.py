@@ -46,6 +46,7 @@ def test_forecast_holds_both_goals_but_preserves_original_policy(trigger,ratio_o
     row,credit=trained()
     credit.update(ratio=1 if trigger=='ratio' else .1,
                   seeding_time=SEEDING_SECONDS if trigger=='time' else 1,ratio_only=ratio_only)
+    credit['uploaded']=credit['downloaded']*credit['ratio']
     completion=seeding_completion(row,credit)
     reached=trigger=='ratio' or not ratio_only
     assert completion['seeding_goal_reached'] is reached
@@ -76,7 +77,7 @@ def test_worker_rechecks_without_browser_then_deletes_when_demand_disappears(mon
         row.update(uploaded=step*60*MIB,seeding_time=step*60,upspeed=MIB,num_leechs=1)
         sync_share_limits(api)
     row.update(upspeed=0,num_leechs=0,state='stalledUP')
-    if trigger=='ratio':row['downloaded']=row['uploaded']
+    if trigger=='ratio':row['uploaded']=row['downloaded']
     else:row['seeding_time']=SEEDING_SECONDS
     sync_share_limits(api)
     assert not any(call.args[0]=='torrents/delete' for call in api.call_args_list)
@@ -100,6 +101,7 @@ def test_forecast_decays_and_stops_extending_even_if_tracker_demand_stays_high()
         previous=credit['seeding_predicted_upload']
     assert not credit['seeding_upload_potential']
     credit['ratio']=1
+    credit['uploaded']=credit['downloaded']
     assert finish_seeding(Mock(),row,credit)
 
 
@@ -108,6 +110,7 @@ def test_low_recent_upload_or_demand_does_not_extend(changes):
     row,credit=trained(torrent(**changes),rate=1 if not changes else MIB)
     assert not credit['seeding_upload_potential']
     credit['ratio']=1
+    credit['uploaded']=credit['downloaded']
     assert finish_seeding(Mock(),row,credit)
 
 
@@ -179,7 +182,7 @@ def test_poll_frequency_does_not_change_constant_rate_forecast():
 def test_status_exposes_forecast_and_extension_without_changing_goal(monkeypatch):
     from qbit_rpc import execute
     row,credit=trained()
-    row['downloaded']=row['uploaded']
+    row['uploaded']=row['downloaded']
     monkeypatch.setattr(green_credit.time,'time',lambda:1600)
     def api(path,data=None):
         if path=='app/preferences':
@@ -204,6 +207,7 @@ def test_existing_delete_policy_does_not_gain_adaptive_behavior():
     assert credit['adaptive_seeding'] is False
     assert credit['seeding_upload_potential'] is False
     credit['ratio']=1
+    credit['uploaded']=credit['downloaded']
     assert finish_seeding(Mock(),row,credit)
 
 

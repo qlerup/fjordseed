@@ -65,6 +65,36 @@ def real_ratio(row):
     return number(row.get('ratio'))
 
 
+def physical_traffic(entry, row):
+    """Accumulate observed traffic even if qBittorrent restores an old checkpoint.
+
+    A falling native counter establishes a new baseline, never new traffic.
+    Legacy Green buckets contain already observed bytes and can recover a
+    higher historical upload total without consulting tracker account credit.
+    """
+    totals=entry.get('physical_traffic')
+    valid_upload=type(row.get('uploaded')) in (int,float) and math.isfinite(row['uploaded']) and row['uploaded']>=0
+    valid_download=type(row.get('downloaded')) in (int,float) and math.isfinite(row['downloaded']) and row['downloaded']>=0
+    uploaded=number(row['uploaded']) if valid_upload else number((totals or {}).get('last_uploaded',entry.get('uploaded')))
+    downloaded=number(row['downloaded']) if valid_download else number((totals or {}).get('last_downloaded'))
+    if totals is None:
+        previous=number(entry.get('uploaded'))
+        delta=max(0,uploaded-previous)
+        observed=max(previous,number(entry.get('green_uploaded'))+number(entry.get('unclassified')))
+        totals={'uploaded':max(uploaded,observed+delta),'downloaded':downloaded,
+                'rolled_back':uploaded<observed}
+        reset=uploaded<observed
+    else:
+        reset=uploaded<totals['last_uploaded'] or downloaded<totals['last_downloaded']
+        delta=max(0,uploaded-totals['last_uploaded'])
+        totals['uploaded']+=delta
+        totals['downloaded']+=max(0,downloaded-totals['last_downloaded'])
+        totals['rolled_back']=totals.get('rolled_back',False) or reset
+    totals.update(last_uploaded=uploaded,last_downloaded=downloaded)
+    entry['physical_traffic']=totals
+    return totals,delta,reset or not valid_upload
+
+
 def seed_time(entry, row):
     """Exclude native counter growth during moves and pauses, including transitions."""
     raw = row.get('seeding_time')
@@ -135,13 +165,13 @@ class CreditLedger:
             self.entries[ident] = entry
         if target is not None:
             entry['target'] = target
-        previous_uploaded = entry['uploaded']
+        traffic,delta,reset=physical_traffic(entry,row)
+        if reset:entry.pop('upload_potential',None)
         entry['added_on'] = row.get('added_on')
         policy = self.policies.get(ident, entry['policy'])
         entry['policy'] = policy
         pending = not policy.get('known') or bool(self.policies.get('_enabled') and policy.get('has_date') is False)
         until = number(policy.get('until'))
-        delta = max(0, uploaded - entry['uploaded'])
         # An interval crossing expiry is charged at half in full: at most one
         # polling interval of conservative over-seeding, never invented credit.
         # Newly discovered historic torrents are likewise treated conservatively.
@@ -158,12 +188,13 @@ class CreditLedger:
                 entry['history_estimated'] = True
         elif not pending:
             entry.pop('unclassified', None)
-        entry.update(uploaded=uploaded, at=now, classified=not pending)
+        entry.update(uploaded=traffic['last_uploaded'], at=now, classified=not pending)
+        uploaded=traffic['uploaded']
         # Never let a counter reset create negative or unearned credit.
         discounted = min(uploaded, entry['green_uploaded'] + (entry.get('unclassified', 0) if pending else 0))
         credited = uploaded - discounted / 2
-        self.record_rss_upload(row, entry, credited, previous_uploaded, now, pending)
-        denominator = number(row.get('downloaded'))
+        self.record_rss_upload(row, entry, credited, now, pending)
+        denominator = traffic['downloaded']
         if not denominator and number(row.get('ratio')):
             denominator = uploaded / row['ratio']
         active = until > now
@@ -172,14 +203,18 @@ class CreditLedger:
                 'ratio_only': entry.get('ratio_only', False),
                 'adaptive_seeding': entry.get('adaptive_seeding', False),
                 'stop_on_complete': entry.get('stop_on_complete', False),
-                'ratio':real_ratio(row), 'ratio_limit': entry['target'], 'native_ratio_limit':entry['target'],
+                'uploaded':uploaded,'downloaded':traffic['downloaded'],
+                'client_uploaded':traffic['last_uploaded'],'client_downloaded':traffic['last_downloaded'],
+                'traffic_counter_rollback':traffic.get('rolled_back',False),
+                'ratio':real_ratio({**row,'uploaded':uploaded,'downloaded':traffic['downloaded']}),
+                'ratio_limit': entry['target'], 'native_ratio_limit':entry['target'],
                 'credited_ratio': credited / denominator if denominator else raw_ratio / (2 if active or pending else 1),
                 'credited_uploaded': credited, 'green_uploaded': discounted,
                 'green_until': until or None, 'green_active': active, 'green_pending': pending,
                 'green_date_unavailable': bool(self.policies.get('_enabled') and policy.get('known')
                     and not until and policy.get('has_date') is False),
                 'green_history_estimated': entry.get('history_estimated', False),
-                **upload_potential(entry,row,denominator,now)}
+                **upload_potential(entry,{**row,'uploaded':uploaded},denominator,now)}
 
     def record_rss_title(self, feed_id, ident, title, now=None):
         """Archive text independently of the live torrent/sample lifecycle."""
@@ -192,7 +227,7 @@ class CreditLedger:
             item['title'] = title.strip()[:1000]
         return item
 
-    def record_rss_upload(self, row, entry, credited, previous_uploaded, now, pending):
+    def record_rss_upload(self, row, entry, credited, now, pending):
         """Keep feed totals in the same atomic ledger as per-torrent samples.
 
         Removing a torrent may retire its goal/sample, but never its feed total.
@@ -209,9 +244,6 @@ class CreditLedger:
             feed_id = entry['rss_feed_id'] = feed_ids.pop()
         total = history['feeds'].setdefault(feed_id, {'credited_uploaded': 0, 'estimated': False})
         previous_credit = number(entry.get('rss_credited_uploaded'))
-        if number(row.get('uploaded')) < previous_uploaded:
-            # A reset starts a new counter; earlier earned upload stays in the total.
-            previous_credit = 0
         total['credited_uploaded'] = max(0, total['credited_uploaded'] + credited - previous_credit)
         total['estimated'] = total['estimated'] or pending or entry.get('history_estimated', False)
         item = self.record_rss_title(feed_id, row['hash'], row.get('name'), now)
