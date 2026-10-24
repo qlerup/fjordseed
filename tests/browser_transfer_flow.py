@@ -45,6 +45,27 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('.flow-peers strong')).to_have_text('Peers')
             assert page.evaluate('transferFlow.paths.filter(p=>p.direction===1&&p.link===1).every(p=>p.b===transferFlow.points[3])')
             assert page.locator('[data-duck]').count()==0
+            # Rate updates change brightness, never packet position, spacing or speed.
+            assert page.evaluate('''() => {
+                const scene=transferFlow, original=scene.stroke;
+                const snapshot=(level,time)=>{
+                    const positions=[];
+                    scene.energy=[level,level];
+                    scene.stroke=(path,start,end,color,width)=>{
+                        if(width===1.5)positions.push(end);
+                    };
+                    scene.draw(time);
+                    return positions;
+                };
+                const energy=scene.energy;
+                try {
+                    const slow=snapshot(.08,10000), fast=snapshot(1,10000);
+                    const later=snapshot(.5,10000.5);
+                    return slow.length===48 && slow.every((position,i)=>
+                        position===fast[i] &&
+                        Math.abs((later[i]-position+1)%1-.14)<1e-9);
+                } finally {scene.stroke=original;scene.energy=energy;}
+            }''')
             flow.screenshot(path=str(output/'transfer-flow-desktop.png'))
             for width in (390,320):
                 page.set_viewport_size({'width':width,'height':1000})

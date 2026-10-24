@@ -105,7 +105,9 @@
     const i=path.direction,level=this.energy[i],color=i?'100,174,255':'102,246,191';
     this.stroke(path,0,1,active?`rgba(${color},${.09+level*.12})`:'#71808a25',.8);
     if(!active||!this.rates[i])continue;
-    const count=2+Math.round(level*6),speed=.18+level*.36;
+    // Keep motion and spacing steady when live transfer rates change.
+    // Multiplying absolute time by a changing speed makes packets jump.
+    const count=4,speed=.28;
     for(let packet=0;packet<count;packet++){
      const progress=(time*speed+packet/count+path.strand*.131+path.link*.23)%1;
      const t=progress;
