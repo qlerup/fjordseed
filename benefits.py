@@ -333,6 +333,14 @@ class Benefits:
         release=re.sub(r'\.(?:mkv|mp4|m4v|avi|mov|wmv|webm|m2ts|ts|iso|flac|mp3|m4a|ogg|wav)$','',name,flags=re.I)
         candidates=list(dict.fromkeys([release,name,re.sub(r'[._]+',' ',release).strip(),
                                       re.sub(r'[._]+',' ',name).strip()]))
+        # The internal torrent name may differ from the indexed release name.
+        # Try the title before year/season/quality metadata as a final fallback;
+        # a result is still accepted only when its info-hash matches exactly.
+        marker=re.search(r'[\s.(\[_-]+(?:(?:19|20)\d{2}\b|S\d{1,2}\b|S\d{1,2}E\d{1,3}\b|(?:720|1080|2160)p\b)',release,re.I)
+        if marker:
+            title=re.sub(r'[._]+',' ',release[:marker.start()]).strip(' -[(')
+            if len(title)>=3 and title not in candidates:
+                candidates.append(title)
         for entry in entries:
             match=None
             try:

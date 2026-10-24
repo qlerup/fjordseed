@@ -75,6 +75,22 @@ def test_original_filename_search_is_preserved(tmp_path):
     assert trackers.read_json.call_args.args[2]['name']=='Example.mkv'
 
 
+def test_internal_name_falls_back_to_title_and_verifies_hash(tmp_path):
+    trackers=Trackers(tmp_path)
+    trackers.save(CONFIG)
+    name='Marshals (2026) S01 (1080p BluRay x265 10bit EAC3 5.1 Ghost)'
+    def search(entry,url,params):
+        return {'data':[row('b'*40),row(created_at='2026-10-23T12:00:00Z')]
+                if params['name']=='Marshals' else []}
+    trackers.read_json=Mock(side_effect=search)
+    result=trackers.benefits.lookup((HASH,),name,trackers.entries())
+    assert result['status']=='matched'
+    assert result['matches'][0]['created_at']=='2026-10-23T12:00:00Z'
+    assert trackers.read_json.call_args.args[2]['name']=='Marshals'
+    trackers.read_json=Mock(return_value={'data':[row('b'*40)]})
+    assert trackers.benefits.lookup((HASH,),name,trackers.entries())['status']=='unknown'
+
+
 def test_async_cache_deduplicates_and_invalidates_credentials(tmp_path):
     trackers=Trackers(tmp_path)
     ident=trackers.save(CONFIG)
