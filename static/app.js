@@ -5,7 +5,7 @@ function node(tag, cls, text) {const n=document.createElement(tag);if(cls)n.clas
 function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4000);}
 function error(selector,e){$(selector).textContent=e.message;$(selector).hidden=false;}
 async function api(url, options={}){const r=await fetch(url,{...options,headers:{'X-CSRF-Token':csrf,...options.headers}});if(r.status===401){location.href='/login';throw Error('Log ind igen.');}const d=await r.json();if(!r.ok)throw Error(d.error||'Handlingen kunne ikke udføres.');return d;}
-function size(n){n=Number(n)||0;for(const unit of ['B','KB','MB','GB','TB']){if(n<1024||unit==='TB')return n.toFixed(n<10?1:0)+' '+unit;n/=1024;}}
+function size(n,precise=false){n=Number(n)||0;const units=precise?['B','KiB','MiB','GiB','TiB']:['B','KB','MB','GB','TB'];for(const unit of units){if(n<1024||unit===units[4])return n.toFixed(precise?(unit==='B'?0:2):(n<10?1:0))+' '+unit;n/=1024;}}
 function benefitView(data){
  const wrap=node('div','torrent-benefits');
  if(!data||data.status!=='matched'){wrap.append(node('span','muted small',data?.message||'Trackerfordele ukendte'));return wrap;}
@@ -77,9 +77,9 @@ function torrentMetrics(t) {
  const fields=[['Download',size(t.dlspeed)+'/s'],['Upload',size(t.upspeed)+'/s'],
   ['Ratio',number(seed.ratio)+(t.seeding_unlimited?'':' / '+number(seed.target))],
   ['Seedtid',number(seed.seconds/3600)+(!t.seeding_unlimited&&seed.minutes?' / '+number(seed.minutes/60):'')+' timer'],
-  ['Uploadet i alt',typeof t.uploaded==='number'&&Number.isFinite(t.uploaded)&&t.uploaded>=0?size(t.uploaded):'—']];
+  ['Uploadet i alt',typeof t.uploaded==='number'&&Number.isFinite(t.uploaded)&&t.uploaded>=0?size(t.uploaded,true):'—']];
  for(const [label,value] of fields){const item=node('div');item.append(node('dt','',label),node('dd','',value));values.append(item);}
- if(t.green_until||t.green_pending){const item=node('div');item.append(node('dt','','Krediteret upload (konto)'),node('dd','',size(t.credited_uploaded)));values.append(item);}
+ if(t.green_until||t.green_pending){const item=node('div');item.append(node('dt','','Krediteret upload (konto)'),node('dd','',size(t.credited_uploaded,true)));values.append(item);}
  return values;
 }
 function torrentDetails(t) {
