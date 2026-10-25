@@ -1,4 +1,10 @@
 /* Shared download workspace */
+.settings-tabs{display:flex;flex-wrap:wrap;gap:4px;padding:5px;margin:0 0 24px;width:fit-content;max-width:100%;border:1px solid #52688b80;border-radius:12px;background:#111c3599}
+.settings-tabs a{padding:10px 20px;border:1px solid transparent;border-radius:8px;color:#bdcbe2;font-weight:600}
+.settings-tabs a:hover{background:#8ebcfa18;color:white}
+.settings-tabs a[aria-current=page]{background:#8ebcfa24;border-color:#8ebcfa66;color:#e8f3ff;box-shadow:inset 0 1px #ffffff12}
+.settings-tabs[hidden]{display:none}
+@media(max-width:600px){.settings-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.settings-tabs a{padding:10px 8px;text-align:center;font-size:12px}}
 .download-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:8px 0 24px}
 .download-filters{display:flex;gap:4px;padding:5px;border:1px solid #52688b80;border-radius:12px;background:#111c3599}
 .download-filters button{background:transparent;border:1px solid transparent;color:#bdcbe2;border-radius:8px;padding:10px 22px;font-weight:600;cursor:pointer}
