@@ -37,6 +37,8 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#flow-download-rate')).to_have_text('84 MB/s')
             expect(page.locator('#flow-upload-rate')).to_have_text('12 MB/s')
             expect(page.locator('#flow-vpn-icon img')).to_have_attribute('src','/static/flags/dk.svg')
+            assert flow.bounding_box()['height'] < 350
+            assert page.locator('.flow-rates').bounding_box()['x'] > page.locator('.flow-stage').bounding_box()['x'] + page.locator('.flow-stage').bounding_box()['width']
             page.wait_for_function('() => transferFlow && transferFlow.frame !== null && transferFlow.paths.length === 12')
             first=page.locator('.flow-canvas').evaluate('el=>el.toDataURL()')
             page.wait_for_function('(snapshot)=>document.querySelector(".flow-canvas").toDataURL()!==snapshot',arg=first)
@@ -72,6 +74,7 @@ with tempfile.TemporaryDirectory() as folder:
                 flow.scroll_into_view_if_needed()
                 page.wait_for_function('() => Math.abs(transferFlow.width-document.querySelector(".flow-canvas").getBoundingClientRect().width)<1')
                 assert flow.evaluate('el=>el.scrollWidth<=el.clientWidth')
+                assert flow.bounding_box()['height'] < 425
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 for selector in ('#flow-download-rate','#flow-upload-rate','#flow-country'):
                     expect(page.locator(selector)).to_be_visible()

@@ -38,6 +38,11 @@ with tempfile.TemporaryDirectory() as folder:
                 expect(page.locator('#rss-history-status')).to_have_text('46 torrents · 2 grupper')
                 expect(page.locator('.rss-history-group')).to_have_count(2)
                 group=page.locator('.rss-history-group').filter(has=page.locator('strong',has_text='Politijagt'))
+                expect(group.locator('.rss-history-group-stats')).to_contain_text('34 GB')
+                expect(group.locator('.rss-history-group-stats')).to_contain_text('765 MB')
+                expect(group.locator('.rss-history-group-stats')).to_contain_text('90 GB')
+                out=Path(__file__).resolve().parents[1]/'test-results';out.mkdir(exist_ok=True)
+                page.screenshot(path=str(out/f'rss-history-overview-{width}.png'))
                 group.locator('summary').first.click()
                 expect(group.locator('.rss-history-file')).to_have_count(40)
                 group.get_by_role('button',name='Vis flere filer').click()
@@ -56,6 +61,28 @@ with tempfile.TemporaryDirectory() as folder:
                     expect(group.get_by_role('button',name='Udelukket')).to_be_disabled()
                     assert next(f for f in store.entries() if f['id']==ident)['title_exclude']==['Politijagt']
                 dialog.get_by_role('button',name='Luk',exact=True).click()
+            # Mixed known/missing credit must not turn unknown measurements into zero.
+            fixture={'count':3,'groups':[{'key':'mixed','title':'Blandet historik','exclude_title':'Blandet historik','excluded':False,'downloads':[
+                {'title':'Episode 1','credited_uploaded':1024**3,'downloaded':2*1024**3},
+                {'title':'Episode 2','credited_uploaded':3*1024**3,'downloaded':4*1024**3},
+                {'title':'Episode 3','upload_credit_pending':True,'credited_uploaded':0}]}]}
+            import json
+            page.route('**/api/rss/*/history/groups',lambda route:route.fulfill(content_type='application/json',body=json.dumps(fixture)))
+            page.get_by_role('button',name='Downloadhistorik for Dansk TV',exact=True).click()
+            numbers=page.locator('.rss-history-group-stats')
+            expect(numbers).to_contain_text('4.0 GB')
+            expect(numbers).to_contain_text('2.0 GB')
+            expect(numbers).to_contain_text('6.0 GB')
+            expect(numbers).to_contain_text('Foreløbigt')
+            page.locator('.rss-history-group summary').first.click()
+            expect(page.locator('.rss-history-file summary').last).to_contain_text('Ukendt')
+            page.locator('#rss-history-search').fill('findes ikke')
+            expect(page.locator('.rss-history-group')).to_have_count(0)
+            expect(page.locator('.rss-history-empty')).to_be_visible()
+            page.locator('#rss-history-search').fill('BLANDET')
+            expect(page.locator('.rss-history-group')).to_have_count(1)
+            page.locator('#rss-history-dialog').get_by_role('button',name='Luk',exact=True).click()
+            page.unroute('**/api/rss/*/history/groups')
             page.route('**/api/rss/*/history/groups',lambda route:route.fulfill(status=503,content_type='application/json',body='{"error":"Historik afventer"}'))
             page.get_by_role('button',name='Downloadhistorik for Dansk TV',exact=True).click()
             expect(page.locator('#rss-history-status')).to_have_text('Historik afventer')

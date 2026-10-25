@@ -1,9 +1,10 @@
 <dialog id="rss-history-dialog" aria-labelledby="rss-history-title">
-<div class="dialog-heading"><h2 id="rss-history-title">Hentede titler</h2><button type="button" class="close quiet" aria-label="Luk historik">×</button></div>
+<div class="dialog-heading"><div><p class="rss-history-eyebrow">DIT DOWNLOADARKIV</p><h2 id="rss-history-title">Hentede titler</h2></div><button type="button" class="close quiet" aria-label="Luk historik">×</button></div>
 <div class="dialog-body">
-<p class="muted small">Downloads grupperes efter torrentnavnet. Fold en serie og derefter en fil ud for at se trafik og kredit. Historikken bevares efter sletning. “Udeluk” gælder fremtidige downloads fra dette feed.</p>
-<p id="rss-history-status" class="muted small" role="status"></p>
+<p class="rss-history-intro">Overblik over dine hentede titler og den upload, de har optjent.</p>
+<div class="rss-history-overview" id="rss-history-overview" hidden></div>
+<div class="rss-history-toolbar"><p id="rss-history-status" class="muted small" role="status"></p><label class="rss-history-search"><span class="sr-only">Søg i downloadhistorik</span><input id="rss-history-search" type="search" placeholder="Søg efter en titel…" autocomplete="off"></label></div>
 <ul id="rss-history-list" aria-label="Hentede titler og krediteret upload"></ul>
 </div>
-<div class="dialog-footer"><button type="button" class="secondary close">Luk</button></div>
+<div class="dialog-footer"><p>Historikken bevares efter sletning. Udeluk gælder kun fremtidige downloads.</p><button type="button" class="secondary close">Luk</button></div>
 </dialog>

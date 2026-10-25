@@ -1,12 +1,34 @@
 let rssFeeds=[],rssRoot='',rssBusy=false,rssLoading=false,rssTrackerGeneration=0;
 let rssRefreshPromise;
 let rssHistoryGeneration=0;
+function rssHistoryStats(items){
+ const measured=key=>items.filter(item=>typeof item[key]==='number'&&Number.isFinite(item[key])&&item[key]>=0);
+ const uploads=measured('credited_uploaded').filter(item=>!item.upload_credit_pending||item.credited_uploaded>0),downloads=measured('downloaded');
+ const total=uploads.reduce((sum,item)=>sum+item.credited_uploaded,0);
+ return {total:uploads.length?total:null,average:uploads.length?total/uploads.length:null,download:downloads.length?downloads.reduce((sum,item)=>sum+item.downloaded,0):null,
+  partial:uploads.length<items.length||items.some(item=>item.upload_credit_pending||item.upload_credit_incomplete),uploadCount:uploads.length,
+  downloadPartial:downloads.length<items.length};
+}
+function rssHistoryStat(label,value,cls='',partial=false){
+ const cell=node('div','rss-history-stat '+cls);
+ cell.append(node('span','rss-history-stat-label',label),node('strong','',value===null?'Ukendt':size(value)));
+ if(partial){cell.append(node('span','rss-history-partial','Foreløbigt'));cell.title='Summen omfatter gemte målinger. Manglende målinger tælles ikke som nul; gennemsnittet bruger kun torrents med kendt kredit.';}
+ return cell;
+}
+function rssHistoryIcon(kind){
+ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+ svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.5');svg.setAttribute('aria-hidden','true');
+ const path=document.createElementNS(svg.namespaceURI,'path');path.setAttribute('d',kind==='file'?'M14 3H6a1 1 0 0 0-1 1v16h14V8l-5-5Zm0 0v5h5M8 12h8M8 16h5':'M3 7V5h6l2 2h10v12H3V7Zm0 3h18');svg.append(path);return svg;
+}
 function rssHistoryMetric(label,value){
  const cell=node('div','rss-history-metric');cell.append(node('dt','muted small',label),node('dd','',typeof value==='number'&&Number.isFinite(value)?size(value):'Ukendt'));return cell;
 }
 function rssHistoryFile(item){
  const row=node('details','rss-history-file'),summary=node('summary');
- summary.append(node('span','',item.title),node('span','rss-history-credit',size(item.credited_uploaded)));
+ const title=node('span','rss-history-file-title');title.append(rssHistoryIcon('file'),node('span','',item.title));
+ const knownCredit=rssHistoryStats([item]).total;
+ const credit=knownCredit===null?'Ukendt':size(knownCredit);
+ summary.append(title,node('span','rss-history-credit',credit),node('span','rss-history-chevron'));
  row.append(summary);
  const metrics=node('dl','rss-history-metrics');
  metrics.append(rssHistoryMetric('Upload',item.uploaded),rssHistoryMetric('Krediteret upload',item.upload_credit_pending&&!item.credited_uploaded?null:item.credited_uploaded),rssHistoryMetric('Download',item.downloaded),rssHistoryMetric('Krediteret download',item.download_credit_incomplete||item.download_credit_pending?null:item.credited_downloaded));
@@ -32,6 +54,8 @@ function rssHistoryFile(item){
 async function openRssHistory(feed){
  const generation=++rssHistoryGeneration;
  const list=$('#rss-history-list'),status=$('#rss-history-status');
+ const overview=$('#rss-history-overview'),search=$('#rss-history-search');
+ overview.hidden=true;overview.replaceChildren();search.value='';search.disabled=true;search.oninput=null;
  $('#rss-history-title').textContent='Downloadhistorik · '+feed.name;
  list.replaceChildren();status.textContent='Henter historik…';
  if(!$('#rss-history-dialog').open)$('#rss-history-dialog').showModal();
@@ -39,12 +63,19 @@ async function openRssHistory(feed){
   const result=await api('/api/rss/'+feed.id+'/history/groups');
   if(generation!==rssHistoryGeneration)return;
   status.textContent=result.count?result.count+' torrents · '+result.groups.length+' grupper':'Ingen hentede titler registreret endnu.';
-  let visible=0;
+  const totals=rssHistoryStats(result.groups.flatMap(group=>group.downloads));
+  overview.append(rssHistoryStat('Krediteret upload i alt',totals.total,'is-credit',totals.partial),rssHistoryStat('Gns. krediteret pr. torrent',totals.average,'',totals.partial),rssHistoryStat('Download i alt',totals.download,'',totals.downloadPartial));overview.hidden=!result.count;search.disabled=false;
+  let visible=0,groups=result.groups;
   function more(){
-   const batch=result.groups.slice(visible,visible+40);visible+=batch.length;
+   const batch=groups.slice(visible,visible+40);visible+=batch.length;
    for(const group of batch){
     const card=node('li','rss-history-group'),head=node('div','rss-history-group-head'),details=node('details'),summary=node('summary');
-    summary.append(node('strong','',group.title),node('span','muted small',group.downloads.length+' torrents'));
+    const name=node('span','rss-history-group-name'),icon=node('span','rss-history-group-icon'),heading=node('span','rss-history-group-title');
+    icon.append(rssHistoryIcon('folder'));heading.append(node('strong','',group.title),node('span','muted small',group.downloads.length+(group.downloads.length===1?' torrent':' torrents')));name.append(icon,heading);
+    const stats=rssHistoryStats(group.downloads),numbers=node('span','rss-history-group-stats');
+    numbers.append(rssHistoryStat('Krediteret upload',stats.total,'is-credit',stats.partial),rssHistoryStat('Gns. pr. torrent',stats.average,'',stats.partial),rssHistoryStat('Download i alt',stats.download,'',stats.downloadPartial));
+    const chevron=node('span','rss-history-chevron');chevron.setAttribute('aria-hidden','true');
+    summary.append(name,numbers,chevron);
     details.append(summary);
     const files=node('div','rss-history-files');let shown=0;
     const moreFiles=node('button','quiet','Vis flere filer');moreFiles.type='button';
@@ -60,10 +91,11 @@ async function openRssHistory(feed){
     };
     head.append(details,exclude);card.append(head);list.append(card);
    }
-   next.hidden=visible>=result.groups.length;
+   next.hidden=visible>=groups.length;
   }
   const next=node('button','secondary','Vis flere grupper');next.type='button';next.onclick=more;
-  more();list.querySelector('[data-more-groups]')?.remove();next.dataset.moreGroups='true';list.append(next);
+  more();next.dataset.moreGroups='true';list.append(next);
+  search.oninput=()=>{groups=result.groups.filter(group=>group.title.toLocaleLowerCase('da-DK').includes(search.value.trim().toLocaleLowerCase('da-DK')));visible=0;list.replaceChildren();more();if(!groups.length)list.append(node('li','rss-history-empty','Ingen titler matcher din søgning.'));list.append(next);};
   $('#rss-history-dialog').addEventListener('close',()=>next.remove(),{once:true});
  }catch(e){if(generation===rssHistoryGeneration)status.textContent=e.message;}
 }

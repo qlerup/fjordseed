@@ -1,0 +1,26 @@
+/* A quiet, composited backdrop. Content panels keep their opaque surfaces. */
+body:has(.ambient-scene){isolation:isolate;min-height:100dvh}
+.ambient-scene{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;contain:strict;background:#0c131b}
+.ambient-glow{position:absolute;inset:-25%;background:radial-gradient(ellipse at 24% 36%,#207b6c38,transparent 43%),radial-gradient(ellipse at 82% 78%,#285d9b30,transparent 42%);animation:ambient-tide 48s ease-in-out infinite alternate;will-change:transform}
+.ambient-glow-secondary{inset:-15%;background:radial-gradient(ellipse at 72% 12%,#316e8230,transparent 34%),radial-gradient(ellipse at 32% 90%,#1a584820,transparent 35%);animation:ambient-tide 62s ease-in-out -27s infinite alternate-reverse}
+.ambient-grid{position:absolute;inset:0;background-image:linear-gradient(#a5e9e906 1px,transparent 1px),linear-gradient(90deg,#a5e9e906 1px,transparent 1px);background-size:76px 76px;mask-image:radial-gradient(ellipse at 62% 32%,#0009,transparent 75%)}
+.ambient-particles{position:absolute;inset:0}
+.ambient-particles i{position:absolute;left:var(--x);top:var(--y);width:2px;height:2px;border-radius:50%;background:#a4f6dd;box-shadow:0 0 8px #7de9cf55;opacity:.18;animation:ambient-drift var(--duration,34s) ease-in-out var(--delay,0s) infinite alternate}
+.ambient-particles i:nth-child(3n){background:#9bc6ff;box-shadow:0 0 8px #83b4ff44}
+.ambient-particles i:nth-child(1){--x:19%;--y:18%;--delay:-8s}
+.ambient-particles i:nth-child(2){--x:39%;--y:68%;--duration:41s;--delay:-24s}
+.ambient-particles i:nth-child(3){--x:63%;--y:26%;--duration:37s;--delay:-12s}
+.ambient-particles i:nth-child(4){--x:86%;--y:48%;--duration:46s;--delay:-31s}
+.ambient-particles i:nth-child(5){--x:28%;--y:87%;--duration:43s;--delay:-18s}
+.ambient-particles i:nth-child(6){--x:74%;--y:82%;--delay:-6s}
+.ambient-particles i:nth-child(7){--x:52%;--y:45%;--duration:39s;--delay:-29s}
+.ambient-particles i:nth-child(8){--x:93%;--y:14%;--duration:48s;--delay:-20s}
+.ambient-particles i:nth-child(9){--x:46%;--y:12%;--duration:36s;--delay:-10s}
+.ambient-particles i:nth-child(10){--x:14%;--y:54%;--duration:45s;--delay:-33s}
+.ambient-particles i:nth-child(11){--x:81%;--y:62%;--duration:40s;--delay:-15s}
+.ambient-particles i:nth-child(12){--x:58%;--y:92%;--duration:47s;--delay:-26s}
+.ambient-paused * ,body:has(dialog[open]) .ambient-scene *{animation-play-state:paused!important}
+@keyframes ambient-tide{0%{transform:translate3d(-3%,-2%,0) scale(1)}50%{transform:translate3d(2%,3%,0) scale(1.05)}100%{transform:translate3d(4%,-3%,0) scale(1.08)}}
+@keyframes ambient-drift{0%{transform:translate3d(0,15px,0);opacity:.12}50%{opacity:.4}100%{transform:translate3d(24px,-45px,0);opacity:.18}}
+@media(max-width:800px){.ambient-grid{background-size:54px 54px;opacity:.65}.ambient-particles i:nth-child(n+7){display:none}.ambient-glow-secondary{display:none}.ambient-glow{animation-duration:65s}}
+@media(prefers-reduced-motion:reduce){.ambient-scene *{animation:none!important;will-change:auto}.ambient-particles{display:none}}
