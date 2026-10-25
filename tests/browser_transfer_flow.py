@@ -117,7 +117,7 @@ with tempfile.TemporaryDirectory() as folder:
             assert page.evaluate("""() => {
                 const scene=transferFlow,now=Date.now();scene.rateHistory=[];
                 for(let i=0;i<80;i++)scene.recordRates([i%9*1024**2,(4+Math.sin(i/3)*3)*1024**2],now-(79-i)*1000);
-                if(scene.rateHistory.length!==61||scene.rateCharts.length!==2)return false;
+                if(scene.rateHistory.length!==63||scene.rateCharts.length!==2)return false;
                 if(scene.rateCharts.some(chart=>!chart.line.getAttribute('d').includes('C')))return false;
                 const count=scene.rateHistory.length;scene.recordRates([0,0],now);
                 if(scene.rateHistory.length!==count||scene.rateHistory.at(-1).values.some(v=>v!==0))return false;
@@ -138,7 +138,25 @@ with tempfile.TemporaryDirectory() as folder:
                 if(first===middle||middle===end||original!==JSON.stringify(scene.rateHistory))return false;
                 scene.rateHistory=[];
                 for(let i=0;i<160;i++)scene.recordRates([i*100,i*200],now-(159-i)*1000);
-                return scene.rateHistory.length===61;
+                return scene.rateHistory.length===63;
+            }""")
+            # Each idle direction drains its existing curve before hiding.
+            assert page.evaluate("""() => {
+                const scene=transferFlow,now=Date.now();scene.rateHistory=[];
+                scene.recordRates([0,0],now);
+                if(scene.rateCharts.some(c=>!c.svg.classList.contains('is-idle')))return false;
+                scene.recordRates([1000,0],now+1000);
+                if(scene.rateCharts[0].svg.classList.contains('is-idle')||!scene.rateCharts[1].svg.classList.contains('is-idle'))return false;
+                scene.recordRates([0,0],now+2000);scene.drawRates(now+3000);
+                if(scene.rateCharts[0].svg.classList.contains('is-idle'))return false;
+                for(let i=3;i<=64;i++)scene.recordRates([0,0],now+i*1000);
+                scene.drawRates(now+65000);
+                if(scene.rateCharts.some(c=>!c.svg.classList.contains('is-idle')))return false;
+                scene.recordRates([0,1000],now+66000);
+                if(!scene.rateCharts[0].svg.classList.contains('is-idle')||scene.rateCharts[1].svg.classList.contains('is-idle'))return false;
+                scene.rateHistory=[];
+                for(let i=0;i<61;i++)scene.recordRates([(20+15*Math.sin(i/4))*1024**2,(5+3*Math.cos(i/5))*1024**2],now-(60-i)*1000);
+                return true;
             }""")
             expect(flow.locator('.flow-rate-chart')).to_have_count(2)
             flow.screenshot(path=str(output/'transfer-flow-desktop.png'))

@@ -50,7 +50,8 @@
    const sample={at:now,values};
    if(last&&now-last.at<250)this.rateHistory[this.rateHistory.length-1]=sample;
    else this.rateHistory.push(sample);
-   this.rateHistory=this.rateHistory.filter(point=>point.at>=now-60000).slice(-121);
+   // Keep the point just outside the visible window so its tail can scroll out.
+   this.rateHistory=this.rateHistory.filter(point=>point.at>=now-62000).slice(-125);
    this.drawRates(now);
   }
   drawRates(now=Date.now()){
@@ -69,6 +70,11 @@
    }
    this.rateCharts.forEach(({svg,fill,line},index)=>{
     svg.classList.toggle('is-unavailable',latest.values[index]===null);
+    const start=playhead-60000;
+    const activity=points.some((point,i)=>point.values[index]>0&&
+     (point.at>=start||(points[i+1]?.at>start&&points[i+1].values[index]!==null&&points[i+1].at-point.at<=12000)));
+    const incoming=latest.values[index]>0&&latest.at>playhead;
+    svg.classList.toggle('is-idle',!activity&&!incoming);
     const target=Math.max(1,...this.rateHistory.filter(point=>point.at>=now-60000).map(point=>point.values[index]??0));
     this.rateMaximum[index]=this.rateMaximum[index]===null?target:this.rateMaximum[index]+(target-this.rateMaximum[index])*blend;
     const maximum=Math.max(1,this.rateMaximum[index]);

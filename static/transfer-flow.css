@@ -130,3 +130,6 @@
 .flow-rate-curve{fill:none;stroke:currentColor;stroke-width:1.5;stroke-opacity:.48;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round}
 .flow-rate-chart.is-unavailable{opacity:.2}
 .flow-rate strong,.flow-rate-label{text-shadow:0 1px 5px #101a34,0 0 10px #101a3480}
+
+.flow-rate-chart{transition:opacity .3s ease}
+.flow-rate-chart.is-idle{opacity:0}
