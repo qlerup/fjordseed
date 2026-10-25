@@ -76,7 +76,21 @@ with tempfile.TemporaryDirectory() as folder:
                 expect(card).to_have_attribute('data-metric',key)
                 expect(card.locator('.insights-current svg')).to_be_visible()
                 if key.startswith('real_'):expect(card.locator('.insights-current .insights-source')).to_contain_text('Hele seedboxen')
+            # Selection updates synchronously, including rapid clicks during a transition.
+            assert page.evaluate("""() => {
+                const buttons=[...document.querySelectorAll('.insights-selectors button')];
+                for(const index of [2,4,5,0]){
+                    buttons[index].click();
+                    if(buttons[index].getAttribute('aria-pressed')!=='true')return false;
+                    if(buttons.filter(b=>b.getAttribute('aria-pressed')==='true').length!==1)return false;
+                }
+                return trackerInsights.busy;
+            }""")
+            page.clock.fast_forward(1300)
+            expect(card).to_have_attribute('data-metric','ratio')
+            page.locator('#page-title').click()
             page.mouse.move(0,0);expect(card).to_have_attribute('data-paused','false')
+            card.get_by_role('button',name='Ratio',exact=True).focus()
             page.keyboard.press('Tab');expect(card).to_have_attribute('data-paused','true')
             expect(card.locator('[data-days]')).to_have_count(0)
             expect(card.locator('.insights-current svg')).to_be_visible()

@@ -73,8 +73,10 @@
    if(!paused&&!this.busy)this.timer=setTimeout(()=>this.turn((this.index+1)%metrics.length),8000);
   }
   turn(index){
-   if(this.busy||index===this.index)return;
+   if(this.busy)this.finish();
+   if(index===this.index)return;
    clearTimeout(this.timer);
+   this.tabs.forEach((tab,i)=>tab.setAttribute('aria-pressed',String(i===index)));
    if(this.motion.matches){this.index=index;this.draw();this.schedule();return;}
    this.busy=true;this.next.replaceChildren(...this.face(metrics[index]));
    this.next.style.setProperty('--insight-color',metrics[index]?.color||'#c1a5f2');
