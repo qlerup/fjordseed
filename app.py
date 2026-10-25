@@ -391,6 +391,24 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         except ValueError as exc:
             return jsonify(error=str(exc)),404
 
+    @app.post('/api/rss/<ident>/history/covers')
+    def rss_history_covers(ident):
+        from rss_history import grouped, group_cover
+        data = request.get_json(silent=True)
+        keys = data.get('groups') if isinstance(data, dict) else None
+        if (not isinstance(keys, list) or not 1 <= len(keys) <= 40
+                or any(not isinstance(key, str) or not key or len(key) > 1000 for key in keys)):
+            return jsonify(error='Vælg mellem 1 og 40 grupper.'), 400
+        try:
+            groups = grouped(rss.download_history(ident))
+            wanted = set(keys)
+            return jsonify(covers={group['key']: group_cover(group, trackers.benefits, covers)
+                                   for group in groups if group['key'] in wanted})
+        except (OSError, json.JSONDecodeError):
+            return jsonify(error='Historikken kunne ikke læses. Prøv igen.'), 503
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 404
+
     @app.post('/api/rss/<ident>/history/exclude')
     def rss_history_exclude(ident):
         from rss_history import grouped

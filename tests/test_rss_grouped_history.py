@@ -25,6 +25,34 @@ def test_series_names_use_release_not_feed_label():
     assert groups[1]['exclude_title']=='The.Show'
 
 
+def test_group_covers_use_archived_hash_and_local_cache(tmp_path, monkeypatch):
+    app, client, headers, feed = setup(tmp_path, monkeypatch)
+    ident = feed('TV')
+    with CreditLedger().transaction() as ledger:
+        ledger.record_rss_title(ident, 'a'*40, 'Show.S01E01')
+    url = '/api/rss/'+ident+'/history/covers'
+    calls = []
+    poster = 'https://image.tmdb.org/t/p/w500/poster.jpg'
+    def snapshot(meta):
+        calls.append(meta)
+        return {'status': 'ok', 'matches': [{'poster': poster}]}
+    monkeypatch.setattr(app.extensions['trackers'].benefits, 'snapshot', snapshot)
+    monkeypatch.setattr(app.extensions['covers'], 'request', lambda source: None)
+    result = client.post(url, headers=headers, json={'groups': ['show', 'unrelated']})
+    assert result.json == {'covers': {'show': {'url': None, 'pending': True}}}
+    assert calls == [{'hashes': ['a'*40], 'name': 'Show.S01E01'}]
+    monkeypatch.setattr(app.extensions['covers'], 'request', lambda source: '/api/covers/'+'b'*64)
+    assert client.post(url, headers=headers, json={'groups': ['show']}).json['covers']['show'] == {
+        'url': '/api/covers/'+'b'*64, 'pending': False}
+    assert app.test_client().post(url, json={'groups': ['show']}).status_code in (400, 401, 403)
+    assert client.post(url, json={'groups': ['show']}).status_code == 403
+    assert client.post(url, headers=headers, json={'groups': ['show']*41}).status_code == 400
+    assert client.post('/api/rss/missing/history/covers', headers=headers, json={'groups': ['show']}).status_code == 404
+    monkeypatch.setattr(app.extensions['trackers'].benefits, 'snapshot', lambda meta: {
+        'status': 'ok', 'matches': [{'poster': 'https://internal.example/private.jpg'}]})
+    assert client.post(url, headers=headers, json={'groups': ['show']}).json['covers']['show'] == {'url': None, 'pending': False}
+
+
 def test_existing_archive_and_sources_survive_deletion_and_restart(tmp_path,monkeypatch):
     app,client,h,feed=setup(tmp_path,monkeypatch)
     old=feed('Gammelt feed');new=feed('Dansk TV');other=feed('Alt TV')

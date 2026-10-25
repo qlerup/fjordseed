@@ -92,7 +92,17 @@ with tempfile.TemporaryDirectory() as folder:
                 {'title':'Episode 3','upload_credit_pending':True,'credited_uploaded':0}]}]}
             import json
             page.route('**/api/rss/*/history/groups',lambda route:route.fulfill(content_type='application/json',body=json.dumps(fixture)))
+            cover_calls=[]
+            def mock_covers(route):
+                cover_calls.append(1)
+                route.fulfill(json={'covers': {'mixed': {'url': '/api/covers/'+'a'*64 if len(cover_calls)>1 else None, 'pending': len(cover_calls)==1}}})
+            page.route('**/api/rss/*/history/covers',mock_covers)
+            page.route('**/api/covers/*',lambda route:route.fulfill(content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="80" height="120"><rect width="80" height="120" fill="#5577bb"/></svg>'))
             page.get_by_role('button',name='Downloadhistorik for Dansk TV',exact=True).click()
+            expect(page.locator('.rss-history-group-icon img')).to_have_count(1,timeout=10000)
+            expect(page.locator('.rss-history-group-icon')).to_have_class('rss-history-group-icon has-cover')
+            assert page.locator('.rss-history-group-icon img').evaluate('img=>img.naturalWidth>0')
+            page.screenshot(path=str(out/'rss-history-cover-mobile.png'))
             numbers=page.locator('.rss-history-group-stats')
             expect(numbers).to_contain_text('4.0 GB')
             expect(numbers).to_contain_text('2.0 GB')
@@ -103,8 +113,12 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#rss-history-search').fill('findes ikke')
             expect(page.locator('.rss-history-group')).to_have_count(0)
             expect(page.locator('.rss-history-empty')).to_be_visible()
-            page.locator('#rss-history-search').fill('BLANDET')
+            page.route('**/api/covers/*',lambda route:route.fulfill(status=404))
+            page.route('**/api/rss/*/history/covers',lambda route:route.fulfill(json={'covers': {'mixed': {'url': '/api/covers/'+'b'*64, 'pending': False}}}))
+            with page.expect_response(lambda response: response.url.endswith('/api/covers/'+'b'*64) and response.status==404):
+                page.locator('#rss-history-search').fill('BLANDET')
             expect(page.locator('.rss-history-group')).to_have_count(1)
+            expect(page.locator('.rss-history-group-icon svg')).to_have_count(1)
             page.locator('#rss-history-dialog').get_by_role('button',name='Luk',exact=True).click()
             page.unroute('**/api/rss/*/history/groups')
             page.route('**/api/rss/*/history/groups',lambda route:route.fulfill(status=503,content_type='application/json',body='{"error":"Historik afventer"}'))

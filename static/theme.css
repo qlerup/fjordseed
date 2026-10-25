@@ -77,3 +77,8 @@ dialog::backdrop{background:#060b1ad9}
  .heading{margin:24px 0}
 }
 @media(prefers-reduced-motion:reduce){.nav{transition:none}}
+
+/* Poster dimensions stay fixed while asynchronous tracker art arrives. */
+.rss-history-group-icon{width:40px;height:56px;overflow:hidden}
+.rss-history-group-icon.has-cover{background:#15213b;border-color:#50678a;border-radius:7px}
+.rss-history-group-icon img{display:block;width:100%;height:100%;object-fit:cover}

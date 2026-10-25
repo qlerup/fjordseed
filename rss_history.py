@@ -1,6 +1,24 @@
 """Group archived RSS releases using their torrent titles, never feed labels."""
 import re
 from rss import title_key
+from covers import poster_url
+
+
+def group_cover(group, benefits, covers):
+    """Reuse exact-hash tracker metadata and the bounded asynchronous image cache."""
+    pending = False
+    for item in group['downloads'][:3]:
+        result = benefits.snapshot({'hashes': [item['hash']], 'name': item['title']})
+        pending |= result.get('status') == 'pending'
+        for match in result.get('matches', []):
+            source = poster_url(match.get('poster'))
+            if not source:
+                continue
+            url = covers.request(source)
+            if url:
+                return {'url': url, 'pending': False}
+            pending = True
+    return {'url': None, 'pending': pending}
 
 
 def series_title(title):
