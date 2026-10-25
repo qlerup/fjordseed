@@ -80,6 +80,26 @@ with tempfile.TemporaryDirectory() as folder:
             expect(card).to_have_attribute('data-metric','real_uploaded')
             assert not card.locator('.insights-cube.is-turning').count()
             expect(card).to_have_attribute('data-paused','true')
+            # A short history occupies only its actual time span at the right edge.
+            assert page.evaluate("""() => {
+                const scene=trackerInsights,days=scene.days,now=Date.now()/1000;
+                scene.days=1;
+                try {
+                    const metric={key:'real_downloaded',name:'Download',color:'#fff'};
+                    const chart=scene.plot(metric,[{at:now-600,real_downloaded:928*1024**3},{at:now,real_downloaded:928*1024**3+1024**2}]);
+                    const coords=chart.querySelector('.insights-line').getAttribute('d').match(/[0-9.]+/g).map(Number);
+                    const last=Number(chart.querySelector('circle').getAttribute('cx'));
+                    const ticks=[...chart.querySelectorAll('.insights-y-tick')].map(el=>el.textContent);
+                    if(coords[0]<last*.98||coords[1]!==155||new Set(ticks).size!==3)return false;
+                    const negative=scene.plot({key:'ratio',name:'Ratio',color:'#fff'},[{at:now-600,ratio:4},{at:now,ratio:3.9}]);
+                    if(![...negative.querySelectorAll('.insights-y-tick')].some(el=>el.textContent.includes('0,1')))return false;
+                    if(Number(negative.querySelector('circle').getAttribute('cy'))<=Number(negative.querySelector('.insights-zero').getAttribute('y1')))return false;
+                    const first=scene.plot(metric,[{at:now,real_downloaded:123}]);
+                    if(Number(first.querySelector('circle').getAttribute('cy'))!==155)return false;
+                    const gap=scene.plot(metric,[{at:now-600,real_downloaded:10},{at:now,real_downloaded:20,gap_before:true}]);
+                    return gap.querySelectorAll('.insights-line').length===2;
+                } finally {scene.days=days;}
+            }""")
             # A sparse or missing history is honest, not a synthetic trend line.
             page.route('**/api/trackers/*/history?*',lambda route:route.fulfill(json={'account':[],'seedbox':[],'days':30}))
             card.get_by_role('button',name='30 dage',exact=True).click()

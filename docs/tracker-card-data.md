@@ -36,6 +36,8 @@ Kortet viste desuden kontonavn, brugernavn, forbindelsesstatus, fejl, sidste opd
 
 Reel trafik er **ikke fordelt pr. tracker**. Den må ikke præsenteres som kontoens reelle trafik. Historikken markerer huller og nulstillinger af de lokale trafiktællere.
 
+Grafkortet viser den aktuelle total til venstre og ændringen fra første måling som kurve. X-aksen dækker hele den valgte periode frem til nu, så en kort historik begynder ved højre kant. Y-aksen viser ændring i datamængde eller ratio med nul som reference. Ved en markeret tællernulstilling afbrydes kurven, og det nye forløb får sit eget nulpunkt. Perioder uden målinger udfyldes ikke med opdigtede værdier.
+
 De øvrige kontofelter ovenfor hentes aktuelt, men gemmes **ikke** som tidsserier. De kan bruges som faste nøgletal i et kommende redigerbart kort. Grafer for dem kræver først udvidelse af historikopsamlingen.
 
 ## Kode at genbruge

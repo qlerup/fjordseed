@@ -47,3 +47,6 @@
 
 .insights-svg:focus{outline:none}
 .insights-svg:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
+
+.insights-zero{stroke:#b0bed866;stroke-width:1;vector-effect:non-scaling-stroke}
+.insights-svg .insights-axis-title{fill:#c4d0e5;font-weight:600}

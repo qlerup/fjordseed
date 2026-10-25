@@ -110,28 +110,39 @@
    const measured=last?'\nSenest målt '+new Date(last.at*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
    summary.append(node('p','insights-source',source+'\n'+(samples.length>1?'Ændring siden første måling i perioden.':'Målinger gemmes hvert 10. minut.')+measured));
    const chart=node('div','insights-chart');
-   if(samples.length<2){const empty=node('div','insights-empty');empty.append(node('span','','⌁'),node('strong','',!this.loaded?'Henter din historik…':!this.error.hidden?'Historik midlertidigt utilgængelig':'Din historik starter her'),node('p','',!this.loaded?'Et øjeblik.':!this.error.hidden?'Vi prøver igen automatisk.':'Grafen vises, når der er mindst to målinger i perioden. Tidligere aktivitet bliver ikke gættet.'));chart.append(empty);}
+   if(!samples.length){const empty=node('div','insights-empty');empty.append(node('span','','⌁'),node('strong','',!this.loaded?'Henter din historik…':!this.error.hidden?'Historik midlertidigt utilgængelig':'Din historik starter her'),node('p','',!this.loaded?'Et øjeblik.':!this.error.hidden?'Vi prøver igen automatisk.':'Grafen starter ved den første måling. Tidligere aktivitet bliver ikke gættet.'));chart.append(empty);}
    else chart.append(this.plot(metric,samples));
    return [summary,chart];
   }
   plot(metric,points){
-   const width=Math.max(220,root.clientWidth-(innerWidth<=650?32:innerWidth<=1150?234:286)),height=200,left=8,right=width-64,top=15,bottom=164;
-   const values=points.map(point=>point[metric.key]);let low=Math.min(...values),high=Math.max(...values);
-   const padding=(high-low)*.15||Math.max(high*.01,.01);low=Math.max(0,low-padding);high+=padding;
-   const start=points[0].at,end=points.at(-1).at;
-   const x=point=>left+(point.at-start)/(end-start||1)*(right-left),y=point=>bottom-(point[metric.key]-low)/(high-low)*(bottom-top);
-   const svg=svgNode('svg',{viewBox:`0 0 ${width} ${height}`,class:'insights-svg',role:'img',tabindex:'0','aria-label':metric.name+' over tid. Seneste værdi: '+format(values.at(-1),metric.key)+'. Brug piletaster for at se målinger.'});
+   const width=Math.max(220,root.clientWidth-(innerWidth<=650?32:innerWidth<=1150?234:286)),height=200,left=8,right=width-82,top=30,bottom=155;
+   const end=Date.now()/1000,start=end-this.days*86400;
+   points=points.filter(point=>point.at>=start&&point.at<=end);
+   let baseline=points[0]?.[metric.key]||0;
+   points=points.map(point=>{if(point[metric.key+'_reset'])baseline=point[metric.key];return {...point,change:point[metric.key]-baseline};});
+   const values=points.map(point=>point.change);
+   const extent=Math.max(...values.map(Math.abs),metric.key==='ratio'?.001:1);
+   const magnitude=10**Math.floor(Math.log10(extent));
+   const limit=[1,2,5,10].find(step=>step*magnitude>=extent)*magnitude;
+   const low=Math.min(...values,0)<0?-limit:0,high=Math.max(...values,0)>0||low===0?limit:0;
+   const changeLabel=value=>(value>0?'+':value<0?'−':'')+(metric.key==='ratio'?Math.abs(value).toLocaleString('da-DK',{maximumFractionDigits:6}):format(Math.abs(value),metric.key));
+   const x=point=>left+(point.at-start)/(end-start)*(right-left),y=point=>bottom-(point.change-low)/(high-low)*(bottom-top);
+   const svg=svgNode('svg',{viewBox:`0 0 ${width} ${height}`,class:'insights-svg',role:'img',tabindex:'0','aria-label':metric.name+': ændring fra første måling over de seneste '+this.days+' dage. Tid fra venstre mod højre. Brug piletaster for at se målinger.'});
+   const axis=svgNode('text',{x:left,y:13,class:'insights-axis-title'});axis.textContent='Ændring · '+(metric.key==='ratio'?'ratio':'datamængde');svg.append(axis);
+   const timeAxis=svgNode('text',{x:(left+right)/2,y:197,'text-anchor':'middle',class:'insights-axis-title'});timeAxis.textContent=this.days===1?'Tid · seneste 24 timer':'Dato · seneste '+this.days+' dage';svg.append(timeAxis);
    const id='insight-gradient-'+(++gradientId),defs=svgNode('defs'),gradient=svgNode('linearGradient',{id,x1:'0',y1:'0',x2:'0',y2:'1'});
    gradient.append(svgNode('stop',{offset:'0%','stop-color':metric.color,'stop-opacity':'.22'}),svgNode('stop',{offset:'100%','stop-color':metric.color,'stop-opacity':'0'}));defs.append(gradient);svg.append(defs);
-   for(const fraction of [0,.5,1]){const py=top+fraction*(bottom-top),label=svgNode('text',{x:right+12,y:py+4});label.textContent=format(high-fraction*(high-low),metric.key);svg.append(svgNode('line',{x1:left,x2:right,y1:py,y2:py,class:'insights-grid'}),label);}
+   for(const fraction of [0,.5,1]){const py=top+fraction*(bottom-top),label=svgNode('text',{x:right+8,y:py+4,class:'insights-y-tick'});label.textContent=changeLabel(high-fraction*(high-low));svg.append(svgNode('line',{x1:left,x2:right,y1:py,y2:py,class:'insights-grid'}),label);}
+   const zero=y({change:0});svg.append(svgNode('line',{x1:left,x2:right,y1:zero,y2:zero,class:'insights-zero'}));
+   if(!points.length)return svg;
    let segment=[];
-   const flush=()=>{if(!segment.length)return;const path=segment.map((p,i)=>(i?'L':'M')+x(p).toFixed(2)+','+y(p).toFixed(2)).join(' ');svg.append(svgNode('path',{d:path+` L${x(segment.at(-1))},${bottom} L${x(segment[0])},${bottom} Z`,fill:`url(#${id})`}),svgNode('path',{d:path,class:'insights-line'}));segment=[];};
+   const flush=()=>{if(!segment.length)return;const path=segment.map((p,i)=>(i?'L':'M')+x(p).toFixed(2)+','+y(p).toFixed(2)).join(' ');svg.append(svgNode('path',{d:path+` L${x(segment.at(-1))},${zero} L${x(segment[0])},${zero} Z`,fill:`url(#${id})`}),svgNode('path',{d:path,class:'insights-line'}));segment=[];};
    for(let i=0;i<points.length;i++){const p=points[i];if(i&&(p.gap_before||p[metric.key+'_reset']))flush();segment.push(p);}flush();
    const last=points.at(-1);svg.append(svgNode('circle',{cx:x(last),cy:y(last),r:4,class:'insights-point'}));
-   for(const [at,px,anchor] of [[start,left,'start'],[end,right,'end']]){const label=svgNode('text',{x:px,y:190,'text-anchor':anchor});label.textContent=new Date(at*1000).toLocaleString('da-DK',this.days===1||end-start<86400?{hour:'2-digit',minute:'2-digit'}:{day:'numeric',month:'short'});svg.append(label);}
-   const cursor=svgNode('line',{y1:top,y2:bottom,stroke:metric.color,'stroke-opacity':'.4',hidden:''}),tip=svgNode('text',{x:left+4,y:10,hidden:''});svg.append(cursor,tip);
+   for(const [at,px,anchor] of [[start,left,'start'],[(start+end)/2,(left+right)/2,'middle'],[end,right,'end']]){const label=svgNode('text',{x:px,y:177,'text-anchor':anchor});label.textContent=at===end?'Nu':new Date(at*1000).toLocaleString('da-DK',this.days===1?{hour:'2-digit',minute:'2-digit'}:{day:'numeric',month:'short'});svg.append(label);}
+   const cursor=svgNode('line',{y1:top,y2:bottom,stroke:metric.color,'stroke-opacity':'.4',hidden:''}),tip=svgNode('text',{x:left+4,y:25,hidden:''});svg.append(cursor,tip);
    let selected=points.length-1;
-   const show=index=>{selected=index;const point=points[index];cursor.removeAttribute('hidden');tip.removeAttribute('hidden');cursor.setAttribute('x1',x(point));cursor.setAttribute('x2',x(point));tip.textContent=new Date(point.at*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' · '+format(point[metric.key],metric.key);};
+   const show=index=>{selected=index;const point=points[index];cursor.removeAttribute('hidden');tip.removeAttribute('hidden');cursor.setAttribute('x1',x(point));cursor.setAttribute('x2',x(point));tip.textContent=new Date(point.at*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' · '+changeLabel(point.change);};
    svg.addEventListener('pointermove',event=>{const box=svg.getBoundingClientRect(),at=start+((event.clientX-box.left)/box.width*width-left)/(right-left)*(end-start);let nearest=0;for(let i=1;i<points.length;i++)if(Math.abs(points[i].at-at)<Math.abs(points[nearest].at-at))nearest=i;show(nearest);});
    const hide=()=>{cursor.setAttribute('hidden','');tip.setAttribute('hidden','');};svg.addEventListener('pointerleave',hide);svg.addEventListener('blur',hide);svg.addEventListener('focus',()=>show(points.length-1));
    svg.addEventListener('keydown',event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();show(Math.max(0,Math.min(points.length-1,selected+(event.key==='ArrowLeft'?-1:1))));}});
