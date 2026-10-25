@@ -250,5 +250,7 @@ def test_usage_measures_filesystem_without_scanning_directories(tmp_path,monkeyp
     import storage_browser
     disk=Mock(return_value=SimpleNamespace(total=1000,used=750,free=250))
     monkeypatch.setattr(storage_browser.shutil,'disk_usage',disk)
-    assert storage_browser.usage(tmp_path)=={'total_bytes':1000,'used_bytes':750,'free_bytes':250}
+    assert storage_browser.usage(tmp_path)=={'total_bytes':1000,'used_bytes':750,'free_bytes':250,'reserved_bytes':0}
     disk.assert_called_once_with(tmp_path)
+    disk.return_value=SimpleNamespace(total=1000,used=750,free=200)
+    assert storage_browser.usage(tmp_path)['reserved_bytes']==50

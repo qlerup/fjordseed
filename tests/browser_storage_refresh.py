@@ -56,6 +56,15 @@ with sync_playwright() as p:
         page.evaluate('data=>pending.shift().resolve(data)',data)
         expect(card.locator('[data-usage-status]')).not_to_be_visible()
         assert card.bounding_box()==before
+        page.evaluate('poll()')
+        page.evaluate('data=>pending.shift().resolve(data)',{
+            'path':'/mnt/media','total_bytes':1967846068224,
+            'used_bytes':736002654208,'free_bytes':1131806744576})
+        expect(card.locator('[data-usage-used]')).to_have_text('685,46 GiB')
+        expect(card.locator('[data-usage-free]')).to_have_text('1.054,08 GiB')
+        expect(card.locator('[data-usage-total]')).to_have_text('1.832,70 GiB')
+        expect(card.locator('[data-usage-reserved-note]')).to_contain_text('93,17 GiB')
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         page.evaluate("dispatchEvent(new Event('storage-changed'))")
         expect(card.locator('[data-usage-details]')).not_to_be_visible()
         page.evaluate('pending.shift().reject(new Error("offline"))')

@@ -120,7 +120,8 @@ def writable():
 
 def usage(directory):
     disk = shutil.disk_usage(directory)
-    return {'total_bytes':disk.total, 'used_bytes':disk.used, 'free_bytes':disk.free}
+    return {'total_bytes':disk.total, 'used_bytes':disk.used, 'free_bytes':disk.free,
+            'reserved_bytes':max(0,disk.total-disk.used-disk.free)}
 
 
 if __name__ == '__main__':
