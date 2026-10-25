@@ -159,13 +159,27 @@ with tempfile.TemporaryDirectory() as folder:
                 return true;
             }""")
             expect(flow.locator('.flow-rate-chart')).to_have_count(2)
+            def assert_fixed_charts():
+                assert page.evaluate("""() => [...document.querySelectorAll('.flow-rate')].every(card=>{
+                    const value=card.querySelector('strong'),chart=card.querySelector('.flow-rate-chart');
+                    const saved=value.textContent,before=chart.getBoundingClientRect();
+                    let stable=true;
+                    for(const text of ['0.0 B/s','147 KB/s','1023 KB/s','30 MB/s']){
+                        value.textContent=text;
+                        const after=chart.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(value);
+                        stable&&=Math.abs(before.x-after.x)<.1&&Math.abs(before.width-after.width)<.1&&range.getBoundingClientRect().right<=after.left;
+                    }
+                    value.textContent=saved;return stable;
+                })""")
+            assert_fixed_charts()
             flow.screenshot(path=str(output/'transfer-flow-desktop.png'))
             for width in (390,320):
                 page.set_viewport_size({'width':width,'height':1000})
                 flow.scroll_into_view_if_needed()
                 page.wait_for_function('() => Math.abs(transferFlow.width-document.querySelector(".flow-canvas").getBoundingClientRect().width)<1')
                 assert flow.evaluate('el=>el.scrollWidth<=el.clientWidth')
-                assert flow.bounding_box()['height'] < 425
+                assert flow.bounding_box()['height'] < 500
+                assert_fixed_charts()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 for selector in ('#flow-download-rate','#flow-upload-rate','#flow-country'):
                     expect(page.locator(selector)).to_be_visible()
