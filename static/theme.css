@@ -82,3 +82,12 @@ dialog::backdrop{background:#060b1ad9}
 .rss-history-group-icon{width:40px;height:56px;overflow:hidden}
 .rss-history-group-icon.has-cover{background:#15213b;border-color:#50678a;border-radius:7px}
 .rss-history-group-icon img{display:block;width:100%;height:100%;object-fit:cover}
+
+/* Dark Nordic night: the landscape stays still while the aurora light drifts. */
+.ambient-scene{background-color:#080f24;background-image:linear-gradient(180deg,#080f2426,#080f2440 55%,#060d2073),url('/static/fjord-aurora-night.png');background-size:cover;background-position:center;background-repeat:no-repeat}
+.ambient-glow{background:radial-gradient(ellipse at 22% 16%,#167ed22e,transparent 43%),radial-gradient(ellipse at 84% 26%,#7646d62e,transparent 46%);mix-blend-mode:screen}
+.ambient-glow-secondary{background:radial-gradient(ellipse at 62% 12%,#31bbd71c,transparent 34%),radial-gradient(ellipse at 38% 80%,#3554b718,transparent 42%);mix-blend-mode:screen}
+.ambient-grid{opacity:.16}
+body:has(.ambient-scene) aside{background:#0b1635c9;border-color:#6a8bd14d}
+body:has(.ambient-scene) header{border-bottom-color:#6686c547}
+@media(max-width:800px){.ambient-scene{background-position:64% center}body:has(.ambient-scene) aside{background:#0b1635ed}}
