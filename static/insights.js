@@ -13,6 +13,24 @@
  const format=(value,key)=>typeof value!=='number'||!Number.isFinite(value)?'—':key==='ratio'?value.toLocaleString('da-DK',{maximumFractionDigits:3}):trackerBytes(value);
  const svgNode=(tag,attrs={})=>{const el=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [key,value] of Object.entries(attrs))el.setAttribute(key,value);return el;};
  let gradientId=0;
+ // Monotone cubic interpolation rounds corners without inventing peaks or dips.
+ const curvePath=points=>{
+  if(!points.length)return '';
+  const pair=p=>p.x.toFixed(2)+','+p.y.toFixed(2);
+  let path='M'+pair(points[0]);
+  if(points.length===2)return path+' L'+pair(points[1]);
+  const slopes=points.slice(1).map((p,i)=>(p.y-points[i].y)/Math.max(.000001,p.x-points[i].x));
+  const tangent=i=>{
+   if(i===0)return slopes[0];if(i===points.length-1)return slopes.at(-1);
+   const a=slopes[i-1],b=slopes[i];
+   return a*b<=0?0:Math.sign(a)*Math.min(Math.abs((a+b)/2),3*Math.min(Math.abs(a),Math.abs(b)));
+  };
+  for(let i=1;i<points.length;i++){
+   const a=points[i-1],b=points[i],dx=(b.x-a.x)/3;
+   path+=' C'+pair({x:a.x+dx,y:a.y+dx*tangent(i-1)})+' '+pair({x:b.x-dx,y:b.y-dx*tangent(i)})+' '+pair(b);
+  }
+  return path;
+ };
  class Insights {
   constructor(){
    this.index=0;this.data={account:[],seedbox:[]};this.accounts=[];this.timer=null;this.busy=false;this.hover=false;this.focus=false;this.visible=false;this.loaded=false;this.generation=0;
@@ -100,7 +118,7 @@
    // Never bridge history gaps, resets, or the independent series in All.
    if(oldLines.length!==1||newLines.length!==1||this.current.querySelector('.insights-all')||this.next.querySelector('.insights-all'))return null;
    const oldLine=oldLines[0],line=newLines[0];
-   const vertices=path=>[...path.getAttribute('d').matchAll(/[ML]([\d.-]+),([\d.-]+)/g)].map(m=>({x:Number(m[1]),y:Number(m[2])}));
+   const vertices=path=>path.insightPoints||[];
    const from=vertices(oldLine),to=vertices(line);if(!from.length||!to.length)return null;
    const fractions=[...new Set([0,1,...from.map((_,i)=>i/Math.max(1,from.length-1)),...to.map((_,i)=>i/Math.max(1,to.length-1))])].sort((a,b)=>a-b);
    const sample=(points,t)=>{const at=t*(points.length-1),i=Math.floor(at),a=points[i],b=points[Math.min(i+1,points.length-1)],f=at-i;return {x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f};};
@@ -110,7 +128,7 @@
    const colors=[getComputedStyle(oldLine).stroke,getComputedStyle(line).stroke].map(color=>color.match(/[\d.]+/g).slice(0,3).map(Number));
    return t=>{
     const positions=pairs.map(({a,b})=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t}));
-    const d=positions.map((p,i)=>(i?'L':'M')+p.x.toFixed(2)+','+p.y.toFixed(2)).join(' '),last=positions.at(-1);
+    const d=curvePath(positions),last=positions.at(-1);
     line.setAttribute('d',d);line.style.stroke='rgb('+colors[0].map((v,i)=>v+(colors[1][i]-v)*t).join(',')+')';
     if(area?.tagName==='path')area.setAttribute('d',d+` L${last.x},155 L${positions[0].x},155 Z`);
     if(point){point.setAttribute('cx',last.x);point.setAttribute('cy',last.y);point.style.fill=line.style.stroke;}
@@ -216,7 +234,7 @@
    const zero=bottom;svg.append(svgNode('line',{x1:left,x2:right,y1:zero,y2:zero,class:'insights-zero'}));
    if(!points.length)return svg;
    let segment=[];
-   const flush=()=>{if(!segment.length)return;const path=segment.map((p,i)=>(i?'L':'M')+x(p).toFixed(2)+','+y(p).toFixed(2)).join(' ');svg.append(svgNode('path',{d:path+` L${x(segment.at(-1))},${zero} L${x(segment[0])},${zero} Z`,fill:`url(#${id})`}),svgNode('path',{d:path,class:'insights-line'}));segment=[];};
+   const flush=()=>{if(!segment.length)return;const positions=segment.map(p=>({x:x(p),y:y(p)})),path=curvePath(positions),line=svgNode('path',{d:path,class:'insights-line'});line.insightPoints=positions;svg.append(svgNode('path',{d:path+` L${x(segment.at(-1))},${zero} L${x(segment[0])},${zero} Z`,fill:`url(#${id})`}),line);segment=[];};
    for(let i=0;i<points.length;i++){const p=points[i];if(i&&(p.gap_before||p[metric.key+'_reset']))flush();segment.push(p);}flush();
    const last=points.at(-1);svg.append(svgNode('circle',{cx:x(last),cy:y(last),r:4,class:'insights-point'}));
    for(const [text,px,anchor] of [['Ældre ændringer',left,'start'],['Nyeste',right,'end']]){const label=svgNode('text',{x:px,y:177,'text-anchor':anchor});label.textContent=text;svg.append(label);}

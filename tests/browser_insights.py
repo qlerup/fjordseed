@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory() as folder:
             assert left['x']+left['width']<=right['x']+1
 
             expect(card.locator('.insights-current svg')).to_be_visible()
-            assert card.locator('.insights-current .insights-line').first.get_attribute('d').count('L')>1
+            assert card.locator('.insights-current .insights-line').first.get_attribute('d').count('C')>1
             expect(card.locator('.insights-current .insights-change')).to_be_visible()
             expect(card.locator('.insights-current .insights-source')).not_to_contain_text('hele kontoen')
             chart=card.locator('.insights-current svg')
