@@ -1,4 +1,4 @@
-"""Real cube transitions and isolated account/seedbox series, using fixture measurements."""
+"""Animated graph transitions and isolated account/seedbox series, using fixture measurements."""
 from pathlib import Path
 import math, sys, tempfile, threading, time
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -67,8 +67,8 @@ with tempfile.TemporaryDirectory() as folder:
             page.clock.fast_forward(10000);expect(card).to_have_attribute('data-metric','ratio')
             page.mouse.move(0,0);expect(card).to_have_attribute('data-paused','false')
             page.clock.fast_forward(8050)
-            expect(card.locator('.insights-cube')).to_have_class('insights-cube is-turning')
-            assert card.locator('.insights-cube').evaluate('el=>getComputedStyle(el).transformStyle')=='preserve-3d'
+            expect(card.locator('.insights-stage')).to_have_class('insights-stage is-changing')
+            assert card.locator('.insights-stage').evaluate('el=>getComputedStyle(el).transformStyle')=='flat'
             page.clock.fast_forward(1300)
             expect(card).to_have_attribute('data-metric','credited_uploaded')
             for key,label in [('real_uploaded','Reel upload'),('credited_downloaded','Kredit · download'),('real_downloaded','Reel download'),('ratio','Ratio')]:
@@ -90,10 +90,23 @@ with tempfile.TemporaryDirectory() as folder:
                     assert left['y']+left['height']<=right['y']+1
 
                 if width==390:card.screenshot(path=str(output/'insights-mobile.png'))
+            page.set_viewport_size({'width':1600,'height':1100})
+            card.get_by_role('button',name='Alle',exact=True).click();page.clock.fast_forward(1300)
+            expect(card).to_have_attribute('data-metric','all')
+            expect(card.locator('.insights-current svg')).to_have_count(5)
+            expect(card.locator('.insights-selector-value')).to_have_count(5)
+            expect(card.locator('.insights-bottom')).to_have_count(0)
+            colors=card.locator('.insights-current .insights-line').evaluate_all('els=>els.map(el=>getComputedStyle(el).stroke)')
+            assert len(set(colors))==5
+            card.screenshot(path=str(output/'insights-all-desktop.png'))
+            for width in (650,390,320):
+                page.set_viewport_size({'width':width,'height':1000})
+                assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+                if width==390:card.screenshot(path=str(output/'insights-all-mobile.png'))
             page.emulate_media(reduced_motion='reduce')
             card.get_by_role('button',name='Reel upload',exact=True).click()
             expect(card).to_have_attribute('data-metric','real_uploaded')
-            assert not card.locator('.insights-cube.is-turning').count()
+            assert not card.locator('.insights-stage.is-changing').count()
             expect(card).to_have_attribute('data-paused','true')
             # Absolute positive values; two changed observations fill only two slots.
             assert page.evaluate("""() => {
@@ -132,4 +145,4 @@ with tempfile.TemporaryDirectory() as folder:
             assert not errors,errors
             browser.close()
     finally:server.shutdown()
-print('PASS five charts, ratio decline, source labels, automatic cube turn, hover pause/resume, responsive widths, reduced motion, empty/error states')
+print('PASS five charts, ratio decline, source labels, automatic graph transition, hover pause/resume, responsive widths, reduced motion, empty/error states')

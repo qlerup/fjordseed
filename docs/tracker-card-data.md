@@ -53,3 +53,9 @@ De øvrige kontofelter ovenfor hentes aktuelt, men gemmes **ikke** som tidsserie
 - `static/insights.js` og `templates/_insights.html`: grafkort, kontovalg, perioder og karrusel.
 
 Et kommende layoutvalg bør gemme felt-id'er og placeringer, mens kilder, enheder og adgangskontrol fortsat styres af applikationen. Konto- og seedboxdata skal fortsat mærkes tydeligt.
+
+## Combined graph selector
+
+The five totals remain visible above the chart and act as metric buttons. The bottom tabs and 3D cube have been removed. Single charts crossfade every eight seconds; hover and keyboard focus pause rotation. Reduced motion disables animation and autoplay. Selecting Alle holds the combined view until another metric is chosen.
+
+Alle overlays the five actual-total series using independent, explicitly labelled automatic ranges (ratio and bytes cannot share a unit). Colors and dash patterns distinguish series. All series share the latest 60 changed timestamps, with sparse observations aligned to the same event slots. No fabricated observations are added. Pointer or arrow-key inspection shows the actual values and timestamp for that event. Physical traffic remains labelled as whole-seedbox traffic.

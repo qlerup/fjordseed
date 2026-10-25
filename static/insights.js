@@ -1,11 +1,11 @@
-/* Five real time series, presented as a quarter-turn cube carousel. */
+/* Absolute time series with persistent metric selectors and animated transitions. */
 (() => {
  'use strict';
  const root=document.querySelector('#tracker-insights');
  if(!root)return;
  const metrics=[
   {key:'ratio',name:'Ratio',tab:'Ratio',color:'#79dfb7',scope:'account'},
-  {key:'credited_uploaded',name:'Krediteret upload',tab:'Kredit · upload',color:'#80d8b9',scope:'account'},
+  {key:'credited_uploaded',name:'Krediteret upload',tab:'Kredit · upload',color:'#f18fb8',scope:'account'},
   {key:'real_uploaded',name:'Reel upload',tab:'Reel upload',color:'#8ebcfa',scope:'seedbox'},
   {key:'credited_downloaded',name:'Krediteret download',tab:'Kredit · download',color:'#c1a5f2',scope:'account'},
   {key:'real_downloaded',name:'Reel download',tab:'Reel download',color:'#f1c48e',scope:'seedbox'}
@@ -16,9 +16,9 @@
  class Insights {
   constructor(){
    this.index=0;this.data={account:[],seedbox:[]};this.accounts=[];this.timer=null;this.busy=false;this.hover=false;this.focus=false;this.visible=false;this.loaded=false;this.generation=0;
-   this.viewport=root.querySelector('.insights-viewport');this.current=root.querySelector('.insights-current');this.next=root.querySelector('.insights-next');this.cube=root.querySelector('.insights-cube');this.select=root.querySelector('#insights-account');this.mode=root.querySelector('.insights-mode span');this.error=root.querySelector('.insights-error');
+   this.viewport=root.querySelector('.insights-viewport');this.current=root.querySelector('.insights-current');this.next=root.querySelector('.insights-next');this.stage=root.querySelector('.insights-stage');this.select=root.querySelector('#insights-account');this.mode=root.querySelector('.insights-mode span');this.error=root.querySelector('.insights-error');
    this.motion=matchMedia('(prefers-reduced-motion: reduce)');
-   this.tabs=metrics.map((metric,i)=>{const button=node('button','insights-tab',metric.tab);button.type='button';button.setAttribute('aria-pressed',String(i===0));button.onclick=()=>this.turn(i);root.querySelector('.insights-tabs').append(button);return button;});
+   this.tabs=[...metrics,{key:'all',tab:'Alle'}].map((metric,i)=>{const button=node('button','insights-tab',metric.tab);button.type='button';button.setAttribute('aria-label',metric.tab);button.setAttribute('aria-pressed',String(i===0));button.onclick=()=>this.turn(i);root.querySelector('.insights-selectors').append(button);return button;});
    root.addEventListener('pointerenter',event=>{if(event.pointerType==='mouse'){this.hover=true;this.schedule();}});
    root.addEventListener('pointerleave',event=>{if(event.pointerType==='mouse'){this.hover=false;this.schedule();}});
    root.addEventListener('focusin',event=>{this.focus=event.target.matches(':focus-visible');this.schedule();});
@@ -27,7 +27,7 @@
    root.addEventListener('pointerdown',()=>{this.focus=false;this.schedule();});
    document.addEventListener('visibilitychange',()=>this.schedule());this.motion.addEventListener('change',()=>{if(this.busy)this.finish();this.schedule();});
    this.observer=new IntersectionObserver(entries=>{this.visible=entries[0].isIntersecting;this.schedule();});this.observer.observe(root);
-   this.resize=new ResizeObserver(()=>{if(this.busy)this.finish();root.style.setProperty('--insight-depth',Math.max(1,this.viewport.clientWidth/2)+'px');this.draw();});this.resize.observe(this.viewport);
+   this.resize=new ResizeObserver(()=>{if(this.busy)this.finish();this.draw();});this.resize.observe(this.viewport);
    this.select.onchange=()=>this.reload();
    this.draw();
   }
@@ -68,7 +68,7 @@
   }
   schedule(){
    clearTimeout(this.timer);this.timer=null;
-   const paused=this.hover||this.focus||document.hidden||!this.visible||root.hidden||this.motion.matches||!this.loaded||!this.error.hidden;
+   const paused=this.hover||this.focus||document.hidden||!this.visible||root.hidden||this.motion.matches||!this.loaded||!this.error.hidden||this.index===metrics.length;
    root.dataset.paused=String(paused);this.mode.textContent=this.motion.matches?'Vælg en graf':this.hover||this.focus?'På pause':'Automatisk';
    if(!paused&&!this.busy)this.timer=setTimeout(()=>this.turn((this.index+1)%metrics.length),8000);
   }
@@ -76,37 +76,44 @@
    if(this.busy||index===this.index)return;
    clearTimeout(this.timer);
    if(this.motion.matches){this.index=index;this.draw();this.schedule();return;}
-   this.busy=true;this.next.replaceChildren(...this.face(metrics[index]));this.next.style.setProperty('--insight-color',metrics[index].color);
+   this.busy=true;this.next.replaceChildren(...this.face(metrics[index]));
+   this.next.style.setProperty('--insight-color',metrics[index]?.color||'#c1a5f2');
    let done=false;
    this.finish=()=>{
-    if(done)return;done=true;clearTimeout(this.fallback);this.cube.removeEventListener('transitionend',onEnd);
-    this.cube.classList.remove('is-turning');this.next.replaceChildren();this.index=index;this.busy=false;this.draw();this.schedule();
+    if(done)return;done=true;clearTimeout(this.fallback);
+    this.stage.classList.remove('is-changing');this.next.replaceChildren();this.index=index;this.busy=false;this.draw();this.schedule();
    };
-   const onEnd=event=>{if(event.target===this.cube&&event.propertyName==='transform')this.finish();};
-   this.cube.addEventListener('transitionend',onEnd);void this.cube.offsetWidth;this.cube.classList.add('is-turning');this.fallback=setTimeout(this.finish,1200);
+   void this.stage.offsetWidth;this.stage.classList.add('is-changing');this.fallback=setTimeout(this.finish,650);
   }
   draw(){
    if(this.busy)return;
-   const metric=metrics[this.index];root.dataset.metric=metric.key;root.style.setProperty('--insight-color',metric.color);this.current.style.setProperty('--insight-color',metric.color);
-   this.current.replaceChildren(...this.face(metric));this.tabs.forEach((tab,i)=>tab.setAttribute('aria-pressed',String(i===this.index)));
+   const metric=metrics[this.index];root.dataset.metric=metric?.key||'all';root.style.setProperty('--insight-color',metric?.color||'#c1a5f2');this.current.style.setProperty('--insight-color',metric?.color||'#c1a5f2');
+   this.current.replaceChildren(...this.face(metric));
+   this.tabs.forEach((tab,i)=>{
+    tab.setAttribute('aria-pressed',String(i===this.index));
+    if(i===metrics.length)return;
+    const m=metrics[i],samples=this.samples(m),account=this.accounts.find(a=>a.id===this.select.value);
+    const value=samples.at(-1)?.[m.key]??(m.scope==='account'?account?.stats?.[m.key.replace('credited_','')]:null);
+    tab.style.setProperty('--insight-color',m.color);
+    tab.replaceChildren(node('span','insights-metric-name',m.name),node('strong','insights-selector-value',format(value,m.key)));
+    if(m.scope==='seedbox')tab.append(node('small','','Seedbox'));
+   });
   }
-  face(metric){
-   const account=this.accounts.find(a=>a.id===this.select.value);
-   const samples=[];
-   for(const point of this.data[metric.scope]||[]){
-    if(typeof point[metric.key]!=='number'||!Number.isFinite(point[metric.key])){continue;}
-    samples.push(point);
-   }
+  samples(metric){
    const changes=[];let pendingGap=false;
-   for(const point of samples){
+   for(const point of this.data[metric.scope]||[]){
+    if(!Number.isFinite(point[metric.key]))continue;
     pendingGap ||= !!point.gap_before;
     if(!changes.length||point[metric.key]!==changes.at(-1)[metric.key]||point[metric.key+'_reset']){changes.push(pendingGap?{...point,gap_before:true}:point);pendingGap=false;}
    }
-   samples.splice(0,samples.length,...changes.slice(-60));
+   return changes.slice(-60);
+  }
+  face(metric){
+   if(!metric)return this.allFace();
+   const samples=this.samples(metric);
    const last=samples.at(-1),first=samples[0];
-   const summary=node('div','insights-summary');summary.append(node('span','insights-metric-name',metric.name));
-   const current=last?.[metric.key]??(metric.scope==='account'?account?.stats?.[metric.key==='credited_uploaded'?'uploaded':metric.key==='credited_downloaded'?'downloaded':'ratio']:null);
-   summary.append(node('strong','insights-value',format(current,metric.key)));
+   const summary=node('div','insights-summary');
+
    const reset=samples.some(point=>point[metric.key+'_reset']);
    const delta=last&&first?last[metric.key]-first[metric.key]:null;
    summary.append(node('span','insights-change'+(delta<0?' is-negative':''),reset?'Tælleren er nulstillet':samples.length>1?(delta>0?'↗ +':delta<0?'↘ −':'→ ')+format(Math.abs(delta),metric.key):'Afventer flere målinger'));
@@ -118,7 +125,40 @@
    else chart.append(this.plot(metric,samples));
    return [summary,chart];
   }
-  plot(metric,points){
+  allFace(){
+   const series=metrics.map(metric=>({metric,points:this.samples(metric)}));
+   const times=[...new Set(series.flatMap(s=>s.points.map(p=>p.at)))].sort((a,b)=>a-b).slice(-60);
+   if(!times.length)return this.face(metrics[0]);
+   const chart=node('div','insights-chart insights-all-chart');
+   const legend=node('div','insights-ranges');
+   for(const {metric,points} of series){
+    const visible=points.filter(p=>p.at>=times[0]);
+    if(!visible.length)continue;
+    const svg=this.plot(metric,visible,times);svg.style.setProperty('--insight-color',metric.color);
+    const range=node('span','',metric.name+': '+svg.dataset.range);range.style.color=metric.color;legend.append(range);
+    if(chart.children.length)svg.querySelectorAll('text,.insights-grid,.insights-zero').forEach(el=>el.remove());
+    else{svg.querySelectorAll('.insights-y-tick').forEach(el=>el.remove());svg.querySelector('.insights-axis-title').textContent='';}
+    const dash=['','9 4','3 4','12 4 2 4','5 3'][metrics.indexOf(metric)];
+    svg.querySelectorAll('.insights-line').forEach(el=>el.setAttribute('stroke-dasharray',dash));
+    // Retain accessible per-series values while the shared plot provides pointer inspection.
+    svg.removeAttribute('tabindex');svg.setAttribute('aria-label',metric.name);
+    chart.append(svg);
+   }
+   const note=node('p','insights-source','Hver kurve har sin egen automatiske skala. Reel trafik: hele seedboxen.');
+   const inspector=node('div','insights-all-inspector');inspector.setAttribute('aria-live','polite');
+   chart.tabIndex=0;chart.setAttribute('role','group');chart.setAttribute('aria-label','Alle grafer. Brug piletaster til at se dato og totaler.');
+   let selected=times.length-1;
+   const show=index=>{
+    selected=index;const at=times[index];inspector.replaceChildren(node('strong','',new Date(at*1000).toLocaleString('da-DK')));
+    for(const {metric,points} of series){const point=points.find(p=>p.at===at);if(point){const item=node('span','',metric.name+': '+format(point[metric.key],metric.key));item.style.color=metric.color;inspector.append(item);}}
+   };
+   chart.addEventListener('pointermove',event=>{const box=chart.getBoundingClientRect();show(Math.max(0,Math.min(times.length-1,Math.round((event.clientX-box.left-8)/(box.width-32)*59)-(60-times.length))));});
+   chart.addEventListener('focus',()=>show(selected));chart.addEventListener('pointerleave',()=>inspector.replaceChildren());chart.addEventListener('blur',()=>inspector.replaceChildren());
+   chart.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight'].includes(event.key)){event.preventDefault();show(Math.max(0,Math.min(times.length-1,selected+(event.key==='ArrowLeft'?-1:1))));}});
+   const body=node('div','insights-all');body.append(note,legend,chart,inspector);
+   return [body];
+  }
+  plot(metric,points,times=null){
    const width=Math.max(220,this.viewport.clientWidth-(innerWidth<=650?32:48)),height=200,left=8,top=30,bottom=155;
    points=points.slice(-60).map((point,index)=>({...point,index}));
    const values=points.map(point=>point[metric.key]);
@@ -133,10 +173,11 @@
    const digits=Math.min(12,Math.max(unit?2:0,Math.ceil(-Math.log10((high-low)/2/divisor))+1));
    const valueLabel=value=>(value/divisor).toLocaleString('da-DK',{minimumFractionDigits:digits,maximumFractionDigits:digits})+(metric.key==='ratio'?'':' '+units[unit]);
    const tickValues=[high,(high+low)/2,low];
-   const right=width-Math.max(82,...tickValues.map(value=>valueLabel(value).length*6+14));
+   const right=times?width-24:width-Math.max(82,...tickValues.map(value=>valueLabel(value).length*6+14));
    const spacing=(right-left)/59;
-   const x=point=>right-(points.length-1-point.index)*spacing,y=point=>bottom-(point[metric.key]-low)/(high-low)*(bottom-top);
+   const x=point=>right-(times?times.length-1-times.indexOf(point.at):points.length-1-point.index)*spacing,y=point=>bottom-(point[metric.key]-low)/(high-low)*(bottom-top);
    const svg=svgNode('svg',{viewBox:`0 0 ${width} ${height}`,class:'insights-svg',role:'img',tabindex:'0','aria-label':metric.name+'. Op til 60 registrerede ændringer, nyeste til højre. Brug piletaster for at se værdi, dato og klokkeslæt.'});
+   svg.dataset.range=valueLabel(low)+' \u2013 '+valueLabel(high);
    const axis=svgNode('text',{x:left,y:13,class:'insights-axis-title'});axis.textContent=(metric.key==='ratio'?'Ratio':'Samlet datamængde')+' · automatisk skala';svg.append(axis);
    const timeAxis=svgNode('text',{x:(left+right)/2,y:197,'text-anchor':'middle',class:'insights-axis-title'});timeAxis.textContent='Seneste 60 ændringer';svg.append(timeAxis);
    const id='insight-gradient-'+(++gradientId),defs=svgNode('defs'),gradient=svgNode('linearGradient',{id,x1:'0',y1:'0',x2:'0',y2:'1'});
