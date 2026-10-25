@@ -35,6 +35,14 @@ with tempfile.TemporaryDirectory() as folder:
             assert card.locator('.insights-current .insights-line').first.get_attribute('d').count('L')>1
             expect(card.locator('.insights-current .insights-change')).to_contain_text('↘')
             expect(card.locator('.insights-current .insights-source')).to_contain_text('hele kontoen')
+            chart=card.locator('.insights-current svg')
+            chart.click()
+            assert chart.evaluate('el=>getComputedStyle(el).outlineStyle')=='none'
+            page.keyboard.press('Tab')
+            page.keyboard.press('Shift+Tab')
+            expect(chart).to_be_focused()
+            assert chart.evaluate('el=>getComputedStyle(el).outlineStyle')=='solid'
+            page.locator('#page-title').click()
             card.screenshot(path=str(output/'insights-desktop.png'))
             page.locator('.nav[href="#torrents"]').click()
             expect(card).to_be_hidden()

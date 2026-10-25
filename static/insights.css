@@ -44,3 +44,6 @@
 @media(prefers-reduced-motion:reduce){.insights-cube.is-turning{transition:none}}
 
 .insights-identity{min-width:0}.insights-identity h3,.insights-identity p{overflow-wrap:anywhere}#insights-account-status{margin-top:4px}
+
+.insights-svg:focus{outline:none}
+.insights-svg:focus-visible{outline:2px solid var(--green);outline-offset:-2px}
