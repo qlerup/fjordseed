@@ -102,6 +102,14 @@ with tempfile.TemporaryDirectory() as folder:
                 const last=Number(chart.querySelector('circle').getAttribute('cx'));
                 const ticks=[...chart.querySelectorAll('.insights-y-tick')].map(el=>el.textContent);
                 if(coords[0]<last*.97||coords[1]>=155||new Set(ticks).size!==3)return false;
+                if(Math.abs(coords[1]-coords[3])<70)return false;
+                if(!ticks.every(text=>text.includes('GiB')&&Math.abs(parseFloat(text.replace(',','.'))-928)<.01))return false;
+                for(const value of [0,123,928*1024**3]){
+                    const flat=scene.plot(metric,[{at:now-600,real_downloaded:value},{at:now,real_downloaded:value}]);
+                    if(/NaN|Infinity/.test(flat.outerHTML))return false;
+                    if(new Set([...flat.querySelectorAll('.insights-y-tick')].map(el=>el.textContent)).size!==3)return false;
+                }
+
                 const falling=scene.plot({key:'ratio',name:'Ratio',color:'#fff'},[{at:now-600,ratio:4},{at:now,ratio:3.9}]);
                 if([...falling.querySelectorAll('.insights-y-tick')].some(el=>/[-\u2212]/.test(el.textContent)))return false;
                 if(Number(falling.querySelector('circle').getAttribute('cy'))>=155)return false;

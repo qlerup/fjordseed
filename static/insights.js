@@ -119,21 +119,29 @@
    return [summary,chart];
   }
   plot(metric,points){
-   const width=Math.max(220,this.viewport.clientWidth-(innerWidth<=650?32:48)),height=200,left=8,right=width-82,top=30,bottom=155;
+   const width=Math.max(220,this.viewport.clientWidth-(innerWidth<=650?32:48)),height=200,left=8,top=30,bottom=155;
    points=points.slice(-60).map((point,index)=>({...point,index}));
    const values=points.map(point=>point[metric.key]);
-   const extent=Math.max(...values,metric.key==='ratio'?.001:1);
-   const magnitude=10**Math.floor(Math.log10(extent));
-   const high=[1,2,5,10].find(step=>step*magnitude>=extent)*magnitude;
-   const valueLabel=value=>metric.key==='ratio'?value.toLocaleString('da-DK',{maximumFractionDigits:6}):format(value,metric.key);
+   const minimum=values.length?Math.min(...values):0,maximum=values.length?Math.max(...values):0;
+   // Zoom to the observed totals, with breathing room and a stable flat-series range.
+   const span=maximum-minimum;
+   const padding=Math.max(span?span*.15:Math.max(maximum*.001,metric.key==='ratio'?.001:1),Number.EPSILON*Math.max(maximum,1)*8);
+   const low=Math.max(0,minimum-padding),high=maximum+padding;
+   const units=['B','KiB','MiB','GiB','TiB'];
+   const unit=metric.key==='ratio'?0:Math.min(4,Math.max(0,Math.floor(Math.log2(Math.max(high,1))/10)));
+   const divisor=metric.key==='ratio'?1:1024**unit;
+   const digits=Math.min(12,Math.max(unit?2:0,Math.ceil(-Math.log10((high-low)/2/divisor))+1));
+   const valueLabel=value=>(value/divisor).toLocaleString('da-DK',{minimumFractionDigits:digits,maximumFractionDigits:digits})+(metric.key==='ratio'?'':' '+units[unit]);
+   const tickValues=[high,(high+low)/2,low];
+   const right=width-Math.max(82,...tickValues.map(value=>valueLabel(value).length*6+14));
    const spacing=(right-left)/59;
-   const x=point=>right-(points.length-1-point.index)*spacing,y=point=>bottom-point[metric.key]/high*(bottom-top);
+   const x=point=>right-(points.length-1-point.index)*spacing,y=point=>bottom-(point[metric.key]-low)/(high-low)*(bottom-top);
    const svg=svgNode('svg',{viewBox:`0 0 ${width} ${height}`,class:'insights-svg',role:'img',tabindex:'0','aria-label':metric.name+'. Op til 60 registrerede ændringer, nyeste til højre. Brug piletaster for at se værdi, dato og klokkeslæt.'});
-   const axis=svgNode('text',{x:left,y:13,class:'insights-axis-title'});axis.textContent=metric.key==='ratio'?'Ratio':'Samlet datamængde';svg.append(axis);
+   const axis=svgNode('text',{x:left,y:13,class:'insights-axis-title'});axis.textContent=(metric.key==='ratio'?'Ratio':'Samlet datamængde')+' · automatisk skala';svg.append(axis);
    const timeAxis=svgNode('text',{x:(left+right)/2,y:197,'text-anchor':'middle',class:'insights-axis-title'});timeAxis.textContent='Seneste 60 ændringer';svg.append(timeAxis);
    const id='insight-gradient-'+(++gradientId),defs=svgNode('defs'),gradient=svgNode('linearGradient',{id,x1:'0',y1:'0',x2:'0',y2:'1'});
    gradient.append(svgNode('stop',{offset:'0%','stop-color':metric.color,'stop-opacity':'.22'}),svgNode('stop',{offset:'100%','stop-color':metric.color,'stop-opacity':'0'}));defs.append(gradient);svg.append(defs);
-   for(const fraction of [0,.5,1]){const py=top+fraction*(bottom-top),label=svgNode('text',{x:right+8,y:py+4,class:'insights-y-tick'});label.textContent=valueLabel(high*(1-fraction));svg.append(svgNode('line',{x1:left,x2:right,y1:py,y2:py,class:'insights-grid'}),label);}
+   for(const fraction of [0,.5,1]){const py=top+fraction*(bottom-top),label=svgNode('text',{x:right+8,y:py+4,class:'insights-y-tick'});label.textContent=valueLabel(high-fraction*(high-low));svg.append(svgNode('line',{x1:left,x2:right,y1:py,y2:py,class:'insights-grid'}),label);}
    const zero=bottom;svg.append(svgNode('line',{x1:left,x2:right,y1:zero,y2:zero,class:'insights-zero'}));
    if(!points.length)return svg;
    let segment=[];
