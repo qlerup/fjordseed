@@ -158,7 +158,7 @@ class Trackers:
                 if result['status']=='ok':
                     stats=result.get('stats',{})
                     try:
-                        self.history.record(entry['id'],{'ratio':stats.get('ratio'),
+                        self.history.record(entry['id'],{'ratio':stats.get('ratio'),'seedbonus':stats.get('seedbonus'),
                             'credited_uploaded':stats.get('uploaded'),'credited_downloaded':stats.get('downloaded')},result['updated_at'])
                     except (OSError,ValueError,sqlite3.Error):
                         logging.getLogger(__name__).exception('Could not save tracker chart history')

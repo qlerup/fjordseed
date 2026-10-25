@@ -4,7 +4,7 @@ Registreret 25. oktober 2026, inden det separate statistikkort på Oversigt blev
 
 Kortet på Oversigt samler nu de faste kontotal, events og opdateringstid i venstre sektion og grafkarrusellen i højre sektion. På små skærme står sektionerne under hinanden. Kontovælgeren styrer begge sektioner. `trackerDetails()` bruges både her og under Trackere, så felter og formatering holdes ens.
 
-På Oversigt udelades `uploaded`, `downloaded` og `ratio` fra venstre sektion, fordi de allerede vises i grafmodulet. Alle felter bevares i data og på administrationssiden Trackere.
+På Oversigt udelades `uploaded`, `downloaded`, `ratio` og `seedbonus` fra venstre sektion, fordi de allerede vises i grafmodulet. Alle felter bevares i data og på administrationssiden Trackere.
 
 ## Kontoens aktuelle tal
 
@@ -33,6 +33,7 @@ Kortet viste desuden kontonavn, brugernavn, forbindelsesstatus, fejl, sidste opd
 | Graf | Historikfelt | Kilde og omfang |
 | --- | --- | --- |
 | Ratio | `ratio` | Trackerkontoen |
+| Shards | `seedbonus` | Kontoens bonuspoint, almindeligt tal |
 | Krediteret upload | `credited_uploaded` | Kontoens `stats.uploaded` |
 | Krediteret download | `credited_downloaded` | Kontoens `stats.downloaded` |
 | Reel upload | `real_uploaded` | qBittorrent, hele denne seedbox |
@@ -56,6 +57,8 @@ Et kommende layoutvalg bør gemme felt-id'er og placeringer, mens kilder, enhede
 
 ## Combined graph selector
 
-The five totals remain visible above the chart and act as metric buttons. The bottom tabs and 3D cube have been removed. Single charts morph their line geometry every eight seconds (the same transition as manual selection); hover and keyboard focus pause rotation. Reduced motion disables animation and autoplay. Selecting Alle holds the combined view until another metric is chosen.
+The six totals remain visible above the chart and act as metric buttons. The bottom tabs and 3D cube have been removed. Single charts morph their line geometry every eight seconds (the same transition as manual selection); hover and keyboard focus pause rotation. Reduced motion disables animation and autoplay. Selecting Alle holds the combined view until another metric is chosen.
 
-Alle overlays the five actual-total series using independent, explicitly labelled automatic ranges (ratio and bytes cannot share a unit). Colors and dash patterns distinguish series. All series share the latest 60 changed timestamps, with sparse observations aligned to the same event slots. No fabricated observations are added. Pointer or arrow-key inspection shows the actual values and timestamp for that event. Physical traffic retains the Seedbox label in its selector. The repeated physical-traffic caption below the graph value has been removed. Continuous single curves morph shape, endpoint and color over 800 ms; empty histories, discontinuities and combined views use a fade to avoid connecting unrelated points.
+Alle overlays the six actual-total series using independent, explicitly labelled automatic ranges (ratio, bonus points and bytes cannot share a unit). Colors and dash patterns distinguish series. All series share the latest 60 changed timestamps, with sparse observations aligned to the same event slots. No fabricated observations are added. Pointer or arrow-key inspection shows the actual values and timestamp for that event. Physical traffic retains the Seedbox label in its selector. The repeated physical-traffic caption below the graph value has been removed. Continuous single curves morph shape, endpoint and color over 800 ms; empty histories, discontinuities and combined views use a fade to avoid connecting unrelated points.
+
+Shards history starts with the first successful tracker refresh after this feature is installed. Existing snapshots have no bonus-point values and are not backfilled. Both increases and decreases are retained; spending points is not a counter reset.

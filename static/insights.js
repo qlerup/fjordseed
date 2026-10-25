@@ -8,9 +8,10 @@
   {key:'credited_uploaded',name:'Krediteret upload',tab:'Kredit · upload',color:'#f18fb8',scope:'account'},
   {key:'real_uploaded',name:'Reel upload',tab:'Reel upload',color:'#8ebcfa',scope:'seedbox'},
   {key:'credited_downloaded',name:'Krediteret download',tab:'Kredit · download',color:'#c1a5f2',scope:'account'},
-  {key:'real_downloaded',name:'Reel download',tab:'Reel download',color:'#f1c48e',scope:'seedbox'}
+  {key:'real_downloaded',name:'Reel download',tab:'Reel download',color:'#f1c48e',scope:'seedbox'},
+  {key:'seedbonus',name:'Shards',tab:'Shards',color:'#e5d87a',scope:'account'}
  ];
- const format=(value,key)=>typeof value!=='number'||!Number.isFinite(value)?'—':key==='ratio'?value.toLocaleString('da-DK',{maximumFractionDigits:3}):trackerBytes(value);
+ const format=(value,key)=>typeof value!=='number'||!Number.isFinite(value)?'—':['ratio','seedbonus'].includes(key)?value.toLocaleString('da-DK',{maximumFractionDigits:key==='ratio'?3:2}):trackerBytes(value);
  const svgNode=(tag,attrs={})=>{const el=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [key,value] of Object.entries(attrs))el.setAttribute(key,value);return el;};
  let gradientId=0;
  // Monotone cubic interpolation rounds corners without inventing peaks or dips.
@@ -67,7 +68,7 @@
   identity(account){
    if(!account)return;
    root.querySelector('#insights-title').textContent=account.name;
-   root.querySelector('#insights-account-details').replaceChildren(trackerDetails(account,['uploaded','downloaded','ratio']));
+   root.querySelector('#insights-account-details').replaceChildren(trackerDetails(account,['uploaded','downloaded','ratio','seedbonus']));
    const status=account.status==='ok'?'Forbundet':account.status==='error'?'Forbindelsesfejl':'Henter data';
    root.querySelector('#insights-account-status').textContent=[account.username,status,account.status==='error'?account.error:null].filter(Boolean).join(' · ');
   }
@@ -187,7 +188,7 @@
     const range=node('span','',metric.name+': '+svg.dataset.range);range.style.color=metric.color;legend.append(range);
     if(chart.children.length)svg.querySelectorAll('text,.insights-grid,.insights-zero').forEach(el=>el.remove());
     else{svg.querySelectorAll('.insights-y-tick').forEach(el=>el.remove());svg.querySelector('.insights-axis-title').textContent='';}
-    const dash=['','9 4','3 4','12 4 2 4','5 3'][metrics.indexOf(metric)];
+    const dash=['','9 4','3 4','12 4 2 4','5 3','2 3 7 3'][metrics.indexOf(metric)];
     svg.querySelectorAll('.insights-line').forEach(el=>el.setAttribute('stroke-dasharray',dash));
     // Retain accessible per-series values while the shared plot provides pointer inspection.
     svg.removeAttribute('tabindex');svg.setAttribute('aria-label',metric.name);
@@ -217,17 +218,18 @@
    const padding=Math.max(span?span*.15:Math.max(maximum*.001,metric.key==='ratio'?.001:1),Number.EPSILON*Math.max(maximum,1)*8);
    const low=Math.max(0,minimum-padding),high=maximum+padding;
    const units=['B','KiB','MiB','GiB','TiB'];
-   const unit=metric.key==='ratio'?0:Math.min(4,Math.max(0,Math.floor(Math.log2(Math.max(high,1))/10)));
-   const divisor=metric.key==='ratio'?1:1024**unit;
+   const numeric=['ratio','seedbonus'].includes(metric.key);
+   const unit=numeric?0:Math.min(4,Math.max(0,Math.floor(Math.log2(Math.max(high,1))/10)));
+   const divisor=numeric?1:1024**unit;
    const digits=Math.min(12,Math.max(unit?2:0,Math.ceil(-Math.log10((high-low)/2/divisor))+1));
-   const valueLabel=value=>(value/divisor).toLocaleString('da-DK',{minimumFractionDigits:digits,maximumFractionDigits:digits})+(metric.key==='ratio'?'':' '+units[unit]);
+   const valueLabel=value=>(value/divisor).toLocaleString('da-DK',{minimumFractionDigits:digits,maximumFractionDigits:digits})+(numeric?'':' '+units[unit]);
    const tickValues=[high,(high+low)/2,low];
    const right=times?width-24:width-Math.max(82,...tickValues.map(value=>valueLabel(value).length*6+14));
    const spacing=(right-left)/59;
    const x=point=>right-(times?times.length-1-times.indexOf(point.at):points.length-1-point.index)*spacing,y=point=>bottom-(point[metric.key]-low)/(high-low)*(bottom-top);
    const svg=svgNode('svg',{viewBox:`0 0 ${width} ${height}`,class:'insights-svg',role:'img',tabindex:'0','aria-label':metric.name+'. Op til 60 registrerede ændringer, nyeste til højre. Brug piletaster for at se værdi, dato og klokkeslæt.'});
    svg.dataset.range=valueLabel(low)+' \u2013 '+valueLabel(high);
-   const axis=svgNode('text',{x:left,y:13,class:'insights-axis-title'});axis.textContent=(metric.key==='ratio'?'Ratio':'Samlet datamængde')+' · automatisk skala';svg.append(axis);
+   const axis=svgNode('text',{x:left,y:13,class:'insights-axis-title'});axis.textContent=(metric.key==='ratio'?'Ratio':metric.key==='seedbonus'?'Shards':'Samlet datamængde')+' · automatisk skala';svg.append(axis);
    const timeAxis=svgNode('text',{x:(left+right)/2,y:197,'text-anchor':'middle',class:'insights-axis-title'});timeAxis.textContent='Seneste 60 ændringer';svg.append(timeAxis);
    const id='insight-gradient-'+(++gradientId),defs=svgNode('defs'),gradient=svgNode('linearGradient',{id,x1:'0',y1:'0',x2:'0',y2:'1'});
    gradient.append(svgNode('stop',{offset:'0%','stop-color':metric.color,'stop-opacity':'.22'}),svgNode('stop',{offset:'100%','stop-color':metric.color,'stop-opacity':'0'}));defs.append(gradient);svg.append(defs);

@@ -8,7 +8,7 @@ import sqlite3
 import time
 from tracker_providers import ACCOUNT_REFRESH_SECONDS
 
-FIELDS=('ratio','credited_uploaded','credited_downloaded','real_uploaded','real_downloaded')
+FIELDS=('ratio','credited_uploaded','credited_downloaded','real_uploaded','real_downloaded','seedbonus')
 RETENTION=30*86400
 INTERVAL=ACCOUNT_REFRESH_SECONDS
 

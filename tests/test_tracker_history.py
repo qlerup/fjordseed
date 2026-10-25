@@ -136,3 +136,17 @@ def test_five_minute_samples_preserve_legacy_history(tmp_path):
     history.record('account',{'ratio':4.2},now+600)
     points=history.changes('account',now+601)
     assert [(p['at'],p['ratio']) for p in points]==[(now,4),(now+300,4.1),(now+600,4.2)]
+
+
+def test_shards_history_records_changes_and_decreases(tmp_path,monkeypatch):
+    trackers=Trackers(tmp_path);ident=trackers.save(CONFIG)
+    now=1_800_000_000
+    assert trackers.history.changes(ident,now)==[]
+    for i,value in enumerate([2455.16,2455.16,2460.5,2400]):
+        monkeypatch.setattr('trackers.time.time',lambda i=i:now+i*300)
+        trackers.fetch=Mock(return_value={'stats':{'seedbonus':value}})
+        trackers.refresh()
+    restored=TrackerHistory(tmp_path/'tracker-history.sqlite3')
+    points=restored.changes(ident,now+901)
+    assert [(p['at'],p['seedbonus']) for p in points]==[(now,2455.16),(now+600,2460.5),(now+900,2400)]
+    assert all('seedbonus_reset' not in p for p in points)

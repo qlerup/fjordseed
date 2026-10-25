@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory() as folder:
     now=time.time()
     for i in range(288):
         at=now-(287-i)*600
-        trackers.history.record(ident,{'ratio':4.1+math.sin(i/48)*.3-i*.00065,'credited_uploaded':(145+i*.067)*1024**3,'credited_downloaded':(35+i*.023)*1024**3},at)
+        trackers.history.record(ident,{'seedbonus':2400+i*.2,'ratio':4.1+math.sin(i/48)*.3-i*.00065,'credited_uploaded':(145+i*.067)*1024**3,'credited_downloaded':(35+i*.023)*1024**3},at)
         trackers.history.record('seedbox',{'real_uploaded':(210+i*.1)*1024**3,'real_downloaded':(430+i*.05)*1024**3},at)
     trackers.cache[ident]={'status':'ok','updated_at':now,'username':'Vikingen','stats':{'ratio':3.7,'uploaded':164*1024**3,'downloaded':41*1024**3,'buffer':371*1024**3,'seeding':23,'leeching':0,'seedbonus':2455.16,'hit_and_runs':0,'warnings':0,'seeding_size':123*1024**3,'total_uploads':0}}
     server=make_server('127.0.0.1',0,app,threaded=True);threading.Thread(target=server.serve_forever,daemon=True).start()
@@ -32,11 +32,11 @@ with tempfile.TemporaryDirectory() as folder:
             expect(card.locator('#insights-account-status')).to_contain_text('Vikingen')
             expect(card.locator('#insights-account-status')).to_contain_text('Forbundet')
             details=card.locator('#insights-account-details')
-            expect(details.locator('.tracker-stats>div')).to_have_count(8)
+            expect(details.locator('.tracker-stats>div')).to_have_count(7)
             labels=details.locator('.tracker-stats>div>span').all_text_contents()
             assert not {'UPLOAD','DOWNLOAD','RATIO'}.intersection(labels)
             expect(details).to_contain_text('371,00 GiB')
-            expect(details).to_contain_text('SHARDS')
+            expect(details).not_to_contain_text('SHARDS')
             left=card.locator('.insights-account-details').bounding_box()
             right=card.locator('.insights-visual').bounding_box()
             assert left['x']+left['width']<=right['x']+1
@@ -71,7 +71,7 @@ with tempfile.TemporaryDirectory() as folder:
             assert card.locator('.insights-stage').evaluate('el=>getComputedStyle(el).transformStyle')=='flat'
             page.clock.fast_forward(1300)
             expect(card).to_have_attribute('data-metric','credited_uploaded')
-            for key,label in [('real_uploaded','Reel upload'),('credited_downloaded','Kredit · download'),('real_downloaded','Reel download'),('ratio','Ratio')]:
+            for key,label in [('real_uploaded','Reel upload'),('credited_downloaded','Kredit · download'),('real_downloaded','Reel download'),('seedbonus','Shards'),('ratio','Ratio')]:
                 card.get_by_role('button',name=label,exact=True).click();page.clock.fast_forward(1300)
                 expect(card).to_have_attribute('data-metric',key)
                 expect(card.locator('.insights-current svg')).to_be_visible()
@@ -90,7 +90,7 @@ with tempfile.TemporaryDirectory() as folder:
             # Selection updates synchronously, including rapid clicks during a transition.
             assert page.evaluate("""() => {
                 const buttons=[...document.querySelectorAll('.insights-selectors button')];
-                for(const index of [2,4,5,0]){
+                for(const index of [2,4,5,6,0]){
                     buttons[index].click();
                     if(buttons[index].getAttribute('aria-pressed')!=='true')return false;
                     if(buttons.filter(b=>b.getAttribute('aria-pressed')==='true').length!==1)return false;
@@ -118,11 +118,11 @@ with tempfile.TemporaryDirectory() as folder:
             page.set_viewport_size({'width':1600,'height':1100})
             card.get_by_role('button',name='Alle',exact=True).click();page.clock.fast_forward(1300)
             expect(card).to_have_attribute('data-metric','all')
-            expect(card.locator('.insights-current svg')).to_have_count(5)
-            expect(card.locator('.insights-selector-value')).to_have_count(5)
+            expect(card.locator('.insights-current svg')).to_have_count(6)
+            expect(card.locator('.insights-selector-value')).to_have_count(6)
             expect(card.locator('.insights-bottom')).to_have_count(0)
             colors=card.locator('.insights-current .insights-line').evaluate_all('els=>els.map(el=>getComputedStyle(el).stroke)')
-            assert len(set(colors))==5
+            assert len(set(colors))==6
             card.screenshot(path=str(output/'insights-all-desktop.png'))
             for width in (650,390,320):
                 page.set_viewport_size({'width':width,'height':1000})
@@ -170,4 +170,4 @@ with tempfile.TemporaryDirectory() as folder:
             assert not errors,errors
             browser.close()
     finally:server.shutdown()
-print('PASS five charts, ratio decline, source labels, automatic graph transition, hover pause/resume, responsive widths, reduced motion, empty/error states')
+print('PASS six charts, ratio decline, source labels, automatic graph transition, hover pause/resume, responsive widths, reduced motion, empty/error states')
