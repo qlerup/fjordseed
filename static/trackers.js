@@ -79,11 +79,11 @@ async function refreshTrackers(){
   const result=await api('/api/trackers');trackerData=result.trackers;
   window.trackerInsights?.update(trackerData);
   $('#tracker-overview').hidden=!trackerData.length;
-  $('#tracker-account-list').replaceChildren(...trackerData.map(t=>trackerCard(t)));
+  $('#tracker-overview-error').hidden=true;
   $('#tracker-settings-list').replaceChildren(...(trackerData.length?trackerData.map(t=>trackerCard(t,true)):[node('p','empty','Du har ikke tilføjet en tracker endnu.')]));
  }catch(e){
   $('#tracker-settings-list').replaceChildren(node('p','error',e.message));
-  if(trackerData.length)$('#tracker-account-list').replaceChildren(node('p','error','Trackerstatistik kunne ikke hentes. Prøver igen automatisk.'));
+  if(trackerData.length){$('#tracker-overview-error').textContent='Trackerstatistik kunne ikke hentes. Prøver igen automatisk.';$('#tracker-overview-error').hidden=false;}
  }finally{trackerRefreshing=false;}
 }
 $('#tracker-cancel').onclick=resetTrackerForm;

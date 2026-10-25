@@ -44,11 +44,19 @@
    }
    this.select.closest('.insights-account').hidden=accounts.length===1;
    const account=accounts.find(a=>a.id===this.select.value);
+   this.identity(account);
    const signature=account.id+':'+account.updated_at+':'+this.days;
    if(this.signature!==signature||!this.lastFetched||Date.now()-this.lastFetched>600000){this.signature=signature;this.reload();}
   }
+  identity(account){
+   if(!account)return;
+   root.querySelector('#insights-title').textContent=account.name;
+   const status=account.status==='ok'?'Forbundet':account.status==='error'?'Forbindelsesfejl':'Henter data';
+   root.querySelector('#insights-account-status').textContent=[account.username,status,account.status==='error'?account.error:null].filter(Boolean).join(' · ');
+  }
   async reload(){
    const account=this.accounts.find(a=>a.id===this.select.value);
+   this.identity(account);
    if(account)this.signature=account.id+':'+account.updated_at+':'+this.days;
    this.controller?.abort();this.controller=new AbortController();const generation=++this.generation;
    if(this.busy)this.finish();
