@@ -2,6 +2,30 @@
 
 A separate FjordHub seedbox with bundled qBittorrent. FjordVPN manages Proton profiles; installation starts no torrents. The interface currently uses Danish labels.
 
+## Account and traffic charts
+
+The account overview includes a five-view chart carousel: account ratio,
+credited upload, physical upload, credited download and physical download.
+Ratio and credit come from the selected tracker's account API and include the
+whole account. Physical counters come from qBittorrent's `alltime_ul` and
+`alltime_dl` statistics and include the whole seedbox, across trackers. The UI
+labels these sources separately; physical traffic is not assigned to the
+selected tracker. The counters are read through the existing VPN-only RPC.
+
+Samples are collected in the background every ten minutes and retained for
+30 days in `/data/tracker-history.sqlite3`, independently of the open browser.
+History starts when this version is installed. Missing values are not recorded
+as zero, outages create chart gaps, and physical counter resets are marked
+instead of presented as negative traffic. Display downsampling preserves ratio
+extrema and data gaps. Existing torrent/seeding and credit accounting are
+unchanged. Keep the history database with the existing data-directory backup.
+
+The period can be 24 hours, 7 days or 30 days. Automatic quarter-turn cube
+transitions run every eight seconds and pause on mouse hover, keyboard use,
+hidden tabs or when the chart is off screen. Reduced-motion mode uses manual
+selection without rotation. Installing via FjordHub is the user's action;
+pushing source changes does not require manually modifying the deployed repo.
+
 The image bundles **qBittorrent 5.2.4**, built from the official release source
 with a pinned SHA-256 checksum on the same stable Alpine base as the app.
 Build tools stay in a separate stage; no Alpine edge packages are used.

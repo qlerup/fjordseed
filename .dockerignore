@@ -19,6 +19,7 @@
 !rss.py
 !rss_history.py
 !tracker_credit.py
+!tracker_history.py
 !rss_gate.py
 !templates/
 !templates/*.html

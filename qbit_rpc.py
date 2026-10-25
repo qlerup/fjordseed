@@ -218,6 +218,10 @@ def execute(action, data):
         from rss import sync_snapshot
         sync_snapshot()
         return {'ok':True}
+    if action == 'traffic_history':
+        # Once per ten minutes, independently of whether the browser is open.
+        stats=call('sync/maindata?rid=0').json().get('server_state',{})
+        return {key:stats.get(field) for key,field in (('real_uploaded','alltime_ul'),('real_downloaded','alltime_dl'))}
     if action == 'status':
         from download_storage import moving_progress, read as storage_read, CONFIG as storage_config
         storage_entries = storage_read(storage_config/'download-storage.json', {})

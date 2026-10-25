@@ -1,7 +1,9 @@
 """Private tracker credentials and cached, read-only account statistics."""
 import json
+import logging
 import math
 import re
+import sqlite3
 import threading
 import time
 import uuid
@@ -11,6 +13,7 @@ import requests
 from state import atomic
 from benefits import Benefits
 from tracker_providers import PROVIDERS, ACCOUNT_REFRESH_SECONDS
+from tracker_history import TrackerHistory
 
 STAT_FIELDS = ('uploaded','downloaded','ratio','buffer','seeding','leeching','seedbonus',
                'hit_and_runs','seeding_size','total_uploads')
@@ -23,6 +26,7 @@ class TrackerError(ValueError):
 class Trackers:
     def __init__(self, root):
         self.path = root / 'trackers.json'
+        self.history = TrackerHistory(root / 'tracker-history.sqlite3')
         self.lock = threading.RLock()
         self.cache = {}
         self.wake = threading.Event()
@@ -78,6 +82,7 @@ class Trackers:
             atomic(self.path, json.dumps(entries))
             if changed:
                 self.cache.pop(entry['id'], None)
+                self.history.clear(entry['id'])
             self.wake.set()
         return entry['id']
 
@@ -88,6 +93,7 @@ class Trackers:
                 raise ValueError('Trackeren findes ikke længere.')
             atomic(self.path, json.dumps([entry for entry in entries if entry['id'] != ident]))
             self.cache.pop(ident, None)
+            self.history.clear(ident)
 
     @staticmethod
     def read_json(entry, url, params=None):
@@ -149,6 +155,13 @@ class Trackers:
                 if entry not in self.entries():
                     continue
                 self.cache[entry['id']] = {**self.cache.get(entry['id'], {}), **result}
+                if result['status']=='ok':
+                    stats=result.get('stats',{})
+                    try:
+                        self.history.record(entry['id'],{'ratio':stats.get('ratio'),
+                            'credited_uploaded':stats.get('uploaded'),'credited_downloaded':stats.get('downloaded')},result['updated_at'])
+                    except (OSError,ValueError,sqlite3.Error):
+                        logging.getLogger(__name__).exception('Could not save tracker chart history')
 
     def run(self, stop):
         while not stop.is_set():

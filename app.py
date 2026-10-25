@@ -345,6 +345,23 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     def tracker_status():
         return jsonify(trackers.public())
 
+    @app.get('/api/trackers/<ident>/history')
+    def tracker_chart_history(ident):
+        try:
+            days=int(request.args.get('days','7'))
+            if days not in (1,7,30):raise ValueError
+        except (TypeError,ValueError):
+            return jsonify(error='Vælg 24 timer, 7 dage eller 30 dage.'),400
+        with trackers.lock:
+            if not any(entry['id']==ident for entry in trackers.entries()):
+                return jsonify(error='Trackeren findes ikke længere.'),404
+            try:
+                return jsonify(account=trackers.history.samples(ident,days),
+                               seedbox=trackers.history.samples('seedbox',days),days=days,interval=600)
+            except Exception:
+                app.logger.exception('Chart history could not be read')
+                return jsonify(error='Historikken kunne ikke hentes. Prøv igen senere.'),503
+
     @app.get('/api/rss')
     def rss_status():
         result=rss.public()
@@ -581,6 +598,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
 
     def worker():
         checked=0
+        history_checked=None
         while not stop.is_set():
             runtime.tick()
             if time.monotonic()-checked>10:
@@ -590,6 +608,16 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                         result=runtime.status()
                     if result.get('torrents_available'):
                         notifier.observe_seed(result.get('torrents', []), rss.entries())
+                        if history_checked is None or time.monotonic()-history_checked>=600:
+                            try:
+                                with state.lock:
+                                    traffic=runtime.rpc('traffic_history',{})
+                                trackers.history.record('seedbox',traffic)
+                                history_checked=time.monotonic()
+                            except Exception:
+                                app.logger.exception('Physical traffic chart sample failed')
+                                # Retry after a minute, not on every status check.
+                                history_checked=time.monotonic()-540
                     for row in result.get('torrents',[]):
                         meta={'hashes':[row.get(k) for k in ('hash','infohash_v1','infohash_v2')],'name':row.get('name','')}
                         trackers.benefits.snapshot(meta)

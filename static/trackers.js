@@ -77,6 +77,7 @@ async function refreshTrackers(){
  if(trackerRefreshing)return;trackerRefreshing=true;
  try{
   const result=await api('/api/trackers');trackerData=result.trackers;
+  window.trackerInsights?.update(trackerData);
   $('#tracker-overview').hidden=!trackerData.length;
   $('#tracker-account-list').replaceChildren(...trackerData.map(t=>trackerCard(t)));
   $('#tracker-settings-list').replaceChildren(...(trackerData.length?trackerData.map(t=>trackerCard(t,true)):[node('p','empty','Du har ikke tilføjet en tracker endnu.')]));

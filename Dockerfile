@@ -34,6 +34,7 @@ COPY seed_potential.py ./
 COPY rss_history.py ./
 COPY tracker_credit.py ./
 COPY tracker_providers.py ./
+COPY tracker_history.py ./
 COPY static ./static
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 EXPOSE 8088
