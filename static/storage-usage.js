@@ -34,6 +34,21 @@
     if(field(card,'details').hidden)field(card,'details').hidden=false;
    }
    hasData=true;
+   try{
+    const temporary=await api('/api/storage/temporary-usage');
+    if(id!==requestId)return;
+    if(temporary.path!==data.path||!Number.isFinite(temporary.current_rss_bytes)||temporary.current_rss_bytes<0)throw Error('RSS-plads ukendt');
+    const bytes=Math.min(data.used_bytes,temporary.current_rss_bytes),width=bytes/data.total_bytes*100;
+    for(const card of cards){
+     const segment=field(card,'temporary-segment');
+     for(const [key,value] of Object.entries({left:(percent-width)+'%',width:width+'%'}))if(segment.style[key]!==value)segment.style[key]=value;
+     if(segment.hidden!==(bytes===0))segment.hidden=bytes===0;
+     text(field(card,'temporary-label'),'Heraf midlertidige RSS-filer: '+format(bytes)+' · indgår i Brugt');
+    }
+   }catch(e){
+    if(id!==requestId)return;
+    for(const card of cards){field(card,'temporary-segment').hidden=true;text(field(card,'temporary-label'),'Midlertidig RSS-plads kunne ikke måles.');}
+   }
   }catch(e){
    if(id!==requestId)return;
    for(const card of cards){

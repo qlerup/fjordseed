@@ -296,13 +296,26 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             app.logger.exception('Streaming operation failed')
             return jsonify(error='Streaming kunne ikke indstilles. Kontrollér FjordFlix og lageradgangen.'),503
 
+    temporary_cache={}
+    temporary_lock=threading.Lock()
+
     @app.route('/api/storage', methods=['GET','POST'])
     @app.get('/api/storage/usage')
+    @app.get('/api/storage/temporary-usage')
     def storage_settings():
         try:
             if hub.enabled and hub.current(session.get('hub_uid'), force=True).get('hub_role') != 'admin':
                 return jsonify(error='Valg af servermapper kræver en FjordHub-administrator.'),403
             storage = Storage(runtime)
+            if request.path.endswith('/temporary-usage'):
+                paths=tuple(dict.fromkeys([str(runtime.host_downloads),storage.public()['path']]+
+                                         [p['path'] for p in storage.settings()['locations']]))
+                with temporary_lock:
+                    selected=storage.public()['path']
+                    if temporary_cache.get('paths')!=paths or temporary_cache.get('selected')!=selected or time.monotonic()-temporary_cache.get('at',0)>=30:
+                        result=storage.temporary_usage(paths)
+                        temporary_cache.update(paths=paths,selected=selected,at=time.monotonic(),result=result)
+                    return jsonify(ok=True,path=selected,**temporary_cache['result'])
             if request.path.endswith('/usage'):
                 current = storage.public()
                 usage = storage.helper('usage',source=current['path'])

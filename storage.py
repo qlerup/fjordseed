@@ -33,8 +33,11 @@ class Storage:
         script = Path(__file__).with_name('storage_browser.py').read_text(encoding='utf-8')
         writable = action == 'writable'
         scoped = writable or action == 'usage'
+        mounts=([Mount('/folder/'+str(i),path,type='bind',read_only=True) for i,path in enumerate(source)]
+                if action=='temporary_usage' else
+                [Mount('/folder' if scoped else '/host',source,type='bind',read_only=not writable)])
         worker = r.client.containers.create(r.image, entrypoint=['python','-c',script], command=[action,value],
-            mounts=[Mount('/folder' if scoped else '/host', source, type='bind', read_only=not writable)],
+            mounts=mounts,
             user=f'{r.uid}:{r.gid}' if writable else '0:0', network_disabled=True, read_only=True,
             cap_drop=['ALL'], security_opt=['no-new-privileges:true'])
         try:
@@ -46,6 +49,31 @@ class Storage:
             return result
         finally:
             worker.remove(force=True)
+
+    def temporary_usage(self, paths):
+        root=self.runtime.state.root/'qbit'
+        def read(name):
+            path=root/name
+            return json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+        entries=read('download-storage.json')
+        ledger=read('green-credit.json')
+        hashes={key for key,value in ledger.items() if isinstance(value,dict) and value.get('rss_feed_id')}
+        for feed in ledger.get('_rss_upload',{}).get('feeds',{}).values():
+            hashes.update(feed.get('downloads',{}))
+        mappings={'/downloads':str(self.runtime.host_downloads)}
+        mappings.update({v['bind']:k for k,v in self.mounts().items()})
+        stages=[[] for _ in paths]
+        for key,entry in entries.items():
+            if key not in hashes:continue
+            stage=PurePosixPath(entry.get('stage',''))
+            for worker,host in mappings.items():
+                try:relative=stage.relative_to(worker)
+                except ValueError:continue
+                if relative.parts and relative.parts[0] in ('.incomplete','.fjordseed-buffer') and '..' not in relative.parts:
+                    stages[paths.index(host)].append(str(relative))
+        return self.helper('temporary_usage',json.dumps({'rss_stages':stages,
+            'selected':paths.index(self.public()['path']),
+            'rss_known':bool(ledger) or not entries}),source=paths)
 
     def select(self, path):
         if (not isinstance(path,str) or len(path)>1024 or any(ord(c)<32 for c in path)

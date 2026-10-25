@@ -299,7 +299,19 @@ async function refreshRss(){
 
 $('#rss-new').onclick=()=>openRssForm();
 $('#rss-feeds-add').onclick=()=>openRssForm();
-$('#rss-manage').onclick=()=>{$('#rss-feeds-dialog').showModal();refreshRss();};
+let rssTemporaryBusy=false;
+async function refreshRssTemporary(){
+ if(rssTemporaryBusy||!$('#rss-feeds-dialog').open||document.hidden)return;
+ rssTemporaryBusy=true;
+ try{
+  const result=await api('/api/storage/temporary-usage');
+  if(!Number.isFinite(result.temporary_bytes)||result.temporary_bytes<0)throw Error('Ugyldigt lagertal');
+  $('#rss-feeds-temporary-total').textContent=size(result.temporary_bytes,true);
+ }catch(e){$('#rss-feeds-temporary-total').textContent='Kan ikke måles';}
+ finally{rssTemporaryBusy=false;}
+}
+setInterval(refreshRssTemporary,30000);
+$('#rss-manage').onclick=()=>{$('#rss-feeds-dialog').showModal();refreshRss();refreshRssTemporary();};
 $('#rss-history-dialog').addEventListener('close',()=>rssHistoryGeneration++);
 $('#rss-folder').oninput=updateRssPath;
 $('#rss-start').onchange=updateRssStart;

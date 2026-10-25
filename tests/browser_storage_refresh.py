@@ -16,7 +16,7 @@ with sync_playwright() as p:
         page.evaluate("""() => {
             location.hash='#streaming';
             window.pending=[];
-            window.api=()=>new Promise((resolve,reject)=>pending.push({resolve,reject}));
+            window.api=url=>url.endsWith('temporary-usage')?Promise.resolve({path:'/mnt/media',current_rss_bytes:100}):new Promise((resolve,reject)=>pending.push({resolve,reject}));
             window.size=n=>String(n)+' B';
             window.setInterval=callback=>{window.poll=callback;};
         }""")

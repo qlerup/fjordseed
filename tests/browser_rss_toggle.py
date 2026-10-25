@@ -30,6 +30,7 @@ with tempfile.TemporaryDirectory() as folder:
             page=browser.new_page(viewport={'width':1440,'height':1000})
             errors=[]
             page.on('pageerror',lambda e:errors.append(str(e)))
+            page.route('**/api/storage/temporary-usage',lambda route:route.fulfill(json={'temporary_bytes':12*1024**3}))
             page.goto(f'http://127.0.0.1:{server.server_port}/#rss')
             page.locator('[name=username]').fill('admin')
             page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
@@ -39,6 +40,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#rss-feed-summary')).to_have_text('2 feeds · 1 tændt')
             page.locator('#rss-manage').click()
             expect(page.locator('#rss-feeds-dialog')).to_be_visible()
+            expect(page.locator('#rss-feeds-temporary-total')).to_have_text('12.00 GiB')
             switch=page.get_by_role('switch',name='Automatisk hentning for Politijagt',exact=True)
             expect(switch).to_have_attribute('aria-checked','true')
             card=page.locator('.rss-feed-card').first

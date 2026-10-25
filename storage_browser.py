@@ -1,5 +1,6 @@
 """Directory-only operations inside a scoped Docker helper."""
 import json
+import stat
 import os
 import re
 from pathlib import Path, PurePosixPath
@@ -124,10 +125,38 @@ def usage(directory):
             'reserved_bytes':max(0,disk.total-disk.used-disk.free)}
 
 
+def temporary_usage(roots, config=None):
+    """Allocated file bytes in buffers, without following links or counting hardlinks twice."""
+    config=config or {}
+    seen={}
+    stages=config.get('rss_stages',[[] for _ in roots])
+    selected_device=Path(roots[config.get('selected',0)]).stat().st_dev if roots else None
+    def fail(error):
+        if not isinstance(error,FileNotFoundError):raise error
+    for index,root,name in ((i,r,n) for i,r in enumerate(roots) for n in ('.incomplete','.fjordseed-buffer')):
+        buffer=Path(root)/name
+        if buffer.is_symlink():raise ValueError('Buffermappen må ikke være et link.')
+        if not buffer.exists():continue
+        rss_roots=[Path(root)/p for p in stages[index]]
+        for directory,dirs,files,fd in os.fwalk(buffer,follow_symlinks=False,onerror=fail):
+            is_rss=any(Path(directory).is_relative_to(p) for p in rss_roots)
+            for name in files:
+                try:info=os.stat(name,dir_fd=fd,follow_symlinks=False)
+                except FileNotFoundError:continue  # Concurrent completion/removal.
+                identity=(info.st_dev,info.st_ino)
+                if stat.S_ISREG(info.st_mode):
+                    previous=seen.get(identity)
+                    seen[identity]=(info.st_blocks*512,is_rss or bool(previous and previous[1]))
+    known=config.get('rss_known',True)
+    return {'temporary_bytes':sum(n for n,rss in seen.values()),
+            'rss_temporary_bytes':sum(n for n,rss in seen.values() if rss) if known else None,
+            'current_rss_bytes':sum(n for (device,inode),(n,rss) in seen.items() if rss and device==selected_device) if known else None}
+
+
 if __name__ == '__main__':
     try:
         action, value = sys.argv[1:3]
-        result = usage(Path('/folder')) if action == 'usage' else writable() if action == 'writable' else mount_status(Path('/host'), value) if action == 'mount' else create(Path('/folder'), value) if action == 'create' else (
+        result = temporary_usage(sorted(Path('/folder').iterdir(),key=lambda p:int(p.name)),json.loads(value)) if action == 'temporary_usage' else usage(Path('/folder')) if action == 'usage' else writable() if action == 'writable' else mount_status(Path('/host'), value) if action == 'mount' else create(Path('/folder'), value) if action == 'create' else (
             probe(Path('/host'), value) if action == 'probe' else browse(Path('/host'), value))
         print(json.dumps(result))
     except Exception as exc:
