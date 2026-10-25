@@ -44,7 +44,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(card.locator('.insights-current svg')).to_be_visible()
             assert card.locator('.insights-current .insights-line').first.get_attribute('d').count('L')>1
             expect(card.locator('.insights-current .insights-change')).to_be_visible()
-            expect(card.locator('.insights-current .insights-source')).to_contain_text('hele kontoen')
+            expect(card.locator('.insights-current .insights-source')).not_to_contain_text('hele kontoen')
             chart=card.locator('.insights-current svg')
             chart.click()
             assert chart.evaluate('el=>getComputedStyle(el).outlineStyle')=='none'

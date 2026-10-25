@@ -110,9 +110,9 @@
    const reset=samples.some(point=>point[metric.key+'_reset']);
    const delta=last&&first?last[metric.key]-first[metric.key]:null;
    summary.append(node('span','insights-change'+(delta<0?' is-negative':''),reset?'Tælleren er nulstillet':samples.length>1?(delta>0?'↗ +':delta<0?'↘ −':'→ ')+format(Math.abs(delta),metric.key):'Afventer flere målinger'));
-   const source=metric.scope==='account'?(account?.name||'Trackerkonto')+' · hele kontoen':'Hele seedboxen · fysisk trafik';
+   const source=metric.scope==='account'?'':'Hele seedboxen · fysisk trafik\n';
    const measured=last?'\nSeneste ændring '+new Date(last.at*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
-   summary.append(node('p','insights-source',source+'\n'+(samples.length>1?'Udvikling siden første viste ændring.':'Afventer en ændring i værdien.')+measured));
+   summary.append(node('p','insights-source',source+(samples.length>1?'Udvikling siden første viste ændring.':'Afventer en ændring i værdien.')+measured));
    const chart=node('div','insights-chart');
    if(!samples.length){const empty=node('div','insights-empty');empty.append(node('span','','⌁'),node('strong','',!this.loaded?'Henter din historik…':!this.error.hidden?'Historik midlertidigt utilgængelig':'Din historik starter her'),node('p','',!this.loaded?'Et øjeblik.':!this.error.hidden?'Vi prøver igen automatisk.':'Grafen starter ved den første måling. Tidligere aktivitet bliver ikke gættet.'));chart.append(empty);}
    else chart.append(this.plot(metric,samples));
