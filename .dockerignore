@@ -32,3 +32,8 @@
 !storage_browser.py
 
 !bot_upload.py
+!conversion.py
+!converter_runtime.py
+!converter_worker.py
+!converter/
+!converter/Dockerfile

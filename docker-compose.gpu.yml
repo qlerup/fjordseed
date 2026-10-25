@@ -1,0 +1,26 @@
+services:
+  app:
+    environment:
+      FJORDSEED_CONVERTER_CONTAINER: ${CONTAINER_NAME:-fjordseed}-converter
+  converter:
+    build:
+      context: .
+      dockerfile: converter/Dockerfile
+    image: fjordseed-converter:local
+    container_name: ${CONTAINER_NAME:-fjordseed}-converter
+    restart: unless-stopped
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
+    network_mode: none
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=128m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    devices:
+      - /dev/nvidia0:/dev/nvidia0
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
+      - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools

@@ -95,6 +95,8 @@ def folder_path(folder, root=Path('/downloads')):
 def validate_feed(data):
     if not isinstance(data,dict):
         raise ValueError('Ugyldigt RSS-feed.')
+    from conversion import choice
+    convert=choice(data.get('convert',False))
     name=data.get('name','')
     url=data.get('url','')
     if not isinstance(name,str) or not 1<=len(name.strip())<=80 or not isinstance(url,str):
@@ -151,7 +153,7 @@ def validate_feed(data):
     return {'name':name.strip(),'url':url,'folder':folder.strip().strip('/'), 'history_sources':list(dict.fromkeys(sources)),
             'title_include':validate_title_filters(data.get('title_include',[])),
             'title_exclude':validate_title_filters(data.get('title_exclude',[])),
-            'max_size_bytes':max_size,
+            'max_size_bytes':max_size,'convert':convert,
             'enabled':data['enabled'],'download_from':start,'required_badges':list(dict.fromkeys(badges)),
             'tracker_id':tracker if badges else '',**policy}
 

@@ -9,6 +9,15 @@
    <label class="check-label"><input type="checkbox" id="streaming-move-retained"> Flyt også tidligere, færdige downloads til FjordFlix</label>
    <p class="muted small storage-note">Kræver en forbundet FjordFlix-mappe. Færdige torrents, som skal beholdes, flyttes gennem qBittorrent, så seeding kan fortsætte. Downloads med automatisk filsletning og filer uden en torrent i qBittorrent flyttes ikke.</p>
    <p id="streaming-mode" class="muted storage-note" role="status">Henter indstillinger…</p>
+   <fieldset class="conversion-settings">
+    <legend>GPU-konvertering før biblioteket</legend>
+    <p id="conversion-worker-status" class="muted small" role="status"></p>
+    <label class="check-label"><input type="checkbox" id="conversion-enabled"> Gør konvertering tilgængelig for downloads og RSS-feeds</label>
+    <label>Videobitrate<select id="conversion-bitrate"><option value="10">10 Mbps</option><option value="15">15 Mbps</option><option value="20" selected>20 Mbps</option><option value="25">25 Mbps</option><option value="30">30 Mbps</option></select></label>
+    <p class="muted small">Vælg derefter konvertering på den enkelte download eller det enkelte feed. Video gemmes som HEVC i MKV med samme opløsning, lyd og undertekster. Bitraten er et gennemsnitsmål for video; lyd kommer oveni. Lavere bitrate kan koste detaljer.</p>
+    <p class="muted small">Dolby Vision profil 7 bliver til 8.1 med HDR10; det ekstra billedlag følger ikke med. Originalen bliver i bufferen og slettes først efter godkendt konvertering og ratio 1:1 eller 49 timers seeding.</p>
+    <p class="muted small">Slår du funktionen fra, færdiggøres allerede valgte downloads. RSS-feeds med konvertering venter med nye downloads, indtil du slår funktionen til igen eller fravælger konvertering på feedet.</p>
+   </fieldset>
    <button id="streaming-save" class="primary" type="submit">Gem streamingvalg</button>
   </form>
   {% include 'storage_usage.html' %}

@@ -287,7 +287,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             if not isinstance(data,dict):raise ValueError('Ugyldige streamingindstillinger.')
             if request.path.endswith('/connect'):
                 return jsonify(ok=True,**streaming.connect(data.get('library_id')))
-            return jsonify(ok=True,**streaming.save(data.get('enabled'),buffer_enabled=data.get('buffer_enabled'),move_retained=data.get('move_retained')))
+            return jsonify(ok=True,**streaming.save(data.get('enabled'),buffer_enabled=data.get('buffer_enabled'),move_retained=data.get('move_retained'),conversion_enabled=data.get('conversion_enabled'),conversion_bitrate=data.get('conversion_bitrate')))
         except HubError as exc:
             return jsonify(error=str(exc)),exc.status
         except ValueError as exc:
@@ -481,6 +481,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                 if isinstance(merged,dict) and not merged.get('url'):
                     merged['url']=(current or {}).get('url','')
                 validated=validate_feed(merged)
+                if validated['convert'] and not (current or {}).get('convert') and not state.get().get('streaming',{}).get('conversion_enabled',False):
+                    raise ValueError('Slå GPU-konvertering til under Streaming først.')
                 retained_pause=(current and not validated['enabled']
                     and validated['required_badges']==current.get('required_badges',[])
                     and validated['tracker_id']==current.get('tracker_id',''))
@@ -543,7 +545,13 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     @app.post('/api/torrents')
     def add():
         try:
-            policy = share_policy(request.form)
+            convert=request.form.get('convert','false')
+            if convert not in ('true','false'):
+                raise ValueError('Ugyldigt konverteringsvalg.')
+            convert=convert=='true'
+            if convert and not Streaming(runtime).public()['conversion_enabled']:
+                raise ValueError('Slå GPU-konvertering til under Streaming først.')
+            policy = share_policy({'ratio_limit':1,'ratio_action':'delete'} if convert else request.form)
         except ValueError as exc:
             return jsonify(error=str(exc)),400
         magnet = request.form.get('magnet','').strip()
@@ -561,7 +569,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             if not raw or raw[:1] != b'd':
                 return jsonify(error='Torrentfilen er ugyldig.'),400
             payload = {'torrent':base64.b64encode(raw).decode()}
-        response=app.make_response(invoke('add', {**payload, **policy}))
+        response=app.make_response(invoke('add', {**payload, **policy,'convert':convert}))
         if response.status_code<300:
             try:
                 meta=magnet_meta(magnet) if magnet else torrent_meta(raw)
@@ -591,7 +599,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
 
     @app.post('/api/torrents/<ident>/<action>')
     def torrent_action(ident, action):
-        if action not in ('start','stop','delete','delete-files','ratio') or not re.fullmatch('[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):
+        if action not in ('start','stop','delete','delete-files','ratio','conversion-retry') or not re.fullmatch('[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):
             return jsonify(error='Ugyldig handling.'),400
         payload=request.get_json(silent=True)
         if payload is None:

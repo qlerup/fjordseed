@@ -149,12 +149,17 @@ def gate_rpc(action,data,api,root=Path('/config')):
         keys=[pending['token'],*hashes]
         existing=api('torrents/info?'+urlencode({'hashes':'|'.join(hashes)})).json()
         already_added=existing or any(h in history['done'] for h in hashes)
+        if not already_added and feed.get('convert'):
+            from conversion import require_enabled
+            require_enabled()  # Do not consume RSS history while disabled/offline.
+            feed={**feed,'ratio_limit':1,'ratio_action':'delete'}
+        if not already_added:
+            from download_storage import prepare
+            path=prepare(hashes, feed['folder'],name=pending['meta'].get('name') or pending.get('title',''),convert=feed.get('convert',False))
         # Record intent before POST: an ambiguous timeout must not start it twice.
         history['done']=list(dict.fromkeys([*history['done'],*keys]))
         atomic(history_path,json.dumps(history))
         if not already_added:
-            from download_storage import prepare
-            path=prepare(hashes, feed['folder'],name=pending['meta'].get('name') or pending.get('title',''))
             options={'savepath':str(path),'stopped':'false','forceStart':'false','autoTMM':'false',
                      'tags':'FjordSeed-RSS-'+ident,'ratioLimit':initial_managed_ratio(hashes,seed_ratio(feed['ratio_limit']),ratio_only=feed['ratio_action']=='delete_ratio',adaptive=feed['ratio_action']=='automatic',stop_on_complete=feed['ratio_action']=='stop_keep'),
                      'seedingTimeLimit':-1,'inactiveSeedingTimeLimit':-1,

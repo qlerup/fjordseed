@@ -168,3 +168,5 @@ details[open]>summary>.rss-history-chevron{transform:rotate(225deg);margin-top:4
 .rss-exclude-undo b{font-weight:500;color:var(--text)}
 #rss-exclude-dialog .dialog-footer{padding:16px 24px;gap:10px}
 @media(max-width:520px){#rss-exclude-dialog .dialog-heading{padding:18px}#rss-exclude-dialog .dialog-body{padding:18px 18px 4px}#rss-exclude-dialog .dialog-footer{padding:14px 18px;flex-wrap:wrap}#rss-exclude-dialog .dialog-footer button{font-size:12px}}
+
+.conversion-choice,.conversion-settings{border:1px solid var(--border,#344663);border-radius:12px;padding:18px;margin:18px 0;min-width:0}.conversion-choice legend,.conversion-settings legend{font-weight:700;color:var(--green)}.conversion-status{color:#8cbcff;overflow-wrap:anywhere}.conversion-settings select{max-width:240px}

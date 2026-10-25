@@ -2,6 +2,66 @@
 
 A separate FjordHub seedbox with bundled qBittorrent. FjordVPN manages Proton profiles; installation starts no torrents. The interface currently uses Danish labels.
 
+## Optional GPU conversion before library publication
+
+During installation, enable **Installer NVIDIA GPU-konvertering** in FjordHub's
+GPU step. It uses the same GPU helper, preflight, NVIDIA Container Toolkit and
+discovered device mappings as FjordLens/FjordFlix. The optional Compose file
+builds a checksum-pinned NVEncC 9.39 toolchain, FFmpeg and MKVToolNix. FjordHub
+tests both NVENC and an actual NVEncC HEVC encode. No separate HandBrake Lab
+installation, fixed IP address or Proxmox container ID is required.
+
+In Seed, enable conversion under **Indstillinger → Streaming**, choose a video
+bitrate (20 Mbps by default), then opt in on individual manual downloads or RSS
+feeds. Feed edits affect future downloads only. Disabling the main switch stops
+new converted additions; already accepted jobs finish. Conversion-enabled feeds
+wait for re-enablement or for their conversion option to be cleared, rather than
+silently downloading/publishing originals. Existing unselected torrents retain
+their policies. GPU installation alone never enables conversion on existing feeds.
+
+The pipeline is download to `.incomplete`, convert to a separate MKV, validate,
+then atomically publish only the converted directory to the captured destination.
+The qBittorrent original never moves. Its automatic removal requires **both** a
+published conversion **and** real 1:1 upload/download ratio **or** 49 hours of
+active seeding. This conversion policy replaces the ordinary retention policy
+for selected downloads; unlike ordinary cleanup, it does not wait for peers
+after the threshold. Errors or insufficient space retain the source. The UI shows
+queue/encode/verification/error state; failed jobs can be retried under details.
+
+NVENC encodes HEVC with software decoding (`--avsw`) and preserves resolution,
+frame rate, audio/subtitle codecs and language, default/forced flags, chapters
+and supported HDR metadata. Dolby Vision profile 7 becomes profile 8.1 with
+HDR10; its enhancement layer is not preserved. Unsupported DV profiles fail
+closed. Bitrate is an average video target (1.5× peak); audio adds to total
+bitrate. Lossy conversion can reduce picture detail. Selected non-video sidecars
+are copied, and all selected videos in a multi-file torrent must pass before
+the directory is published. A conservative source-size + 1 GiB free-space
+reserve is required; source, output and temporary work share the buffer disk.
+
+The idle `converter` Compose service supplies the tested image/GPU configuration.
+Seed creates one bounded queue worker with those NVIDIA devices, 4 CPU cores,
+6 GiB memory, no network, no Docker socket, a read-only root and writable mounts
+of **only the known `.incomplete` directories**. qBittorrent remains GPU-free
+inside its original VPN network. Storage changes recreate only the converter
+worker as needed; verified per-file results survive restarts. Per-job file locks
+prevent duplicate encoding when buffers are shared. GPU capacity is shared with
+Plex/Flix/Lens; one conversion runs at a time per queue worker.
+
+Keep `download-storage.json`, the normal app-data backup and buffer contents
+together. Requests, progress and `encoder.log` live in each download's hidden
+`.fjordseed-conversion` directory. Do not roll back to a release without conversion
+support while converted torrents remain: that release does not understand their
+source-retention guard. Disable new conversions, drain the queue and wait for
+original cleanup first, or stop the seedbox and back up its data before rollback.
+The library copies remain independent after original torrents are removed.
+
+Standalone installation: include `docker-compose.gpu.yml` after the base Compose
+file, supply the host's actual NVIDIA device mappings and use a working NVIDIA
+Container Toolkit. FjordHub generates these overrides automatically. Enabling
+GPU on an existing non-GPU install requires applying the GPU installation option,
+not merely changing the switch inside Seed. Source updates are published to GitHub;
+the user applies the app update through FjordHub.
+
 ## Account and traffic charts
 
 The account overview includes a five-view chart carousel: account ratio,

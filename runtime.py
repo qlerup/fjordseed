@@ -234,11 +234,18 @@ class Runtime:
                 except Exception:
                     pass
                 self.error = str(exc) if isinstance(exc, ValueError) else 'VPN eller Docker er ikke tilgængelig. qBittorrent er blokeret.'
+            try:
+                from converter_runtime import sync
+                sync(self)
+                self.conversion_error=''
+            except Exception:
+                self.conversion_error='GPU-workeren kunne ikke klargøres. Kontrollér GPU-installation og bufferens rettigheder.'
 
     def status(self):
         settings = self.state.get()
         result = dict(settings, ready=False, message='Seedbox er stoppet.', profiles=self.profiles,
                       torrents=[], torrents_available=False, transfer={}, download_path=Storage(self).public()['path'])
+        result['conversion_error']=getattr(self,'conversion_error','')
         if self.error:
             result['message'] = self.error
         elif settings['enabled']:

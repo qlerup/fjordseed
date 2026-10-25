@@ -11,6 +11,7 @@ from benefits import ratio_estimate
 from test_app import FakeRuntime, login
 from torrent_meta import torrent_meta
 from trackers import Trackers
+from tracker_providers import ACCOUNT_REFRESH_SECONDS
 
 CONFIG={'provider':'nordicbytes','name':'Demo','api_key':'fixture-api-key-not-real'}
 NOW=1_800_000_000
@@ -73,14 +74,15 @@ def test_failed_stale_or_future_account_never_grants_global_freeleech(tmp_path,c
     assert match['freeleech']==25 and match['global_freeleech'] is None
 
 
-def test_global_freeleech_between_ten_minute_account_refreshes_still_expires_on_time(tmp_path):
-    trackers,_,base=setup_global(tmp_path,[{'type':'global_freeleech','ends_at':iso(NOW+550)}])
-    active=trackers.benefits.with_global(base,now=NOW+500)
+def test_global_freeleech_between_account_refreshes_still_expires_on_time(tmp_path):
+    expires=NOW+ACCOUNT_REFRESH_SECONDS-50
+    trackers,_,base=setup_global(tmp_path,[{'type':'global_freeleech','ends_at':iso(expires)}])
+    active=trackers.benefits.with_global(base,now=expires-50)
     assert active['matches'][0]['global_freeleech'] is True
     assert active['matches'][0]['freeleech']==100
-    expired=trackers.benefits.with_global(active,now=NOW+550)['matches'][0]
+    expired=trackers.benefits.with_global(active,now=expires)['matches'][0]
     assert expired['global_freeleech'] is False and expired['freeleech']==25
-    stale=trackers.benefits.with_global(base,now=NOW+601)['matches'][0]
+    stale=trackers.benefits.with_global(base,now=NOW+ACCOUNT_REFRESH_SECONDS+1)['matches'][0]
     assert stale['global_freeleech'] is None and stale['freeleech']==25
 
 

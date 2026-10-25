@@ -207,7 +207,7 @@ function openRssForm(feed=null){
   $('#rss-id').value=feed.id;$('#rss-name').value=feed.name;$('#rss-url').required=false;$('#rss-url-status').hidden=false;
   showRssMaxSize(feed.max_size_bytes);
   $('#rss-url').placeholder='Gemt adresse — indtast kun for at udskifte';$('#rss-folder').value=feed.folder;
-  $('#rss-ratio').value=feed.ratio_limit;$('#rss-action').value=feed.ratio_action;$('#rss-enabled').checked=feed.enabled;
+  $('#rss-convert').checked=!!feed.convert;$('#rss-ratio').value=feed.ratio_limit;$('#rss-action').value=feed.ratio_action;$('#rss-enabled').checked=feed.enabled;
   document.querySelectorAll('[name=rss-badge]').forEach(e=>e.checked=(feed.required_badges||[]).includes(e.value));
   $('#rss-start').value=feed.download_from?'custom':'all';
   if(feed.download_from)$('#rss-start-date').value=rssLocalDate(feed.download_from);
@@ -337,7 +337,7 @@ $('#rss-form').onsubmit=async e=>{
   const start=$('#rss-start').value==='all'?null:new Date($('#rss-start-date').value).toISOString();
   await api('/api/rss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
    id:$('#rss-id').value,name:$('#rss-name').value,url:$('#rss-url').value,folder:$('#rss-folder').value,
-   ratio_limit:$('#rss-ratio').value,ratio_action:$('#rss-action').value,
+   convert:$('#rss-convert').checked,ratio_limit:$('#rss-ratio').value,ratio_action:$('#rss-action').value,
    download_from:start,enabled:$('#rss-enabled').checked,required_badges:selectedRssBadges(),
    max_size_bytes:rssMaxSize(),
    title_include:rssTitleFilters.include,title_exclude:rssTitleFilters.exclude,

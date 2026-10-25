@@ -103,14 +103,18 @@ def sync_share_limits(api=None):
         credits=[ledger.update(row) for row in rows]
         ledger.save()
         # Stop before publishing can start an asynchronous file move.
+        from download_storage import read as storage_read, CONFIG as storage_config
+        storage_records=storage_read(storage_config/'download-storage.json',{})
         for row,credit in zip(rows,credits):
-            if credit.get('stop_on_complete'):
+            converting=any(storage_records.get(row.get(k),{}).get('convert') for k in ('hash','infohash_v1','infohash_v2'))
+            if credit.get('stop_on_complete') and not converting:
                 finish_seeding(api,row,credit)
         from download_storage import publish_complete
         storage_errors = publish_complete(api, rows)
         for row,credit in zip(rows,credits):
             apply_limits(api,row)
-            if not credit.get('stop_on_complete') and finish_seeding(api,row,credit):
+            converting=any(storage_records.get(row.get(k),{}).get('convert') for k in ('hash','infohash_v1','infohash_v2'))
+            if (not credit.get('stop_on_complete') or converting) and finish_seeding(api,row,credit):
                 from download_storage import forget
                 forget([row.get(k) for k in ('hash','infohash_v1','infohash_v2')])
                 for key in ('hash','infohash_v1','infohash_v2'):
@@ -153,6 +157,13 @@ def seeding_completion(row,credit):
 
 
 def finish_seeding(api,row,credit):
+    from download_storage import read, CONFIG
+    entries=read(CONFIG/'download-storage.json',{})
+    record=next((entries.get(row.get(k)) for k in ('hash','infohash_v1','infohash_v2')
+                 if entries.get(row.get(k))),None)
+    if record and record.get('convert'):
+        from conversion import finish
+        return finish(api,row,credit,record)
     if credit.get('stop_on_complete'):
         # This explicit policy stops immediately, regardless of peers or ratio.
         # Keep the torrent, files and durable policy; never resume paused torrents.
@@ -235,6 +246,9 @@ def execute(action, data):
             ledger.save()
             for row,credit in zip(rows,credits):
                 apply_limits(call,row)
+                if any(storage_entries.get(row.get(k),{}).get('convert') for k in ('hash','infohash_v1','infohash_v2')):
+                    credit={**credit,'ratio_limit':1,'ratio_only':False,'adaptive_seeding':False,
+                            'stop_on_complete':False,'extra_seed_hours':0}
                 torrents.append({**{k:row.get(k) for k in fields},**credit,
                     'seeding_time_limit':SEEDING_MINUTES+credit.get('extra_seed_hours',0)*60 if row.get('share_limit_action')=='RemoveWithContent' and not credit.get('ratio_only',False) else -1,**stop_requirement({**row,**credit}),
                     **seeding_completion(row,credit), **moving_progress(row,storage_entries)})
@@ -242,12 +256,22 @@ def execute(action, data):
                 'download_queue':download_queue_summary(rows),
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
                 'interface':prefs['current_network_interface'], 'version':call('app/version').text}
+    if action == 'conversion-retry':
+        ident=data.get('hash','')
+        if not re.fullmatch('[a-f0-9]{40}|[a-f0-9]{64}',ident):raise ValueError('Invalid hash')
+        from conversion import retry
+        retry(ident)
+        return {'ok':True}
     if action == 'add':
+        from conversion import choice
+        convert=choice(data.get('convert',False))
+        if convert:
+            data={**data,'ratio_limit':1,'ratio_action':'delete'}
         policy = share_policy(data)
         from torrent_meta import magnet_meta, torrent_meta
         meta=magnet_meta(data['magnet']) if data.get('magnet') else torrent_meta(base64.b64decode(data['torrent'],validate=True))
         from download_storage import prepare
-        options = {'savepath':prepare(meta['hashes'],name=meta.get('name','')), 'autoTMM':'false', 'stopped':'false', 'forceStart':'false',
+        options = {'savepath':prepare(meta['hashes'],name=meta.get('name',''),convert=convert), 'autoTMM':'false', 'stopped':'false', 'forceStart':'false',
                    'ratioLimit':initial_managed_ratio(meta['hashes'],seed_ratio(policy['ratio_limit']),ratio_only=policy['ratio_action']=='delete_ratio',adaptive=policy['ratio_action']=='automatic',stop_on_complete=policy['ratio_action']=='stop_keep'),
                    'seedingTimeLimit':-1, 'inactiveSeedingTimeLimit':-1,
                    'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] not in ('keep','stop_keep') else 'Stop'}
@@ -266,6 +290,9 @@ def execute(action, data):
         ident=data.get('hash','')
         if not re.fullmatch(r'[a-fA-F0-9]{40}|[a-fA-F0-9]{64}',ident):
             raise ValueError('Invalid hash')
+        from download_storage import read,CONFIG
+        if read(CONFIG/'download-storage.json',{}).get(ident.lower(),{}).get('convert'):
+            raise ValueError('Konverterede downloads bruger ratio 1:1 eller 49 timers seeding.')
         policy=share_policy(data)
         ratio=policy['ratio_limit']
         extra=extra_seed_hours(data['extra_seed_hours']) if 'extra_seed_hours' in data else None

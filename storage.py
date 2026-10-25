@@ -113,7 +113,9 @@ class Storage:
         path = '/download-locations/'+settings['selected'] if settings['selected'] else '/downloads'
         (self.runtime.state.root/'rpc').mkdir(exist_ok=True)
         streaming=self.runtime.state.get().get('streaming',{})
-        config={'path':path,'streaming_enabled':buffer_enabled(streaming)}
+        config={'path':path,'streaming_enabled':buffer_enabled(streaming),
+                'conversion_enabled':streaming.get('conversion_enabled',False),
+                'conversion_bitrate':streaming.get('conversion_bitrate',20)}
         if (streaming.get('enabled',True) and streaming.get('move_retained') is True
                 and streaming.get('library_path') and streaming.get('host_path')==self.public()['path']):
             config['retained_library_path']=path

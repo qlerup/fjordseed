@@ -94,6 +94,31 @@ def resolve(invoke,candidate):
     return invoke('rss_resolve',token=candidate['token'],hashes=candidate['meta']['hashes'],approved=True)
 
 
+@pytest.mark.parametrize('gate',[{'convert':True}],indirect=True)
+def test_conversion_disabled_does_not_consume_rss_candidate(gate,monkeypatch):
+    invoke,calls,_,_,root,entry=gate
+    candidate=invoke('rss_prepare')
+    monkeypatch.setattr('conversion.require_enabled',Mock(side_effect=ValueError('GPU disabled')))
+    with pytest.raises(ValueError,match='GPU disabled'):resolve(invoke,candidate)
+    assert not any(path=='torrents/add' for path,data in calls)
+    history=json.loads((root/('rss-history-'+entry['id']+'.json')).read_text())
+    assert candidate['token'] not in history['done']
+
+
+@pytest.mark.parametrize('gate',[{'convert':True,'ratio_action':'stop_keep'}],indirect=True)
+def test_converted_rss_uses_buffer_and_fixed_retention(gate,monkeypatch):
+    import download_storage as storage
+    from pathlib import Path
+    invoke,calls,_,_,root,entry=gate
+    monkeypatch.setattr('conversion.require_enabled',Mock())
+    candidate=invoke('rss_prepare');resolve(invoke,candidate)
+    options=next(data for path,data in calls if path=='torrents/add')
+    assert options['shareLimitAction']=='RemoveWithContent'
+    assert Path(options['savepath']).parent.name=='.incomplete'
+    saved=storage.read(storage.CONFIG/'download-storage.json',{})[candidate['meta']['hashes'][0]]
+    assert saved['convert'] and saved['conversion_bitrate']==20
+
+
 def test_rss_downloads_directly_when_streaming_is_disabled(gate,monkeypatch):
     import download_storage as storage
     from pathlib import Path

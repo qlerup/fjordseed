@@ -125,6 +125,7 @@ def prepare_file_restart(ident):
     with transaction() as entries:
         record=entries.get(ident)
         if not record or not record.get('files_deleted'):return
+        if record.get('convert'):return  # Re-download only the original; preserve library output.
         directory=record['target'] if record.get('published') else record['stage']
         plan=file_deletion_plan({'save_path':directory},[{'name':PUBLISHING_MARKER}],{})
         for root,relative in plan:
@@ -179,7 +180,7 @@ def download_name(name):
     return name
 
 
-def prepare(hashes, folder='', name=''):
+def prepare(hashes, folder='', name='', convert=False):
     """Capture destination at add time, including across default-folder changes."""
     from rss import folder_path
     root = download_root()
@@ -188,7 +189,10 @@ def prepare(hashes, folder='', name=''):
         # A repeated add must never overwrite an existing destination or policy.
         record = next((entries[h] for h in hashes if h in entries), None)
         if record is None:
-            buffered=read(SETTINGS,{}).get('streaming_enabled',True)
+            if convert:
+                from conversion import require_enabled
+                require_enabled()
+            buffered=convert or read(SETTINGS,{}).get('streaming_enabled',True)
             parent=root/BUFFER if buffered else target
             if buffered and (root/BUFFER).is_symlink():
                 raise ValueError('Buffermappen må ikke være et link.')
@@ -207,6 +211,8 @@ def prepare(hashes, folder='', name=''):
                 break
             else:raise ValueError('Kunne ikke oprette en unik downloadmappe.')
             record = {'stage': str(stage), 'target': str(destination), 'published': False}
+            if convert:
+                record.update(convert=True,conversion_bitrate=read(SETTINGS,{}).get('conversion_bitrate',20))
             if not buffered:
                 # Lightweight marker also protects a future Flix connection from
                 # indexing these files before the entire torrent is complete.
@@ -270,6 +276,15 @@ def publish_complete(api, rows):
             record = next((entries.get(row.get(k)) for k in ('hash','infohash_v1','infohash_v2')
                            if entries.get(row.get(k))), None)
             if record and record.get('files_deleted'):
+                continue
+            if record and record.get('convert'):
+                from conversion import reconcile
+                try:
+                    reconcile(api,row,record)
+                    record.pop('conversion_error',None)
+                except (OSError,ValueError,KeyError,TypeError):
+                    record['conversion_error']='Konvertering/flytning afventer kontrol af filer, lager og skriverettigheder. Originalen beholdes.'
+                    errors.append(record['conversion_error'])
                 continue
             state = row.get('state', '')
             if (row.get('progress') != 1 or state not in {'uploading','stalledUP','forcedUP','stoppedUP','pausedUP','queuedUP'}
@@ -346,6 +361,12 @@ def moving_progress(row, entries):
                    if entries.get(row.get(k))), None)
     if record and record.get('files_deleted'):
         return {'files_deleted':True,'progress':0,'completed':0}
+    if record and record.get('convert'):
+        from conversion import status
+        result=status(record)
+        if record.get('conversion_error'):
+            result={'state':'error','progress':0,'detail':record['conversion_error']}
+        return {'conversion':result,'conversion_enabled':True}
     if row.get('state') != 'moving':
         return {}
     unknown = {'move_progress': None}

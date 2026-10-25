@@ -1,6 +1,7 @@
 """Explicit streaming mode and shared folders with the local FjordFlix app."""
 import hashlib
 import json
+import os
 from pathlib import PurePosixPath
 
 from state import atomic
@@ -38,13 +39,21 @@ class Streaming:
         data=self.runtime.state.get().get('streaming',{})
         storage=Storage(self.runtime).public()
         return {'enabled':data.get('enabled',True),'buffer_enabled':storage['streaming_enabled'],
+                'conversion_enabled':data.get('conversion_enabled',False),
+                'conversion_bitrate':data.get('conversion_bitrate',20),
+                'conversion_configured':bool(os.environ.get('FJORDSEED_CONVERTER_CONTAINER')),
+                'conversion_error':getattr(self.runtime,'conversion_error',''),
                 'move_retained':data.get('move_retained',False),
                 'buffer_when_disabled':data.get('buffer_enabled',False),
                 'connected':bool(data.get('library_path') and data.get('host_path')==storage['path']),
                 'host_path':storage['path'],'library_path':data.get('library_path'),
                 'connected_host_path':data.get('host_path')}
 
-    def save(self,enabled,connection=None,buffer_enabled=None,move_retained=None):
+    def save(self,enabled,connection=None,buffer_enabled=None,move_retained=None,conversion_enabled=None,conversion_bitrate=None):
+        if conversion_enabled is not None and type(conversion_enabled) is not bool:
+            raise ValueError('Vælg om GPU-konvertering skal være slået til.')
+        if conversion_bitrate is not None and (type(conversion_bitrate) is not int or conversion_bitrate not in (10,15,20,25,30)):
+            raise ValueError('Vælg en videobitrate mellem 10 og 30 Mbps.')
         if type(enabled) is not bool:
             raise ValueError('Vælg om streaming skal være slået til.')
         if buffer_enabled is not None and type(buffer_enabled) is not bool:
@@ -56,6 +65,8 @@ class Streaming:
             data['streaming']={**data.get('streaming',{}),'enabled':enabled,**(connection or {})}
             if buffer_enabled is not None:data['streaming']['buffer_enabled']=buffer_enabled
             if move_retained is not None:data['streaming']['move_retained']=move_retained
+            if conversion_enabled is not None:data['streaming']['conversion_enabled']=conversion_enabled
+            if conversion_bitrate is not None:data['streaming']['conversion_bitrate']=conversion_bitrate
             atomic(self.runtime.state.path,json.dumps(data))
             Storage(self.runtime).publish()
         return self.public()
