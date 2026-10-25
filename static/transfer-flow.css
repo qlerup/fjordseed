@@ -122,3 +122,11 @@
 @media(prefers-reduced-motion:reduce) {
  .traffic-flow *,.traffic-flow::before {animation:none!important;transition:none!important}
 }
+
+/* Real recent rates, behind the existing labels and controls. */
+.flow-rate{position:relative;isolation:isolate;overflow:hidden}
+.flow-rate > :not(.flow-rate-chart){position:relative;z-index:1}
+.flow-rate .flow-rate-chart{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;color:inherit}
+.flow-rate-curve{fill:none;stroke:currentColor;stroke-width:1.5;stroke-opacity:.48;vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round}
+.flow-rate-chart.is-unavailable{opacity:.2}
+.flow-rate strong,.flow-rate-label{text-shadow:0 1px 5px #101a34,0 0 10px #101a3480}

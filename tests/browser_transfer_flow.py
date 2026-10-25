@@ -113,6 +113,23 @@ with tempfile.TemporaryDirectory() as folder:
                     return scene.pulse!==pulse&&pulse.playState==='idle';
                 } finally {scene.packets=packets;scene.rates=rates;}
             }""")
+            # Background sparklines show real samples, with gaps and a bounded buffer.
+            assert page.evaluate("""() => {
+                const scene=transferFlow,now=Date.now();scene.rateHistory=[];
+                for(let i=0;i<80;i++)scene.recordRates([i%9*1024**2,(4+Math.sin(i/3)*3)*1024**2],now-(79-i)*4000);
+                if(scene.rateHistory.length!==61||scene.rateCharts.length!==2)return false;
+                if(scene.rateCharts.some(chart=>!chart.line.getAttribute('d').includes('C')))return false;
+                const count=scene.rateHistory.length;scene.recordRates([0,0],now);
+                if(scene.rateHistory.length!==count||scene.rateHistory.at(-1).values.some(v=>v!==0))return false;
+                scene.recordRates([null,100],now+4000);scene.recordRates([200,200],now+8000);
+                if(scene.rateCharts[0].line.getAttribute('d').split('M').length<3)return false;
+                scene.ready=false;scene.recordRates([100,100],now+12000);
+                if(scene.rateHistory.at(-1).values.some(v=>v!==null))return false;
+                scene.ready=true;scene.rateHistory=[];
+                for(let i=0;i<61;i++)scene.recordRates([(20+15*Math.sin(i/4))*1024**2,(5+3*Math.cos(i/5))*1024**2],now-(60-i)*4000);
+                return !scene.rateCharts.some(chart=>/NaN|Infinity/.test(chart.line.getAttribute('d')));
+            }""")
+            expect(flow.locator('.flow-rate-chart')).to_have_count(2)
             flow.screenshot(path=str(output/'transfer-flow-desktop.png'))
             for width in (390,320):
                 page.set_viewport_size({'width':width,'height':1000})

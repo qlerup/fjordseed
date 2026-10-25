@@ -3,6 +3,7 @@
  'use strict';
  const TAU=Math.PI*2;
  const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+ const svgElement=(tag,attributes={})=>{const el=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [key,value] of Object.entries(attributes))el.setAttribute(key,value);return el;};
  class TransferFlow {
   constructor(root){
    this.root=root;this.canvas=root.querySelector('.flow-canvas');
@@ -10,6 +11,14 @@
    this.ready=false;this.rates=[0,0];this.energy=[0,0];this.frame=null;
    this.visible=false;this.width=0;this.height=0;this.points=[];this.paths=[];
    this.packets=[];
+   this.rateHistory=[];
+   this.rateCharts=[...root.querySelectorAll('.flow-rate')].map((card,index)=>{
+    const svg=svgElement('svg',{viewBox:'0 0 300 100',preserveAspectRatio:'none',class:'flow-rate-chart','aria-hidden':'true'});
+    const defs=svgElement('defs'),gradient=svgElement('linearGradient',{id:'flow-rate-fill-'+index,x1:0,y1:0,x2:0,y2:1});
+    gradient.append(svgElement('stop',{offset:'0%','stop-color':'currentColor','stop-opacity':'.24'}),svgElement('stop',{offset:'100%','stop-color':'currentColor','stop-opacity':'.02'}));defs.append(gradient);
+    const fill=svgElement('path',{fill:`url(#flow-rate-fill-${index})`}),line=svgElement('path',{class:'flow-rate-curve'});
+    svg.append(defs,fill,line);card.prepend(svg);return {svg,fill,line};
+   });
    this.core=root.querySelector('.flow-core-shell');this.pulse=null;
    this.lanes=Array.from({length:6},(_,index)=>({direction:Math.floor(index/3),strand:index%3,wait:Math.random()*.8}));
    this.motion=matchMedia('(prefers-reduced-motion: reduce)');
@@ -25,6 +34,7 @@
   }
   update({ready,download,upload}){
    this.ready=!!ready;
+   this.recordRates([download,upload]);
    if(!this.ready)this.packets=[];
    this.rates=[download,upload].map(rate=>this.ready&&Number.isFinite(rate)&&rate>0?rate:0);
    const levels=this.rates.map(rate=>rate?clamp(Math.log2(1+rate/16384)/14,.08,1):0);
@@ -32,6 +42,36 @@
    this.root.dataset.traffic=this.rates.some(Boolean)?'moving':'idle';
    this.root.style.setProperty('--flow-energy',Math.max(...levels).toFixed(3));
    this.sync();
+  }
+  recordRates(rates,now=Date.now()){
+   const values=rates.map(rate=>this.ready&&Number.isFinite(rate)&&rate>=0?rate:null);
+   const last=this.rateHistory.at(-1);
+   // UI rerenders are not additional observations. Missing status is never zero.
+   const sample={at:now,values};
+   if(last&&now-last.at<1000)this.rateHistory[this.rateHistory.length-1]=sample;
+   else this.rateHistory.push(sample);
+   this.rateHistory=this.rateHistory.filter(point=>point.at>=now-240000).slice(-61);
+   this.rateCharts.forEach(({svg,fill,line},index)=>{
+    svg.classList.toggle('is-unavailable',values[index]===null);
+    const maximum=Math.max(1,...this.rateHistory.map(point=>point.values[index]??0));
+    const x=point=>300-(now-point.at)/240000*300,y=point=>94-point.values[index]/maximum*68;
+    let previous=null,path='',area='',segment=[];
+    const flush=()=>{
+     if(!segment.length)return;
+     let d=`M${x(segment[0])},${y(segment[0])}`;
+     for(let i=1;i<segment.length;i++){
+      const a=segment[i-1],b=segment[i],mid=(x(a)+x(b))/2;
+      d+=` C${mid},${y(a)} ${mid},${y(b)} ${x(b)},${y(b)}`;
+     }
+     path+=d;area+=d+` L${x(segment.at(-1))},100 L${x(segment[0])},100 Z`;segment=[];
+    };
+    for(const point of this.rateHistory){
+     if(point.values[index]===null){flush();previous=null;continue;}
+     if(previous&&point.at-previous.at>12000)flush();
+     segment.push(point);previous=point;
+    }
+    flush();line.setAttribute('d',path);fill.setAttribute('d',area);
+   });
   }
   resize(){
    if(!this.ctx)return;
