@@ -129,6 +129,17 @@ with tempfile.TemporaryDirectory() as folder:
                 for(let i=0;i<61;i++)scene.recordRates([(20+15*Math.sin(i/4))*1024**2,(5+3*Math.cos(i/5))*1024**2],now-(60-i)*4000);
                 return !scene.rateCharts.some(chart=>/NaN|Infinity/.test(chart.line.getAttribute('d')));
             }""")
+            assert page.evaluate("""() => {
+                const scene=transferFlow,now=Date.now();
+                scene.recordRates([70*1024**2,18*1024**2],now+2000);
+                const original=JSON.stringify(scene.rateHistory),first=scene.rateCharts[0].line.getAttribute('d');
+                scene.drawRates(now+2200);const middle=scene.rateCharts[0].line.getAttribute('d');
+                scene.drawRates(now+2700);const end=scene.rateCharts[0].line.getAttribute('d');
+                if(first===middle||middle===end||original!==JSON.stringify(scene.rateHistory))return false;
+                scene.rateHistory=[];
+                for(let i=0;i<160;i++)scene.recordRates([i*100,i*200],now-(159-i)*2000);
+                return scene.rateHistory.length===121;
+            }""")
             expect(flow.locator('.flow-rate-chart')).to_have_count(2)
             flow.screenshot(path=str(output/'transfer-flow-desktop.png'))
             for width in (390,320):

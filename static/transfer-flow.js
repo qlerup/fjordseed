@@ -11,7 +11,7 @@
    this.ready=false;this.rates=[0,0];this.energy=[0,0];this.frame=null;
    this.visible=false;this.width=0;this.height=0;this.points=[];this.paths=[];
    this.packets=[];
-   this.rateHistory=[];
+   this.rateHistory=[];this.rateMaximum=[null,null];this.rateRenderedAt=null;
    this.rateCharts=[...root.querySelectorAll('.flow-rate')].map((card,index)=>{
     const svg=svgElement('svg',{viewBox:'0 0 300 100',preserveAspectRatio:'none',class:'flow-rate-chart','aria-hidden':'true'});
     const defs=svgElement('defs'),gradient=svgElement('linearGradient',{id:'flow-rate-fill-'+index,x1:0,y1:0,x2:0,y2:1});
@@ -47,14 +47,25 @@
    const values=rates.map(rate=>this.ready&&Number.isFinite(rate)&&rate>=0?rate:null);
    const last=this.rateHistory.at(-1);
    // UI rerenders are not additional observations. Missing status is never zero.
-   const sample={at:now,values};
+   const sample={at:now,values,from:last?.values};
    if(last&&now-last.at<1000)this.rateHistory[this.rateHistory.length-1]=sample;
    else this.rateHistory.push(sample);
-   this.rateHistory=this.rateHistory.filter(point=>point.at>=now-240000).slice(-61);
+   this.rateHistory=this.rateHistory.filter(point=>point.at>=now-240000).slice(-121);
+   this.drawRates(now);
+  }
+  drawRates(now=Date.now()){
+   const latest=this.rateHistory.at(-1);if(!latest)return;
+   const instant=this.motion.matches||!this.visible||document.hidden;
+   const elapsed=Math.max(0,(now-(this.rateRenderedAt??now))/1000);this.rateRenderedAt=now;
+   const blend=instant?1:1-Math.exp(-elapsed*5);
    this.rateCharts.forEach(({svg,fill,line},index)=>{
-    svg.classList.toggle('is-unavailable',values[index]===null);
-    const maximum=Math.max(1,...this.rateHistory.map(point=>point.values[index]??0));
-    const x=point=>300-(now-point.at)/240000*300,y=point=>94-point.values[index]/maximum*68;
+    svg.classList.toggle('is-unavailable',latest.values[index]===null);
+    const target=Math.max(1,...this.rateHistory.filter(point=>point.at>=now-240000).map(point=>point.values[index]??0));
+    this.rateMaximum[index]=this.rateMaximum[index]===null?target:this.rateMaximum[index]+(target-this.rateMaximum[index])*blend;
+    const maximum=Math.max(1,this.rateMaximum[index]);
+    const progress=instant?1:clamp((now-latest.at)/650,0,1),ease=progress*progress*(3-2*progress);
+    const value=point=>point===latest&&Number.isFinite(point.from?.[index])?point.from[index]+(point.values[index]-point.from[index])*ease:point.values[index];
+    const x=point=>point===latest?300:300-(now-point.at)/240000*300,y=point=>94-clamp(value(point)/maximum,0,1)*68;
     let previous=null,path='',area='',segment=[];
     const flush=()=>{
      if(!segment.length)return;
@@ -106,7 +117,7 @@
    if(!animate){
     this.pulse?.cancel();this.pulse=null;
     if(this.frame!==null)cancelAnimationFrame(this.frame);
-    this.frame=null;this.energy=this.target||[0,0];this.draw(performance.now()/1000);
+    this.frame=null;this.energy=this.target||[0,0];this.draw(performance.now()/1000);this.drawRates();
    }
   }
   tick(now){
@@ -115,6 +126,7 @@
    this.energy=this.energy.map((level,i)=>level+((this.target?.[i]||0)-level)*Math.min(1,delta*4));
    this.advance(delta);
    this.draw(now/1000);
+   if(!this.rateFrameAt||now-this.rateFrameAt>=30){this.drawRates();this.rateFrameAt=now;}
    this.frame=requestAnimationFrame(this.tick);
   }
   advance(delta){

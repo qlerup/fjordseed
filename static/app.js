@@ -427,7 +427,7 @@ function showView(focus=false){
  if(focus)$('#page-title').focus({preventScroll:true});
 }
 window.addEventListener('hashchange',()=>showView(true));
-showView();refresh();setInterval(refresh,4000);
+showView();refresh();setInterval(refresh,2000);
 
 function seedingWarning(t){return (t.stop_reason||'Torrenten har endnu ikke opfyldt kravet om ratio 1:1 eller 49 timers seeding. Trackeren kan registrere et tidligt stop som hit-and-run.')+' Aktuelt: ratio '+Number(t.ratio??0).toFixed(2)+' og '+(Math.max(0,Number(t.seeding_time)||0)/3600).toLocaleString('da-DK',{maximumFractionDigits:1})+' timers seeding.';}
 $('#stop-form').onsubmit=async e=>{e.preventDefault();if(!stopping)return;$('#stop-save').disabled=true;$('#stop-error').hidden=true;try{await api(`/api/torrents/${stopping.hash}/stop`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm_early_stop:true})});$('#stop-dialog').close();await refresh();toast('Torrent sat på pause.');}catch(e){error('#stop-error',e);}finally{$('#stop-save').disabled=false;}};
