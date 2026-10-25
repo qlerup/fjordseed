@@ -1,4 +1,7 @@
 /* Fjord: ink blue surfaces, bright sea-green actions and violet navigation. */
+/* Hide the page scrollbar while retaining native scrolling. */
+html{scrollbar-width:none}
+html::-webkit-scrollbar{display:none}
 :root {
  --bg:#0c1024;
  --panel:#1b2542;
