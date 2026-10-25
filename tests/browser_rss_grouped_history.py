@@ -56,10 +56,34 @@ with tempfile.TemporaryDirectory() as folder:
                 assert dialog.evaluate('e=>e.scrollWidth<=e.clientWidth+1')
                 out=Path(__file__).resolve().parents[1]/'test-results';out.mkdir(exist_ok=True)
                 page.screenshot(path=str(out/f'rss-grouped-history-{width}.png'))
+                group.get_by_role('button',name='Udeluk',exact=True).click()
+                confirmation=page.locator('#rss-exclude-dialog')
+                expect(confirmation).to_be_visible()
+                expect(confirmation).to_contain_text('Politijagt')
+                expect(confirmation).to_contain_text('Rediger feed → Titelfilter → Undgå')
+                expect(confirmation.get_by_role('button',name='Annuller',exact=True)).to_be_focused()
+                assert next(f for f in store.entries() if f['id']==ident)['title_exclude']==[]
+                assert confirmation.evaluate('e=>e.scrollWidth<=e.clientWidth+1')
+                page.screenshot(path=str(out/f'rss-exclude-confirm-{width}.png'))
+                confirmation.get_by_role('button',name='Annuller',exact=True).click()
+                expect(confirmation).not_to_be_visible()
+                expect(group.get_by_role('button',name='Udeluk',exact=True)).to_be_focused()
                 if width==390:
                     group.get_by_role('button',name='Udeluk',exact=True).click()
+                    page.keyboard.press('Escape')
+                    expect(confirmation).not_to_be_visible()
+                    assert next(f for f in store.entries() if f['id']==ident)['title_exclude']==[]
+                    group.get_by_role('button',name='Udeluk',exact=True).click()
+                    page.route('**/api/rss/*/history/exclude',lambda route:route.fulfill(status=503,json={'error':'Prøv igen senere'}))
+                    confirmation.get_by_role('button',name='Ja, udeluk titlen',exact=True).click()
+                    expect(confirmation.locator('#rss-exclude-error')).to_have_text('Prøv igen senere')
+                    page.unroute('**/api/rss/*/history/exclude')
+                    confirmation.get_by_role('button',name='Ja, udeluk titlen',exact=True).click()
+                    expect(confirmation).not_to_be_visible()
                     expect(group.get_by_role('button',name='Udelukket')).to_be_disabled()
                     assert next(f for f in store.entries() if f['id']==ident)['title_exclude']==['Politijagt']
+                    page.locator('#rss-history-search').fill('Politijagt')
+                    expect(group.get_by_role('button',name='Udelukket')).to_be_disabled()
                 dialog.get_by_role('button',name='Luk',exact=True).click()
             # Mixed known/missing credit must not turn unknown measurements into zero.
             fixture={'count':3,'groups':[{'key':'mixed','title':'Blandet historik','exclude_title':'Blandet historik','excluded':False,'downloads':[

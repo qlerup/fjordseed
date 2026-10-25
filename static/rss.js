@@ -1,6 +1,27 @@
 let rssFeeds=[],rssRoot='',rssBusy=false,rssLoading=false,rssTrackerGeneration=0;
 let rssRefreshPromise;
 let rssHistoryGeneration=0;
+let rssExclusion=null,rssExclusionBusy=false;
+function openRssExclusion(feed,group,button){
+ rssExclusion={feed,group,button};
+ $('#rss-exclude-title').textContent=group.title;
+ $('#rss-exclude-feed').textContent='Feed: '+feed.name;
+ $('#rss-exclude-error').hidden=true;
+ $('#rss-exclude-dialog').showModal();$('#rss-exclude-cancel').focus();
+}
+$('#rss-exclude-form').onsubmit=async event=>{
+ event.preventDefault();if(!rssExclusion||rssExclusionBusy)return;
+ const {feed,group,button}=rssExclusion,dialog=$('#rss-exclude-dialog'),confirm=$('#rss-exclude-confirm');
+ const controls=[...dialog.querySelectorAll('button')];rssExclusionBusy=true;
+ controls.forEach(control=>control.disabled=true);button.disabled=true;confirm.textContent='Udelukker…';$('#rss-exclude-error').hidden=true;
+ try{
+  await api('/api/rss/'+feed.id+'/history/exclude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group:group.key})});
+  group.excluded=true;button.textContent='Udelukket';dialog.close();toast('Udeluk-filter tilføjet: '+group.exclude_title);refreshRss();
+ }catch(error){button.disabled=false;$('#rss-exclude-error').textContent=error.message;$('#rss-exclude-error').hidden=false;}
+ finally{rssExclusionBusy=false;controls.forEach(control=>control.disabled=false);confirm.textContent='Ja, udeluk titlen';}
+};
+$('#rss-exclude-dialog').addEventListener('cancel',event=>{if(rssExclusionBusy)event.preventDefault();});
+$('#rss-exclude-dialog').addEventListener('close',()=>{rssExclusion=null;});
 function rssHistoryStats(items){
  const measured=key=>items.filter(item=>typeof item[key]==='number'&&Number.isFinite(item[key])&&item[key]>=0);
  const uploads=measured('credited_uploaded').filter(item=>!item.upload_credit_pending||item.credited_uploaded>0),downloads=measured('downloaded');
@@ -84,11 +105,7 @@ async function openRssHistory(feed){
     details.append(files,moreFiles);moreFiles.hidden=true;
     const exclude=node('button','secondary rss-history-exclude',group.excluded?'Udelukket':'Udeluk');exclude.type='button';exclude.disabled=group.excluded;
     exclude.title='Føj “'+group.exclude_title+'” fra torrentnavnet til feedets udeluk-filter. Eksisterende downloads bevares.';
-    exclude.onclick=async()=>{
-     exclude.disabled=true;
-     try{await api('/api/rss/'+feed.id+'/history/exclude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group:group.key})});exclude.textContent='Udelukket';toast('Udeluk-filter tilføjet: '+group.exclude_title);refreshRss();}
-     catch(e){exclude.disabled=false;toast(e.message);}
-    };
+    exclude.onclick=()=>openRssExclusion(feed,group,exclude);
     head.append(details,exclude);card.append(head);list.append(card);
    }
    next.hidden=visible>=groups.length;
