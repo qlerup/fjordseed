@@ -39,6 +39,11 @@
    this.viewport=root.querySelector('.insights-viewport');this.current=root.querySelector('.insights-current');this.next=root.querySelector('.insights-next');this.stage=root.querySelector('.insights-stage');this.select=root.querySelector('#insights-account');this.mode=root.querySelector('.insights-mode span');this.error=root.querySelector('.insights-error');
    this.motion=matchMedia('(prefers-reduced-motion: reduce)');
    this.tabs=[...metrics,{key:'all',tab:'Alle'}].map((metric,i)=>{const button=node('button','insights-tab',metric.tab);button.type='button';button.setAttribute('aria-label',metric.tab);button.setAttribute('aria-pressed',String(i===0));button.onclick=()=>this.turn(i);root.querySelector('.insights-selectors').append(button);return button;});
+   const allButton=this.tabs.at(-1);
+   allButton.classList.add('insights-all-button');
+   const allIcon=svgNode('svg',{viewBox:'0 0 20 20',width:20,height:20,'aria-hidden':'true'});
+   for(const [d,color] of [['M3 14L7 10L11 12L17 5','#79dfb7'],['M3 9L7 12L11 7L17 10','#c1a5f2'],['M3 17H17','#8ebcfa']])allIcon.append(svgNode('path',{d,stroke:color,'stroke-width':1.6,fill:'none','stroke-linecap':'round','stroke-linejoin':'round'}));
+   allButton.replaceChildren(allIcon,node('span','','Alle'));
    root.addEventListener('pointerenter',event=>{if(event.pointerType==='mouse'){this.hover=true;this.schedule();}});
    root.addEventListener('pointerleave',event=>{if(event.pointerType==='mouse'){this.hover=false;this.schedule();}});
    root.addEventListener('focusin',event=>{this.focus=event.target.matches(':focus-visible');this.schedule();});
