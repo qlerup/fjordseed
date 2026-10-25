@@ -412,6 +412,8 @@ function showView(focus=false){
  const streaming=view==='streaming';$('#streaming-view').hidden=!streaming;
  const vpn=view==='connection',trackers=view==='trackers',rss=view==='rss',storage=view==='storage';
  $('#storage-view').hidden=!storage;
+ // Keep the shared queue above the list it describes in each download view.
+ (rss?$('#rss-view'):$('#torrents')).before($('#download-queue'));
  $('#download-queue').hidden=vpn||trackers||storage||streaming;
  $('#connection').hidden=!vpn;$('#downloads-view').hidden=vpn||trackers||rss||storage||streaming;$('#trackers-view').hidden=!trackers;$('#new-torrent').hidden=vpn||trackers||rss||storage||streaming;$('#traffic-flow').hidden=trackers||storage||streaming;$('#rss-view').hidden=!rss;
  $('#breadcrumb').textContent='Seedbox / '+(storage?'Lager og mapper':vpn?'VPN-forbindelse':trackers?'Trackere':rss?'RSS-feeds':'Downloads');
