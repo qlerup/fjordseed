@@ -48,7 +48,7 @@
   identity(account){
    if(!account)return;
    root.querySelector('#insights-title').textContent=account.name;
-   root.querySelector('#insights-account-details').replaceChildren(trackerDetails(account));
+   root.querySelector('#insights-account-details').replaceChildren(trackerDetails(account,['uploaded','downloaded','ratio']));
    const status=account.status==='ok'?'Forbundet':account.status==='error'?'Forbindelsesfejl':'Henter data';
    root.querySelector('#insights-account-status').textContent=[account.username,status,account.status==='error'?account.error:null].filter(Boolean).join(' · ');
   }

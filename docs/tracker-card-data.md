@@ -4,6 +4,8 @@ Registreret 25. oktober 2026, inden det separate statistikkort på Oversigt blev
 
 Kortet på Oversigt samler nu de faste kontotal, events og opdateringstid i venstre sektion og grafkarrusellen i højre sektion. På små skærme står sektionerne under hinanden. Kontovælgeren styrer begge sektioner. `trackerDetails()` bruges både her og under Trackere, så felter og formatering holdes ens.
 
+På Oversigt udelades `uploaded`, `downloaded` og `ratio` fra venstre sektion, fordi de allerede vises i grafmodulet. Alle felter bevares i data og på administrationssiden Trackere.
+
 ## Kontoens aktuelle tal
 
 `GET /api/trackers` leverer konti med `id`, `name`, `provider`, `username`, `status`, `error`, `updated_at`, `stats` og `events`. NordicBytes og Sagmire understøttes gennem de faste API-adresser i `tracker_providers.py`. Kontodata opdateres hvert 10. minut. API-nøgler indgår ikke i det offentlige svar.

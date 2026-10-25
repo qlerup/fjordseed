@@ -39,11 +39,12 @@ const trackerBytes=value=>{
  while(value>=1024&&index<units.length-1){value/=1024;index++;}
  return value.toLocaleString('da-DK',{minimumFractionDigits:index?2:0,maximumFractionDigits:index?2:0})+' '+units[index];
 };
-function trackerDetails(tracker){
+function trackerDetails(tracker,exclude=[]){
  const content=document.createDocumentFragment();
  if(tracker.stats){
   const stats=node('div','tracker-stats');
   for(const [label,field,format] of [['UPLOAD','uploaded',trackerBytes],['DOWNLOAD','downloaded',trackerBytes],['RATIO','ratio',trackerNumber],['BUFFER','buffer',trackerBytes],['SEEDING','seeding',trackerNumber],['DOWNLOADER','leeching',trackerNumber],['SHARDS','seedbonus',trackerNumber],['HIT-AND-RUNS','hit_and_runs',trackerNumber],['ADVARSLER','warnings',trackerNumber],['SEEDING-STØRRELSE','seeding_size',trackerBytes],['UPLOADS','total_uploads',trackerNumber]]){
+   if(exclude.includes(field))continue;
    const item=node('div');item.append(node('span','',label),node('strong','',format(tracker.stats[field])));stats.append(item);
   }
   content.append(stats);
