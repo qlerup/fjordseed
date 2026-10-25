@@ -32,6 +32,14 @@ with tempfile.TemporaryDirectory() as folder:
             expect(card.locator('.insights-current .insights-change')).to_contain_text('↘')
             expect(card.locator('.insights-current .insights-source')).to_contain_text('hele kontoen')
             card.screenshot(path=str(output/'insights-desktop.png'))
+            page.locator('.nav[href="#torrents"]').click()
+            expect(card).to_be_hidden()
+            expect(page.locator('#tracker-account-list')).to_be_hidden()
+            expect(page.locator('#downloads-view')).to_be_visible()
+            page.locator('.nav[href="#overview"]').click()
+            expect(card).to_be_visible()
+            card.scroll_into_view_if_needed()
+
             # Hover prevents automatic turns; leaving resumes, even after a mouse click.
             card.hover();expect(card).to_have_attribute('data-paused','true')
             page.clock.fast_forward(10000);expect(card).to_have_attribute('data-metric','ratio')
