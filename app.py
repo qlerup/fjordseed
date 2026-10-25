@@ -356,6 +356,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             if not any(entry['id']==ident for entry in trackers.entries()):
                 return jsonify(error='Trackeren findes ikke længere.'),404
             try:
+                if request.args.get('mode')=='changes':
+                    return jsonify(account=trackers.history.changes(ident),seedbox=trackers.history.changes('seedbox'),interval=600)
                 return jsonify(account=trackers.history.samples(ident,days),
                                seedbox=trackers.history.samples('seedbox',days),days=days,interval=600)
             except Exception:

@@ -66,6 +66,9 @@ def test_history_api_authorization_periods_and_removal(tmp_path):
     assert response.status_code==200
     assert response.json['account'][0]['ratio']==2
     assert response.json['seedbox'][0]['real_uploaded']==4000
+    changes=client.get('/api/trackers/'+ident+'/history?mode=changes')
+    assert changes.status_code==200 and changes.json['account'][0]['ratio']==2
+    assert 'at' in changes.json['account'][0]
     assert KEY not in response.text
     assert client.get('/api/trackers/'+ident+'/history?days=99').status_code==400
     assert client.get('/api/trackers/'+ident+'/history?days=nope').status_code==400
@@ -108,3 +111,15 @@ def test_real_history_gaps_survive_downsampling(tmp_path):
     points=history.samples('account',30,now)
     assert len(points)<480
     assert any(point.get('gap_before') for point in points)
+
+
+def test_change_points_are_independent_dated_and_bounded(tmp_path):
+    history=TrackerHistory(tmp_path/'h.sqlite3');now=1_800_000_000
+    for i in range(80):
+        history.record('a',{'ratio':4 if i<79 else 3.9,'credited_uploaded':100+i},now+i*600)
+    points=history.changes('a',now+80*600)
+    ratio=[p for p in points if 'ratio' in p]
+    assert [(p['at'],p['ratio']) for p in ratio]==[(now,4),(now+79*600,3.9)]
+    upload=[p for p in points if 'credited_uploaded' in p]
+    assert len(upload)==60 and upload[0]['credited_uploaded']==120
+    assert all(p['ratio']>=0 for p in ratio)

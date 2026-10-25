@@ -15,7 +15,7 @@
  let gradientId=0;
  class Insights {
   constructor(){
-   this.index=0;this.days=7;this.data={account:[],seedbox:[]};this.accounts=[];this.timer=null;this.busy=false;this.hover=false;this.focus=false;this.visible=false;this.loaded=false;this.generation=0;
+   this.index=0;this.data={account:[],seedbox:[]};this.accounts=[];this.timer=null;this.busy=false;this.hover=false;this.focus=false;this.visible=false;this.loaded=false;this.generation=0;
    this.current=root.querySelector('.insights-current');this.next=root.querySelector('.insights-next');this.cube=root.querySelector('.insights-cube');this.select=root.querySelector('#insights-account');this.mode=root.querySelector('.insights-mode span');this.error=root.querySelector('.insights-error');
    this.motion=matchMedia('(prefers-reduced-motion: reduce)');
    this.tabs=metrics.map((metric,i)=>{const button=node('button','insights-tab',metric.tab);button.type='button';button.setAttribute('aria-pressed',String(i===0));button.onclick=()=>this.turn(i);root.querySelector('.insights-tabs').append(button);return button;});
@@ -28,9 +28,6 @@
    document.addEventListener('visibilitychange',()=>this.schedule());this.motion.addEventListener('change',()=>{if(this.busy)this.finish();this.schedule();});
    this.observer=new IntersectionObserver(entries=>{this.visible=entries[0].isIntersecting;this.schedule();});this.observer.observe(root);
    this.resize=new ResizeObserver(()=>{if(this.busy)this.finish();root.style.setProperty('--insight-depth',Math.max(1,root.clientWidth/2)+'px');this.draw();});this.resize.observe(root);
-   root.querySelectorAll('[data-days]').forEach(button=>button.onclick=()=>{
-    this.days=Number(button.dataset.days);root.querySelectorAll('[data-days]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));this.reload();
-   });
    this.select.onchange=()=>this.reload();
    this.draw();
   }
@@ -45,8 +42,8 @@
    this.select.closest('.insights-account').hidden=accounts.length===1;
    const account=accounts.find(a=>a.id===this.select.value);
    this.identity(account);
-   const signature=account.id+':'+account.updated_at+':'+this.days;
-   if(this.signature!==signature||!this.lastFetched||Date.now()-this.lastFetched>600000){this.signature=signature;this.reload();}
+   const signature=account.id+':'+account.updated_at;
+   if(this.signature!==signature||!this.lastFetched||Date.now()-this.lastFetched>60000){this.signature=signature;this.reload();}
   }
   identity(account){
    if(!account)return;
@@ -57,12 +54,12 @@
   async reload(){
    const account=this.accounts.find(a=>a.id===this.select.value);
    this.identity(account);
-   if(account)this.signature=account.id+':'+account.updated_at+':'+this.days;
+   if(account)this.signature=account.id+':'+account.updated_at;
    this.controller?.abort();this.controller=new AbortController();const generation=++this.generation;
    if(this.busy)this.finish();
    this.loaded=false;this.data={account:[],seedbox:[]};this.error.hidden=true;this.draw();this.schedule();
    try{
-    const response=await fetch('/api/trackers/'+encodeURIComponent(this.select.value)+'/history?days='+this.days,{signal:this.controller.signal,credentials:'same-origin'});
+    const response=await fetch('/api/trackers/'+encodeURIComponent(this.select.value)+'/history?mode=changes',{signal:this.controller.signal,credentials:'same-origin'});
     const result=await response.json();if(!response.ok)throw new Error(result.error||'Historikken kunne ikke hentes.');
     if(generation!==this.generation)return;
     this.data=result;this.loaded=true;this.lastFetched=Date.now();this.draw();this.schedule();
@@ -94,11 +91,17 @@
   }
   face(metric){
    const account=this.accounts.find(a=>a.id===this.select.value);
-   const samples=[];let gap=false;
+   const samples=[];
    for(const point of this.data[metric.scope]||[]){
-    if(typeof point[metric.key]!=='number'||!Number.isFinite(point[metric.key])){gap=true;continue;}
-    samples.push(gap?{...point,gap_before:true}:point);gap=false;
+    if(typeof point[metric.key]!=='number'||!Number.isFinite(point[metric.key])){continue;}
+    samples.push(point);
    }
+   const changes=[];let pendingGap=false;
+   for(const point of samples){
+    pendingGap ||= !!point.gap_before;
+    if(!changes.length||point[metric.key]!==changes.at(-1)[metric.key]||point[metric.key+'_reset']){changes.push(pendingGap?{...point,gap_before:true}:point);pendingGap=false;}
+   }
+   samples.splice(0,samples.length,...changes.slice(-60));
    const last=samples.at(-1),first=samples[0];
    const summary=node('div','insights-summary');summary.append(node('span','insights-metric-name',metric.name));
    const current=last?.[metric.key]??(metric.scope==='account'?account?.stats?.[metric.key==='credited_uploaded'?'uploaded':metric.key==='credited_downloaded'?'downloaded':'ratio']:null);
@@ -107,8 +110,8 @@
    const delta=last&&first?last[metric.key]-first[metric.key]:null;
    summary.append(node('span','insights-change'+(delta<0?' is-negative':''),reset?'Tælleren er nulstillet':samples.length>1?(delta>0?'↗ +':delta<0?'↘ −':'→ ')+format(Math.abs(delta),metric.key):'Afventer flere målinger'));
    const source=metric.scope==='account'?(account?.name||'Trackerkonto')+' · hele kontoen':'Hele seedboxen · fysisk trafik';
-   const measured=last?'\nSenest målt '+new Date(last.at*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
-   summary.append(node('p','insights-source',source+'\n'+(samples.length>1?'Ændring siden første måling i perioden.':'Målinger gemmes hvert 10. minut.')+measured));
+   const measured=last?'\nSeneste ændring '+new Date(last.at*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+   summary.append(node('p','insights-source',source+'\n'+(samples.length>1?'Udvikling siden første viste ændring.':'Afventer en ændring i værdien.')+measured));
    const chart=node('div','insights-chart');
    if(!samples.length){const empty=node('div','insights-empty');empty.append(node('span','','⌁'),node('strong','',!this.loaded?'Henter din historik…':!this.error.hidden?'Historik midlertidigt utilgængelig':'Din historik starter her'),node('p','',!this.loaded?'Et øjeblik.':!this.error.hidden?'Vi prøver igen automatisk.':'Grafen starter ved den første måling. Tidligere aktivitet bliver ikke gættet.'));chart.append(empty);}
    else chart.append(this.plot(metric,samples));
@@ -116,34 +119,31 @@
   }
   plot(metric,points){
    const width=Math.max(220,root.clientWidth-(innerWidth<=650?32:innerWidth<=1150?234:286)),height=200,left=8,right=width-82,top=30,bottom=155;
-   const end=Date.now()/1000,start=end-this.days*86400;
-   points=points.filter(point=>point.at>=start&&point.at<=end);
-   let baseline=points[0]?.[metric.key]||0;
-   points=points.map(point=>{if(point[metric.key+'_reset'])baseline=point[metric.key];return {...point,change:point[metric.key]-baseline};});
-   const values=points.map(point=>point.change);
-   const extent=Math.max(...values.map(Math.abs),metric.key==='ratio'?.001:1);
+   points=points.slice(-60).map((point,index)=>({...point,index}));
+   const values=points.map(point=>point[metric.key]);
+   const extent=Math.max(...values,metric.key==='ratio'?.001:1);
    const magnitude=10**Math.floor(Math.log10(extent));
-   const limit=[1,2,5,10].find(step=>step*magnitude>=extent)*magnitude;
-   const low=Math.min(...values,0)<0?-limit:0,high=Math.max(...values,0)>0||low===0?limit:0;
-   const changeLabel=value=>(value>0?'+':value<0?'−':'')+(metric.key==='ratio'?Math.abs(value).toLocaleString('da-DK',{maximumFractionDigits:6}):format(Math.abs(value),metric.key));
-   const x=point=>left+(point.at-start)/(end-start)*(right-left),y=point=>bottom-(point.change-low)/(high-low)*(bottom-top);
-   const svg=svgNode('svg',{viewBox:`0 0 ${width} ${height}`,class:'insights-svg',role:'img',tabindex:'0','aria-label':metric.name+': ændring fra første måling over de seneste '+this.days+' dage. Tid fra venstre mod højre. Brug piletaster for at se målinger.'});
-   const axis=svgNode('text',{x:left,y:13,class:'insights-axis-title'});axis.textContent='Ændring · '+(metric.key==='ratio'?'ratio':'datamængde');svg.append(axis);
-   const timeAxis=svgNode('text',{x:(left+right)/2,y:197,'text-anchor':'middle',class:'insights-axis-title'});timeAxis.textContent=this.days===1?'Tid · seneste 24 timer':'Dato · seneste '+this.days+' dage';svg.append(timeAxis);
+   const high=[1,2,5,10].find(step=>step*magnitude>=extent)*magnitude;
+   const valueLabel=value=>metric.key==='ratio'?value.toLocaleString('da-DK',{maximumFractionDigits:6}):format(value,metric.key);
+   const spacing=(right-left)/59;
+   const x=point=>right-(points.length-1-point.index)*spacing,y=point=>bottom-point[metric.key]/high*(bottom-top);
+   const svg=svgNode('svg',{viewBox:`0 0 ${width} ${height}`,class:'insights-svg',role:'img',tabindex:'0','aria-label':metric.name+'. Op til 60 registrerede ændringer, nyeste til højre. Brug piletaster for at se værdi, dato og klokkeslæt.'});
+   const axis=svgNode('text',{x:left,y:13,class:'insights-axis-title'});axis.textContent=metric.key==='ratio'?'Ratio':'Samlet datamængde';svg.append(axis);
+   const timeAxis=svgNode('text',{x:(left+right)/2,y:197,'text-anchor':'middle',class:'insights-axis-title'});timeAxis.textContent='Seneste 60 ændringer';svg.append(timeAxis);
    const id='insight-gradient-'+(++gradientId),defs=svgNode('defs'),gradient=svgNode('linearGradient',{id,x1:'0',y1:'0',x2:'0',y2:'1'});
    gradient.append(svgNode('stop',{offset:'0%','stop-color':metric.color,'stop-opacity':'.22'}),svgNode('stop',{offset:'100%','stop-color':metric.color,'stop-opacity':'0'}));defs.append(gradient);svg.append(defs);
-   for(const fraction of [0,.5,1]){const py=top+fraction*(bottom-top),label=svgNode('text',{x:right+8,y:py+4,class:'insights-y-tick'});label.textContent=changeLabel(high-fraction*(high-low));svg.append(svgNode('line',{x1:left,x2:right,y1:py,y2:py,class:'insights-grid'}),label);}
-   const zero=y({change:0});svg.append(svgNode('line',{x1:left,x2:right,y1:zero,y2:zero,class:'insights-zero'}));
+   for(const fraction of [0,.5,1]){const py=top+fraction*(bottom-top),label=svgNode('text',{x:right+8,y:py+4,class:'insights-y-tick'});label.textContent=valueLabel(high*(1-fraction));svg.append(svgNode('line',{x1:left,x2:right,y1:py,y2:py,class:'insights-grid'}),label);}
+   const zero=bottom;svg.append(svgNode('line',{x1:left,x2:right,y1:zero,y2:zero,class:'insights-zero'}));
    if(!points.length)return svg;
    let segment=[];
    const flush=()=>{if(!segment.length)return;const path=segment.map((p,i)=>(i?'L':'M')+x(p).toFixed(2)+','+y(p).toFixed(2)).join(' ');svg.append(svgNode('path',{d:path+` L${x(segment.at(-1))},${zero} L${x(segment[0])},${zero} Z`,fill:`url(#${id})`}),svgNode('path',{d:path,class:'insights-line'}));segment=[];};
    for(let i=0;i<points.length;i++){const p=points[i];if(i&&(p.gap_before||p[metric.key+'_reset']))flush();segment.push(p);}flush();
    const last=points.at(-1);svg.append(svgNode('circle',{cx:x(last),cy:y(last),r:4,class:'insights-point'}));
-   for(const [at,px,anchor] of [[start,left,'start'],[(start+end)/2,(left+right)/2,'middle'],[end,right,'end']]){const label=svgNode('text',{x:px,y:177,'text-anchor':anchor});label.textContent=at===end?'Nu':new Date(at*1000).toLocaleString('da-DK',this.days===1?{hour:'2-digit',minute:'2-digit'}:{day:'numeric',month:'short'});svg.append(label);}
+   for(const [text,px,anchor] of [['Ældre ændringer',left,'start'],['Nyeste',right,'end']]){const label=svgNode('text',{x:px,y:177,'text-anchor':anchor});label.textContent=text;svg.append(label);}
    const cursor=svgNode('line',{y1:top,y2:bottom,stroke:metric.color,'stroke-opacity':'.4',hidden:''}),tip=svgNode('text',{x:left+4,y:25,hidden:''});svg.append(cursor,tip);
    let selected=points.length-1;
-   const show=index=>{selected=index;const point=points[index];cursor.removeAttribute('hidden');tip.removeAttribute('hidden');cursor.setAttribute('x1',x(point));cursor.setAttribute('x2',x(point));tip.textContent=new Date(point.at*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' · '+changeLabel(point.change);};
-   svg.addEventListener('pointermove',event=>{const box=svg.getBoundingClientRect(),at=start+((event.clientX-box.left)/box.width*width-left)/(right-left)*(end-start);let nearest=0;for(let i=1;i<points.length;i++)if(Math.abs(points[i].at-at)<Math.abs(points[nearest].at-at))nearest=i;show(nearest);});
+   const show=index=>{selected=index;const point=points[index];cursor.removeAttribute('hidden');tip.removeAttribute('hidden');cursor.setAttribute('x1',x(point));cursor.setAttribute('x2',x(point));tip.textContent=new Date(point.at*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' · '+valueLabel(point[metric.key]);};
+   svg.addEventListener('pointermove',event=>{const box=svg.getBoundingClientRect(),px=(event.clientX-box.left)/box.width*width;let nearest=0;for(let i=1;i<points.length;i++)if(Math.abs(x(points[i])-px)<Math.abs(x(points[nearest])-px))nearest=i;show(nearest);});
    const hide=()=>{cursor.setAttribute('hidden','');tip.setAttribute('hidden','');};svg.addEventListener('pointerleave',hide);svg.addEventListener('blur',hide);svg.addEventListener('focus',()=>show(points.length-1));
    svg.addEventListener('keydown',event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();show(Math.max(0,Math.min(points.length-1,selected+(event.key==='ArrowLeft'?-1:1))));}});
    return svg;

@@ -24,7 +24,7 @@ Kortet viste desuden kontonavn, brugernavn, forbindelsesstatus, fejl, sidste opd
 
 ## Eksisterende grafer og historik
 
-`GET /api/trackers/<id>/history?days=1|7|30` returnerer `account` og `seedbox`. Historikken gemmes lokalt i SQLite i op til 30 dage med 10 minutters intervaller. Ældre målinger bliver ikke rekonstrueret fra aktuelle totaler.
+`GET /api/trackers/<id>/history?mode=changes` returnerer `account` og `seedbox` med op til 60 ændrede værdier pr. graf, hver med det oprindelige tidspunkt i `at`. Uændrede målinger tilføjer ikke grafpunkter. Historikken gemmes lokalt i SQLite i op til 30 dage med 10 minutters intervaller. Ældre målinger bliver ikke rekonstrueret fra aktuelle totaler. Det ældre API med `days=1|7|30` understøttes stadig, men grafkortet har ingen periodeknapper.
 
 | Graf | Historikfelt | Kilde og omfang |
 | --- | --- | --- |
@@ -36,7 +36,7 @@ Kortet viste desuden kontonavn, brugernavn, forbindelsesstatus, fejl, sidste opd
 
 Reel trafik er **ikke fordelt pr. tracker**. Den må ikke præsenteres som kontoens reelle trafik. Historikken markerer huller og nulstillinger af de lokale trafiktællere.
 
-Grafkortet viser den aktuelle total til venstre og ændringen fra første måling som kurve. X-aksen dækker hele den valgte periode frem til nu, så en kort historik begynder ved højre kant. Y-aksen viser ændring i datamængde eller ratio med nul som reference. Ved en markeret tællernulstilling afbrydes kurven, og det nye forløb får sit eget nulpunkt. Perioder uden målinger udfyldes ikke med opdigtede værdier.
+Grafkortets kurve viser den **faktiske totalværdi** for hvert punkt, aldrig forskellen mellem målinger. Y-aksen begynder ved nul og viser kun ikke-negative værdier. X-aksen har plads til 60 ændringer med nyeste til højre; få punkter fylder fra højre, og tidligere punkter flytter mod venstre ved nye ændringer. Dato og klokkeslæt vises ved hover eller tastaturvalg. En faldende ratio bevæger sig ned til sin nye positive værdi. En markeret tællernulstilling afbryder kurven. Der indsættes ikke et opdigtet startpunkt på nul. Det mindre ændringstal ved siden af totalen er kun supplerende information.
 
 De øvrige kontofelter ovenfor hentes aktuelt, men gemmes **ikke** som tidsserier. De kan bruges som faste nøgletal i et kommende redigerbart kort. Grafer for dem kræver først udvidelse af historikopsamlingen.
 

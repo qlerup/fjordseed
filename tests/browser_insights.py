@@ -33,7 +33,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(card.locator('#insights-account-status')).to_contain_text('Forbundet')
             expect(card.locator('.insights-current svg')).to_be_visible()
             assert card.locator('.insights-current .insights-line').first.get_attribute('d').count('L')>1
-            expect(card.locator('.insights-current .insights-change')).to_contain_text('↘')
+            expect(card.locator('.insights-current .insights-change')).to_be_visible()
             expect(card.locator('.insights-current .insights-source')).to_contain_text('hele kontoen')
             chart=card.locator('.insights-current svg')
             chart.click()
@@ -68,7 +68,7 @@ with tempfile.TemporaryDirectory() as folder:
                 if key.startswith('real_'):expect(card.locator('.insights-current .insights-source')).to_contain_text('Hele seedboxen')
             page.mouse.move(0,0);expect(card).to_have_attribute('data-paused','false')
             page.keyboard.press('Tab');expect(card).to_have_attribute('data-paused','true')
-            card.get_by_role('button',name='24 t.',exact=True).click()
+            expect(card.locator('[data-days]')).to_have_count(0)
             expect(card.locator('.insights-current svg')).to_be_visible()
             for width in (1024,650,390,320):
                 page.set_viewport_size({'width':width,'height':1000});card.scroll_into_view_if_needed()
@@ -80,34 +80,31 @@ with tempfile.TemporaryDirectory() as folder:
             expect(card).to_have_attribute('data-metric','real_uploaded')
             assert not card.locator('.insights-cube.is-turning').count()
             expect(card).to_have_attribute('data-paused','true')
-            # A short history occupies only its actual time span at the right edge.
+            # Absolute positive values; two changed observations fill only two slots.
             assert page.evaluate("""() => {
-                const scene=trackerInsights,days=scene.days,now=Date.now()/1000;
-                scene.days=1;
-                try {
-                    const metric={key:'real_downloaded',name:'Download',color:'#fff'};
-                    const chart=scene.plot(metric,[{at:now-600,real_downloaded:928*1024**3},{at:now,real_downloaded:928*1024**3+1024**2}]);
-                    const coords=chart.querySelector('.insights-line').getAttribute('d').match(/[0-9.]+/g).map(Number);
-                    const last=Number(chart.querySelector('circle').getAttribute('cx'));
-                    const ticks=[...chart.querySelectorAll('.insights-y-tick')].map(el=>el.textContent);
-                    if(coords[0]<last*.98||coords[1]!==155||new Set(ticks).size!==3)return false;
-                    const negative=scene.plot({key:'ratio',name:'Ratio',color:'#fff'},[{at:now-600,ratio:4},{at:now,ratio:3.9}]);
-                    if(![...negative.querySelectorAll('.insights-y-tick')].some(el=>el.textContent.includes('0,1')))return false;
-                    if(Number(negative.querySelector('circle').getAttribute('cy'))<=Number(negative.querySelector('.insights-zero').getAttribute('y1')))return false;
-                    const first=scene.plot(metric,[{at:now,real_downloaded:123}]);
-                    if(Number(first.querySelector('circle').getAttribute('cy'))!==155)return false;
-                    const gap=scene.plot(metric,[{at:now-600,real_downloaded:10},{at:now,real_downloaded:20,gap_before:true}]);
-                    return gap.querySelectorAll('.insights-line').length===2;
-                } finally {scene.days=days;}
+                const scene=trackerInsights,now=Date.now()/1000;
+                const metric={key:'real_downloaded',name:'Download',color:'#fff'};
+                const chart=scene.plot(metric,[{at:now-600,real_downloaded:928*1024**3},{at:now,real_downloaded:928*1024**3+1024**2}]);
+                const coords=chart.querySelector('.insights-line').getAttribute('d').match(/[0-9.]+/g).map(Number);
+                const last=Number(chart.querySelector('circle').getAttribute('cx'));
+                const ticks=[...chart.querySelectorAll('.insights-y-tick')].map(el=>el.textContent);
+                if(coords[0]<last*.97||coords[1]>=155||new Set(ticks).size!==3)return false;
+                const falling=scene.plot({key:'ratio',name:'Ratio',color:'#fff'},[{at:now-600,ratio:4},{at:now,ratio:3.9}]);
+                if([...falling.querySelectorAll('.insights-y-tick')].some(el=>/[-\u2212]/.test(el.textContent)))return false;
+                if(Number(falling.querySelector('circle').getAttribute('cy'))>=155)return false;
+                const first=scene.plot(metric,[{at:now,real_downloaded:123}]);
+                if(Number(first.querySelector('circle').getAttribute('cy'))>=155)return false;
+                const gap=scene.plot(metric,[{at:now-600,real_downloaded:10},{at:now,real_downloaded:20,gap_before:true}]);
+                return gap.querySelectorAll('.insights-line').length===2;
             }""")
             # A sparse or missing history is honest, not a synthetic trend line.
             page.route('**/api/trackers/*/history?*',lambda route:route.fulfill(json={'account':[],'seedbox':[],'days':30}))
-            card.get_by_role('button',name='30 dage',exact=True).click()
+            page.evaluate('trackerInsights.reload()')
             expect(card.locator('.insights-current .insights-empty')).to_contain_text('Din historik starter her')
             expect(card.locator('.insights-current svg')).to_have_count(0)
             page.unroute('**/api/trackers/*/history?*')
             page.route('**/api/trackers/*/history?*',lambda route:route.fulfill(status=503,json={'error':'Historik afventer'}))
-            card.get_by_role('button',name='7 dage',exact=True).click()
+            page.evaluate('trackerInsights.reload()')
             expect(card.locator('.insights-error')).to_have_text('Historik afventer')
             assert not errors,errors
             browser.close()

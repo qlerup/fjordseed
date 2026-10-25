@@ -49,6 +49,29 @@ class TrackerHistory:
         with closing(self.connect()) as db, db:
             db.execute('DELETE FROM samples WHERE scope=?',(scope,))
 
+    def changes(self,scope,now=None):
+        """Keep the latest 60 changed observations per metric, with original dates."""
+        now=time.time() if now is None else now
+        with closing(self.connect()) as db:
+            rows=db.execute('SELECT at,data FROM samples WHERE scope=? AND at>=? AND at<=? ORDER BY at',
+                            (scope,now-RETENTION,now)).fetchall()
+        points=[{'at':at,**json.loads(data)} for at,data in rows]
+        # Each metric is sparse independently: an upload change must not add a ratio point.
+        result={}
+        for field in FIELDS:
+            previous=None;events=[]
+            for i,point in enumerate(points):
+                value=point.get(field)
+                if value is None:continue
+                if value!=previous or point.get(field+'_reset'):
+                    events.append(i)
+                previous=value
+            for i in events[-60:]:
+                item=result.setdefault(i,{'at':points[i]['at']})
+                item[field]=points[i][field]
+                if points[i].get(field+'_reset'):item[field+'_reset']=True
+        return [result[i] for i in sorted(result)]
+
     def samples(self,scope,days,now=None):
         now=time.time() if now is None else now
         with closing(self.connect()) as db:
