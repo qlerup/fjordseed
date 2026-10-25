@@ -105,7 +105,7 @@ with tempfile.TemporaryDirectory() as folder:
             assert worker.evaluate('self.fetches') == fetches
             page.locator('#add-dialog .close').first.click()
             worker.evaluate("() => self.fixtureRetry()")
-            expect(page.locator('#rss-dialog')).to_be_visible()
+            expect(page.locator('#add-dialog')).to_be_visible()
             expect(page.locator('#rss-url')).to_have_value(rss_url)
             expect(page.locator('#rss-name')).to_be_focused()
             assert page.url == address+'#rss'
@@ -116,7 +116,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#rss-action').select_option('delete_ratio')
             page.locator('#rss-ratio').fill('3')
             page.locator('#rss-save').click()
-            expect(page.locator('#rss-dialog')).not_to_be_visible()
+            expect(page.locator('#add-dialog')).not_to_be_visible()
             feed = app.extensions['rss'].entries()[0]
             assert feed['url'] == rss_url and feed['ratio_action'] == 'delete_ratio' and feed['ratio_limit'] == 3
             assert feed['enabled'] is False
@@ -130,9 +130,9 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('[name=username]').fill('admin')
             page.locator('[name=password]').fill((work/'app'/'initial-login.txt').read_text().strip())
             page.get_by_role('button', name='Log ind', exact=True).click()
-            expect(page.locator('#rss-dialog')).to_be_visible(timeout=20000)
+            expect(page.locator('#add-dialog')).to_be_visible(timeout=20000)
             expect(page.locator('#rss-url')).to_have_value(rss_url)
-            expect(page.locator('#new-torrent')).to_be_disabled()
+            expect(page.locator('#add-save')).to_be_disabled()
             (root/'test-results').mkdir(exist_ok=True)
             page.screenshot(path=str(root/'test-results'/'chrome-rss-import-mobile.png'))
             page.locator('#rss-cancel').click()

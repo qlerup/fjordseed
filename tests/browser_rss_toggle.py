@@ -35,10 +35,10 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('[name=username]').fill('admin')
             page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
             page.get_by_role('button',name='Log ind').click()
-            page.locator('.nav[href="#rss"]').click()
+            page.locator('.nav[href="#torrents"]').click()
             expect(page.locator('#rss-feeds-dialog')).not_to_be_visible()
             expect(page.locator('#rss-feed-summary')).to_have_text('2 feeds · 1 tændt')
-            page.locator('#rss-manage').click()
+            page.locator('#downloads-manage-feeds').click()
             expect(page.locator('#rss-feeds-dialog')).to_be_visible()
             expect(page.locator('#rss-feeds-temporary-total')).to_have_text('12.00 GiB')
             switch=page.get_by_role('switch',name='Automatisk hentning for Politijagt',exact=True)
@@ -64,7 +64,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(switch).to_have_attribute('aria-checked','false')
             assert store.entries()[0]['enabled'] is False
             page.reload()
-            page.locator('#rss-manage').click()
+            page.locator('#downloads-manage-feeds').click()
             expect(switch).to_have_attribute('aria-checked','false')
             expect(card.locator('.rss-feed-upload-value')).to_have_text('6.3 GB')
             expect(page.locator('#rss-feeds-upload-total')).to_have_text('7.3 GB')
@@ -86,9 +86,9 @@ with tempfile.TemporaryDirectory() as folder:
             page.unroute(endpoint)
             # A feed editor opens above the list and returns to it after closing.
             card.get_by_role('button',name='Rediger',exact=True).click()
-            expect(page.locator('#rss-dialog')).to_be_visible()
+            expect(page.locator('#add-dialog')).to_be_visible()
             expect(page.locator('#rss-name')).to_have_value('Politijagt')
-            page.locator('#rss-dialog .close').click()
+            page.locator('#add-dialog > .dialog-heading .close').click()
             expect(page.locator('#rss-feeds-dialog')).to_be_visible()
             # A pending save disables repeat clicks and competing edit actions.
             pending=[]
@@ -116,7 +116,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.screenshot(path=str(output/'rss-upload-mobile.png'),full_page=True)
             page.keyboard.press('Escape')
             expect(page.locator('#rss-feeds-dialog')).not_to_be_visible()
-            expect(page.locator('#rss-manage')).to_be_focused()
+            expect(page.locator('#downloads-manage-feeds')).to_be_focused()
             page.keyboard.press('Enter')
             expect(page.locator('#rss-feeds-dialog')).to_be_visible()
             page.evaluate('refreshRss()')

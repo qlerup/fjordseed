@@ -26,7 +26,7 @@ def run():
                         page.locator('[name=username]').fill('admin')
                         page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
                         page.get_by_role('button',name='Log ind').click()
-                        page.locator('.nav[href="#rss"]').click();page.locator('#rss-new').click()
+                        page.locator('.nav[href="#torrents"]').click();page.locator('[data-download-filter=rss]').click();page.locator('#new-torrent').click();page.locator('#method-rss').click()
                         name='Size '+str(width)
                         page.locator('#rss-name').fill(name);page.locator('#rss-url').fill(f'https://tracker.example/rss?fixture={width}')
                         page.locator('#rss-start-trigger').click()
@@ -44,14 +44,14 @@ def run():
                         screenshot=Path(__file__).resolve().parents[1]/'test-results'/f'rss-size-{width}.png'
                         screenshot.parent.mkdir(exist_ok=True);page.screenshot(path=str(screenshot))
                         page.locator('#rss-next').click();page.locator('#rss-save').click()
-                        expect(page.locator('#rss-dialog')).not_to_be_visible()
-                        page.locator('#rss-manage').click()
+                        expect(page.locator('#add-dialog')).not_to_be_visible()
+                        page.locator('#downloads-manage-feeds').click()
                         card=page.locator('.rss-feed-card').filter(has=page.get_by_text(name,exact=True))
                         card.get_by_role('button',name='Rediger',exact=True).click()
                         expect(page.locator('#rss-max-size')).to_have_value('1.5')
                         expect(page.locator('#rss-size-unit')).to_have_value('GB')
                         page.locator('#rss-max-size').fill('');page.locator('#rss-next').click();page.locator('#rss-save').click()
-                        expect(page.locator('#rss-dialog')).not_to_be_visible()
+                        expect(page.locator('#add-dialog')).not_to_be_visible()
                         saved=next(e for e in app.extensions['rss'].entries() if e['name']==name)
                         assert saved['max_size_bytes'] is None
                         assert not errors,errors

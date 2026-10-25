@@ -66,10 +66,10 @@ with tempfile.TemporaryDirectory() as directory:
                 page.evaluate("document.querySelector('#profile').disabled=true")
                 expect(trigger).to_be_disabled()
                 page.evaluate("document.querySelector('#profile').disabled=false")
-                for prefix,dialog in [('ratio','ratio-dialog'),('rss','rss-dialog')]:
+                for prefix,dialog in [('ratio','ratio-dialog'),('rss','add-dialog')]:
                     page.evaluate("""({prefix,dialog})=>{
                         document.getElementById(dialog).showModal();
-                        if(prefix==='rss')rssShowStep(true);
+                        if(prefix==='rss'){chooseMethod('rss');rssShowStep(true);}
                         updateSeedingFields(prefix);
                     }""",{'prefix':prefix,'dialog':dialog})
                     menu=page.locator('#'+prefix+'-action-trigger')

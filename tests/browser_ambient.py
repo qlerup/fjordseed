@@ -34,8 +34,8 @@ with tempfile.TemporaryDirectory() as folder:
                 assert scene.bounding_box()['width']==width
                 if width!=320:
                     page.screenshot(path=str(root/'test-results'/f'ambient-{width}.png'))
-            page.locator('.nav[href="#rss"]').click()
-            page.locator('#rss-manage').click()
+            page.locator('.nav[href="#torrents"]').click();page.locator('[data-download-filter=rss]').click()
+            page.locator('#downloads-manage-feeds').click()
             expect(page.locator('#rss-feeds-dialog')).to_be_visible()
             assert page.locator('.ambient-glow').first.evaluate('e=>getComputedStyle(e).animationPlayState')=='paused'
             page.locator('#rss-feeds-dialog').get_by_role('button',name='Luk',exact=True).click()

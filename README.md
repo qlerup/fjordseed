@@ -237,6 +237,10 @@ The Manifest V3 [extension](chrome-extension/README.md) sends NordicBytes/Sagmir
 
 Package with `python tools/package_chrome_extension.py`; the ZIP is served at `/static/fjordseed-chrome.zip`. Extension tests: `node --test tests/test_chrome_extension.mjs` and `python tests/browser_extension_check.py`.
 
+Downloads now combines manual torrents and RSS in one workspace, with All, Manual and RSS filters. The summary follows the selected filter; the shared queue always shows all downloads. Add opens one source picker for magnet links, torrent files and RSS, retaining separate seeding and feed settings. Existing `#rss` links open the RSS filter. Feed management and history remain available through Manage feeds. RSS configuration remains available while the VPN is offline; manual download submission still requires a ready connection. The overview retains live rates and VPN animation without the small rate-history graphs.
+
+Reload/install Chrome extension 1.2.1 for RSS handoff to the unified dialog (the updated extension also supports the previous UI). UI regression coverage: `python tests/browser_downloads.py`, `python tests/browser_rss_toggle.py`, `python tests/browser_rss_date.py`, `python tests/browser_rss_filters.py`, and `python tests/browser_transfer_flow.py`.
+
 ## Operations and tests
 
 Back up `DATA_DIR`, every storage/download location, qBittorrent state, RSS metadata and the credit ledger. `docker compose down --remove-orphans` removes runtime while preserving bind mounts. Stop Seed before rollback. Updates briefly interrupt VPN-bound transfers, then resume saved state. Shared directories need appropriate permissions; existing ownership is not changed recursively.

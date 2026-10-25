@@ -28,7 +28,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('[name=username]').fill('admin')
             page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
             page.get_by_role('button',name='Log ind').click()
-            page.locator('.nav[href="#rss"]').click()
+            page.locator('.nav[href="#torrents"]').click();page.locator('[data-download-filter=rss]').click();page.locator('#downloads-manage-feeds').click()
             page.locator('.rss-feed-card').first.get_by_role('button',name='Rediger',exact=True).click()
             page.locator('#rss-open-filters').click()
             dialog=page.locator('#rss-filter-dialog')
@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory() as folder:
             # Escape discards the editor draft and returns to the RSS form.
             page.keyboard.press('Escape')
             expect(dialog).not_to_be_visible()
-            expect(page.locator('#rss-dialog')).to_be_visible()
+            expect(page.locator('#add-dialog')).to_be_visible()
             expect(page.locator('#rss-open-filters')).to_be_focused()
             page.locator('#rss-open-filters').click()
             expect(exclude).to_contain_text('Politijagt')
@@ -75,18 +75,20 @@ with tempfile.TemporaryDirectory() as folder:
             assert store.entries()[0]['title_include']==[]
             page.locator('#rss-next').click()
             page.locator('#rss-save').click()
-            expect(page.locator('#rss-dialog')).not_to_be_visible()
+            expect(page.locator('#add-dialog')).not_to_be_visible()
             assert store.entries()[0]['title_include']==['Den store bagedyst']
             assert store.entries()[0]['title_exclude']==['Politijagt','<img src=x onerror=alert(1)>']
             page.reload()
+            page.locator('#downloads-manage-feeds').click()
             page.locator('.rss-feed-card').first.get_by_role('button',name='Rediger',exact=True).click()
             page.locator('#rss-open-filters').click()
             expect(include).to_contain_text('Den store bagedyst')
             expect(exclude).to_contain_text('Politijagt')
             dialog.get_by_role('button',name='Annuller',exact=True).click()
             page.locator('#rss-cancel').click()
+            page.locator('#rss-feeds-dialog .dialog-footer .close').click()
             # A new feed starts with empty lists, independently of the edited feed.
-            page.locator('#rss-new').click()
+            page.locator('#new-torrent').click();page.locator('#method-rss').click()
             page.locator('#rss-name').fill('Dansk TV uden Politijagt')
             page.locator('#rss-url').fill('https://tracker.example/other')
             page.locator('#rss-start').select_option('all')
@@ -99,7 +101,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#rss-filter-apply').click()
             page.locator('#rss-next').click()
             page.locator('#rss-save').click()
-            expect(page.locator('#rss-dialog')).not_to_be_visible()
+            expect(page.locator('#add-dialog')).not_to_be_visible()
             assert store.entries()[1]['title_include']==[]
             assert store.entries()[1]['title_exclude']==['Politijagt']
             assert not errors,errors

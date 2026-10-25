@@ -1,0 +1,32 @@
+/* Shared download workspace */
+.download-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:8px 0 24px}
+.download-filters{display:flex;gap:4px;padding:5px;border:1px solid #52688b80;border-radius:12px;background:#111c3599}
+.download-filters button{background:transparent;border:1px solid transparent;color:#bdcbe2;border-radius:8px;padding:10px 22px;font-weight:600;cursor:pointer}
+.download-filters button[aria-pressed=true]{background:#8ebcfa24;border-color:#8ebcfa66;color:#e8f3ff;box-shadow:inset 0 1px #ffffff12}
+.download-filters button:hover{color:white;background:#8ebcfa18}
+.downloads-page .stats>div{background:#1b294999;border-top-width:1px;box-shadow:none}
+.downloads-page .stats>div::after{display:none}
+.downloads-page .shared-download-queue{background:#17243c99;border:1px solid #52688b80;border-radius:14px;padding:20px 24px;margin-bottom:24px}
+.downloads-page #downloads-view,.downloads-page #rss-view{background:#18243e80;border:1px solid #52688b80;border-radius:18px;padding:24px;margin-bottom:24px}
+.downloads-page .torrent,.downloads-page .torrent-inactive{background:#1b294999}
+.downloads-page #rss-view .rss-heading{display:none}
+.downloads-page #rss-view>.stats{display:none}
+.downloads-page .queue-note{display:none}
+.downloads-page .stats{margin-top:0}
+.unified-add{width:min(760px,calc(100vw - 32px));max-width:760px}
+.unified-add>.dialog-heading p{margin:8px 0 0}
+.unified-add>.add-method{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:20px 24px 0;margin:0}
+.unified-add .add-method button{text-align:left;padding:16px;border-radius:12px;background:#18253d;border:1px solid #52688b80;min-width:0;white-space:normal}
+.unified-add .add-method button span{display:block;font-size:12px;font-weight:400;color:#b5c4db;margin-top:6px}
+.unified-add .add-method button[aria-pressed=true]{background:#8ebcfa20;border-color:#8ebcfa;color:#cce3ff;box-shadow:inset 0 0 0 1px #8ebcfa30}
+.unified-add #rss-form>.dialog-heading{display:none}
+.unified-add input[type=file]{padding:24px 16px;border:1px dashed #8ebcfa80;background:#8ebcfa08;border-radius:12px;width:100%}
+.download-toolbar [hidden],.unified-add [hidden]{display:none!important}
+@media(max-width:600px){
+ .download-toolbar{align-items:stretch;flex-direction:column;gap:12px}
+ .download-filters button{flex:1;padding:10px 12px}
+ .downloads-page #downloads-view,.downloads-page #rss-view{padding:16px}
+ .unified-add>.add-method{padding:16px 16px 0;gap:6px}
+ .unified-add .add-method button{padding:12px 8px;font-size:12px}
+ .unified-add .add-method button span{font-size:10px}
+}

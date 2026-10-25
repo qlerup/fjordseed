@@ -36,7 +36,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('.nav[href="#overview"]')).to_have_attribute('aria-current','page')
             expect(page.locator('#downloads-view')).to_be_hidden()
             expect(page.locator('#download-queue')).to_be_hidden()
-            for route in ('torrents','rss','connection','storage','streaming','trackers'):
+            for route in ('torrents','connection','storage','streaming','trackers'):
                 page.locator(f'.nav[href="#{route}"]').click()
                 expect(page.locator('#overview-view')).to_be_hidden()
                 expect(flow).to_be_hidden()
@@ -113,65 +113,7 @@ with tempfile.TemporaryDirectory() as folder:
                     return scene.pulse!==pulse&&pulse.playState==='idle';
                 } finally {scene.packets=packets;scene.rates=rates;}
             }""")
-            # Background sparklines show real samples, with gaps and a bounded buffer.
-            assert page.evaluate("""() => {
-                const scene=transferFlow,now=Date.now();scene.rateHistory=[];
-                for(let i=0;i<80;i++)scene.recordRates([i%9*1024**2,(4+Math.sin(i/3)*3)*1024**2],now-(79-i)*1000);
-                if(scene.rateHistory.length!==63||scene.rateCharts.length!==2)return false;
-                if(scene.rateCharts.some(chart=>!chart.line.getAttribute('d').includes('C')))return false;
-                const count=scene.rateHistory.length;scene.recordRates([0,0],now);
-                if(scene.rateHistory.length!==count||scene.rateHistory.at(-1).values.some(v=>v!==0))return false;
-                scene.recordRates([null,100],now+4000);scene.recordRates([200,200],now+8000);scene.drawRates(now+10000);
-                if(scene.rateCharts[0].line.getAttribute('d').split('M').length<3)return false;
-                scene.ready=false;scene.recordRates([100,100],now+12000);
-                if(scene.rateHistory.at(-1).values.some(v=>v!==null))return false;
-                scene.ready=true;scene.rateHistory=[];
-                for(let i=0;i<61;i++)scene.recordRates([(20+15*Math.sin(i/4))*1024**2,(5+3*Math.cos(i/5))*1024**2],now-(60-i)*1000);
-                return !scene.rateCharts.some(chart=>/NaN|Infinity/.test(chart.line.getAttribute('d')));
-            }""")
-            assert page.evaluate("""() => {
-                const scene=transferFlow,now=Date.now();
-                scene.recordRates([70*1024**2,18*1024**2],now+2000);
-                const original=JSON.stringify(scene.rateHistory),first=scene.rateCharts[0].line.getAttribute('d');
-                scene.drawRates(now+2200);const middle=scene.rateCharts[0].line.getAttribute('d');
-                scene.drawRates(now+2700);const end=scene.rateCharts[0].line.getAttribute('d');
-                if(first===middle||middle===end||original!==JSON.stringify(scene.rateHistory))return false;
-                scene.rateHistory=[];
-                for(let i=0;i<160;i++)scene.recordRates([i*100,i*200],now-(159-i)*1000);
-                return scene.rateHistory.length===63;
-            }""")
-            # Each idle direction drains its existing curve before hiding.
-            assert page.evaluate("""() => {
-                const scene=transferFlow,now=Date.now();scene.rateHistory=[];
-                scene.recordRates([0,0],now);
-                if(scene.rateCharts.some(c=>!c.svg.classList.contains('is-idle')))return false;
-                scene.recordRates([1000,0],now+1000);
-                if(scene.rateCharts[0].svg.classList.contains('is-idle')||!scene.rateCharts[1].svg.classList.contains('is-idle'))return false;
-                scene.recordRates([0,0],now+2000);scene.drawRates(now+3000);
-                if(scene.rateCharts[0].svg.classList.contains('is-idle'))return false;
-                for(let i=3;i<=64;i++)scene.recordRates([0,0],now+i*1000);
-                scene.drawRates(now+65000);
-                if(scene.rateCharts.some(c=>!c.svg.classList.contains('is-idle')))return false;
-                scene.recordRates([0,1000],now+66000);
-                if(!scene.rateCharts[0].svg.classList.contains('is-idle')||scene.rateCharts[1].svg.classList.contains('is-idle'))return false;
-                scene.rateHistory=[];
-                for(let i=0;i<61;i++)scene.recordRates([(20+15*Math.sin(i/4))*1024**2,(5+3*Math.cos(i/5))*1024**2],now-(60-i)*1000);
-                return true;
-            }""")
-            expect(flow.locator('.flow-rate-chart')).to_have_count(2)
-            def assert_fixed_charts():
-                assert page.evaluate("""() => [...document.querySelectorAll('.flow-rate')].every(card=>{
-                    const value=card.querySelector('strong'),chart=card.querySelector('.flow-rate-chart');
-                    const saved=value.textContent,before=chart.getBoundingClientRect();
-                    let stable=true;
-                    for(const text of ['0.0 B/s','147 KB/s','1023 KB/s','30 MB/s']){
-                        value.textContent=text;
-                        const after=chart.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(value);
-                        stable&&=Math.abs(before.x-after.x)<.1&&Math.abs(before.width-after.width)<.1&&range.getBoundingClientRect().right<=after.left;
-                    }
-                    value.textContent=saved;return stable;
-                })""")
-            assert_fixed_charts()
+            expect(flow.locator('.flow-rate-chart')).to_have_count(0)
             flow.screenshot(path=str(output/'transfer-flow-desktop.png'))
             for width in (390,320):
                 page.set_viewport_size({'width':width,'height':1000})
@@ -179,7 +121,6 @@ with tempfile.TemporaryDirectory() as folder:
                 page.wait_for_function('() => Math.abs(transferFlow.width-document.querySelector(".flow-canvas").getBoundingClientRect().width)<1')
                 assert flow.evaluate('el=>el.scrollWidth<=el.clientWidth')
                 assert flow.bounding_box()['height'] < 500
-                assert_fixed_charts()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
                 for selector in ('#flow-download-rate','#flow-upload-rate','#flow-country'):
                     expect(page.locator(selector)).to_be_visible()

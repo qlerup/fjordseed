@@ -192,13 +192,15 @@ function resetRssForm(){
  updateRssBadges();
 }
 function rssShowStep(seeding){
- $('#rss-dialog').dataset.step=seeding?'seeding':'source';
+ $('#add-dialog').dataset.step=seeding?'seeding':'source';
  $('#rss-source-step').hidden=seeding;$('#rss-seeding-step').hidden=!seeding;
  $('#rss-next').hidden=seeding;$('#rss-save').hidden=!seeding;$('#rss-back').hidden=!seeding;$('#rss-cancel').hidden=seeding;
  $('#rss-form-title').textContent=seeding?'Seeding og filer':($('#rss-id').value?'Rediger RSS-feed':'Tilføj RSS-feed');
  if(seeding){$('#rss-source-summary').textContent='RSS: '+$('#rss-name').value;updateSeedingFields('rss');$('#rss-action').focus();}
 }
 function openRssForm(feed=null){
+ chooseMethod('rss');$('#add-title').textContent=feed?'Rediger RSS-feed':'Tilføj download';
+ $('.unified-add .add-method').hidden=!!feed;
  resetRssForm();
  if(feed){
   rssTitleFilters={include:[...(feed.title_include||[])],exclude:[...(feed.title_exclude||[])]};updateRssFilterSummary();
@@ -211,7 +213,7 @@ function openRssForm(feed=null){
   if(feed.download_from)$('#rss-start-date').value=rssLocalDate(feed.download_from);
   updateRssStart();$('#rss-form-title').textContent='Rediger RSS-feed';$('#rss-delete-notice').hidden=['keep','stop_keep'].includes(feed.ratio_action);
  }
- updateRssPath();updateRssBadges();loadRssTrackers(feed?.tracker_id||'');$('#rss-dialog').showModal();$('#rss-name').focus();
+ updateRssPath();updateRssBadges();loadRssTrackers(feed?.tracker_id||'');if(!$('#add-dialog').open)$('#add-dialog').showModal();$('#rss-name').focus();
 }
 function rssFeedCard(feed){
  const card=node('article','tracker-card rss-feed-card'),head=node('div','tracker-card-heading');
@@ -318,11 +320,11 @@ $('#rss-start').onchange=updateRssStart;
 $('#rss-max-size').oninput=()=>$('#rss-max-size').setCustomValidity('');
 $('#rss-size-unit').onchange=()=>$('#rss-max-size').setCustomValidity('');
 document.querySelectorAll('[name=rss-badge]').forEach(e=>e.onchange=updateRssBadges);
-$('#rss-dialog').addEventListener('close',()=>{rssTrackerGeneration++;if($('#rss-filter-dialog').open)$('#rss-filter-dialog').close();});
+$('#add-dialog').addEventListener('close',()=>{rssTrackerGeneration++;if($('#rss-filter-dialog').open)$('#rss-filter-dialog').close();});
 $('#rss-action').onchange=()=>updateSeedingFields('rss');
 updateSeedingFields('rss');
-$('#rss-cancel').onclick=()=>$('#rss-dialog').close();
-$('#rss-dialog').addEventListener('cancel',e=>{if(rssBusy)e.preventDefault();});
+$('#rss-cancel').onclick=()=>$('#add-dialog').close();
+$('#add-dialog').addEventListener('cancel',e=>{if(rssBusy)e.preventDefault();});
 $('#rss-back').onclick=()=>rssShowStep(false);
 $('#rss-next').onclick=()=>{
  try{rssMaxSize();}catch{ $('#rss-max-size').reportValidity();return; }
@@ -330,7 +332,7 @@ $('#rss-next').onclick=()=>{
  rssShowStep(true);
 };
 $('#rss-form').onsubmit=async e=>{
- e.preventDefault();if($('#rss-seeding-step').hidden){$('#rss-next').click();return;}if(rssBusy)return;rssBusy=true;$('#rss-save').disabled=true;$('#rss-back').disabled=true;$('#rss-dialog .close').disabled=true;$('#rss-error').hidden=true;
+ e.preventDefault();if($('#rss-seeding-step').hidden){$('#rss-next').click();return;}if(rssBusy)return;rssBusy=true;$('#rss-save').disabled=true;$('#rss-back').disabled=true;$('#add-dialog .close').disabled=true;document.querySelectorAll('.add-method button').forEach(b=>b.disabled=true);$('#rss-error').hidden=true;
  try{
   const start=$('#rss-start').value==='all'?null:new Date($('#rss-start-date').value).toISOString();
   await api('/api/rss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
@@ -340,7 +342,7 @@ $('#rss-form').onsubmit=async e=>{
    max_size_bytes:rssMaxSize(),
    title_include:rssTitleFilters.include,title_exclude:rssTitleFilters.exclude,
    tracker_id:selectedRssBadges().length?$('#rss-tracker').value:''})});
-  $('#rss-dialog').close();resetRssForm();await refreshRss();toast('Feedet er gemt. Synkroniseres når VPN og seedbox er klar.');
- }catch(e){error('#rss-error',e);}finally{rssBusy=false;$('#rss-save').disabled=false;$('#rss-back').disabled=false;$('#rss-dialog .close').disabled=false;}
+  $('#add-dialog').close();resetRssForm();await refreshRss();toast('Feedet er gemt. Synkroniseres når VPN og seedbox er klar.');
+ }catch(e){error('#rss-error',e);}finally{rssBusy=false;$('#rss-save').disabled=false;$('#rss-back').disabled=false;$('#add-dialog .close').disabled=false;document.querySelectorAll('.add-method button').forEach(b=>b.disabled=false);}
 };
 refreshRss();setInterval(refreshRss,10000);

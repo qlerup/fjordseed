@@ -31,6 +31,7 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
         with sync_playwright() as p:
             browser=p.chromium.launch();page=browser.new_page(bypass_csp=True);errors=[]
             page.on('pageerror',lambda e:errors.append(str(e)))
+            page.add_init_script('window.setInterval=()=>0')
             base=f'http://127.0.0.1:{server.server_port}'
             page.goto(base)
             page.locator('[name=username]').fill('admin')
@@ -38,10 +39,10 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             page.get_by_role('button',name='Log ind').click()
 
             page.wait_for_function("typeof updateSeedingFields==='function' && typeof rssShowStep==='function'")
-            for prefix,dialog,field in [('ratio','ratio-dialog','ratio-limit'),('rss','rss-dialog','rss-ratio')]:
+            for prefix,dialog,field in [('ratio','ratio-dialog','ratio-limit'),('rss','add-dialog','rss-ratio')]:
                 page.evaluate("""({prefix,dialog})=>{
                     document.querySelector('#'+dialog).showModal();
-                    if(prefix==='rss')rssShowStep(true);
+                    if(prefix==='rss'){chooseMethod('rss');rssShowStep(true);}
                     updateSeedingFields(prefix);
                 }""",{'prefix':prefix,'dialog':dialog})
                 expect(page.locator('#'+field)).not_to_be_visible()
@@ -106,6 +107,7 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             expect(page.locator('.is-moving .seed-state')).to_contain_text('Flytter filer')
             assert 'Seeder' not in page.locator('.is-moving').inner_text()
             assert 'Seeding:' not in page.locator('.is-moving').inner_text()
+            page.locator('.nav[href="#torrents"]').click();expect(page.locator('#downloads-view')).to_be_visible()
             page.evaluate("""()=>{current={ready:true};const host=document.createElement('div');
                 host.id='toggle-test';document.querySelector('#torrent-list').append(host);}""")
             for state,label in [('downloading','Pause'),('stalledUP','Pause'),('queuedDL','Pause'),

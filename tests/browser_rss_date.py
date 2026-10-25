@@ -22,7 +22,7 @@ with tempfile.TemporaryDirectory() as folder:
    page.get_by_role('button',name='Log ind').click()
    page.goto(f'http://127.0.0.1:{server.server_port}/#rss')
    page.set_viewport_size({'width':1440,'height':1000})
-   page.locator('#rss-new').click()
+   page.locator('#new-torrent').click();page.locator('#method-rss').click()
    assert page.locator('#rss-include, #rss-min-leechers').count()==0
    page.locator('#rss-name').fill('Date controlled feed')
    page.locator('#rss-url').fill('https://tracker.example/rss')
@@ -38,13 +38,13 @@ with tempfile.TemporaryDirectory() as folder:
    expect(page.locator('#rss-start')).to_have_value('3')
    page.locator('#rss-next').click()
    page.locator('#rss-save').click()
-   expect(page.locator('#rss-dialog')).not_to_be_visible()
+   expect(page.locator('#add-dialog')).not_to_be_visible()
    expect(page.locator('#rss-feed-list')).to_contain_text('Hent fra:')
    original=app.extensions['rss'].entries()[0]['download_from']
    age=(datetime.now(timezone.utc)-datetime.fromisoformat(original)).total_seconds()
    assert 3*86400-5<age<3*86400+15
    def edit_feed():
-    if not page.locator('#rss-feeds-dialog').is_visible():page.locator('#rss-manage').click()
+    if not page.locator('#rss-feeds-dialog').is_visible():page.locator('#downloads-manage-feeds').click()
     page.locator('#rss-feed-list .tracker-actions .secondary').click()
    for width,value in [(1440,'2026-10-07T14:30'),(390,'2026-01-07T14:30')]:
     page.set_viewport_size({'width':width,'height':844})
@@ -53,12 +53,12 @@ with tempfile.TemporaryDirectory() as folder:
     page.locator('#rss-start-date').fill(value)
     screenshots=Path(__file__).resolve().parents[1]/'test-results';screenshots.mkdir(exist_ok=True)
     page.screenshot(path=str(screenshots/f'rss-date-{width}.png'))
-    assert page.locator('#rss-dialog').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
+    assert page.locator('#add-dialog').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
     page.locator('#rss-next').click()
     page.screenshot(path=str(screenshots/f'rss-seeding-{width}.png'))
-    assert page.locator('#rss-dialog').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
+    assert page.locator('#add-dialog').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
     page.locator('#rss-save').click()
-    expect(page.locator('#rss-dialog')).not_to_be_visible()
+    expect(page.locator('#add-dialog')).not_to_be_visible()
     saved=app.extensions['rss'].entries()[0]['download_from']
     assert saved==('2026-10-07T12:30:00+00:00' if width==1440 else '2026-01-07T13:30:00+00:00')
     page.reload()
@@ -66,14 +66,14 @@ with tempfile.TemporaryDirectory() as folder:
    expect(page.locator('#rss-start-date')).to_have_value('2026-01-07T14:30')
    page.locator('#rss-next').click()
    page.locator('#rss-save').click()
-   expect(page.locator('#rss-dialog')).not_to_be_visible()
+   expect(page.locator('#add-dialog')).not_to_be_visible()
    assert app.extensions['rss'].entries()[0]['download_from']==saved
    edit_feed()
    page.locator('#rss-start').select_option('all')
    expect(page.locator('#rss-start-date-label')).not_to_be_visible()
    page.locator('#rss-next').click()
    page.locator('#rss-save').click()
-   expect(page.locator('#rss-dialog')).not_to_be_visible()
+   expect(page.locator('#add-dialog')).not_to_be_visible()
    assert app.extensions['rss'].entries()[0]['download_from'] is None
    expect(page.locator('#rss-feed-list')).to_contain_text('Hent alle poster')
    assert not errors,errors

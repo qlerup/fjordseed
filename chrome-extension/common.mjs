@@ -88,7 +88,7 @@ export async function readTorrent(response, name = 'Trackeren') {
 export function showRss(url, transferId, expectedOrigin) {
   if (location.origin !== expectedOrigin) return 'wrong-host';
   const form = document.querySelector('#rss-form'), add = document.querySelector('#rss-new');
-  const input = document.querySelector('#rss-url'), dialog = document.querySelector('#rss-dialog');
+  const input = document.querySelector('#rss-url'), dialog = form?.closest('dialog');
   if (!form || !add || !input || !dialog) return 'login';
   if (form.dataset.fjordseedTransfer === transferId) return 'delivered';
   if (document.querySelector('dialog[open]')) return 'busy';

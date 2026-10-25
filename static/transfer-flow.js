@@ -3,7 +3,6 @@
  'use strict';
  const TAU=Math.PI*2;
  const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
- const svgElement=(tag,attributes={})=>{const el=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [key,value] of Object.entries(attributes))el.setAttribute(key,value);return el;};
  class TransferFlow {
   constructor(root){
    this.root=root;this.canvas=root.querySelector('.flow-canvas');
@@ -11,14 +10,6 @@
    this.ready=false;this.rates=[0,0];this.energy=[0,0];this.frame=null;
    this.visible=false;this.width=0;this.height=0;this.points=[];this.paths=[];
    this.packets=[];
-   this.rateHistory=[];this.rateMaximum=[null,null];this.rateRenderedAt=null;
-   this.rateCharts=[...root.querySelectorAll('.flow-rate')].map((card,index)=>{
-    const svg=svgElement('svg',{viewBox:'0 0 300 100',preserveAspectRatio:'none',class:'flow-rate-chart','aria-hidden':'true'});
-    const defs=svgElement('defs'),gradient=svgElement('linearGradient',{id:'flow-rate-fill-'+index,x1:0,y1:0,x2:0,y2:1});
-    gradient.append(svgElement('stop',{offset:'0%','stop-color':'currentColor','stop-opacity':'.24'}),svgElement('stop',{offset:'100%','stop-color':'currentColor','stop-opacity':'.02'}));defs.append(gradient);
-    const fill=svgElement('path',{fill:`url(#flow-rate-fill-${index})`}),line=svgElement('path',{class:'flow-rate-curve'});
-    svg.append(defs,fill,line);card.prepend(svg);return {svg,fill,line};
-   });
    this.core=root.querySelector('.flow-core-shell');this.pulse=null;
    this.lanes=Array.from({length:6},(_,index)=>({direction:Math.floor(index/3),strand:index%3,wait:Math.random()*.8}));
    this.motion=matchMedia('(prefers-reduced-motion: reduce)');
@@ -34,7 +25,6 @@
   }
   update({ready,download,upload}){
    this.ready=!!ready;
-   this.recordRates([download,upload]);
    if(!this.ready)this.packets=[];
    this.rates=[download,upload].map(rate=>this.ready&&Number.isFinite(rate)&&rate>0?rate:0);
    const levels=this.rates.map(rate=>rate?clamp(Math.log2(1+rate/16384)/14,.08,1):0);
@@ -42,60 +32,6 @@
    this.root.dataset.traffic=this.rates.some(Boolean)?'moving':'idle';
    this.root.style.setProperty('--flow-energy',Math.max(...levels).toFixed(3));
    this.sync();
-  }
-  recordRates(rates,now=Date.now()){
-   const values=rates.map(rate=>this.ready&&Number.isFinite(rate)&&rate>=0?rate:null);
-   const last=this.rateHistory.at(-1);
-   // UI rerenders are not additional observations. Missing status is never zero.
-   const sample={at:now,values};
-   if(last&&now-last.at<250)this.rateHistory[this.rateHistory.length-1]=sample;
-   else this.rateHistory.push(sample);
-   // Keep the point just outside the visible window so its tail can scroll out.
-   this.rateHistory=this.rateHistory.filter(point=>point.at>=now-62000).slice(-125);
-   this.drawRates(now);
-  }
-  drawRates(now=Date.now()){
-   const latest=this.rateHistory.at(-1);if(!latest)return;
-   const instant=this.motion.matches||!this.visible||document.hidden;
-   const elapsed=Math.max(0,(now-(this.rateRenderedAt??now))/1000);this.rateRenderedAt=now;
-   const blend=instant?1:1-Math.exp(-elapsed*5);
-   // A one-second playback buffer lets measurements slide through a continuous
-   // timeline, instead of snapping the previous endpoint left on each response.
-   const playhead=instant?now:now-1000;
-   const points=this.rateHistory.filter(point=>point.at<=playhead);
-   const previous=points.at(-1),next=this.rateHistory.find(point=>point.at>playhead);
-   if(previous&&playhead>previous.at&&playhead-previous.at<=12000){
-    const fraction=next&&next.at-previous.at<=12000?(playhead-previous.at)/(next.at-previous.at):0;
-    points.push({at:playhead,values:previous.values.map((value,i)=>value===null?null:next?.values[i]!=null?value+(next.values[i]-value)*fraction:value)});
-   }
-   this.rateCharts.forEach(({svg,fill,line},index)=>{
-    svg.classList.toggle('is-unavailable',latest.values[index]===null);
-    const start=playhead-60000;
-    const activity=points.some((point,i)=>point.values[index]>0&&
-     (point.at>=start||(points[i+1]?.at>start&&points[i+1].values[index]!==null&&points[i+1].at-point.at<=12000)));
-    const incoming=latest.values[index]>0&&latest.at>playhead;
-    svg.classList.toggle('is-idle',!activity&&!incoming);
-    const target=Math.max(1,...this.rateHistory.filter(point=>point.at>=now-60000).map(point=>point.values[index]??0));
-    this.rateMaximum[index]=this.rateMaximum[index]===null?target:this.rateMaximum[index]+(target-this.rateMaximum[index])*blend;
-    const maximum=Math.max(1,this.rateMaximum[index]);
-    const x=point=>300-(playhead-point.at)/60000*300,y=point=>94-clamp(point.values[index]/maximum,0,1)*68;
-    let previous=null,path='',area='',segment=[];
-    const flush=()=>{
-     if(!segment.length)return;
-     let d=`M${x(segment[0])},${y(segment[0])}`;
-     for(let i=1;i<segment.length;i++){
-      const a=segment[i-1],b=segment[i],mid=(x(a)+x(b))/2;
-      d+=` C${mid},${y(a)} ${mid},${y(b)} ${x(b)},${y(b)}`;
-     }
-     path+=d;area+=d+` L${x(segment.at(-1))},100 L${x(segment[0])},100 Z`;segment=[];
-    };
-    for(const point of points){
-     if(point.values[index]===null){flush();previous=null;continue;}
-     if(previous&&point.at-previous.at>12000)flush();
-     segment.push(point);previous=point;
-    }
-    flush();line.setAttribute('d',path);fill.setAttribute('d',area);
-   });
   }
   resize(){
    if(!this.ctx)return;
@@ -130,7 +66,7 @@
    if(!animate){
     this.pulse?.cancel();this.pulse=null;
     if(this.frame!==null)cancelAnimationFrame(this.frame);
-    this.frame=null;this.energy=this.target||[0,0];this.draw(performance.now()/1000);this.drawRates();
+    this.frame=null;this.energy=this.target||[0,0];this.draw(performance.now()/1000);
    }
   }
   tick(now){
@@ -139,7 +75,7 @@
    this.energy=this.energy.map((level,i)=>level+((this.target?.[i]||0)-level)*Math.min(1,delta*4));
    this.advance(delta);
    this.draw(now/1000);
-   this.drawRates();
+
    this.frame=requestAnimationFrame(this.tick);
   }
   advance(delta){

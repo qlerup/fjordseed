@@ -28,9 +28,9 @@ with tempfile.TemporaryDirectory() as folder:
             errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
             page.goto(f'http://127.0.0.1:{server.server_port}/#rss')
             page.locator('[name=username]').fill('admin');page.locator('[name=password]').fill((root/'initial-login.txt').read_text().strip())
-            page.get_by_role('button',name='Log ind').click();page.locator('.nav[href="#rss"]').click()
-            expect(page.locator('#page-title')).to_have_text('Dine RSS-feeds')
-            page.locator('#rss-manage').click()
+            page.get_by_role('button',name='Log ind').click();page.locator('.nav[href="#torrents"]').click();page.locator('[data-download-filter=rss]').click()
+            expect(page.locator('#page-title')).to_have_text('Dine downloads')
+            page.locator('#downloads-manage-feeds').click()
             expect(page.locator('.rss-feed-card')).to_have_count(2)
             for width in (1440,390):
                 page.set_viewport_size({'width':width,'height':844})
