@@ -10,6 +10,7 @@
    this.ready=false;this.rates=[0,0];this.energy=[0,0];this.frame=null;
    this.visible=false;this.width=0;this.height=0;this.points=[];this.paths=[];
    this.packets=[];
+   this.core=root.querySelector('.flow-core-shell');this.pulse=null;
    this.lanes=Array.from({length:6},(_,index)=>({direction:Math.floor(index/3),strand:index%3,wait:Math.random()*.8}));
    this.motion=matchMedia('(prefers-reduced-motion: reduce)');
    this.tick=this.tick.bind(this);
@@ -63,6 +64,7 @@
    this.root.classList.toggle('flow-paused',!animate);
    if(animate&&this.frame===null){this.last=performance.now();this.frame=requestAnimationFrame(this.tick);}
    if(!animate){
+    this.pulse?.cancel();this.pulse=null;
     if(this.frame!==null)cancelAnimationFrame(this.frame);
     this.frame=null;this.energy=this.target||[0,0];this.draw(performance.now()/1000);
    }
@@ -77,7 +79,12 @@
   }
   advance(delta){
    // Packets keep their own pace across both links, including after traffic stops.
-   for(const packet of this.packets)packet.progress+=delta*packet.speed;
+   let arrivals=0;
+   for(const packet of this.packets){
+    const before=packet.progress;packet.progress+=delta*packet.speed;
+    if(before<1&&packet.progress>=1)arrivals++;
+   }
+   if(arrivals)this.pulseShield();
    this.packets=this.packets.filter(packet=>packet.progress<2);
    for(const lane of this.lanes){
     if(!this.rates[lane.direction])continue;
@@ -88,6 +95,19 @@
     // Independent launch times avoid synchronized rows on the three strands.
     lane.wait=.65+Math.random()*.65;
    }
+  }
+  pulseShield(){
+   if(!this.core||!this.ready||!this.visible||document.hidden||this.motion.matches)return;
+   // Merge simultaneous arrivals into one bounded pulse, starting at its current
+   // appearance so a second packet never snaps the shield back to its base size.
+   const current=getComputedStyle(this.core);
+   const start={transform:current.transform,filter:current.filter};
+   this.pulse?.cancel();
+   this.pulse=this.core.animate([
+    start,
+    {transform:'scale(1.075)',filter:'drop-shadow(0 0 12px #79f8c480)',offset:.28},
+    {transform:'scale(1)',filter:'drop-shadow(0 0 0px #79f8c400)'}
+   ],{duration:560,easing:'ease-out'});
   }
   point(path,t){
    const q=1-t;

@@ -98,6 +98,21 @@ with tempfile.TemporaryDirectory() as folder:
                 step(8);
                 return scene.packets.some(p=>p.direction===0)&&scene.packets.some(p=>p.direction===1);
             }""")
+            # Arrival at the VPN pulses once, even when a stopped transfer drains.
+            assert page.evaluate("""() => {
+                const scene=transferFlow,packets=scene.packets,rates=scene.rates;
+                try {
+                    scene.rates=[0,0];scene.packets=[{progress:.99,speed:.3,direction:0,strand:0,level:1}];
+                    scene.advance(.1);
+                    const pulse=scene.pulse;
+                    if(!pulse||pulse.playState!=='running')return false;
+                    scene.advance(.1);
+                    if(scene.pulse!==pulse)return false;
+                    scene.packets=[{progress:.99,speed:.3,direction:1,strand:0,level:1}];
+                    scene.advance(.1);
+                    return scene.pulse!==pulse&&pulse.playState==='idle';
+                } finally {scene.packets=packets;scene.rates=rates;}
+            }""")
             flow.screenshot(path=str(output/'transfer-flow-desktop.png'))
             for width in (390,320):
                 page.set_viewport_size({'width':width,'height':1000})
@@ -112,6 +127,9 @@ with tempfile.TemporaryDirectory() as folder:
             # Reduced motion freezes both canvas and CSS, preserving real rates.
             page.emulate_media(reduced_motion='reduce')
             page.wait_for_function('() => transferFlow.frame === null')
+            assert page.evaluate('transferFlow.pulse===null')
+            page.evaluate('transferFlow.pulseShield()')
+            assert page.evaluate('transferFlow.pulse===null')
             assert page.locator('.flow-orbit-one').evaluate('el=>getComputedStyle(el).animationName')=='none'
             frozen=page.locator('.flow-canvas').evaluate('el=>el.toDataURL()')
             page.evaluate('transferFlow.draw(performance.now()/1000+10)')
