@@ -47,10 +47,10 @@
    const values=rates.map(rate=>this.ready&&Number.isFinite(rate)&&rate>=0?rate:null);
    const last=this.rateHistory.at(-1);
    // UI rerenders are not additional observations. Missing status is never zero.
-   const sample={at:now,values,from:last?.values};
-   if(last&&now-last.at<1000)this.rateHistory[this.rateHistory.length-1]=sample;
+   const sample={at:now,values};
+   if(last&&now-last.at<250)this.rateHistory[this.rateHistory.length-1]=sample;
    else this.rateHistory.push(sample);
-   this.rateHistory=this.rateHistory.filter(point=>point.at>=now-240000).slice(-121);
+   this.rateHistory=this.rateHistory.filter(point=>point.at>=now-60000).slice(-121);
    this.drawRates(now);
   }
   drawRates(now=Date.now()){
@@ -58,14 +58,21 @@
    const instant=this.motion.matches||!this.visible||document.hidden;
    const elapsed=Math.max(0,(now-(this.rateRenderedAt??now))/1000);this.rateRenderedAt=now;
    const blend=instant?1:1-Math.exp(-elapsed*5);
+   // A one-second playback buffer lets measurements slide through a continuous
+   // timeline, instead of snapping the previous endpoint left on each response.
+   const playhead=instant?now:now-1000;
+   const points=this.rateHistory.filter(point=>point.at<=playhead);
+   const previous=points.at(-1),next=this.rateHistory.find(point=>point.at>playhead);
+   if(previous&&playhead>previous.at&&playhead-previous.at<=12000){
+    const fraction=next&&next.at-previous.at<=12000?(playhead-previous.at)/(next.at-previous.at):0;
+    points.push({at:playhead,values:previous.values.map((value,i)=>value===null?null:next?.values[i]!=null?value+(next.values[i]-value)*fraction:value)});
+   }
    this.rateCharts.forEach(({svg,fill,line},index)=>{
     svg.classList.toggle('is-unavailable',latest.values[index]===null);
-    const target=Math.max(1,...this.rateHistory.filter(point=>point.at>=now-240000).map(point=>point.values[index]??0));
+    const target=Math.max(1,...this.rateHistory.filter(point=>point.at>=now-60000).map(point=>point.values[index]??0));
     this.rateMaximum[index]=this.rateMaximum[index]===null?target:this.rateMaximum[index]+(target-this.rateMaximum[index])*blend;
     const maximum=Math.max(1,this.rateMaximum[index]);
-    const progress=instant?1:clamp((now-latest.at)/650,0,1),ease=progress*progress*(3-2*progress);
-    const value=point=>point===latest&&Number.isFinite(point.from?.[index])?point.from[index]+(point.values[index]-point.from[index])*ease:point.values[index];
-    const x=point=>point===latest?300:300-(now-point.at)/240000*300,y=point=>94-clamp(value(point)/maximum,0,1)*68;
+    const x=point=>300-(playhead-point.at)/60000*300,y=point=>94-clamp(point.values[index]/maximum,0,1)*68;
     let previous=null,path='',area='',segment=[];
     const flush=()=>{
      if(!segment.length)return;
@@ -76,7 +83,7 @@
      }
      path+=d;area+=d+` L${x(segment.at(-1))},100 L${x(segment[0])},100 Z`;segment=[];
     };
-    for(const point of this.rateHistory){
+    for(const point of points){
      if(point.values[index]===null){flush();previous=null;continue;}
      if(previous&&point.at-previous.at>12000)flush();
      segment.push(point);previous=point;
@@ -126,7 +133,7 @@
    this.energy=this.energy.map((level,i)=>level+((this.target?.[i]||0)-level)*Math.min(1,delta*4));
    this.advance(delta);
    this.draw(now/1000);
-   if(!this.rateFrameAt||now-this.rateFrameAt>=30){this.drawRates();this.rateFrameAt=now;}
+   this.drawRates();
    this.frame=requestAnimationFrame(this.tick);
   }
   advance(delta){
