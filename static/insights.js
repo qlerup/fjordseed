@@ -19,14 +19,15 @@
   const pair=p=>p.x.toFixed(2)+','+p.y.toFixed(2);
   let path='M'+pair(points[0]);
   if(points.length===2)return path+' L'+pair(points[1]);
+  const bend=.45;
   const slopes=points.slice(1).map((p,i)=>(p.y-points[i].y)/Math.max(.000001,p.x-points[i].x));
   const tangent=i=>{
    if(i===0)return slopes[0];if(i===points.length-1)return slopes.at(-1);
    const a=slopes[i-1],b=slopes[i];
-   return a*b<=0?0:Math.sign(a)*Math.min(Math.abs((a+b)/2),3*Math.min(Math.abs(a),Math.abs(b)));
+   return a*b<=0?0:Math.sign(a)*Math.min(Math.abs((a+b)/2),Math.min(Math.abs(a),Math.abs(b))/(2*bend));
   };
   for(let i=1;i<points.length;i++){
-   const a=points[i-1],b=points[i],dx=(b.x-a.x)/3;
+   const a=points[i-1],b=points[i],dx=(b.x-a.x)*bend;
    path+=' C'+pair({x:a.x+dx,y:a.y+dx*tangent(i-1)})+' '+pair({x:b.x-dx,y:b.y-dx*tangent(i)})+' '+pair(b);
   }
   return path;
