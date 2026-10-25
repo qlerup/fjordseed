@@ -262,7 +262,9 @@ class Benefits:
 
     def snapshot(self, meta):
         hashes=self.hashes(meta)
-        with self.lock:
+        # RSS admission already holds trackers.lock before remembering benefits.
+        # Keep that order when overlays/retries need both locks as well.
+        with self.trackers.lock, self.lock:
             saved=next((self.snapshots[h] for h in hashes if h in self.snapshots),None)
             if saved is not None:
                 if not self.needs_retry(saved) and not self.needs_date(saved):
@@ -283,11 +285,11 @@ class Benefits:
                     return self.with_global(saved)
         if not str(meta.get('name','')).strip():
             return {'status':'unknown','message':'Afventer torrentoplysninger.'}
-        with self.lock:
+        with self.trackers.lock, self.lock:
             self.snapshot_pending.update(hashes)
         result=self.request(meta,priority=1)
         self.remember(meta,result)
-        with self.lock:
+        with self.trackers.lock, self.lock:
             return self.with_global(next((self.snapshots[h] for h in hashes if h in self.snapshots),result))
 
     def request(self, meta, selected='', priority=0, max_age=300):
@@ -301,7 +303,7 @@ class Benefits:
             return {'status':'unknown','message':'Tilføj en tracker under Trackere for at se fordelene.'}
         signature=tuple((e['id'],e['name'],e['provider'],hashlib.sha256(e['api_key'].encode()).hexdigest()) for e in entries)
         key=(hashes,name,signature)
-        with self.lock:
+        with self.trackers.lock, self.lock:
             cached=self.cache.get(key)
             promote=cached and cached['result']['status']=='pending' and priority<cached['priority']
             if cached and not promote and (cached['result']['status']=='pending' or time.time()-cached['at']<max_age):
