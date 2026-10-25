@@ -49,7 +49,7 @@ header{color:#b0bed8;border-bottom-color:#40547780}
 .tracker-stats>div:nth-child(1) strong{color:var(--green)}
 .tracker-stats>div:nth-child(2) strong{color:var(--accent-blue)}
 .tracker-stats>div:nth-child(3) strong{color:var(--accent-violet)}
-.traffic-flow{border-color:#49628b;background:radial-gradient(ellipse at 48% 45%,#218f7950,transparent 55%),linear-gradient(115deg,#1c3151d9,#1b2745d9 65%,#29345bd9);box-shadow:inset 0 1px #bbd9ff14,0 10px 32px #05091a30}
+.traffic-flow{border-color:#49628b;background:radial-gradient(ellipse at 48% 45%,#218f7933,transparent 55%),linear-gradient(115deg,#1c315180,#1b274580 65%,#29345b80);box-shadow:inset 0 1px #bbd9ff14,0 10px 32px #05091a30}
 .flow-eyebrow{color:#b1d5e6}
 .flow-rate{background:#182c48;border-color:#476481}
 .flow-rate-upload{background:#222d50}
@@ -64,7 +64,7 @@ dialog::backdrop{background:#060b1ad9}
 .rss-history-overview,.rss-history-group{background:#22304d}
 .rss-history-file,#rss-history-search{background:#15213b;border-color:#405578}
 .rss-history-metrics{background:#1b2a46}
-.insights{background:#1b2542d9;border-color:#405578}
+.insights{background:#1b254280;border-color:#405578}
 .insights-face{background:transparent;border-color:#405578}
 .insights-eyebrow{color:#b6a4ff}
 .insights-period{background:#131d36;border-color:#405578}
