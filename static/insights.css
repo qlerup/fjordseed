@@ -102,3 +102,6 @@
 @media(max-width:1200px){.insights-selectors{grid-template-columns:repeat(3,minmax(0,1fr))}.insights-selector-value{font-size:17px}}
 @media(max-width:650px){.insights-selectors{padding:14px 16px 0;grid-template-columns:repeat(2,minmax(0,1fr))}.insights-visual .insights-viewport{height:380px}.insights-all-chart{height:190px}}
 @media(prefers-reduced-motion:reduce){.insights-stage *{transition:none!important}}
+
+.insights-stage.is-morphing .insights-current{visibility:hidden;transform:none}
+.insights-stage.is-morphing .insights-next{opacity:1;transition:none}

@@ -80,12 +80,41 @@
    if(this.motion.matches){this.index=index;this.draw();this.schedule();return;}
    this.busy=true;this.next.replaceChildren(...this.face(metrics[index]));
    this.next.style.setProperty('--insight-color',metrics[index]?.color||'#c1a5f2');
+   const morph=this.morphLine();
    let done=false;
    this.finish=()=>{
-    if(done)return;done=true;clearTimeout(this.fallback);
-    this.stage.classList.remove('is-changing');this.next.replaceChildren();this.index=index;this.busy=false;this.draw();this.schedule();
+    if(done)return;done=true;clearTimeout(this.fallback);cancelAnimationFrame(this.morphFrame);
+    this.stage.classList.remove('is-changing','is-morphing');this.next.replaceChildren();this.index=index;this.busy=false;this.draw();this.schedule();
    };
-   void this.stage.offsetWidth;this.stage.classList.add('is-changing');this.fallback=setTimeout(this.finish,650);
+   void this.stage.offsetWidth;this.stage.classList.add('is-changing');
+   if(morph){
+    this.stage.classList.add('is-morphing');
+    const start=performance.now();
+    const frame=now=>{const t=Math.min(1,(now-start)/800);morph(t*t*(3-2*t));if(t<1)this.morphFrame=requestAnimationFrame(frame);else this.finish();};
+    morph(0);this.morphFrame=requestAnimationFrame(frame);
+   }
+   this.fallback=setTimeout(this.finish,morph?1000:650);
+  }
+  morphLine(){
+   const oldLines=this.current.querySelectorAll('.insights-line'),newLines=this.next.querySelectorAll('.insights-line');
+   // Never bridge history gaps, resets, or the independent series in All.
+   if(oldLines.length!==1||newLines.length!==1||this.current.querySelector('.insights-all')||this.next.querySelector('.insights-all'))return null;
+   const oldLine=oldLines[0],line=newLines[0];
+   const vertices=path=>[...path.getAttribute('d').matchAll(/[ML]([\d.-]+),([\d.-]+)/g)].map(m=>({x:Number(m[1]),y:Number(m[2])}));
+   const from=vertices(oldLine),to=vertices(line);if(!from.length||!to.length)return null;
+   const fractions=[...new Set([0,1,...from.map((_,i)=>i/Math.max(1,from.length-1)),...to.map((_,i)=>i/Math.max(1,to.length-1))])].sort((a,b)=>a-b);
+   const sample=(points,t)=>{const at=t*(points.length-1),i=Math.floor(at),a=points[i],b=points[Math.min(i+1,points.length-1)],f=at-i;return {x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f};};
+   const convert=line.getScreenCTM().inverse().multiply(oldLine.getScreenCTM());
+   const pairs=fractions.map(t=>({a:new DOMPoint(sample(from,t).x,sample(from,t).y).matrixTransform(convert),b:sample(to,t)}));
+   const area=line.previousElementSibling,point=line.ownerSVGElement.querySelector('.insights-point');
+   const colors=[getComputedStyle(oldLine).stroke,getComputedStyle(line).stroke].map(color=>color.match(/[\d.]+/g).slice(0,3).map(Number));
+   return t=>{
+    const positions=pairs.map(({a,b})=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t}));
+    const d=positions.map((p,i)=>(i?'L':'M')+p.x.toFixed(2)+','+p.y.toFixed(2)).join(' '),last=positions.at(-1);
+    line.setAttribute('d',d);line.style.stroke='rgb('+colors[0].map((v,i)=>v+(colors[1][i]-v)*t).join(',')+')';
+    if(area?.tagName==='path')area.setAttribute('d',d+` L${last.x},155 L${positions[0].x},155 Z`);
+    if(point){point.setAttribute('cx',last.x);point.setAttribute('cy',last.y);point.style.fill=line.style.stroke;}
+   };
   }
   draw(){
    if(this.busy)return;
@@ -119,9 +148,8 @@
    const reset=samples.some(point=>point[metric.key+'_reset']);
    const delta=last&&first?last[metric.key]-first[metric.key]:null;
    summary.append(node('span','insights-change'+(delta<0?' is-negative':''),reset?'Tælleren er nulstillet':samples.length>1?(delta>0?'↗ +':delta<0?'↘ −':'→ ')+format(Math.abs(delta),metric.key):'Afventer flere målinger'));
-   const source=metric.scope==='account'?'':'Hele seedboxen · fysisk trafik\n';
    const measured=last?'\nSeneste ændring '+new Date(last.at*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
-   summary.append(node('p','insights-source',(source+(samples.length>1?'':'Afventer en ændring i værdien.')+measured).trim()));
+   summary.append(node('p','insights-source',((samples.length>1?'':'Afventer en ændring i værdien.')+measured).trim()));
    const chart=node('div','insights-chart');
    if(!samples.length){const empty=node('div','insights-empty');empty.append(node('span','','⌁'),node('strong','',!this.loaded?'Henter din historik…':!this.error.hidden?'Historik midlertidigt utilgængelig':'Din historik starter her'),node('p','',!this.loaded?'Et øjeblik.':!this.error.hidden?'Vi prøver igen automatisk.':'Grafen starter ved den første måling. Tidligere aktivitet bliver ikke gættet.'));chart.append(empty);}
    else chart.append(this.plot(metric,samples));

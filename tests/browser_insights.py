@@ -67,7 +67,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.clock.fast_forward(10000);expect(card).to_have_attribute('data-metric','ratio')
             page.mouse.move(0,0);expect(card).to_have_attribute('data-paused','false')
             page.clock.fast_forward(8050)
-            expect(card.locator('.insights-stage')).to_have_class('insights-stage is-changing')
+            expect(card.locator('.insights-stage')).to_have_class('insights-stage is-changing is-morphing')
             assert card.locator('.insights-stage').evaluate('el=>getComputedStyle(el).transformStyle')=='flat'
             page.clock.fast_forward(1300)
             expect(card).to_have_attribute('data-metric','credited_uploaded')
@@ -75,7 +75,18 @@ with tempfile.TemporaryDirectory() as folder:
                 card.get_by_role('button',name=label,exact=True).click();page.clock.fast_forward(1300)
                 expect(card).to_have_attribute('data-metric',key)
                 expect(card.locator('.insights-current svg')).to_be_visible()
-                if key.startswith('real_'):expect(card.locator('.insights-current .insights-source')).to_contain_text('Hele seedboxen')
+                if key.startswith('real_'):expect(card.locator('.insights-current .insights-source')).not_to_contain_text('Hele seedboxen')
+            # A manual change reshapes the line continuously, just like autoplay.
+            card.get_by_role('button',name='Reel upload',exact=True).click()
+            assert card.locator('.insights-stage.is-morphing').count()==1
+            start_path=card.locator('.insights-next .insights-line').get_attribute('d')
+            page.clock.run_for(400)
+            middle_path=card.locator('.insights-next .insights-line').get_attribute('d')
+            assert middle_path!=start_path and 'NaN' not in middle_path
+            card.screenshot(path=str(output/'insights-morph-midpoint.png'))
+            page.clock.fast_forward(1000)
+            expect(card).to_have_attribute('data-metric','real_uploaded')
+            assert card.locator('.insights-stage.is-morphing').count()==0
             # Selection updates synchronously, including rapid clicks during a transition.
             assert page.evaluate("""() => {
                 const buttons=[...document.querySelectorAll('.insights-selectors button')];
