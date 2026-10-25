@@ -241,11 +241,25 @@
    for(let i=0;i<points.length;i++){const p=points[i];if(i&&(p.gap_before||p[metric.key+'_reset']))flush();segment.push(p);}flush();
    const last=points.at(-1);svg.append(svgNode('circle',{cx:x(last),cy:y(last),r:4,class:'insights-point'}));
    for(const [text,px,anchor] of [['Ældre ændringer',left,'start'],['Nyeste',right,'end']]){const label=svgNode('text',{x:px,y:177,'text-anchor':anchor});label.textContent=text;svg.append(label);}
-   const cursor=svgNode('line',{y1:top,y2:bottom,stroke:metric.color,'stroke-opacity':'.4',hidden:''}),tip=svgNode('text',{x:left+4,y:25,hidden:''});svg.append(cursor,tip);
+   const cursor=svgNode('line',{y1:top,y2:bottom,stroke:metric.color,'stroke-opacity':'.4',hidden:''});
+   const tip=svgNode('g',{class:'insights-tooltip',role:'tooltip',hidden:''});
+   const bubble=svgNode('rect',{rx:6,height:38}),valueText=svgNode('text',{y:15,'text-anchor':'middle',class:'insights-tooltip-value'}),dateText=svgNode('text',{y:29,'text-anchor':'middle',class:'insights-tooltip-date'});
+   tip.append(bubble,valueText,dateText);
+   const marker=svgNode('circle',{r:4,class:'insights-point insights-hover-point',hidden:''});
+   svg.append(cursor,marker,tip);
    let selected=points.length-1;
-   const show=index=>{selected=index;const point=points[index];cursor.removeAttribute('hidden');tip.removeAttribute('hidden');cursor.setAttribute('x1',x(point));cursor.setAttribute('x2',x(point));tip.textContent=new Date(point.at*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' · '+valueLabel(point[metric.key]);};
+   const show=index=>{
+    selected=index;const point=points[index],px=x(point),py=y(point);
+    cursor.removeAttribute('hidden');tip.removeAttribute('hidden');marker.removeAttribute('hidden');
+    cursor.setAttribute('x1',px);cursor.setAttribute('x2',px);marker.setAttribute('cx',px);marker.setAttribute('cy',py);
+    valueText.textContent=numeric?point[metric.key].toLocaleString('da-DK',{maximumFractionDigits:metric.key==='ratio'?6:2}):valueLabel(point[metric.key]);
+    dateText.textContent=new Date(point.at*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    const boxWidth=Math.min(width-8,Math.max(valueText.getComputedTextLength(),dateText.getComputedTextLength())+20);
+    bubble.setAttribute('width',boxWidth);valueText.setAttribute('x',boxWidth/2);dateText.setAttribute('x',boxWidth/2);
+    tip.setAttribute('transform',`translate(${Math.max(4,Math.min(width-boxWidth-4,px-boxWidth/2))},${Math.max(0,py-48)})`);
+   };
    svg.addEventListener('pointermove',event=>{const box=svg.getBoundingClientRect(),px=(event.clientX-box.left)/box.width*width;let nearest=0;for(let i=1;i<points.length;i++)if(Math.abs(x(points[i])-px)<Math.abs(x(points[nearest])-px))nearest=i;show(nearest);});
-   const hide=()=>{cursor.setAttribute('hidden','');tip.setAttribute('hidden','');};svg.addEventListener('pointerleave',hide);svg.addEventListener('blur',hide);svg.addEventListener('focus',()=>show(points.length-1));
+   const hide=()=>{cursor.setAttribute('hidden','');tip.setAttribute('hidden','');marker.setAttribute('hidden','');};svg.addEventListener('pointerleave',hide);svg.addEventListener('blur',hide);svg.addEventListener('focus',()=>show(points.length-1));
    svg.addEventListener('keydown',event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();show(Math.max(0,Math.min(points.length-1,selected+(event.key==='ArrowLeft'?-1:1))));}});
    return svg;
   }

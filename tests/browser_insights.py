@@ -46,6 +46,14 @@ with tempfile.TemporaryDirectory() as folder:
             expect(card.locator('.insights-current .insights-change')).to_be_visible()
             expect(card.locator('.insights-current .insights-source')).not_to_contain_text('hele kontoen')
             chart=card.locator('.insights-current svg')
+            chart.locator('.insights-point').first.hover(force=True)
+            tooltip=chart.locator('.insights-tooltip')
+            expect(tooltip).to_be_visible()
+            expect(tooltip.locator('.insights-tooltip-value')).not_to_be_empty()
+            tip_box=tooltip.bounding_box();point_box=chart.locator('.insights-point').first.bounding_box()
+            assert tip_box['y']+tip_box['height']<point_box['y']
+            card.screenshot(path=str(output/'insights-point-tooltip.png'))
+            page.mouse.move(0,0);expect(tooltip).to_be_hidden()
             chart.click()
             assert chart.evaluate('el=>getComputedStyle(el).outlineStyle')=='none'
             page.keyboard.press('Tab')

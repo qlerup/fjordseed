@@ -110,3 +110,9 @@
 #insights-account-details{display:flex;flex-direction:column;flex:1}
 #insights-account-details .tracker-stats + p{margin-top:auto;padding-top:18px}
 #insights-account-details > p:last-child{margin-bottom:0}
+
+.insights-tooltip,.insights-hover-point{pointer-events:none}
+.insights-svg [hidden]{display:none}
+.insights-tooltip rect{fill:#111b30;stroke:var(--insight-color);stroke-opacity:.55;stroke-width:1}
+.insights-svg .insights-tooltip-value{fill:#f1f5ff;font-weight:600;font-size:11px}
+.insights-svg .insights-tooltip-date{fill:#b6c4dc;font-size:9px}
