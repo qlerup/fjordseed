@@ -13,6 +13,8 @@ class Demo(FakeRuntime):
     def status(self):
         torrents=[dict(hash='a'*40,name='Min manuelle torrent',state='downloading',progress=.4,size=1024**3,dlspeed=1024**2,upspeed=0,ratio=0),
                   dict(hash='b'*40,name='En automatisk serie med et langt navn fra mit feed',state='uploading',progress=1,size=1024**3,dlspeed=0,upspeed=2*1024**2,ratio=1,tags='FjordSeed-RSS-test')]
+        torrents.extend([dict(hash='c'*40,name='Manuel inaktiv',state='stoppedUP',progress=1,dlspeed=0,upspeed=0),
+                         dict(hash='d'*40,name='RSS inaktiv',state='stoppedUP',progress=1,dlspeed=0,upspeed=0,tags='FjordSeed-RSS-test')])
         return {**super().status(),'ready':True,'enabled':True,'torrents':torrents}
 
 root=Path(__file__).resolve().parents[1]
@@ -32,14 +34,24 @@ with tempfile.TemporaryDirectory() as folder:
             page.get_by_role('button',name='Log ind',exact=True).click()
             page.locator('.nav[href="#torrents"]').click()
             expect(page.locator('#page-title')).to_have_text('Dine downloads')
-            expect(page.locator('#count')).to_have_text('2')
+            expect(page.locator('#count')).to_have_text('4')
             expect(page.locator('#torrent-list')).to_contain_text('Min manuelle torrent')
-            expect(page.locator('#rss-torrent-list')).to_contain_text('En automatisk serie')
+            expect(page.locator('#torrent-list')).to_contain_text('En automatisk serie')
+            expect(page.locator('#rss-view')).to_be_hidden()
+            expect(page.locator('#manual-active-heading')).to_have_text('Aktive torrents (2)')
+            expect(page.locator('#manual-inactive-summary')).to_have_text('Inaktive torrents (2)')
+            page.locator('#manual-inactive-summary').click()
+            expect(page.locator('#manual-inactive-list')).to_contain_text('Manuel inaktiv')
+            expect(page.locator('#manual-inactive-list')).to_contain_text('RSS inaktiv')
             page.locator('[data-download-filter=manual]').click()
             expect(page.locator('#rss-view')).to_be_hidden()
-            expect(page.locator('#count')).to_have_text('1')
+            expect(page.locator('#count')).to_have_text('2')
+            expect(page.locator('#torrent-list')).not_to_contain_text('En automatisk serie')
+            expect(page.locator('#manual-inactive-summary')).to_have_text('Inaktive torrents (1)')
             page.locator('[data-download-filter=rss]').click()
             expect(page.locator('#downloads-view')).to_be_hidden()
+            expect(page.locator('#rss-torrent-list')).to_contain_text('En automatisk serie')
+            expect(page.locator('#rss-inactive-summary')).to_have_text('Inaktive torrents (1)')
             expect(page.locator('#ul')).to_have_text('2.0 MB/s')
             page.locator('[data-download-filter=all]').click()
             page.screenshot(path=str(root/'test-results/downloads-desktop.png'),full_page=True)

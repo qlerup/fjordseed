@@ -178,7 +178,7 @@ function card(t){const row=node('article','torrent'),head=node('div','torrent-he
  actions.prepend(toggle);head.append(actions);
  row.append(head,torrentProgress(t),panel);updateExpanded();return row;}
 function eta(seconds){if(!Number.isFinite(Number(seconds))||Number(seconds)<0||Number(seconds)>=8640000)return 'Ukendt tid tilbage';seconds=Math.round(seconds);if(seconds<60)return seconds+' sek. tilbage';if(seconds<3600)return Math.ceil(seconds/60)+' min. tilbage';return Math.floor(seconds/3600)+' t. '+Math.ceil((seconds%3600)/60)+' min. tilbage';}
-function renderDownloadLists(data){
+function renderDownloadLists(data,filter='manual'){
  const context=JSON.stringify([data.id||'',data.profile_id||'']);
  let activity=renderDownloadLists.activity;
  if(!activity||activity.context!==context)activity=renderDownloadLists.activity={context,rows:new Map()};
@@ -220,8 +220,8 @@ function renderDownloadLists(data){
   const previous=node('button','secondary','← Forrige'),next=node('button','secondary','Næste →');
   previous.type=next.type='button';previous.disabled=pages[key]===1;next.disabled=pages[key]===pageCount;
   previous.dataset.pageControl=key+'-previous';next.dataset.pageControl=key+'-next';
-  previous.onclick=()=>{pages[key]--;renderDownloadLists(data);};
-  next.onclick=()=>{pages[key]++;renderDownloadLists(data);};
+  previous.onclick=()=>{pages[key]--;renderDownloadLists(data,filter);};
+  next.onclick=()=>{pages[key]++;renderDownloadLists(data,filter);};
   const label=node('span','muted small','Side '+pages[key]+' af '+pageCount+' · '+(items.length?start+1:0)+'–'+Math.min(start+5,items.length)+' af '+items.length);
   label.setAttribute('aria-live','polite');
   pager.replaceChildren(previous,label,next);pager.hidden=pageCount<=1;
@@ -264,7 +264,8 @@ function renderDownloadLists(data){
  const focusedControl=typeof document!=='undefined'?document.activeElement?.dataset?.torrentToggleControl:undefined;
  const newestFirst=data.torrents.slice().sort((a,b)=>(Number(b.added_on)||0)-(Number(a.added_on)||0));
  const manual=newestFirst.filter(t=>!t.rss_feed),rss=newestFirst.filter(t=>t.rss_feed);
- renderGroup(manual,'manual','torrent-list');$('#empty').hidden=manual.length>0;
+ const combined=filter==='all'?newestFirst:manual;
+ renderGroup(combined,'manual','torrent-list');$('#empty').hidden=combined.length>0;
  renderGroup(rss,'rss','rss-torrent-list');$('#rss-empty').hidden=rss.length>0;$('#rss-count').textContent=rss.length;
  if(focusedToggle)for(const button of document.querySelectorAll('[data-torrent-toggle]'))if(button.dataset.torrentToggle===focusedToggle&&button.dataset.torrentToggleControl===focusedControl){button.focus({preventScroll:true});break;}
  for(const [items,prefix] of [[manual,''],[rss,'rss-']])for(const [field,id] of [['dlspeed','dl'],['upspeed','ul']])$('#'+prefix+id).textContent=size(items.reduce((sum,t)=>sum+(Number(t[field])||0),0))+'/s';
@@ -309,7 +310,7 @@ function renderFlow(data){
  if(icon.dataset.country!==key){icon.dataset.country=key;const content=code?node('img'):node('span','','VPN');if(code){content.src='/static/flags/'+code.toLowerCase()+'.svg';content.alt='';content.width=32;content.height=24;}icon.replaceChildren(content);}
 }
 function render(data){current=data;renderFlow(data);$('#vpn-message').textContent=data.message;$('#vpn-badge').textContent=data.ready?'VPN aktiv':data.torrents_available===false?'Afventer status':'Blokeret';$('#vpn-badge').className='badge'+(data.ready?' ready':'');$('#new-torrent').disabled=false;$('#add-save').disabled=!data.ready;$('#stop').hidden=!data.enabled;$('#connect').textContent=data.enabled?'Gem VPN-valg':'Start seedbox';$('#dl').textContent=size(data.transfer?.dl_info_speed)+'/s';$('#ul').textContent=size(data.transfer?.up_info_speed)+'/s';$('#count').textContent=data.torrents.filter(t=>!t.rss_feed).length;$('#download-path').textContent='Downloadmappe: '+data.download_path;$('#qbit-version').textContent=data.version?'qBittorrent '+data.version:'qBittorrent inkluderet';renderPublicAddress(data);
- const select=$('#profile'),chosen=select.value||data.profile_id;const options=[node('option','','Vælg VPN')];options[0].value='';for(const p of data.profiles){const o=node('option','',p.name+(p.gateway_enabled?' · delt VPN, egen torrentport':p.relay_enabled?' · bruges til TCP':p.desired?' · egen torrent-VPN, startet':' · slukket'));o.value=p.id;o.disabled=p.relay_enabled&&!p.gateway_enabled;options.push(o);}if(data.profile_id&&!data.profiles.some(p=>p.id===data.profile_id)){const o=node('option','','Valgt VPN er ikke tilgængelig');o.value=data.profile_id;options.push(o);}select.replaceChildren(...options);select.value=chosen;renderDownloadLists(data);renderDownloadSummary(data);$('#updated').textContent='Opdateret '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});}
+ const select=$('#profile'),chosen=select.value||data.profile_id;const options=[node('option','','Vælg VPN')];options[0].value='';for(const p of data.profiles){const o=node('option','',p.name+(p.gateway_enabled?' · delt VPN, egen torrentport':p.relay_enabled?' · bruges til TCP':p.desired?' · egen torrent-VPN, startet':' · slukket'));o.value=p.id;o.disabled=p.relay_enabled&&!p.gateway_enabled;options.push(o);}if(data.profile_id&&!data.profiles.some(p=>p.id===data.profile_id)){const o=node('option','','Valgt VPN er ikke tilgængelig');o.value=data.profile_id;options.push(o);}select.replaceChildren(...options);select.value=chosen;renderDownloadLists(data,downloadFilter);renderDownloadSummary(data);$('#updated').textContent='Opdateret '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});}
 async function refresh(){
  if(busy||refreshing)return;
  refreshing=true;
@@ -435,7 +436,7 @@ function showView(focus=false){
  // Keep the shared queue above the list it describes in each download view.
  $('#download-toolbar').after($('#download-queue'));
  $('#download-queue').hidden=view!=='torrents'&&!rss;
- $('#connection').hidden=!vpn;$('#downloads-view').hidden=!downloads||downloadFilter==='rss';$('#trackers-view').hidden=!trackers;$('#new-torrent').hidden=!downloads;$('#rss-view').hidden=!downloads||downloadFilter==='manual';
+ $('#connection').hidden=!vpn;$('#downloads-view').hidden=!downloads||downloadFilter==='rss';$('#trackers-view').hidden=!trackers;$('#new-torrent').hidden=!downloads;$('#rss-view').hidden=!downloads||downloadFilter!=='rss';
  $('#breadcrumb').textContent='Seedbox / '+(storage?'Lager og mapper':vpn?'VPN-forbindelse':trackers?'Trackere':rss?'RSS-feeds':'Downloads');
  $('#page-title').textContent=storage?'Lager og mapper':vpn?'Din VPN-forbindelse':trackers?'Dine trackere':rss?'Dine RSS-feeds':'Manuelle downloads';
  $('#page-description').textContent=storage?'Fra buffer til dit mediebibliotek.':vpn?'Vælg VPN-profil, og se seedboxens forbindelse og beskyttelse.':trackers?'Forbind dine trackerkonti, og saml statistikken i FjordSeed.':rss?'Automatiske downloads med dine egne regler for mapper og seeding.':'qBittorrent samlet ét sted, med trafik gennem din VPN.';
@@ -443,7 +444,8 @@ function showView(focus=false){
  if(overview){$('#breadcrumb').textContent='Seedbox / Oversigt';$('#page-title').textContent='Din seedbox i overblik';$('#page-description').textContent='Følg din VPN-forbindelse, dine trackerkonti og din udvikling over tid.';}
  document.querySelectorAll('.nav').forEach(link=>{const active=link.hash==='#'+(downloads?'torrents':view);link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
  if(downloads){$('#breadcrumb').textContent='Seedbox / Downloads';$('#page-title').textContent='Dine downloads';$('#page-description').textContent='Manuelle downloads og automatiske feeds. Samlet ét sted, gennem din VPN.';}
- if(downloads&&current)renderDownloadSummary(current);
+ $('#torrents h2').textContent=downloadFilter==='all'?'Alle downloads':'Manuelle downloads';
+ if(downloads&&current){renderDownloadLists(current,downloadFilter);renderDownloadSummary(current);}
  if(focus)$('#page-title').focus({preventScroll:true});
 }
 function renderDownloadSummary(data){
@@ -451,7 +453,7 @@ function renderDownloadSummary(data){
  for(const [field,id] of [['dlspeed','dl'],['upspeed','ul']])$('#'+id).textContent=data.torrents_available===false?'—':size(items.reduce((sum,t)=>sum+(Number(t[field])||0),0))+'/s';
  $('#count').textContent=data.torrents_available===false&&!items.length?'—':items.length;
 }
-document.querySelectorAll('[data-download-filter]').forEach(button=>button.onclick=()=>{downloadFilter=button.dataset.downloadFilter;if(location.hash==='#rss')history.replaceState(null,'','#torrents');showView();});
+document.querySelectorAll('[data-download-filter]').forEach(button=>button.onclick=()=>{downloadFilter=button.dataset.downloadFilter;renderDownloadLists.pages={manual:1,rss:1,'manual-inactive':1,'rss-inactive':1};if(location.hash==='#rss')history.replaceState(null,'','#torrents');showView();});
 $('#downloads-manage-feeds').onclick=()=>$('#rss-manage').click();
 window.addEventListener('hashchange',()=>showView(true));
 showView();refresh();setInterval(refresh,1000);
