@@ -6,10 +6,11 @@ import math
 import os
 import sqlite3
 import time
+from tracker_providers import ACCOUNT_REFRESH_SECONDS
 
 FIELDS=('ratio','credited_uploaded','credited_downloaded','real_uploaded','real_downloaded')
 RETENTION=30*86400
-INTERVAL=600
+INTERVAL=ACCOUNT_REFRESH_SECONDS
 
 
 class TrackerHistory:

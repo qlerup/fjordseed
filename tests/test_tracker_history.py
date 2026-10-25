@@ -64,6 +64,7 @@ def test_history_api_authorization_periods_and_removal(tmp_path):
     trackers.history.record('seedbox',{'real_uploaded':4000,'real_downloaded':8000})
     response=client.get('/api/trackers/'+ident+'/history?days=7')
     assert response.status_code==200
+    assert response.json['interval']==300
     assert response.json['account'][0]['ratio']==2
     assert response.json['seedbox'][0]['real_uploaded']==4000
     changes=client.get('/api/trackers/'+ident+'/history?mode=changes')
@@ -123,3 +124,15 @@ def test_change_points_are_independent_dated_and_bounded(tmp_path):
     upload=[p for p in points if 'credited_uploaded' in p]
     assert len(upload)==60 and upload[0]['credited_uploaded']==120
     assert all(p['ratio']>=0 for p in ratio)
+
+
+def test_five_minute_samples_preserve_legacy_history(tmp_path):
+    now=1_800_000_000
+    history=TrackerHistory(tmp_path/'h.sqlite3')
+    with history.connect() as db:
+        db.execute('INSERT INTO samples VALUES (?,?,?,?)',
+                   ('account',int(now//600),now,json.dumps({'ratio':4})))
+    history.record('account',{'ratio':4.1},now+300)
+    history.record('account',{'ratio':4.2},now+600)
+    points=history.changes('account',now+601)
+    assert [(p['at'],p['ratio']) for p in points]==[(now,4),(now+300,4.1),(now+600,4.2)]

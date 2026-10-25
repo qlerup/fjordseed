@@ -8,7 +8,7 @@ På Oversigt udelades `uploaded`, `downloaded` og `ratio` fra venstre sektion, f
 
 ## Kontoens aktuelle tal
 
-`GET /api/trackers` leverer konti med `id`, `name`, `provider`, `username`, `status`, `error`, `updated_at`, `stats` og `events`. NordicBytes og Sagmire understøttes gennem de faste API-adresser i `tracker_providers.py`. Kontodata opdateres hvert 10. minut. API-nøgler indgår ikke i det offentlige svar.
+`GET /api/trackers` leverer konti med `id`, `name`, `provider`, `username`, `status`, `error`, `updated_at`, `stats` og `events`. NordicBytes og Sagmire understøttes gennem de faste API-adresser i `tracker_providers.py`. Kontodata opdateres hvert 5. minut. API-nøgler indgår ikke i det offentlige svar.
 
 | Tidligere kortfelt | Felt i `stats` | Betydning |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ Kortet viste desuden kontonavn, brugernavn, forbindelsesstatus, fejl, sidste opd
 
 ## Eksisterende grafer og historik
 
-`GET /api/trackers/<id>/history?mode=changes` returnerer `account` og `seedbox` med op til 60 ændrede værdier pr. graf, hver med det oprindelige tidspunkt i `at`. Uændrede målinger tilføjer ikke grafpunkter. Historikken gemmes lokalt i SQLite i op til 30 dage med 10 minutters intervaller. Ældre målinger bliver ikke rekonstrueret fra aktuelle totaler. Det ældre API med `days=1|7|30` understøttes stadig, men grafkortet har ingen periodeknapper.
+`GET /api/trackers/<id>/history?mode=changes` returnerer `account` og `seedbox` med op til 60 ændrede værdier pr. graf, hver med det oprindelige tidspunkt i `at`. Uændrede målinger tilføjer ikke grafpunkter. Historikken gemmes lokalt i SQLite i op til 30 dage med 5 minutters intervaller. Ældre målinger bliver ikke rekonstrueret fra aktuelle totaler. Det ældre API med `days=1|7|30` understøttes stadig, men grafkortet har ingen periodeknapper.
 
 | Graf | Historikfelt | Kilde og omfang |
 | --- | --- | --- |

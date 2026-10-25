@@ -1,5 +1,5 @@
 """Fixed tracker API destinations and shared capabilities."""
-ACCOUNT_REFRESH_SECONDS = 10 * 60
+ACCOUNT_REFRESH_SECONDS = 5 * 60
 
 PROVIDERS = {
     'nordicbytes': {'name': 'NordicBytes', 'url': 'https://nordicbytes.org/api/user',
