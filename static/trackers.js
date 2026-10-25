@@ -39,6 +39,19 @@ const trackerBytes=value=>{
  while(value>=1024&&index<units.length-1){value/=1024;index++;}
  return value.toLocaleString('da-DK',{minimumFractionDigits:index?2:0,maximumFractionDigits:index?2:0})+' '+units[index];
 };
+function trackerDetails(tracker){
+ const content=document.createDocumentFragment();
+ if(tracker.stats){
+  const stats=node('div','tracker-stats');
+  for(const [label,field,format] of [['UPLOAD','uploaded',trackerBytes],['DOWNLOAD','downloaded',trackerBytes],['RATIO','ratio',trackerNumber],['BUFFER','buffer',trackerBytes],['SEEDING','seeding',trackerNumber],['DOWNLOADER','leeching',trackerNumber],['SHARDS','seedbonus',trackerNumber],['HIT-AND-RUNS','hit_and_runs',trackerNumber],['ADVARSLER','warnings',trackerNumber],['SEEDING-STØRRELSE','seeding_size',trackerBytes],['UPLOADS','total_uploads',trackerNumber]]){
+   const item=node('div');item.append(node('span','',label),node('strong','',format(tracker.stats[field])));stats.append(item);
+  }
+  content.append(stats);
+  for(const event of tracker.events||[]){const end=new Date(event.ends_at);content.append(node('p','tracker-event',event.title+(Number.isNaN(end.getTime())?'':' · Slutter '+end.toLocaleString('da-DK',{dateStyle:'short',timeStyle:'short'}))));}
+ }
+ if(tracker.updated_at)content.append(node('p','muted small',(tracker.status==='ok'?'Opdateret ':'Senest hentede tal fra ')+new Date(tracker.updated_at*1000).toLocaleString('da-DK',{dateStyle:'short',timeStyle:'short'})));
+ return content;
+}
 function trackerCard(tracker,manage=false){
  const card=node('article','tracker-card'),head=node('div','tracker-card-heading'),title=node('div');
  title.append(node('h3','',tracker.name));
@@ -46,15 +59,7 @@ function trackerCard(tracker,manage=false){
  head.append(title,node('span','badge'+(tracker.status==='ok'?' ready':''),tracker.status==='ok'?'Forbundet':tracker.status==='error'?'Forbindelsesfejl':'Henter data'));
  card.append(head);
  if(tracker.status==='error')card.append(node('p','error small',tracker.error));
- if(tracker.stats){
-  const stats=node('div','tracker-stats');
-  for(const [label,field,format] of [['UPLOAD','uploaded',trackerBytes],['DOWNLOAD','downloaded',trackerBytes],['RATIO','ratio',trackerNumber],['BUFFER','buffer',trackerBytes],['SEEDING','seeding',trackerNumber],['DOWNLOADER','leeching',trackerNumber],['SHARDS','seedbonus',trackerNumber],['HIT-AND-RUNS','hit_and_runs',trackerNumber],['ADVARSLER','warnings',trackerNumber],['SEEDING-STØRRELSE','seeding_size',trackerBytes],['UPLOADS','total_uploads',trackerNumber]]){
-   const item=node('div');item.append(node('span','',label),node('strong','',format(tracker.stats[field])));stats.append(item);
-  }
-  card.append(stats);
-  for(const event of tracker.events||[]){const end=new Date(event.ends_at);card.append(node('p','tracker-event',event.title+(Number.isNaN(end.getTime())?'':' · Slutter '+end.toLocaleString('da-DK',{dateStyle:'short',timeStyle:'short'}))));}
- }
- if(tracker.updated_at)card.append(node('p','muted small',(tracker.status==='ok'?'Opdateret ':'Senest hentede tal fra ')+new Date(tracker.updated_at*1000).toLocaleString('da-DK',{dateStyle:'short',timeStyle:'short'})));
+ card.append(trackerDetails(tracker));
  if(manage){
   const actions=node('div','tracker-actions'),edit=node('button','secondary','Rediger'),remove=node('button','quiet','Fjern tracker');
   edit.type=remove.type='button';edit.onclick=()=>{

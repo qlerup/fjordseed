@@ -50,3 +50,34 @@
 
 .insights-zero{stroke:#b0bed866;stroke-width:1;vector-effect:non-scaling-stroke}
 .insights-svg .insights-axis-title{fill:#c4d0e5;font-weight:600}
+
+.insights-layout{display:grid;grid-template-columns:minmax(280px,.85fr) minmax(0,1.65fr);border-top:1px solid var(--border)}
+.insights-account-details{min-width:0;padding:24px;border-right:1px solid var(--border);background:#111b301f}
+.insights-account-details .tracker-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 22px;margin:18px 0}
+.insights-account-details .tracker-stats strong{font-size:19px}
+.insights-account-details .tracker-stats>div:nth-child(n+5) strong{font-size:16px}
+.insights-account-details .tracker-stats span{font-size:9px}
+.insights-visual{min-width:0;display:flex;flex-direction:column}
+.insights-visual .insights-viewport{flex:1;min-height:340px}
+.insights-visual .insights-face{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:10px;padding-top:24px}
+.insights-visual .insights-summary{display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px 16px}
+.insights-visual .insights-metric-name{grid-column:1/-1;margin:0}
+.insights-visual .insights-value{grid-column:1;font-size:32px}
+.insights-visual .insights-change{grid-column:2;margin:0}
+.insights-visual .insights-source{grid-column:1/-1;max-width:none;margin:0;font-size:9px}
+.insights-visual .insights-bottom{padding:0 20px}
+.insights-visual .insights-tabs{gap:15px}
+.insights-visual .insights-mode{display:none}
+@media(max-width:1000px){
+ .insights-layout{grid-template-columns:minmax(0,1fr)}
+ .insights-account-details{border-right:0;border-bottom:1px solid var(--border)}
+ .insights-account-details .tracker-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .insights-visual .insights-viewport{flex:none;height:350px}
+}
+@media(max-width:650px){
+ .insights-account-details{padding:18px 16px}
+ .insights-account-details .tracker-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+ .insights-visual .insights-face{padding-top:18px}
+ .insights-visual .insights-value{font-size:28px}
+ .insights-visual .insights-bottom{padding:0 16px}
+}

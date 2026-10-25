@@ -16,7 +16,7 @@
  class Insights {
   constructor(){
    this.index=0;this.data={account:[],seedbox:[]};this.accounts=[];this.timer=null;this.busy=false;this.hover=false;this.focus=false;this.visible=false;this.loaded=false;this.generation=0;
-   this.current=root.querySelector('.insights-current');this.next=root.querySelector('.insights-next');this.cube=root.querySelector('.insights-cube');this.select=root.querySelector('#insights-account');this.mode=root.querySelector('.insights-mode span');this.error=root.querySelector('.insights-error');
+   this.viewport=root.querySelector('.insights-viewport');this.current=root.querySelector('.insights-current');this.next=root.querySelector('.insights-next');this.cube=root.querySelector('.insights-cube');this.select=root.querySelector('#insights-account');this.mode=root.querySelector('.insights-mode span');this.error=root.querySelector('.insights-error');
    this.motion=matchMedia('(prefers-reduced-motion: reduce)');
    this.tabs=metrics.map((metric,i)=>{const button=node('button','insights-tab',metric.tab);button.type='button';button.setAttribute('aria-pressed',String(i===0));button.onclick=()=>this.turn(i);root.querySelector('.insights-tabs').append(button);return button;});
    root.addEventListener('pointerenter',event=>{if(event.pointerType==='mouse'){this.hover=true;this.schedule();}});
@@ -27,7 +27,7 @@
    root.addEventListener('pointerdown',()=>{this.focus=false;this.schedule();});
    document.addEventListener('visibilitychange',()=>this.schedule());this.motion.addEventListener('change',()=>{if(this.busy)this.finish();this.schedule();});
    this.observer=new IntersectionObserver(entries=>{this.visible=entries[0].isIntersecting;this.schedule();});this.observer.observe(root);
-   this.resize=new ResizeObserver(()=>{if(this.busy)this.finish();root.style.setProperty('--insight-depth',Math.max(1,root.clientWidth/2)+'px');this.draw();});this.resize.observe(root);
+   this.resize=new ResizeObserver(()=>{if(this.busy)this.finish();root.style.setProperty('--insight-depth',Math.max(1,this.viewport.clientWidth/2)+'px');this.draw();});this.resize.observe(this.viewport);
    this.select.onchange=()=>this.reload();
    this.draw();
   }
@@ -48,6 +48,7 @@
   identity(account){
    if(!account)return;
    root.querySelector('#insights-title').textContent=account.name;
+   root.querySelector('#insights-account-details').replaceChildren(trackerDetails(account));
    const status=account.status==='ok'?'Forbundet':account.status==='error'?'Forbindelsesfejl':'Henter data';
    root.querySelector('#insights-account-status').textContent=[account.username,status,account.status==='error'?account.error:null].filter(Boolean).join(' · ');
   }
@@ -118,7 +119,7 @@
    return [summary,chart];
   }
   plot(metric,points){
-   const width=Math.max(220,root.clientWidth-(innerWidth<=650?32:innerWidth<=1150?234:286)),height=200,left=8,right=width-82,top=30,bottom=155;
+   const width=Math.max(220,this.viewport.clientWidth-(innerWidth<=650?32:48)),height=200,left=8,right=width-82,top=30,bottom=155;
    points=points.slice(-60).map((point,index)=>({...point,index}));
    const values=points.map(point=>point[metric.key]);
    const extent=Math.max(...values,metric.key==='ratio'?.001:1);

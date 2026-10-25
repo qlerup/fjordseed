@@ -17,7 +17,7 @@ with tempfile.TemporaryDirectory() as folder:
         at=now-(287-i)*600
         trackers.history.record(ident,{'ratio':4.1+math.sin(i/48)*.3-i*.00065,'credited_uploaded':(145+i*.067)*1024**3,'credited_downloaded':(35+i*.023)*1024**3},at)
         trackers.history.record('seedbox',{'real_uploaded':(210+i*.1)*1024**3,'real_downloaded':(430+i*.05)*1024**3},at)
-    trackers.cache[ident]={'status':'ok','updated_at':now,'username':'Vikingen','stats':{'ratio':3.7,'uploaded':164*1024**3,'downloaded':41*1024**3}}
+    trackers.cache[ident]={'status':'ok','updated_at':now,'username':'Vikingen','stats':{'ratio':3.7,'uploaded':164*1024**3,'downloaded':41*1024**3,'buffer':371*1024**3,'seeding':23,'leeching':0,'seedbonus':2455.16,'hit_and_runs':0,'warnings':0,'seeding_size':123*1024**3,'total_uploads':0}}
     server=make_server('127.0.0.1',0,app,threaded=True);threading.Thread(target=server.serve_forever,daemon=True).start()
     try:
         with sync_playwright() as p:
@@ -31,6 +31,14 @@ with tempfile.TemporaryDirectory() as folder:
             expect(card.locator('#insights-title')).to_have_text(CONFIG['name'])
             expect(card.locator('#insights-account-status')).to_contain_text('Vikingen')
             expect(card.locator('#insights-account-status')).to_contain_text('Forbundet')
+            details=card.locator('#insights-account-details')
+            expect(details.locator('.tracker-stats>div')).to_have_count(11)
+            expect(details).to_contain_text('371,00 GiB')
+            expect(details).to_contain_text('SHARDS')
+            left=card.locator('.insights-account-details').bounding_box()
+            right=card.locator('.insights-visual').bounding_box()
+            assert left['x']+left['width']<=right['x']+1
+
             expect(card.locator('.insights-current svg')).to_be_visible()
             assert card.locator('.insights-current .insights-line').first.get_attribute('d').count('L')>1
             expect(card.locator('.insights-current .insights-change')).to_be_visible()
@@ -74,6 +82,11 @@ with tempfile.TemporaryDirectory() as folder:
                 page.set_viewport_size({'width':width,'height':1000});card.scroll_into_view_if_needed()
                 assert card.evaluate('el=>el.scrollWidth<=el.clientWidth+1')
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+                if width<=1000:
+                    left=card.locator('.insights-account-details').bounding_box()
+                    right=card.locator('.insights-visual').bounding_box()
+                    assert left['y']+left['height']<=right['y']+1
+
                 if width==390:card.screenshot(path=str(output/'insights-mobile.png'))
             page.emulate_media(reduced_motion='reduce')
             card.get_by_role('button',name='Reel upload',exact=True).click()
