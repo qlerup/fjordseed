@@ -1,5 +1,9 @@
 # FjordSeed
 
+The standalone Windows GPU converter is in
+[`desktop-converter/`](desktop-converter/README.md), including the desktop UI,
+drag-and-drop support and an installer for its NVEncC toolchain.
+
 A separate FjordHub seedbox with bundled qBittorrent. FjordVPN manages Proton profiles; installation starts no torrents. The interface currently uses Danish labels.
 
 ## Optional GPU conversion before library publication

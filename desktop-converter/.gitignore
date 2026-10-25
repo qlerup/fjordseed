@@ -1,0 +1,15 @@
+__pycache__/
+preferences.json
+downloads/
+test/
+ffmpeg*/
+mkvtoolnix/
+*.exe
+*.dll
+*.bin
+*.7z
+*.zip
+*.mkv
+*.mp4
+*.log
+*.partial.*

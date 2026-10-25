@@ -1,0 +1,20 @@
+{
+  "nvenc": {
+    "version": "9.39",
+    "file": "nvenc.7z",
+    "url": "https://github.com/rigaya/NVEnc/releases/download/9.39/NVEncC_9.39_x64.7z",
+    "sha256": "28b50f2913ea0f2a036ee7c5b74ccedcf7aaad5a9ca2a94972b0a9ddf083449c"
+  },
+  "ffmpeg": {
+    "version": "N-128094-g31855b2a70",
+    "file": "ffmpeg-2026-10-25.zip",
+    "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-25-13-00/ffmpeg-N-128094-g31855b2a70-win64-gpl.zip",
+    "sha256": "94810842a634c7742936dc2690d6b4957561a38b05f00c27f045e07131924acc"
+  },
+  "mkvtoolnix": {
+    "version": "103.0",
+    "file": "mkvtoolnix.7z",
+    "url": "https://mkvtoolnix.download/windows/releases/103.0/mkvtoolnix-64-bit-103.0.7z",
+    "sha256": "01d76dbfdbd5615d9e02f69b0710d1429a902d47a98c8eee33bd884c4fcb3cbf"
+  }
+}
