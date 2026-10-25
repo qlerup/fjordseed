@@ -9,6 +9,8 @@
    this.ctx=this.canvas.getContext('2d');
    this.ready=false;this.rates=[0,0];this.energy=[0,0];this.frame=null;
    this.visible=false;this.width=0;this.height=0;this.points=[];this.paths=[];
+   this.packets=[];
+   this.lanes=Array.from({length:6},(_,index)=>({direction:Math.floor(index/3),strand:index%3,wait:Math.random()*.8}));
    this.motion=matchMedia('(prefers-reduced-motion: reduce)');
    this.tick=this.tick.bind(this);
    this.motion.addEventListener('change',()=>this.sync());
@@ -22,6 +24,7 @@
   }
   update({ready,download,upload}){
    this.ready=!!ready;
+   if(!this.ready)this.packets=[];
    this.rates=[download,upload].map(rate=>this.ready&&Number.isFinite(rate)&&rate>0?rate:0);
    const levels=this.rates.map(rate=>rate?clamp(Math.log2(1+rate/16384)/14,.08,1):0);
    this.target=levels;
@@ -68,8 +71,23 @@
    this.frame=null;
    const delta=Math.min((now-this.last)/1000,.1);this.last=now;
    this.energy=this.energy.map((level,i)=>level+((this.target?.[i]||0)-level)*Math.min(1,delta*4));
+   this.advance(delta);
    this.draw(now/1000);
    this.frame=requestAnimationFrame(this.tick);
+  }
+  advance(delta){
+   // Packets keep their own pace across both links, including after traffic stops.
+   for(const packet of this.packets)packet.progress+=delta*packet.speed;
+   this.packets=this.packets.filter(packet=>packet.progress<2);
+   for(const lane of this.lanes){
+    if(!this.rates[lane.direction])continue;
+    lane.wait-=delta;
+    if(lane.wait>0)continue;
+    this.packets.push({direction:lane.direction,strand:lane.strand,progress:0,
+     speed:.24+Math.random()*.1,level:this.target[lane.direction]});
+    // Independent launch times avoid synchronized rows on the three strands.
+    lane.wait=.65+Math.random()*.65;
+   }
   }
   point(path,t){
    const q=1-t;
@@ -104,20 +122,17 @@
    for(const path of this.paths){
     const i=path.direction,level=this.energy[i],color=i?'100,174,255':'102,246,191';
     this.stroke(path,0,1,active?`rgba(${color},${.09+level*.12})`:'#71808a25',.8);
-    if(!active||!this.rates[i])continue;
-    // Keep motion and spacing steady when live transfer rates change.
-    // Multiplying absolute time by a changing speed makes packets jump.
-    const count=4,speed=.28;
-    for(let packet=0;packet<count;packet++){
-     const progress=(time*speed+packet/count+path.strand*.131+path.link*.23)%1;
-     const t=progress;
+    if(!active)continue;
+    for(const packet of this.packets){
+     if(packet.direction!==i||packet.strand!==path.strand||Math.floor(packet.progress)!==path.link)continue;
+     const t=packet.progress-path.link;
      const tail=clamp(t-.12,0,1);
-     const alpha=Math.sin(progress*Math.PI)*(.55+level*.4);
+     const alpha=Math.sin(t*Math.PI)*(.55+packet.level*.4);
      this.stroke(path,tail,t,`rgba(${color},${alpha*.07})`,11);
      this.stroke(path,tail,t,`rgba(${color},${alpha*.28})`,3.5);
      this.stroke(path,clamp(t-.035,0,1),t,`rgba(${color},${alpha})`,1.5);
      const p=this.point(path,t);c.fillStyle=`rgba(${color},${alpha})`;
-     c.beginPath();c.arc(p.x,p.y,1.7+level*.7,0,TAU);c.fill();
+     c.beginPath();c.arc(p.x,p.y,1.7+packet.level*.7,0,TAU);c.fill();
     }
    }
    // Receiving nodes echo the actual direction of traffic, never idle traffic.

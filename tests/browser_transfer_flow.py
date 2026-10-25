@@ -47,27 +47,43 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('.flow-peers strong')).to_have_text('Peers')
             assert page.evaluate('transferFlow.paths.filter(p=>p.direction===1&&p.link===1).every(p=>p.b===transferFlow.points[3])')
             assert page.locator('[data-duck]').count()==0
-            # Rate updates change brightness, never packet position, spacing or speed.
-            assert page.evaluate('''() => {
-                const scene=transferFlow, original=scene.stroke;
-                const snapshot=(level,time)=>{
-                    const positions=[];
-                    scene.energy=[level,level];
-                    scene.stroke=(path,start,end,color,width)=>{
-                        if(width===1.5)positions.push(end);
-                    };
-                    scene.draw(time);
-                    return positions;
-                };
-                const energy=scene.energy;
-                try {
-                    const slow=snapshot(.08,10000), fast=snapshot(1,10000);
-                    const later=snapshot(.5,10000.5);
-                    return slow.length===48 && slow.every((position,i)=>
-                        position===fast[i] &&
-                        Math.abs((later[i]-position+1)%1-.14)<1e-9);
-                } finally {scene.stroke=original;scene.energy=energy;}
-            }''')
+            # Independent cadence, fixed per-packet speed, and complete delivery after stop.
+            assert page.evaluate("""() => {
+                const scene=transferFlow;
+                const step=seconds=>{for(let t=0;t<seconds;t+=.05)scene.advance(.05);};
+                step(8);
+                const packets=[...scene.packets];
+                if(packets.length<20 || packets.length>90)return false;
+                if(new Set(packets.map(p=>p.speed)).size!==packets.length)return false;
+                const waits=scene.lanes.map(l=>l.wait);
+                if(new Set(waits).size!==6)return false;
+                const positions=packets.map(p=>p.progress), speeds=packets.map(p=>p.speed);
+                scene.update({ready:true,download:1,upload:1});
+                if(packets.some((p,i)=>p.progress!==positions[i]||p.speed!==speeds[i]))return false;
+                scene.resize();
+                if(packets.some(p=>!scene.packets.includes(p)))return false;
+                scene.update({ready:true,download:0,upload:1});
+                scene.advance(.1);
+                if(scene.packets.some(p=>p.direction===0&&!packets.includes(p)))return false;
+                if(packets.some((p,i)=>Math.abs(p.progress-positions[i]-.1*speeds[i])>1e-9))return false;
+                step(9);
+                if(scene.packets.some(p=>p.direction===0)||!scene.packets.some(p=>p.direction===1))return false;
+                const remaining=[...scene.packets];
+                scene.update({ready:true,download:0,upload:0});
+                // Stopping must preserve the visible particles and their brightness.
+                if(remaining.some(p=>!scene.packets.includes(p)))return false;
+                const original=scene.stroke, drawn=[];
+                scene.stroke=(path,start,end,color,width)=>{if(width===1.5)drawn.push(end);};
+                try {scene.draw(100);} finally {scene.stroke=original;}
+                if(drawn.length!==remaining.length)return false;
+                scene.advance(.1);
+                if(scene.packets.some(p=>!remaining.includes(p)))return false;
+                step(9);
+                if(scene.packets.length)return false;
+                scene.update({ready:true,download:84*1024**2,upload:12*1024**2});
+                step(8);
+                return scene.packets.some(p=>p.direction===0)&&scene.packets.some(p=>p.direction===1);
+            }""")
             flow.screenshot(path=str(output/'transfer-flow-desktop.png'))
             for width in (390,320):
                 page.set_viewport_size({'width':width,'height':1000})
