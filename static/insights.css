@@ -105,3 +105,8 @@
 
 .insights-stage.is-morphing .insights-current{visibility:hidden;transform:none}
 .insights-stage.is-morphing .insights-next{opacity:1;transition:none}
+
+.insights-account-details{display:flex;flex-direction:column}
+#insights-account-details{display:flex;flex-direction:column;flex:1}
+#insights-account-details .tracker-stats + p{margin-top:auto;padding-top:18px}
+#insights-account-details > p:last-child{margin-bottom:0}
