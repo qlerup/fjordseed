@@ -44,10 +44,11 @@
      for(const [key,value] of Object.entries({left:(percent-width)+'%',width:width+'%'}))if(segment.style[key]!==value)segment.style[key]=value;
      if(segment.hidden!==(bytes===0))segment.hidden=bytes===0;
      text(field(card,'temporary-label'),'Heraf midlertidige RSS-filer: '+format(bytes)+' · indgår i Brugt');
+     text(field(card,'used-temporary'),'Heraf midlertidige RSS-filer: '+format(bytes));
     }
    }catch(e){
     if(id!==requestId)return;
-    for(const card of cards){field(card,'temporary-segment').hidden=true;text(field(card,'temporary-label'),'Midlertidig RSS-plads kunne ikke måles.');}
+    for(const card of cards){field(card,'temporary-segment').hidden=true;text(field(card,'temporary-label'),'Midlertidig RSS-plads kunne ikke måles.');text(field(card,'used-temporary'),'Midlertidig RSS-plads kunne ikke måles.');}
    }
   }catch(e){
    if(id!==requestId)return;
