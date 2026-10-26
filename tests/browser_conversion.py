@@ -39,6 +39,7 @@ with tempfile.TemporaryDirectory() as folder:
    page.locator('#conversion-settings-save').click()
    expect(page.locator('#toast')).to_contain_text('gemt')
    page.reload();expect(page.locator('#conversion-enabled')).to_be_checked()
+   assert page.locator('#conversion-server-address').count()==0
    page.locator('#conversion-device-name').fill('Test-pc')
    page.locator('#conversion-device-create').click()
    expect(page.locator('#conversion-token-result')).to_be_visible()

@@ -68,7 +68,7 @@ originalfilens størrelse plus 1 GiB ledigt.
 
 ## Forbind til FjordSeed
 
-Åbn **FjordSeed-forbindelse**, og indsæt serveradressen og et pc-token fra
+Åbn **FjordSeed-forbindelse**, og indsæt en forbindelseskode fra
 **Indstillinger → Konvertering** i FjordSeed. Vælg lokal midlertidig plads, og
 tryk **Forbind og hent jobs**. Programmet tester GPU’en, henter et job,
 konverterer og returnerer resultatet. Serveren kontrollerer og publicerer filen
@@ -148,6 +148,5 @@ FjordSeed-jobs indstiller automatisk pc-motorens bitrate og viser valget i
 den lokale konverteringsindstilling ændrer ikke modtagne jobs.
 
 Ny pc-forbindelse: Opret en **forbindelseskode** i FjordSeed og indsæt den i
-pc-programmets felt **Forbindelseskode eller pc-token**. Adressen udfyldes
-automatisk. Koden indeholder adgangstokenet og skal behandles som en adgangskode.
-Gamle pc-tokens virker fortsat sammen med en manuelt indtastet adresse.
+pc-programmets felt **Forbindelseskode**. Adressen hentes automatisk fra koden. Koden indeholder adgangstokenet og skal behandles som en adgangskode.
+Tidligere gemte forbindelser virker fortsat. Til nye forbindelser bruges en forbindelseskode.
