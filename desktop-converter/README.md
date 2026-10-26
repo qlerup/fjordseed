@@ -146,3 +146,8 @@ og er udeladt fra Git. Denne mappe indgår ikke i FjordSeeds Docker-image.
 FjordSeed-jobs indstiller automatisk pc-motorens bitrate og viser valget i
 **Kvalitet fra FjordSeed** under forbindelsen. Feltet er låst til jobbets valg;
 den lokale konverteringsindstilling ændrer ikke modtagne jobs.
+
+Ny pc-forbindelse: Opret en **forbindelseskode** i FjordSeed og indsæt den i
+pc-programmets felt **Forbindelseskode eller pc-token**. Adressen udfyldes
+automatisk. Koden indeholder adgangstokenet og skal behandles som en adgangskode.
+Gamle pc-tokens virker fortsat sammen med en manuelt indtastet adresse.

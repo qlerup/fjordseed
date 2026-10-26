@@ -42,7 +42,10 @@ with tempfile.TemporaryDirectory() as folder:
    page.locator('#conversion-device-name').fill('Test-pc')
    page.locator('#conversion-device-create').click()
    expect(page.locator('#conversion-token-result')).to_be_visible()
-   assert page.locator('#conversion-token-secret').input_value().startswith('fsw_')
+   code=page.locator('#conversion-token-secret').input_value()
+   import base64,json
+   pairing=json.loads(base64.urlsafe_b64decode(code[5:]+'='*(-len(code[5:])%4)))
+   assert pairing['server']==f'http://127.0.0.1:{server.server_port}' and pairing['token'].startswith('fsw_')
    expect(page.locator('#conversion-devices')).to_contain_text('Test-pc')
    for width in (1440,390,320):
     page.set_viewport_size({'width':width,'height':1000})

@@ -86,3 +86,43 @@ def test_invalid_remote_bitrate_is_rejected_before_download(tmp_path,rate):
     with pytest.raises(WorkerError,match='videobitrate'):
         a.run_job({'id':'a'*32,'bitrate':rate})
     assert not (a.cache/('a'*32)).exists()
+
+
+def pairing_code(data):
+    import base64
+    return 'fsp1_'+base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip('=')
+
+
+def test_pairing_code_supplies_address_and_raw_token_to_agent(tmp_path):
+    from remote_agent import connection_details
+    token='fsw_'+'a'*48
+    code=pairing_code({'server':'http://192.168.1.110:8099','token':token})
+    assert connection_details('',code)==('http://192.168.1.110:8099',token)
+    a=Agent('',code,tmp_path,threading.Lock(),None,RuntimeError,lambda *a:None)
+    assert a.server=='http://192.168.1.110:8099' and a.token==token
+    assert connection_details('https://seed.test',token)==('https://seed.test',token)
+
+
+@pytest.mark.parametrize('server',['ftp://seed.test','https://name:password@seed.test','https://seed.test/?key=x','https://seed.test/#secret','https://seed.test/path','https://seed.test:bad'])
+def test_pairing_code_rejects_unsafe_addresses(server):
+    from remote_agent import connection_details
+    with pytest.raises(ValueError,match='ugyldig'):
+        connection_details('',pairing_code({'server':server,'token':'fsw_'+'a'*48}))
+
+
+@pytest.mark.parametrize('data',[{},[],{'server':None,'token':'fsw_a'},{'server':'https://seed.test','token':'fsw_a\r\nX: evil'}])
+def test_malformed_pairing_payload_is_rejected_without_exposing_token(data):
+    from remote_agent import connection_details
+    code=pairing_code(data)
+    with pytest.raises(ValueError,match='ugyldig') as exc:connection_details('',code)
+    assert code not in str(exc.value) and 'evil' not in str(exc.value)
+
+
+def test_pasting_code_fills_pc_address_without_connecting():
+    from unittest.mock import Mock
+    from remote_panel import RemotePanel
+    panel=RemotePanel.__new__(RemotePanel)
+    panel.token=Mock();panel.token.get.return_value=pairing_code({'server':'https://seed.test','token':'fsw_'+'a'*48})
+    panel.url=Mock();panel.status=Mock()
+    panel.pairing_changed()
+    panel.url.set.assert_called_once_with('https://seed.test')

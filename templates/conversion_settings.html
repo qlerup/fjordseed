@@ -22,11 +22,11 @@
   <label>FjordSeed-adresse<input id="conversion-server-address" readonly aria-label="FjordSeed-adresse"></label>
   <form id="conversion-device-form" class="tracker-fields">
    <label>Navn på pc<input id="conversion-device-name" maxlength="60" placeholder="Fx min RTX 4090-pc" required></label>
-   <div class="tracker-form-actions"><button class="secondary" type="submit" id="conversion-device-create">Opret pc-token</button></div>
+   <div class="tracker-form-actions"><button class="secondary" type="submit" id="conversion-device-create">Opret forbindelseskode</button></div>
   </form>
   <div id="conversion-token-result" hidden>
-   <label>Pc-token · vises kun nu<input id="conversion-token-secret" readonly spellcheck="false" autocomplete="off"></label>
-   <p class="muted small">Indsæt adressen og tokenet under FjordSeed i pc-programmet. Tokenet giver kun adgang til tildelte konverteringsjobs. Fjern forbindelsen nedenfor for at tilbagekalde adgangen.</p>
+   <label>Forbindelseskode · vises kun nu<input id="conversion-token-secret" readonly spellcheck="false" autocomplete="off"></label>
+   <p class="muted small">Indsæt forbindelseskoden under FjordSeed i pc-programmet. Adressen følger automatisk med koden. Tokenet giver kun adgang til tildelte konverteringsjobs. Fjern forbindelsen nedenfor for at tilbagekalde adgangen.</p>
   </div>
   <h3>Tilsluttede pc’er</h3><div id="conversion-devices" aria-live="polite"></div>
  </div>

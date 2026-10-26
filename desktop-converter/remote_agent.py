@@ -1,4 +1,6 @@
 """Pull-only FjordSeed worker: authenticated, resumable, scoped file transfers."""
+import base64
+import re
 import hashlib
 import json
 import os
@@ -39,8 +41,29 @@ def sha(path):
     return digest.hexdigest()
 
 
+def connection_details(server, value):
+    """Decode a user-pasted pairing code without contacting any server."""
+    value=value.strip()
+    if value.startswith('fsp1_'):
+        try:
+            encoded=value[5:]
+            if len(encoded)>4096 or not re.fullmatch(r'[A-Za-z0-9_-]+',encoded):raise ValueError()
+            data=json.loads(base64.urlsafe_b64decode(encoded+'='*(-len(encoded)%4)))
+            server=data['server'];value=data['token']
+            if not isinstance(server,str) or not isinstance(value,str):raise ValueError()
+            parsed=urllib.parse.urlsplit(server)
+            if (parsed.scheme not in ('http','https') or not parsed.hostname or parsed.username
+                    or parsed.password or parsed.query or parsed.fragment or parsed.path not in ('','/')):raise ValueError()
+            parsed.port
+            if not re.fullmatch(r'fsw_[A-Za-z0-9_-]{1,139}',value):raise ValueError()
+        except (ValueError,KeyError,TypeError,UnicodeError):
+            raise ValueError('Forbindelseskoden er ugyldig. Kopiér hele koden fra FjordSeed.') from None
+    return server,value
+
+
 class Agent:
     def __init__(self,server,token,cache,lock,convert,cancelled,notify):
+        server,token=connection_details(server,token)
         parsed=urllib.parse.urlsplit(server.strip())
         if (parsed.scheme not in ('http','https') or not parsed.hostname or parsed.username or parsed.password
                 or parsed.query or parsed.fragment):raise ValueError('Indtast en HTTP(S)-adresse uden login eller token i adressen.')

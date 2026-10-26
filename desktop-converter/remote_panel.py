@@ -4,7 +4,7 @@ from pathlib import Path
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog
-from remote_agent import Agent, atomic
+from remote_agent import Agent, atomic, connection_details
 from windows_secret import protect, unprotect
 
 
@@ -32,11 +32,12 @@ class RemotePanel:
         app.label(self.frame,'Brug pc’ens GPU, og send den færdige film tilbage til biblioteket. Kvaliteten vælges i FjordSeed.',bg=bg,fg=muted,font=('Segoe UI',11)).pack(anchor='w',pady=(0,20))
         card=app.card(self.frame);card.pack(fill='x');card.columnconfigure(0,weight=1)
         app.label(card,'01  /  FORBIND PC OG SERVER',fg=muted,font=('Segoe UI',9,'bold')).grid(row=0,column=0,columnspan=2,sticky='w',pady=(0,14))
-        app.label(card,'FjordSeed-adresse').grid(row=1,column=0,columnspan=2,sticky='w')
+        app.label(card,'FjordSeed-adresse (udfyldes fra forbindelseskoden)').grid(row=1,column=0,columnspan=2,sticky='w')
         self.url_entry=ttk.Entry(card,textvariable=self.url);self.url_entry.grid(row=2,column=0,columnspan=2,sticky='ew',pady=(6,12))
-        app.label(card,'Pc-token').grid(row=3,column=0,columnspan=2,sticky='w')
+        app.label(card,'Forbindelseskode eller pc-token').grid(row=3,column=0,columnspan=2,sticky='w')
+        self.token.trace_add('write',self.pairing_changed)
         self.token_entry=ttk.Entry(card,textvariable=self.token,show='•');self.token_entry.grid(row=4,column=0,columnspan=2,sticky='ew',pady=(6,8))
-        app.label(card,'Opret tokenet i FjordSeed → Indstillinger → Konvertering.\nDet gemmes krypteret til denne Windows-bruger.',fg=muted,font=('Segoe UI',9),justify='left').grid(row=5,column=0,columnspan=2,sticky='w',pady=(0,14))
+        app.label(card,'Kopiér forbindelseskoden fra FjordSeed → Indstillinger → Konvertering.\nAdressen udfyldes automatisk. Adgangen gemmes krypteret til denne Windows-bruger.',fg=muted,font=('Segoe UI',9),justify='left').grid(row=5,column=0,columnspan=2,sticky='w',pady=(0,14))
         app.label(card,'Midlertidig plads på pc’en').grid(row=6,column=0,columnspan=2,sticky='w')
         self.cache_entry=ttk.Entry(card,textvariable=self.cache);self.cache_entry.grid(row=7,column=0,sticky='ew',padx=(0,10),pady=(6,10))
         self.cache_button=ttk.Button(card,text='Vælg …',command=self.choose_cache);self.cache_button.grid(row=7,column=1,pady=(6,10))
@@ -57,6 +58,14 @@ class RemotePanel:
         app.label(self.frame,'Originalerne bliver på serveren til seeding. Pc-bufferen ryddes efter serverens kvittering.',bg=bg,fg=muted,font=('Segoe UI',9),wraplength=900,justify='left').pack(anchor='w',pady=(14,0))
         if self.auto.get() and token and self.url.get():app.after(1000,self.connect)
 
+    def pairing_changed(self,*_):
+        if not self.token.get().strip().startswith('fsp1_'):return
+        try:
+            server,token=connection_details('',self.token.get())
+            self.url.set(server)
+            self.status.set('Adressen er hentet fra koden. Tryk Forbind og hent jobs.')
+        except ValueError as exc:self.status.set(str(exc))
+
     def choose_cache(self):
         folder=filedialog.askdirectory(title='Midlertidig plads til FjordSeed-jobs')
         if folder:self.cache.set(folder)
@@ -65,8 +74,9 @@ class RemotePanel:
         if self.connected:return
         app=self.app
         try:
-            agent=Agent(self.url.get(),self.token.get().strip(),self.cache.get(),app.gpu_lock,app.worker,app.cancelled,lambda k,v:app.events.put(('remote',(k,v))))
-            atomic(self.path,{'server':agent.server,'token_dpapi':protect(self.token.get().strip()),'cache':str(agent.cache),'auto':self.auto.get()})
+            server,token=connection_details(self.url.get(),self.token.get())
+            agent=Agent(server,token,self.cache.get(),app.gpu_lock,app.worker,app.cancelled,lambda k,v:app.events.put(('remote',(k,v))))
+            atomic(self.path,{'server':agent.server,'token_dpapi':protect(agent.token),'cache':str(agent.cache),'auto':self.auto.get()})
         except (ValueError,OSError) as exc:self.status.set(str(exc));return
         self.agent=agent;self.connected=True
         for w in (self.connect_button,self.url_entry,self.token_entry,self.cache_entry,self.cache_button,self.auto_button):w['state']='disabled'
