@@ -260,6 +260,9 @@ def execute(action, data):
                 'download_queue':download_queue_summary(rows),
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
                 'interface':prefs['current_network_interface'], 'version':call('app/version').text}
+    if action=='library-bitrates':
+        from media_bitrates import listing
+        return listing(data.get('files',[]))
     if action in ('library-shared-queue','library-shared-status','library-shared-complete','library-shared-cancel','library-shared-error'):
         import shared_library
         if action=='library-shared-queue':return shared_library.queue(call,data)

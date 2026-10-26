@@ -72,6 +72,14 @@ som en Windows-sti og bruges ikke som en servermappe.
 Pc'en sender også en begrænset oversigt over videofilernes relative navne og
 størrelser. FjordSeed viser dem i mapper med søgning. Uden valgt mappe vises
 en ventebesked og ingen filliste. Skjulte arbejdsmapper og Seeder udelades.
+Færdigkonverterede filer skjules automatisk i arbejdslisten. I FjordSeed kan
+du springe en fil, en genkendt serie eller en hel mappe over og medtage dem
+igen med **Vis sprunget over**. Valgene gemmes for pc'en og dens valgte mappe;
+mediefiler flyttes eller slettes ikke af disse valg.
+FjordSeed viser videobitrate og filens samlede gennemsnitsbitrate. Mapper
+viser spændet i videobitrate for deres filer. Oplysningerne indlæses fra
+serverens filer i små portioner og caches, så de ikke skal probes ved hvert
+heartbeat. Ukendte værdier vises som ukendte.
 
 **Send til pc** starter automatisk GPU-konverteringen med 20, 30 eller 40 Mbps
 fra FjordSeed. Pc'en læser originalfilen direkte fra netværksdrevet og skriver

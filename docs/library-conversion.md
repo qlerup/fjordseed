@@ -6,6 +6,22 @@ Vælg 20/30/40 Mbps, og tryk **Send til pc**. Det starter GPU-konverteringen
 direkte fra netværksdrevet. En offline pc kan modtage jobbet senere.
 Automatisk konvertering af nye downloads/RSS ændres ikke af dette eksplicitte job.
 
+Oversigten skjuler færdigkonverterede videoer og viser antallet, der mangler.
+**Spring over** gælder en fil, en serie genkendt ud fra sæson-/afsnitsnavne
+eller en hel mappe inklusive fremtidige filer i mappen. **Vis sprunget over**
+gør det muligt at medtage dem igen. Valgene gemmes pr. pc og valgt Windows-mappe
+i `conversion-skips.json`; et heartbeat kan ikke overskrive dem. Seriegrupper
+kan samle sæsoner i hver deres mappe. Ikke-genkendte navne kan altid håndteres
+med fil- eller mappevalget. En aktiv konvertering skal afbrydes eller afsluttes,
+før dens fil/serie/mappe kan springes over.
+
+Videobitrate og filens samlede bitrate indlæses server-side fra ffprobe-headerdata.
+Samlet bitrate omfatter alle spor i filen, ikke kun lydsporet valgt ved afspilning.
+Metadata caches efter sti, størrelse og ændringstid i `media-bitrates.json`.
+Der probes højst to filer pr. forespørgsel, med en særskilt lås fra konverteringer.
+Ukendte værdier gættes ikke; fejl prøves først igen efter fem minutter.
+Denne oversigt kræver ingen ændring i Windows-programmets eksisterende protokol.
+
 Forløbet er:
 
 1. FjordSeed kontrollerer, at filmen tilhører én færdig qBittorrent-torrent.

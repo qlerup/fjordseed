@@ -27,10 +27,31 @@ OWNER = 'dk.fjordseed.remote-owner'
 class BrokerBusy(ValueError):pass
 
 
+def series(name):
+    parts=PurePosixPath(name).parts
+    for index,part in enumerate(parts):
+        match=re.search(r'(?i)(?<![a-z0-9])(?:s\d{1,2}(?:e\d{1,3})?|season[ ._-]*\d+|sæson[ ._-]*\d+|\d{1,2}x\d{1,3})(?=[ ._-]|$)',part)
+        if not match:continue
+        title=part[:match.start()].strip(' ._-') or (parts[index-1] if index else '')
+        title=re.sub(r'[._]+',' ',title).strip()
+        key=re.sub(r'\s+',' ',title).lower()
+        if key:return {'series_key':key,'series_name':title}
+    return {}
+
+
+def skipped(name,rules,series_key=None):
+    name=name.lower()
+    family=series_key or series(name).get('series_key')
+    matches=[r for r in rules if (family==r['path'] if r['kind']=='series' else
+        name==r['path'].lower() if r['kind']=='file' else not r['path'] or name.startswith(r['path'].lower()+'/'))]
+    return matches[-1]['skip'] if matches else False
+
+
 class RemoteConversion:
     def __init__(self, state, runtime):
         self.state, self.runtime = state, runtime
         self.path = state.root / 'conversion-devices.json'
+        self.rules_path = state.root / 'conversion-skips.json'
         self.helper_lock = threading.Lock()
         self.verify_slots = threading.BoundedSemaphore(2)
 
@@ -44,10 +65,60 @@ class RemoteConversion:
     def public(self):
         with self.state.lock:
             devices=self.devices()
+            rules=self.rules()
         now=time.time()
         return [{k:d.get(k) for k in ('id','name','created_at','last_seen','media_folder','files','files_updated_at','files_truncated','selection','conversion_version')} |
                 {'online':0<=now-d.get('last_seen',0)<45,
+                 'files':[{**f,**series(f['name'])} for f in d.get('files',[])],
+                 'skip_rules':rules.get(d['id'],{}).get(str(PureWindowsPath(d.get('media_folder') or '')).lower(),[]),
                  'gpu_ready':0<=now-d.get('gpu_ready_at',0)<45} for d in devices]
+
+    def rules(self):
+        return json.loads(self.rules_path.read_text(encoding='utf-8')) if self.rules_path.exists() else {}
+
+    def skip(self,ident,folder,path,kind,value):
+        if (kind not in ('file','folder','series') or type(value) is not bool or not isinstance(path,str) or len(path)>2048 or
+                (not path and kind!='folder') or '\\' in path or ':' in path or any(ord(c)<32 for c in path) or
+                (path and (PurePosixPath(path).is_absolute() or str(PurePosixPath(path))!=path or
+                           any(p.startswith('.') for p in PurePosixPath(path).parts)))):
+            raise ValueError('Vælg en fil eller mappe fra oversigten.')
+        with self.state.lock:
+            device=next((d for d in self.devices() if d['id']==ident),None)
+            if not device or not folder or folder!=device.get('media_folder'):raise ValueError('Mappevalget er ændret. Opdatér oversigten.')
+            rules=self.rules();key=str(PureWindowsPath(folder)).lower()
+            current=rules.get(ident,{}).get(key,[])
+            def matches(name):return series(name).get('series_key')==path if kind=='series' else name==path if kind=='file' else not path or name.startswith(path+'/')
+            if value and not any(matches(f['name']) for f in device.get('files',[])):
+                raise ValueError('Filen eller mappen findes ikke i oversigten.')
+            selected=device.get('selection',{})
+            if value and selected.get('action')=='convert' and selected.get('state') not in ('completed','error','cancelled') and matches(selected.get('name','')):
+                raise ValueError('Afvent eller afbryd den igangværende konvertering før den springes over.')
+            # A whole-folder action also resets rules below that folder.
+            keep=[r for r in current if not (r['path'].lower()==path.lower() and r['kind']==kind) and
+                  not (kind=='folder' and (not path or r['path'].lower().startswith(path.lower()+'/')))]
+            if kind=='series':
+                keep=[r for r in keep if not (r['path'] and r['kind']!='series' and
+                    (series(r['path']).get('series_key')==path or
+                     (r['kind']=='folder' and any(f['name'].startswith(r['path']+'/') for f in device.get('files',[])) and
+                      all(series(f['name']).get('series_key')==path for f in device.get('files',[]) if f['name'].startswith(r['path']+'/')))))]
+            sample=next((f['name'] for f in device.get('files',[]) if matches(f['name'])),path)
+            families={series(f['name']).get('series_key') for f in device.get('files',[]) if matches(f['name'])}
+            family=next(iter(families)) if len(families)==1 else None
+            if value or skipped(sample if kind=='series' else path+'/file' if kind=='folder' else path,keep,family):
+                keep.append({'path':path,'kind':kind,'skip':value})
+            rules.setdefault(ident,{})[key]=keep
+            if sum(len(rows) for scopes in rules.values() for rows in scopes.values())>10000:raise ValueError('For mange regler for filer og mapper.')
+            atomic(self.rules_path,json.dumps(rules),mode=0o600)
+            return {'ok':True,'media_folder':folder,'skip_rules':keep}
+
+    def bitrates(self,ident):
+        with self.state.lock:
+            device=next((d for d in self.devices() if d['id']==ident),None)
+            if not device:raise ValueError('Pc-forbindelsen findes ikke.')
+            folder=device.get('media_folder','')
+            files=device.get('files',[])
+        if not folder:return {'media_folder':'','files':[],'pending':False}
+        return {'media_folder':folder,**self.runtime.rpc('library-bitrates',{'files':files})}
 
     def create(self, name):
         if not isinstance(name,str) or not 1<=len(name.strip())<=60 or any(ord(c)<32 for c in name):
@@ -66,6 +137,9 @@ class RemoteConversion:
             devices=self.devices()
             if not any(d['id']==ident for d in devices):raise ValueError('Pc-forbindelsen findes ikke.')
             self.write([d for d in devices if d['id']!=ident])
+            if self.rules_path.exists():
+                rules=self.rules();rules.pop(ident,None)
+                atomic(self.rules_path,json.dumps(rules),mode=0o600)
 
     def authenticate(self, header):
         if not isinstance(header,str) or not header.startswith('Bearer fsw_') or len(header)>150:return None
@@ -90,6 +164,8 @@ class RemoteConversion:
                 raise ValueError('Mappevalget er ændret. Opdatér filoversigten.')
             entry=next((f for f in d.get('files',[]) if f['name']==name),None)
             if entry is None:raise ValueError('Filen findes ikke i pc’ens filoversigt.')
+            rules=self.rules().get(ident,{}).get(str(PureWindowsPath(folder)).lower(),[])
+            if skipped(name,rules):raise ValueError('Filen er sprunget over. Medtag den igen før konvertering.')
             if d.get('conversion_version')!=1:raise ValueError('Opdatér pc-programmet for at konvertere direkte fra netværksmappen.')
             previous=d.get('selection',{})
             if previous.get('action')=='convert' and previous.get('state') not in ('completed','error','cancelled'):
@@ -390,3 +466,15 @@ def register(app, state, runtime):
             data=body()
             return jsonify(selection=manager.select_file(ident,data.get('media_folder'),data.get('name'),data.get('bitrate'))),202
         except ValueError as exc:return jsonify(error=str(exc)),400
+
+    @app.post('/api/conversion/devices/<ident>/skip')
+    def skip_workspace_file(ident):
+        try:
+            data=body()
+            return jsonify(manager.skip(ident,data.get('media_folder'),data.get('path'),data.get('kind'),data.get('skip')))
+        except ValueError as exc:return jsonify(error=str(exc)),400
+
+    @app.get('/api/conversion/devices/<ident>/bitrates')
+    def workspace_bitrates(ident):
+        try:return jsonify(manager.bitrates(ident))
+        except ValueError as exc:return jsonify(error=str(exc)),409

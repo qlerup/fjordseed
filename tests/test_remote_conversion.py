@@ -94,11 +94,11 @@ def test_workspace_files_follow_folder_selection_and_empty_selection_clears_list
     files=[{'name':'Show/S01/E01.mkv','size':123}]
     data={'version':1,'media_folder':r'M:\Bibliotek','files':files,'truncated':False}
     assert worker.post(url,headers=auth,json=data).status_code==200
-    assert manager.public()[0]['files']==files
+    assert manager.public()[0]['files']==[{**files[0],'series_key':'show','series_name':'Show'}]
     assert manager.public()[0]['files_updated_at']>0
     for bad in ([{'name':'../outside.mkv','size':1}],[{'name':'/absolute.mkv','size':1}],[{'name':'film.mkv','size':-1}],files*2):
         assert worker.post(url,headers=auth,json={**data,'files':bad}).status_code==409
-    assert manager.public()[0]['files']==files
+    assert manager.public()[0]['files']==[{**files[0],'series_key':'show','series_name':'Show'}]
     assert worker.post(url,headers=auth,json={**data,'media_folder':'','files':[]}).status_code==200
     assert manager.public()[0]['files']==[] and manager.public()[0]['media_folder']==''
     manager.rpc.assert_not_called()
@@ -180,6 +180,8 @@ def test_conversion_controls_live_in_their_own_settings_tab(setup):
     stream=html.split('id="streaming-view"',1)[1].split('id="conversion-view"',1)[0]
     assert 'id="conversion-enabled"' not in stream
     assert html.count('id="conversion-enabled"')==1
+    assert 'id="library-conversion-list"' not in html
+    assert '/static/library-conversion.js' not in html
 
 
 @pytest.mark.parametrize('rate',[20,30,40])
