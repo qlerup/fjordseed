@@ -19,6 +19,8 @@ from storage import Storage
 from streaming import Streaming
 
 CHUNK = 8 * 1024 * 1024
+DOWNLOAD_CHUNK = 32 * 1024 * 1024
+UPLOAD_CHUNK = 32 * 1024 * 1024
 OWNER = 'dk.fjordseed.remote-owner'
 
 
@@ -200,14 +202,16 @@ def register(app, state, runtime):
     def download(ident,index):
         offset=request.args.get('offset','0')
         if not offset.isdecimal() or len(offset)>16:raise ValueError('Ugyldigt filinterval.')
+        size=request.args.get('size',str(CHUNK))
+        if not size.isdecimal() or len(size)>9 or not 1<=int(size)<=DOWNLOAD_CHUNK:raise ValueError('Ugyldig blokstørrelse.')
         data=invoke('read',{'job':ident,'lease':request.headers.get('X-Job-Lease',''),
-                            'index':index,'offset':int(offset),'size':CHUNK},raw=True)
+                            'index':index,'offset':int(offset),'size':int(size)},raw=True)
         from flask import Response
         return Response(data,mimetype='application/octet-stream',headers={'X-Chunk-SHA256':hashlib.sha256(data).hexdigest()})
 
     @worker.put('/jobs/<ident>/files/<int:index>')
     def upload(ident,index):
-        request.max_content_length=CHUNK
+        request.max_content_length=UPLOAD_CHUNK
         offset=request.args.get('offset','0')
         if not offset.isdecimal() or len(offset)>16:raise ValueError('Ugyldigt filinterval.')
         payload=request.get_data()

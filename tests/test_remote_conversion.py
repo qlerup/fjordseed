@@ -50,7 +50,7 @@ def test_remote_device_heartbeat_and_bounded_upload(setup):
     result=worker.put('/api/conversion/worker/jobs/'+'a'*32+'/files/0?offset=0',headers={**auth,'X-Job-Lease':'b'*32},data=b'file')
     assert result.status_code==200 and manager.upload.call_args.args[2]==b'file'
     assert worker.put('/api/conversion/worker/jobs/'+'a'*32+'/files/0?offset=-1',headers=auth,data=b'x').status_code==409
-    assert worker.put('/api/conversion/worker/jobs/'+'a'*32+'/files/0?offset=0',headers=auth,data=b'x'*(8*1024*1024+1)).status_code==413
+    assert worker.put('/api/conversion/worker/jobs/'+'a'*32+'/files/0?offset=0',headers=auth,data=b'x'*(32*1024*1024+1)).status_code==413
 
 
 def test_conversion_settings_separate_from_streaming_and_default_off(setup):
@@ -109,3 +109,19 @@ def test_library_conversion_endpoints_are_session_and_csrf_protected(setup):
     assert client.post('/api/conversion/library/'+'b'*32+'/cancel',headers=h).status_code==200
     runtime.rpc.assert_called_with('library-cancel',{'id':'b'*32})
     assert client.post('/api/conversion/library',headers=h,json=[]).status_code==400
+
+
+def test_download_chunk_negotiation_preserves_old_client_size_and_checks_bound(setup):
+    import hashlib
+    app,manager,client,h=setup
+    token=client.post('/api/conversion/devices',json={'name':'PC'},headers=h).json['token']
+    auth={'Authorization':'Bearer '+token,'X-Job-Lease':'b'*32}
+    manager.rpc=Mock(return_value=b'data')
+    worker=app.test_client();url='/api/conversion/worker/jobs/'+'a'*32+'/files/0?offset=0'
+    for query,expected in [('',8*1024**2),('&size='+str(32*1024**2),32*1024**2)]:
+        result=worker.get(url+query,headers=auth)
+        assert result.status_code==200 and result.data==b'data'
+        assert result.headers['X-Chunk-SHA256']==hashlib.sha256(b'data').hexdigest()
+        assert manager.rpc.call_args.args[2]['size']==expected
+    for size in ['0','-1','many',str(32*1024**2+1)]:
+        assert worker.get(url+'&size='+size,headers=auth).status_code==409

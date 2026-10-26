@@ -18,6 +18,7 @@ import uuid
 import encode_core as core
 
 CHUNK=8*1024*1024
+DOWNLOAD_CHUNK=32*1024*1024
 
 
 class WorkerError(Exception):
@@ -85,8 +86,8 @@ class Agent:
         req=urllib.request.Request(self.server+'/api/conversion/worker'+path,data=payload,headers=headers,method=method)
         try:
             with self.opener.open(req,timeout=timeout) as response:
-                data=response.read(CHUNK+1 if raw else 1024*1024+1)
-                if len(data)>(CHUNK if raw else 1024*1024):raise WorkerError('Serverens svar er for stort.')
+                data=response.read(DOWNLOAD_CHUNK+1 if raw else 1024*1024+1)
+                if len(data)>(DOWNLOAD_CHUNK if raw else 1024*1024):raise WorkerError('Serverens svar er for stort.')
                 if raw:
                     if hashlib.sha256(data).hexdigest()!=response.headers.get('X-Chunk-SHA256'):
                         raise WorkerError('Filblokken blev ikke overført korrekt.')
@@ -135,6 +136,9 @@ class Agent:
         bitrate=job.get('bitrate')
         if type(bitrate) is not int or bitrate not in (10,15,20,25,30,40):
             raise WorkerError('Ugyldig videobitrate fra FjordSeed.')
+        upload_chunk=job.get('upload_chunk_size',CHUNK)
+        if type(upload_chunk) is not int or not 1<=upload_chunk<=DOWNLOAD_CHUNK:
+            raise WorkerError('Ugyldig blokstørrelse fra FjordSeed.')
         self.notify('settings',{'bitrate':bitrate})
         directory=self.cache/job['id'];directory.mkdir(exist_ok=True)
         state_path=directory/'client-state.json'
@@ -170,11 +174,15 @@ class Agent:
                 if current>entry['size']:raise WorkerError('Cachefilen matcher ikke originalen.')
                 if shutil.disk_usage(directory).free<entry['size']-current+1024**3:
                     raise WorkerError('Der er ikke plads til filmen i pc-bufferen.')
+                started=time.monotonic();received=0;chunk_size=CHUNK
                 with source.open('ab') as out:
                     while current<entry['size']:
-                        block=self.transfer('GET',f'/jobs/{job["id"]}/files/{index}?offset={current}',raw=True,lease=job['lease'])
+                        block=self.transfer('GET',f'/jobs/{job["id"]}/files/{index}?offset={current}&size={chunk_size}',raw=True,lease=job['lease'],timeout=120)
                         if not block or current+len(block)>entry['size']:raise WorkerError('Filen fra serveren blev afkortet.')
                         out.write(block);out.flush();os.fsync(out.fileno());current+=len(block)
+                        received+=len(block);speed=received/max(time.monotonic()-started,.001)
+                        chunk_size=min(DOWNLOAD_CHUNK,max(CHUNK,int(speed*2)))
+                        self.notify('transfer',{'bytes':current,'total':entry['size'],'speed':speed,'seconds':(entry['size']-current)/speed})
                         self.progress=(i+current/max(entry['size'],1)*.25)/len(files)*100
                         self.notify('progress',self.progress)
                 saved=state['outputs'].get(str(index),{})
@@ -206,7 +214,7 @@ class Agent:
                         handle.seek(offset)
                         if size==0:self.transfer('PUT',f'/jobs/{job["id"]}/files/{index}?offset=0',b'',lease=job['lease'])
                         while offset<size:
-                            block=handle.read(CHUNK)
+                            block=handle.read(upload_chunk)
                             result=self.transfer('PUT',f'/jobs/{job["id"]}/files/{index}?offset={offset}',block,lease=job['lease'])
                             offset+=len(block)
                             if result['offset']!=offset:raise WorkerError('Uploadstatus matcher ikke filen.')

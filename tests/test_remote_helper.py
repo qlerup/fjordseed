@@ -44,7 +44,7 @@ def test_lease_excludes_other_workers_and_reclaims_after_expiry(job):
 def test_chunks_are_scoped_idempotent_and_only_verified_results_publish(job):
     work,claim,data=job
     assert helper.dispatch({**data,'action':'read','offset':0,'size':4})==b'orig'
-    for bad in ({'lease':'wrong'},{'index':8},{'offset':-1},{'size':helper.CHUNK+1}):
+    for bad in ({'lease':'wrong'},{'index':8},{'offset':-1},{'size':helper.DOWNLOAD_CHUNK+1}):
         with pytest.raises(ValueError):helper.dispatch({**data,'action':'read','offset':0,'size':8,**bad})
     with pytest.raises(ValueError):helper.dispatch({**data,'action':'complete'})
     assert upload(work,data)['offset']==9
@@ -87,3 +87,15 @@ def test_broker_keeps_quality_choice_including_legacy_jobs(job,rate):
     request['bitrate']=rate
     (work/'request.json').write_text(json.dumps(request))
     assert helper.manifest(work,request)
+
+
+def test_claim_advertises_larger_uploads_and_read_accepts_bounded_batch(job):
+    work,claim,data=job
+    assert claim['upload_chunk_size']==32*1024**2
+    assert helper.dispatch({**data,'action':'read','offset':0,'size':32*1024**2})==b'original'
+    prepared=helper.dispatch({**data,'action':'prepare_upload','part':'d'*32,
+        'offset':0,'size':9*1024**2,'sha256':'e'*64})
+    assert prepared['name']=='d'*32
+    with pytest.raises(ValueError):
+        helper.dispatch({**data,'action':'prepare_upload','part':'d'*32,
+            'offset':0,'size':32*1024**2+1,'sha256':'e'*64})

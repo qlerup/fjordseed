@@ -94,6 +94,9 @@ class RemotePanel:
         elif kind in ('status','error'):self.status.set(value)
         elif kind=='started':self.app.notify_started(value)
         elif kind=='progress':self.bar['value']=value;self.percent.set(f'{value:.0f} %')
+        elif kind=='transfer':
+            gib=1024**3
+            self.metrics.set(f"Hentet {value['bytes']/gib:.2f} / {value['total']/gib:.2f} GiB · {value['speed']/1024**2:.1f} MiB/s · ca. {value['seconds']/60:.0f} min. tilbage")
         elif kind=='metrics':
             self.metrics.set(f'{value[1]:.1f} fps · GPU-konvertering')
             self.app.notify_eta(value[2])

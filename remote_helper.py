@@ -16,6 +16,8 @@ from converter_worker import VIDEO, probe, validate, restore_flags, report
 from state import atomic
 
 CHUNK = 8 * 1024 * 1024
+DOWNLOAD_CHUNK = 32 * 1024 * 1024
+UPLOAD_CHUNK = 32 * 1024 * 1024
 TTL = 180
 
 
@@ -166,7 +168,7 @@ def dispatch(data):
                         target = uploaded(work, lease, f['index'])
                         f['uploaded'] = target.stat().st_size if target.exists() else 0
                         f['verified'] = str(f['index']) in lease['done']
-                    return dict(id=request['id'], lease=lease['lease'], bitrate=request['bitrate'], files=files)
+                    return dict(id=request['id'], lease=lease['lease'], bitrate=request['bitrate'], files=files, upload_chunk_size=UPLOAD_CHUNK)
             except BlockingIOError:
                 continue
             except ValueError as exc:
@@ -252,7 +254,7 @@ def dispatch(data):
         entry = file_info(work, request, data)
         if action == 'read':
             offset = data.get('offset'); size = data.get('size')
-            if type(offset) is not int or type(size) is not int or not 0 <= offset <= entry['size'] or not 1 <= size <= CHUNK:
+            if type(offset) is not int or type(size) is not int or not 0 <= offset <= entry['size'] or not 1 <= size <= DOWNLOAD_CHUNK:
                 raise ValueError('Ugyldigt filinterval.')
             with checked(work.parent / entry['name']).open('rb') as handle:
                 handle.seek(offset)
@@ -264,7 +266,7 @@ def dispatch(data):
             if target.with_suffix('.verifying').exists():
                 raise ValueError('Filen bliver kontrolleret.')
             offset = data.get('offset'); size = data.get('size')
-            if type(offset) is not int or type(size) is not int or offset < 0 or not 0 <= size <= CHUNK:
+            if type(offset) is not int or type(size) is not int or offset < 0 or not 0 <= size <= UPLOAD_CHUNK:
                 raise ValueError('Ugyldigt filinterval.')
             if offset+size > max(entry['size']*4,1024**3) + 1024**3:
                 raise ValueError('Den returnerede fil er for stor.')

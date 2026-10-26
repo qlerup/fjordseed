@@ -150,3 +150,8 @@ den lokale konverteringsindstilling ændrer ikke modtagne jobs.
 Ny pc-forbindelse: Opret en **forbindelseskode** i FjordSeed og indsæt den i
 pc-programmets felt **Forbindelseskode**. Adressen hentes automatisk fra koden. Koden indeholder adgangstokenet og skal behandles som en adgangskode.
 Tidligere gemte forbindelser virker fortsat. Til nye forbindelser bruges en forbindelseskode.
+
+Filoverførsel tilpasser henteblokke op til 32 MiB på hurtige forbindelser.
+Returlevering bruger serverens annoncerede blokstørrelse (op til 32 MiB),
+med 8 MiB som fallback til ældre servere. Delvist hentede filer genoptages.
+Pc-visningen viser hentede GiB, hastighed og forventet resterende hentetid.
