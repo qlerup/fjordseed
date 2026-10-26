@@ -46,3 +46,43 @@ def test_pairing_token_is_encrypted_for_current_windows_user():
     token='fsw_'+'fixture'*8
     stored=protect(token)
     assert token not in stored and unprotect(stored)==token
+
+
+@pytest.mark.parametrize('rates',[(20,40),(30,20),(40,30),(25,40)])
+def test_received_job_automatically_selects_encoder_bitrate_and_ui(tmp_path,rates):
+    from unittest.mock import Mock
+    from remote_panel import RemotePanel
+    from fjord_ui import QUALITY_CHOICES
+    a=agent(tmp_path)
+    a.renew=lambda finished:None
+    panel=RemotePanel.__new__(RemotePanel)
+    panel.quality=Mock()
+    a.notify=lambda kind,value:panel.event(kind,value) if kind=='settings' else None
+    actual=[]
+    def convert(source,folder,rate,progress,stop):
+        actual.append(rate)
+        target=folder/'result.mkv'
+        target.write_bytes(b'converted')
+        return target
+    a.convert=convert
+    def transfer(method,path,data=None,**kwargs):
+        if method=='GET':return b'original'
+        if method=='PUT':return {'offset':len(data)}
+        return {}
+    a.transfer=transfer
+    for index,rate in enumerate(rates):
+        job={'id':str(index)*32,'lease':'b'*32,'bitrate':rate,
+             'files':[{'index':0,'name':'film.mkv','size':8,'output':'film.mkv','video':True}]}
+        a.run_job(job)
+        assert actual[-1]==rate
+        assert panel.quality.set.call_args.args[0]==QUALITY_CHOICES.get(rate,f'{rate} Mbps \u2013 tidligere valg')
+        assert not (a.cache/job['id']).exists()
+    assert actual==list(rates)
+
+
+@pytest.mark.parametrize('rate',[None,True,'40',0,45])
+def test_invalid_remote_bitrate_is_rejected_before_download(tmp_path,rate):
+    a=agent(tmp_path)
+    with pytest.raises(WorkerError,match='videobitrate'):
+        a.run_job({'id':'a'*32,'bitrate':rate})
+    assert not (a.cache/('a'*32)).exists()

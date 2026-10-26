@@ -109,6 +109,10 @@ class Agent:
     def run_job(self,job):
         if not isinstance(job.get('id'),str) or len(job['id'])!=32 or any(c not in '0123456789abcdef' for c in job['id']):
             raise WorkerError('Ugyldigt job fra serveren.')
+        bitrate=job.get('bitrate')
+        if type(bitrate) is not int or bitrate not in (10,15,20,25,30,40):
+            raise WorkerError('Ugyldig videobitrate fra FjordSeed.')
+        self.notify('settings',{'bitrate':bitrate})
         directory=self.cache/job['id'];directory.mkdir(exist_ok=True)
         state_path=directory/'client-state.json'
         try:state=json.loads(state_path.read_text(encoding='utf-8'))

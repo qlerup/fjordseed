@@ -24,6 +24,7 @@ class RemotePanel:
         self.auto=tk.BooleanVar(value=bool(settings.get('auto',False)))
         self.status=tk.StringVar(value='Forbind pc’en med adressen og pc-tokenet fra FjordSeed.')
         self.percent=tk.StringVar(value='0 %')
+        self.quality=tk.StringVar(value='Afventer et job fra FjordSeed')
         self.metrics=tk.StringVar(value='Pc’en henter selv jobs · ingen indgående port er nødvendig')
         bg='#0b1220';muted='#9caec5'
         self.frame=tk.Frame(app,bg=bg,padx=26,pady=20)
@@ -44,6 +45,8 @@ class RemotePanel:
         app.label(card,'Brug HTTPS over internettet. HTTP kan bruges på dit betroede lokalnet.',fg=muted,font=('Segoe UI',9)).grid(row=9,column=0,columnspan=2,sticky='w',pady=(8,0))
         progress=app.card(self.frame);progress.pack(fill='x',pady=(16,0))
         app.label(progress,'02  /  JOB FRA FJORDSEED',fg=muted,font=('Segoe UI',9,'bold')).pack(anchor='w',pady=(0,10))
+        app.label(progress,'Kvalitet fra FjordSeed',fg=muted,font=('Segoe UI',9)).pack(anchor='w')
+        ttk.Entry(progress,textvariable=self.quality,state='readonly').pack(fill='x',pady=(6,10))
         app.label(progress,textvariable=self.status,wraplength=870,justify='left',font=('Segoe UI',11,'bold')).pack(anchor='w')
         app.label(progress,textvariable=self.percent,fg='#7ce4c4',font=('Segoe UI',20,'bold')).pack(anchor='w',pady=(10,8))
         self.bar=ttk.Progressbar(progress,maximum=100);self.bar.pack(fill='x')
@@ -75,7 +78,11 @@ class RemotePanel:
         self.status.set('Afbryder forbindelsen …');self.stop_button['state']='disabled'
 
     def event(self,kind,value):
-        if kind in ('status','error'):self.status.set(value)
+        if kind=='settings':
+            from fjord_ui import QUALITY_CHOICES
+            rate=value['bitrate']
+            self.quality.set(QUALITY_CHOICES.get(rate,f'{rate} Mbps – tidligere valg'))
+        elif kind in ('status','error'):self.status.set(value)
         elif kind=='started':self.app.notify_started(value)
         elif kind=='progress':self.bar['value']=value;self.percent.set(f'{value:.0f} %')
         elif kind=='metrics':

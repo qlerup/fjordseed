@@ -142,3 +142,7 @@ og distribueres under deres respektive licenser:
 
 `preferences.json`, videoer, logs, testfiler og downloadede værktøjer er lokale
 og er udeladt fra Git. Denne mappe indgår ikke i FjordSeeds Docker-image.
+
+FjordSeed-jobs indstiller automatisk pc-motorens bitrate og viser valget i
+**Kvalitet fra FjordSeed** under forbindelsen. Feltet er låst til jobbets valg;
+den lokale konverteringsindstilling ændrer ikke modtagne jobs.
