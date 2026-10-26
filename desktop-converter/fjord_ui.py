@@ -1,6 +1,7 @@
 """One FjordSeed workspace; the replacement conversion flow is added separately."""
 import json
 import os
+import queue
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -99,6 +100,9 @@ class ConverterUI(tk.Tk):
         self.start_button = ttk.Button(actions, text='Konvertér', style='Primary.TButton', state='disabled')
         self.start_button.pack(side='right')
         self.refresh_connection()
+        from workspace_sync import WorkspaceSync
+        self.workspace_sync = WorkspaceSync(self.connection_path, self.config_path)
+        self.after(300, self.poll_workspace)
         self.protocol('WM_DELETE_WINDOW', self.background)
         self.bind('<Control-q>', lambda event: self.close())
         self.after_idle(self.enable_background)
@@ -124,8 +128,23 @@ class ConverterUI(tk.Tk):
             selected = save_media_folder(self.config_path, folder)
             self.media_folder.set(selected)
             self.folder_status.set('Mappe valgt.')
+            self.workspace_sync.changed.set()
         except (OSError, ValueError) as exc:
             self.folder_status.set(str(exc))
+
+    def poll_workspace(self):
+        try:
+            while True:
+                state, value = self.workspace_sync.messages.get_nowait()
+                if state == 'ok':
+                    if value != self.media_folder.get():
+                        continue  # A previous request completed after a new selection.
+                    self.folder_status.set('Mappe delt med FjordSeed.' if value else 'Vælg mappen til dine FjordSeed-filer.')
+                else:
+                    self.folder_status.set(value)
+        except queue.Empty:
+            pass
+        self.after(300, self.poll_workspace)
 
     def open_settings(self):
         if self.settings_window and self.settings_window.winfo_exists():
@@ -153,6 +172,7 @@ class ConverterUI(tk.Tk):
             try:
                 self.save_connection(code.get())
                 self.refresh_connection()
+                self.workspace_sync.changed.set()
                 win.destroy()
             except (OSError, ValueError) as exc:
                 feedback.set(str(exc))
@@ -194,6 +214,7 @@ class ConverterUI(tk.Tk):
         self.focus_set()
 
     def close(self):
+        self.workspace_sync.close()
         self.destroy()
 
     def _style(self):

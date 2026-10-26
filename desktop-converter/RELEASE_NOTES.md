@@ -1,5 +1,8 @@
 Windows-installationspakke til Fjord-konvertering.
 
+- Mappevalget deles automatisk med FjordSeed via den eksisterende pc-forbindelse og vises under den tilsluttede pc.
+- Videofiler vises med søgning og mappegruppering i FjordSeed. Uden mappevalg afventes valget i programmet.
+
 - Installation for den aktuelle Windows-bruger med startmenugenvej og valgfri skrivebordsgenvej.
 - Afinstallation via Windows. Brugerens forbindelsesoplysninger og præferencer bevares.
 - Program, NVEncC, FFmpeg og MKVToolNix er inkluderet; Python er ikke nødvendigt på mål-pc'en.

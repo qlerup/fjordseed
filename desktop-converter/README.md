@@ -65,6 +65,13 @@ Programmet har nu én samlet visning: **FjordSeed-konvertering**.
 Tryk **Vælg mappe…** for at åbne Windows' mappevælger. Vælg f.eks. en
 mappe på **M:** eller en tilgængelig netværksmappe. Valget gemmes uden at
 ændre eksisterende forbindelsesoplysninger eller konverteringspræferencer.
+Den valgte sti deles automatisk med FjordSeed via pc'ens tokenforbindelse,
+ved opstart og efter ændringer. Ved forbindelsesfejl prøves igen. Stien vises
+under den tilsluttede pc i FjordSeeds konverteringsindstillinger; den behandles
+som en Windows-sti og bruges ikke som en servermappe.
+Pc'en sender også en begrænset oversigt over videofilernes relative navne og
+størrelser. FjordSeed viser dem i mapper med søgning. Uden valgt mappe vises
+en ventebesked og ingen filliste. Skjulte arbejdsmapper og Seeder udelades.
 
 Dette trin ændrer kun programfladen. **Konvertér** er endnu ikke aktiv,
 fordi det nye arbejdsforløb aftales separat. Programmet starter ikke den

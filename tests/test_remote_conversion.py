@@ -64,6 +64,46 @@ def test_conversion_settings_separate_from_streaming_and_default_off(setup):
         assert client.post('/api/conversion',headers=h,json=body).status_code==400
 
 
+def test_workspace_is_durable_scoped_to_token_and_does_not_claim_jobs(setup):
+    app,manager,client,h=setup
+    first=manager.create('First');second=manager.create('Second')
+    worker=app.test_client();url='/api/conversion/worker/workspace'
+    data={'version':1,'media_folder':r'M:\Bibliotek','id':second['id']}
+    assert worker.post(url,json=data).status_code==401
+    auth={'Authorization':'Bearer '+first['token']}
+    result=worker.post(url,json=data,headers=auth)
+    assert result.status_code==200 and result.json['media_folder']==r'M:\Bibliotek'
+    persisted=json.loads(manager.path.read_text())
+    assert persisted[0]['media_folder']==r'M:\Bibliotek'
+    assert 'media_folder' not in persisted[1]
+    assert manager.public()[0]['online'] and not manager.public()[0]['gpu_ready']
+    assert client.get('/api/conversion').json['devices'][0]['media_folder']==r'M:\Bibliotek'
+    manager.rpc.assert_not_called()
+    for folder in (None,[],r'M:relative','/server/path',r'M:\..\outside','x'*2049,'M:\\bad\npath'):
+        assert worker.post(url,headers=auth,json={'version':1,'media_folder':folder}).status_code==409
+    unc=r'\\server\Medier\Bibliotek'
+    assert worker.post(url,headers=auth,json={'version':1,'media_folder':unc}).json['media_folder']==unc
+    manager.revoke(first['id'])
+    assert worker.post(url,headers=auth,json=data).status_code==401
+
+
+def test_workspace_files_follow_folder_selection_and_empty_selection_clears_list(setup):
+    app,manager,client,h=setup
+    device=manager.create('PC');auth={'Authorization':'Bearer '+device['token']}
+    worker=app.test_client();url='/api/conversion/worker/workspace'
+    files=[{'name':'Show/S01/E01.mkv','size':123}]
+    data={'version':1,'media_folder':r'M:\Bibliotek','files':files,'truncated':False}
+    assert worker.post(url,headers=auth,json=data).status_code==200
+    assert manager.public()[0]['files']==files
+    assert manager.public()[0]['files_updated_at']>0
+    for bad in ([{'name':'../outside.mkv','size':1}],[{'name':'/absolute.mkv','size':1}],[{'name':'film.mkv','size':-1}],files*2):
+        assert worker.post(url,headers=auth,json={**data,'files':bad}).status_code==409
+    assert manager.public()[0]['files']==files
+    assert worker.post(url,headers=auth,json={**data,'media_folder':'','files':[]}).status_code==200
+    assert manager.public()[0]['files']==[] and manager.public()[0]['media_folder']==''
+    manager.rpc.assert_not_called()
+
+
 def test_conversion_controls_live_in_their_own_settings_tab(setup):
     app,manager,client,h=setup
     html=client.get('/').get_data(as_text=True)

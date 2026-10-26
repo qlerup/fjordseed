@@ -3,7 +3,7 @@ import hashlib
 import io
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import secrets
 import tarfile
@@ -45,8 +45,9 @@ class RemoteConversion:
         with self.state.lock:
             devices=self.devices()
         now=time.time()
-        return [{k:d.get(k) for k in ('id','name','created_at','last_seen')} |
-                {'online':0<=now-d.get('last_seen',0)<45} for d in devices]
+        return [{k:d.get(k) for k in ('id','name','created_at','last_seen','media_folder','files','files_updated_at','files_truncated')} |
+                {'online':0<=now-d.get('last_seen',0)<45,
+                 'gpu_ready':0<=now-d.get('gpu_ready_at',0)<45} for d in devices]
 
     def create(self, name):
         if not isinstance(name,str) or not 1<=len(name.strip())<=60 or any(ord(c)<32 for c in name):
@@ -77,7 +78,42 @@ class RemoteConversion:
             devices=self.devices()
             for d in devices:
                 if d['id']==device['id']:
-                    d['last_seen']=time.time();self.write(devices);return
+                    d['last_seen']=time.time();d['gpu_ready_at']=d['last_seen'];self.write(devices);return
+        raise ValueError('Pc-forbindelsen er fjernet.')
+
+    def workspace(self, device, folder, files=None, truncated=False):
+        # This is a PC-local path, never a server filesystem/mount instruction.
+        if (not isinstance(folder,str) or len(folder)>2048 or
+                any(ord(c)<32 for c in folder) or
+                (folder and (not PureWindowsPath(folder).is_absolute() or
+                             '..' in PureWindowsPath(folder).parts or
+                             any(c in folder for c in '*?"<>|')))):
+            raise ValueError('Send en absolut Windows-mappesti.')
+        if files is not None:
+            if not isinstance(files,list) or len(files)>5000 or type(truncated) is not bool:
+                raise ValueError('Ugyldig filoversigt.')
+            clean=[];seen=set()
+            for entry in files:
+                if not isinstance(entry,dict):raise ValueError('Ugyldig filoversigt.')
+                name=entry.get('name');size=entry.get('size')
+                if (not isinstance(name,str) or not 1<=len(name)<=2048 or '\\' in name or
+                        any(ord(c)<32 for c in name) or PurePosixPath(name).is_absolute() or
+                        any(p in ('..','.') or p.startswith('.') or ':' in p for p in name.split('/')) or
+                        str(PurePosixPath(name))!=name or type(size) is not int or not 0<=size<2**63 or name in seen):
+                    raise ValueError('Ugyldig filoversigt.')
+                clean.append({'name':name,'size':size});seen.add(name)
+            if not folder and clean:raise ValueError('Vælg en mappe før filoversigten sendes.')
+        with self.state.lock:
+            devices=self.devices()
+            for d in devices:
+                if d['id']==device['id']:
+                    if d.get('media_folder')!=folder:
+                        for key in ('files','files_updated_at','files_truncated'):d.pop(key,None)
+                    d.update(media_folder=folder,last_seen=time.time())
+                    if files is not None:
+                        d.update(files=clean,files_updated_at=time.time(),files_truncated=truncated)
+                    self.write(devices)
+                    return {'ok':True,'media_folder':folder}
         raise ValueError('Pc-forbindelsen er fjernet.')
 
     def helper(self):
@@ -193,6 +229,12 @@ def register(app, state, runtime):
         invoke('heartbeat')
         if data.get('job'):invoke('renew',data)
         return jsonify(ok=True)
+
+    @worker.post('/workspace')
+    def workspace():
+        data=body()
+        if data.get('version')!=1:raise ValueError('Ukendt programversion.')
+        return jsonify(manager.workspace(device(),data.get('media_folder'),data.get('files'),data.get('truncated',False)))
 
     @worker.post('/claim')
     def claim():

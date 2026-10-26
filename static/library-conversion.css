@@ -1,4 +1,12 @@
 .library-conversion{margin-top:20px}
+.workspace-device{align-items:flex-start;gap:20px}
+.workspace-device>div{min-width:0;flex:1;overflow-wrap:anywhere}
+.workspace-search{margin:12px 0;max-width:520px}
+.workspace-files{margin-top:12px;max-height:480px;overflow:auto}
+.workspace-folder{padding:8px 0 8px 14px;border-left:1px solid var(--border)}
+.workspace-folder>summary{cursor:pointer;padding:4px 0;color:var(--text);font-weight:600}
+.workspace-file{display:flex;justify-content:space-between;gap:20px;padding:9px 0;border-bottom:1px solid var(--border)}
+.workspace-file>.small{flex-shrink:0}
 .conversion-installer{display:flex;align-items:center;flex-wrap:wrap;gap:12px 18px;margin:16px 0}
 .conversion-installer>a{display:inline-flex;align-items:center}
 .conversion-installer>p{flex:1;min-width:180px}
