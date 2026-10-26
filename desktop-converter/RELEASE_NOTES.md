@@ -1,5 +1,8 @@
 Windows-installationspakke til Fjord-konvertering.
 
+- HEVC bruger NVDEC-afkodning, når GPU'ens afkodningsfunktioner er verificeret. Det undgår den FFmpeg-softwareafkodningssti, hvor NVEncC crashede i `avcodec-63.dll` på den undersøgte 4K-fil.
+- NVEncC's exitkode gemmes i loggen og vises ved fejl. En stoppet konvertering viser ikke længere et aktivt estimat på resterende tid.
+
 - **Send til pc** starter GPU-konverteringen direkte fra netværksmappen med 20/30/40 Mbps. Ingen første download til pc-cache eller upload af resultatfilen.
 - Efter kontrol flytter qBittorrent hele originaltorrentens mapper og filer til Seeder. Den konverterede udgave publiceres i Bibliotek med uafhængige kopier af undertekster.
 - Fremdrift, forventet tid og afbrydelse vises i programmet. Seriepakker bevares intakte; senere afsnit kan konverteres uden at flytte originalpakken igen.

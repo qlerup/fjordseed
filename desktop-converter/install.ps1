@@ -46,7 +46,7 @@ foreach ($name in @('nvenc', 'ffmpeg', 'mkvtoolnix')) {
     if ($LASTEXITCODE -ne 0) { throw "Extraction failed for $name." }
 }
 
-foreach ($file in @('fjord_encode.pyw', 'fjord_ui.py', 'encode_core.py', 'windows_drop.py', 'remote_agent.py', 'remote_panel.py', 'windows_secret.py', 'windows_background.py', 'windows_startup.py', 'windows_instance.py', 'fjord.ico')) {
+foreach ($file in @('fjord_encode.pyw', 'fjord_ui.py', 'encode_core.py', 'nvidia_decoder.py', 'workspace_sync.py', 'shared_runner.py', 'windows_drop.py', 'remote_agent.py', 'remote_panel.py', 'windows_secret.py', 'windows_background.py', 'windows_startup.py', 'windows_instance.py', 'fjord.ico')) {
     $source = Join-Path $PSScriptRoot $file
     $destination = Join-Path $InstallDir $file
     if ([IO.Path]::GetFullPath($source) -ne [IO.Path]::GetFullPath($destination)) {

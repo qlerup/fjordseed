@@ -50,11 +50,14 @@ def convert(source, folder, bitrate, notify, stop, target_name=None):
             original = core.probe(source)
             if stop.is_set():
                 raise Cancelled()
+            from nvidia_decoder import select as select_decoder
+            reader=select_decoder(core.video(original),core.TOOLS['nvencc'])
             args = core.command(source, partial, bitrate, original)
+            if reader=='avhw':args[1]='--avhw'
             args[0] = str(core.TOOLS['nvencc'])
             expected = float(original['format']['duration']) * float(Fraction(core.video(original)['avg_frame_rate']))
             log.write(json.dumps(args, ensure_ascii=False) + '\n')
-            notify('status', 'Konverterer på NVIDIA-GPU …')
+            notify('status', 'Konverterer med NVIDIA NVDEC og NVENC …' if reader=='avhw' else 'Konverterer på NVIDIA-GPU …')
             process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                        text=True, encoding='utf-8', errors='replace',
                                        creationflags=subprocess.CREATE_NO_WINDOW)
@@ -76,6 +79,8 @@ def convert(source, folder, bitrate, notify, stop, target_name=None):
                         remaining = max(0, (expected - frames) / max(fps, .01))
                         notify('progress', (min(99, frames / max(expected, 1) * 100), fps, remaining))
                 code = process.wait()
+                log.write(f'NVEncC exit: {code} (0x{code & 0xffffffff:08X})\n')
+                log.flush()
             finally:
                 finished.set()
                 process.stdout.close()
@@ -85,7 +90,8 @@ def convert(source, folder, bitrate, notify, stop, target_name=None):
             if stop.is_set():
                 raise Cancelled()
             if code:
-                raise RuntimeError('NVEncC kunne ikke fuldføre konverteringen. Se loggen.')
+                detail='crashede' if code & 0xffffffff==0xc0000005 else 'stoppede med en fejl'
+                raise RuntimeError(f'NVEncC {detail} (0x{code & 0xffffffff:08X}). Originalerne er bevaret. Se jobbets log.')
             notify('status', 'Kontrollerer Dolby Vision/HDR, alle spor og kapitler …')
             core.restore_flags(original, partial)
             result = core.probe(partial)
@@ -96,6 +102,7 @@ def convert(source, folder, bitrate, notify, stop, target_name=None):
             seconds = time.monotonic() - started
             report = {'source': str(source), 'output': str(target), 'seconds': round(seconds, 2),
                       'video_mbps_target': bitrate, 'gpu_encoder': 'NVEncC 9.39 HEVC quality',
+                      'video_decoder':'NVDEC' if reader=='avhw' else 'FFmpeg software',
                       'audio_tracks': sum(s['codec_type']=='audio' for s in result['streams']),
                       'subtitle_tracks': sum(s['codec_type']=='subtitle' for s in result['streams']),
                       'dolby_vision': core.dovi(result), 'verified': True}

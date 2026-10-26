@@ -116,7 +116,10 @@ bruger fortsat `--background`, hvis brugeren har slået det til.
   Tidligere gemte valg og allerede oprettede FjordSeed-jobs bevares.
   Pc-jobs bruger FjordSeeds bitrate; programmets valg gælder lokale film.
 - Original opløsning, billedhastighed og farver; MKV som container.
-- CPU-afkodning (`--avsw`), GPU-encoding. Ingen automatisk CPU-encoding.
+- HEVC bruger GPU-afkodning (`--avhw`/NVDEC), når NVIDIA-kortets støtte til
+  kildens bitdybde er verificeret. Andre input bruger den eksisterende
+  softwareafkodning. Encoding foregår fortsat på GPU'en; der skiftes ikke
+  automatisk tilbage til softwareafkodning efter et crash midt i jobbet.
 - Lyd, undertekster, vedhæftninger, metadata og kapitler kopieres.
 - HDR10-metadata bevares. Dolby Vision 7 eller 8.1 bliver til **8.1** med RPU.
   Profil 7's ekstra billedlag følger ikke med. Andre DV-profiler afvises.

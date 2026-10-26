@@ -79,7 +79,7 @@ class SharedRunner:
         if command.get('state') in ('completed','error','cancelled'):
             terminal=(key,command['state'])
             if terminal!=self.terminal:
-                self.messages.put(('job_done',command) if command['state']=='completed' else ('job_error',command.get('detail','Jobbet er stoppet.')))
+                self.messages.put(('job_done',command) if command['state']=='completed' else ('job_error',command.get('detail') or 'Jobbet er stoppet. Originalerne er bevaret.'))
             self.key=key;self.terminal=terminal;return
         if key==self.key:return
         if command.get('bitrate') not in (20,30,40):raise ValueError('Ugyldig videokvalitet.')
@@ -172,8 +172,9 @@ class SharedRunner:
             except (OSError,ValueError):pass
             self.receipt={'id':ident,'state':'error','detail':'Konverteringen blev afbrudt. Originalerne er bevaret.'}
             self.messages.put(('job_error',self.receipt['detail']));self.changed.set()
-        except Exception:
-            detail='Konverteringen kunne ikke fuldføres. Originalerne er bevaret. Se jobbets log i netværksmappen.'
+        except Exception as exc:
+            detail=(str(exc) if isinstance(exc,(ValueError,RuntimeError)) and str(exc) else
+                'Konverteringen kunne ikke fuldføres. Originalerne er bevaret. Se jobbets log i netværksmappen.')[:300]
             self.receipt={'id':ident,'state':'error','detail':detail}
             if work and work.is_dir():
                 try:atomic(work/'status.json',{'id':ident,'state':'error','progress':0,'detail':detail})

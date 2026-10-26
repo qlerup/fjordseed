@@ -172,7 +172,10 @@ class ConverterUI(tk.Tk):
                     self.bar['value']=100;self.percent.set('100 %')
                     self.status.set('Færdig · filmen er i Bibliotek, og originaltorrenten er i Seeder.')
                     self.job_detail.set('Alle originalfiler og torrentens mappestruktur er bevaret.')
-                elif state == 'job_error':self.status.set(value)
+                elif state == 'job_error':
+                    self.status.set(value)
+                    self.percent.set(f"Stoppet ved {float(self.bar['value']):.0f} %")
+                    self.job_detail.set('Originalfilerne er bevaret.')
                 else:
                     self.folder_status.set(value)
         except queue.Empty:
