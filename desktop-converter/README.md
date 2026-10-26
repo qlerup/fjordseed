@@ -73,7 +73,13 @@ Pc'en sender også en begrænset oversigt over videofilernes relative navne og
 størrelser. FjordSeed viser dem i mapper med søgning. Uden valgt mappe vises
 en ventebesked og ingen filliste. Skjulte arbejdsmapper og Seeder udelades.
 
-Dette trin ændrer kun programfladen. **Konvertér** er endnu ikke aktiv,
+**Send til pc** ved en fil i denne oversigt sender kun en besked til den valgte
+pc. Programmet vælger den eksisterende fil direkte i netværksmappen og viser
+dens sti. FjordSeed viser **Afventer pc** og derefter **Valgt på pc** ved kvittering.
+Intet videomateriale downloades eller kopieres i dette trin. Filvalget bevares
+på serveren ved genstart; et nyt mappevalg annullerer det tidligere filvalg.
+
+**Konvertér** er endnu ikke aktiv,
 fordi det nye arbejdsforløb aftales separat. Programmet starter ikke den
 ældre HTTP-hentning eller den lokale filkonvertering automatisk.
 

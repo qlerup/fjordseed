@@ -104,6 +104,53 @@ def test_workspace_files_follow_folder_selection_and_empty_selection_clears_list
     manager.rpc.assert_not_called()
 
 
+def test_shared_file_selection_is_scoped_durable_and_acknowledged_without_transfer(setup):
+    app,manager,client,h=setup
+    pc=manager.create('PC');other=manager.create('Other')
+    worker=app.test_client();auth={'Authorization':'Bearer '+pc['token']}
+    folder=r'M:\Bibliotek';files=[{'name':'Series/E01.mkv','size':123}]
+    sync={'version':1,'media_folder':folder,'files':files}
+    url='/api/conversion/devices/'+pc['id']+'/select'
+    worker.post('/api/conversion/worker/workspace',headers=auth,json=sync)
+    data={'media_folder':folder,'name':files[0]['name']}
+    assert worker.post(url,json=data).status_code==403
+    assert client.post(url,json=data).status_code==403
+    assert worker.post(url,headers=auth,json=data).status_code==403
+    queued=client.post(url,headers=h,json=data)
+    assert queued.status_code==202
+    selection=queued.json['selection']
+    assert selection['state']=='queued'
+    assert manager.public()[0]['selection']==selection
+    response=worker.post('/api/conversion/worker/workspace',headers=auth,json=sync)
+    assert response.json['selection']==selection
+    second=worker.post('/api/conversion/worker/workspace',headers={'Authorization':'Bearer '+other['token']},json={'version':1,'media_folder':''})
+    assert second.json['selection'] is None
+    ack={**sync,'selection_result':{'id':selection['id'],'state':'selected'}}
+    assert worker.post('/api/conversion/worker/workspace',headers=auth,json=ack).json['selection']['state']=='selected'
+    newer=client.post(url,headers=h,json=data).json['selection']
+    response=worker.post('/api/conversion/worker/workspace',headers=auth,json=ack)
+    assert response.json['selection']['id']==newer['id'] and response.json['selection']['state']=='queued'
+    for bad in ({**data,'media_folder':r'N:\Other'},{**data,'name':'../outside.mkv'}):
+        assert client.post(url,headers=h,json=bad).status_code==400
+    changed=worker.post('/api/conversion/worker/workspace',headers=auth,json={**sync,'media_folder':r'N:\Other'})
+    assert changed.json['selection']['state']=='cancelled'
+    manager.rpc.assert_not_called()
+
+
+def test_missing_shared_file_cannot_be_acknowledged_as_selected(setup):
+    app,manager,client,h=setup
+    pc=manager.create('PC');auth={'Authorization':'Bearer '+pc['token']}
+    worker=app.test_client();folder=r'M:\Bibliotek'
+    manager.workspace(pc,folder,[{'name':'film.mkv','size':1}])
+    selection=manager.select_file(pc['id'],folder,'film.mkv')
+    result=worker.post('/api/conversion/worker/workspace',headers=auth,json={
+        'version':1,'media_folder':folder,'files':[],
+        'selection_result':{'id':selection['id'],'state':'selected'}})
+    assert result.json['selection']['state']=='error'
+    assert manager.devices()[0]['selection']['state']=='error'
+    manager.rpc.assert_not_called()
+
+
 def test_conversion_controls_live_in_their_own_settings_tab(setup):
     app,manager,client,h=setup
     html=client.get('/').get_data(as_text=True)

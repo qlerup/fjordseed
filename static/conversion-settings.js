@@ -8,6 +8,12 @@
   }
   container.append(node('p','muted small','Mappe på pc: '+device.media_folder));
   if(!device.files_updated_at){container.append(node('p','muted small','Afventer filoversigt fra programmet.'));return;}
+  container.append(node('p','muted small','Send til pc vælger filen direkte i netværksmappen.'));
+  const selected=device.selection;
+  if(selected){
+   const states={queued:'Afventer valg på pc',selected:'Valgt på pc',error:'Kunne ikke vælge filen',cancelled:'Filvalg annulleret'};
+   container.append(node('p','muted small',(states[selected.state]||'Filvalg')+' · '+selected.name+(selected.detail?' · '+selected.detail:'')));
+  }
   const search=node('input','workspace-search');search.type='search';search.placeholder='Søg i film og serier';
   search.setAttribute('aria-label','Søg i filer på '+device.name);search.value=searches.get(device.id)||'';
   const summary=node('p','muted small'),files=node('div','workspace-files');
@@ -34,7 +40,18 @@
      append(child,details,path+name+'/');parent.append(details);
     }
     for(const file of branch.files){
-     const row=node('div','workspace-file');row.append(node('span','',file.label),node('span','muted small',new Intl.NumberFormat('da-DK',{maximumFractionDigits:2}).format(file.size/1024**3)+' GiB'));parent.append(row);
+     const row=node('div','workspace-file'),label=node('div','workspace-file-name');
+     label.append(node('span','',file.label),node('p','muted small',new Intl.NumberFormat('da-DK',{maximumFractionDigits:2}).format(file.size/1024**3)+' GiB'));
+     const current=selected?.name===file.name&&selected?.media_folder===device.media_folder;
+     const button=node('button','secondary',current&&selected.state==='queued'?'Afventer pc…':current&&selected.state==='selected'?'Valgt på pc':'Send til pc');button.type='button';button.disabled=!!(current&&['queued','selected'].includes(selected.state));
+     button.onclick=async()=>{
+      button.disabled=true;$('#conversion-settings-error').hidden=true;
+      try{
+       await api('/api/conversion/devices/'+device.id+'/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({media_folder:device.media_folder,name:file.name})});
+       toast('Filvalget er sendt til pc’en.');await load(false);
+      }catch(e){error('#conversion-settings-error',e);button.disabled=false;}
+     };
+     row.append(label,button);parent.append(row);
     }
    }
    append(tree,files);

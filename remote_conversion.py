@@ -45,7 +45,7 @@ class RemoteConversion:
         with self.state.lock:
             devices=self.devices()
         now=time.time()
-        return [{k:d.get(k) for k in ('id','name','created_at','last_seen','media_folder','files','files_updated_at','files_truncated')} |
+        return [{k:d.get(k) for k in ('id','name','created_at','last_seen','media_folder','files','files_updated_at','files_truncated','selection')} |
                 {'online':0<=now-d.get('last_seen',0)<45,
                  'gpu_ready':0<=now-d.get('gpu_ready_at',0)<45} for d in devices]
 
@@ -81,7 +81,22 @@ class RemoteConversion:
                     d['last_seen']=time.time();d['gpu_ready_at']=d['last_seen'];self.write(devices);return
         raise ValueError('Pc-forbindelsen er fjernet.')
 
-    def workspace(self, device, folder, files=None, truncated=False):
+    def select_file(self, ident, folder, name):
+        with self.state.lock:
+            devices=self.devices()
+            d=next((d for d in devices if d['id']==ident),None)
+            if d is None:raise ValueError('Pc-forbindelsen findes ikke.')
+            if not folder or folder!=d.get('media_folder'):
+                raise ValueError('Mappevalget er ændret. Opdatér filoversigten.')
+            entry=next((f for f in d.get('files',[]) if f['name']==name),None)
+            if entry is None:raise ValueError('Filen findes ikke i pc’ens filoversigt.')
+            selection={'id':uuid.uuid4().hex,'media_folder':folder,'name':entry['name'],
+                       'size':entry['size'],'state':'queued','created_at':time.time()}
+            d['selection']=selection
+            self.write(devices)
+            return selection
+
+    def workspace(self, device, folder, files=None, truncated=False, receipt=None):
         # This is a PC-local path, never a server filesystem/mount instruction.
         if (not isinstance(folder,str) or len(folder)>2048 or
                 any(ord(c)<32 for c in folder) or
@@ -103,17 +118,30 @@ class RemoteConversion:
                     raise ValueError('Ugyldig filoversigt.')
                 clean.append({'name':name,'size':size});seen.add(name)
             if not folder and clean:raise ValueError('Vælg en mappe før filoversigten sendes.')
+        if receipt is not None and (not isinstance(receipt,dict) or
+                not isinstance(receipt.get('id'),str) or len(receipt['id'])!=32 or
+                receipt.get('state') not in ('selected','error') or
+                not isinstance(receipt.get('detail',''),str) or len(receipt.get('detail',''))>300):
+            raise ValueError('Ugyldig kvittering for filvalg.')
         with self.state.lock:
             devices=self.devices()
             for d in devices:
                 if d['id']==device['id']:
                     if d.get('media_folder')!=folder:
                         for key in ('files','files_updated_at','files_truncated'):d.pop(key,None)
+                        if d.get('selection'):
+                            d['selection'].update(state='cancelled',detail='Mappen er ændret i pc-programmet.')
                     d.update(media_folder=folder,last_seen=time.time())
                     if files is not None:
                         d.update(files=clean,files_updated_at=time.time(),files_truncated=truncated)
+                    selection=d.get('selection')
+                    if selection and selection['state'] in ('queued','selected'):
+                        if files is not None and not any(f['name']==selection['name'] and f['size']==selection['size'] for f in clean):
+                            selection.update(state='error',detail='Filen er ændret eller findes ikke længere i den valgte mappe.')
+                        elif receipt and receipt['id']==selection['id']:
+                            selection.update(state=receipt['state'],detail=receipt.get('detail',''))
                     self.write(devices)
-                    return {'ok':True,'media_folder':folder}
+                    return {'ok':True,'media_folder':folder,'selection':selection}
         raise ValueError('Pc-forbindelsen er fjernet.')
 
     def helper(self):
@@ -234,7 +262,7 @@ def register(app, state, runtime):
     def workspace():
         data=body()
         if data.get('version')!=1:raise ValueError('Ukendt programversion.')
-        return jsonify(manager.workspace(device(),data.get('media_folder'),data.get('files'),data.get('truncated',False)))
+        return jsonify(manager.workspace(device(),data.get('media_folder'),data.get('files'),data.get('truncated',False),data.get('selection_result')))
 
     @worker.post('/claim')
     def claim():
@@ -315,4 +343,11 @@ def register(app, state, runtime):
     @app.post('/api/conversion/devices/<ident>/revoke')
     def revoke_device(ident):
         try:manager.revoke(ident);return jsonify(ok=True)
+        except ValueError as exc:return jsonify(error=str(exc)),400
+
+    @app.post('/api/conversion/devices/<ident>/select')
+    def select_workspace_file(ident):
+        try:
+            data=body()
+            return jsonify(selection=manager.select_file(ident,data.get('media_folder'),data.get('name'))),202
         except ValueError as exc:return jsonify(error=str(exc)),400

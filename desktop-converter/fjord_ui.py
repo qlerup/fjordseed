@@ -59,6 +59,7 @@ class ConverterUI(tk.Tk):
         settings = read_settings(self.config_path)
         self.media_folder = tk.StringVar(value=settings.get('media_folder', settings.get('drive', '')))
         self.status = tk.StringVar(value='Ingen konvertering i gang.')
+        self.selected_path = tk.StringVar()
         self.folder_status = tk.StringVar(value='Vælg mappen til dine FjordSeed-filer.')
         self.connection_status = tk.StringVar()
         import windows_startup
@@ -88,6 +89,8 @@ class ConverterUI(tk.Tk):
         progress.pack(fill='both', expand=True, pady=(18, 0))
         self.label(progress, 'STATUS', fg=MUTED, font=('Segoe UI', 9, 'bold')).pack(anchor='w')
         self.label(progress, textvariable=self.status, font=('Segoe UI', 13, 'bold')).pack(anchor='w', pady=(16, 16))
+        self.label(progress, textvariable=self.selected_path, fg=MUTED, font=('Segoe UI', 10),
+                   wraplength=700, justify='left').pack(anchor='w', pady=(0, 16))
         self.bar = ttk.Progressbar(progress, maximum=100)
         self.bar.pack(fill='x')
         self.label(progress, '0 %', fg=MINT, font=('Segoe UI', 20, 'bold')).pack(anchor='e', pady=(8, 0))
@@ -128,6 +131,9 @@ class ConverterUI(tk.Tk):
             selected = save_media_folder(self.config_path, folder)
             self.media_folder.set(selected)
             self.folder_status.set('Mappe valgt.')
+            self.selected_path.set('')
+            self.status.set('Ingen fil valgt fra FjordSeed.')
+            self.workspace_sync.selection_id=None
             self.workspace_sync.changed.set()
         except (OSError, ValueError) as exc:
             self.folder_status.set(str(exc))
@@ -140,6 +146,13 @@ class ConverterUI(tk.Tk):
                     if value != self.media_folder.get():
                         continue  # A previous request completed after a new selection.
                     self.folder_status.set('Mappe delt med FjordSeed.' if value else 'Vælg mappen til dine FjordSeed-filer.')
+                elif state == 'selected':
+                    if value['folder'] != self.media_folder.get():continue
+                    self.selected_path.set(value['path'])
+                    self.status.set('Fil valgt fra FjordSeed · klar til næste trin.')
+                elif state == 'selection_cleared':
+                    self.selected_path.set('')
+                    self.status.set(value or 'Ingen fil valgt fra FjordSeed.')
                 else:
                     self.folder_status.set(value)
         except queue.Empty:

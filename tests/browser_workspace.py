@@ -18,7 +18,15 @@ with sync_playwright() as p:
           window.$=s=>document.querySelector(s);
           window.node=(tag,cls='',text='')=>{const n=document.createElement(tag);n.className=cls;n.textContent=text;return n;};
           window.data={devices:[{id:'pc',name:'PC',online:true}],conversion_target:'pc'};
-          window.api=async()=>data;
+          window.api=async(url,options)=>{
+            if(url.endsWith('/select')){
+              window.sent=JSON.parse(options.body);
+              data.devices[0].selection={...sent,id:'selection',state:'queued'};
+              return {selection:data.devices[0].selection};
+            }
+            return data;
+          };
+          window.toast=()=>{};window.error=(s,e)=>{throw e;};
           window.setInterval=cb=>{window.poll=cb;};
         }""")
         page.add_script_tag(content=(root/'static/conversion-settings.js').read_text(encoding='utf-8'))
@@ -38,6 +46,11 @@ with sync_playwright() as p:
         page.evaluate('poll()')
         expect(page.locator('.workspace-search')).to_have_value('E02')
         expect(page.locator('.workspace-search')).to_be_focused()
+        page.get_by_role('button',name='Send til pc',exact=True).click()
+        expect(page.get_by_role('button',name='Afventer pc…',exact=True)).to_be_disabled()
+        assert page.evaluate('sent.name')=='Show/Season 1/E02.mkv'
+        page.evaluate("() => {data.devices[0].selection.state='selected';poll();}")
+        expect(page.get_by_role('button',name='Valgt på pc',exact=True)).to_be_disabled()
         page.evaluate("() => {data.devices[0].media_folder='';poll();}")
         expect(page.locator('.workspace-files')).to_have_count(0)
         expect(page.locator('#conversion-devices')).to_contain_text('Afventer valgt lokaltion i programmet')
