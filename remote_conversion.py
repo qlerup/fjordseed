@@ -239,6 +239,28 @@ def register(app, state, runtime):
             return jsonify(**result,devices=manager.public())
         except ValueError as exc:return jsonify(error=str(exc)),400
 
+    @app.get('/api/conversion/library')
+    def library_files():
+        try:return jsonify(runtime.rpc('library-list',{}))
+        except ValueError as exc:return jsonify(error=str(exc)),409
+
+    @app.post('/api/conversion/library')
+    def convert_library_file():
+        try:
+            data=body()
+            return jsonify(runtime.rpc('library-convert',{'id':data.get('id'),'bitrate':data.get('bitrate')})),202
+        except ValueError as exc:return jsonify(error=str(exc)),400
+
+    @app.post('/api/conversion/library/<ident>/retry')
+    def retry_library_file(ident):
+        try:return jsonify(runtime.rpc('library-retry',{'id':ident}))
+        except ValueError as exc:return jsonify(error=str(exc)),400
+
+    @app.post('/api/conversion/library/<ident>/cancel')
+    def cancel_library_file(ident):
+        try:return jsonify(runtime.rpc('library-cancel',{'id':ident}))
+        except ValueError as exc:return jsonify(error=str(exc)),400
+
     @app.post('/api/conversion/devices')
     def create_device():
         try:return jsonify(manager.create(body().get('name'))),201

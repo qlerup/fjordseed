@@ -29,5 +29,19 @@
   </div>
   <h3>Tilsluttede pc’er</h3><div id="conversion-devices" aria-live="polite"></div>
  </div>
+ <div class="connection library-conversion">
+  <p class="eyebrow">BEHOLD · EKSISTERENDE FILM</p><h2>Konvertér film fra biblioteket</h2>
+  <p class="muted">Vælg en film i din Behold-mappe, og lad den tilsluttede pc gøre den mindre.</p>
+  <p class="muted small">Når resultatet er modtaget og kontrolleret, flytter qBittorrent originalens torrentfiler til seedingmappe i den skjulte buffer. Den konverterede film lægges derefter på bibliotekets plads. Originalen fortsætter med samme seedingregler.</p>
+  <div class="tracker-fields">
+   <label>Find film<input id="library-conversion-search" type="search" placeholder="Søg i filnavne"></label>
+   <label>Videokvalitet<select id="library-conversion-bitrate"><option value="20">20 Mbps – spar plads</option><option value="30" selected>30 Mbps – balance (anbefalet)</option><option value="40">40 Mbps – høj kvalitet</option></select></label>
+   <div class="tracker-form-actions"><button class="secondary" type="button" id="library-conversion-refresh">Opdatér liste</button></div>
+  </div>
+  <p class="muted small" id="library-conversion-summary" role="status">Henter film fra Behold…</p>
+  <div id="library-conversion-jobs" aria-live="polite"></div>
+  <div id="library-conversion-list"></div>
+  <p class="error" id="library-conversion-error" role="alert" hidden></p>
+ </div>
  <p id="conversion-settings-error" class="error" role="alert" hidden></p>
 </section>

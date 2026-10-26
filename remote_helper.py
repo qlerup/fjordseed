@@ -246,7 +246,7 @@ def dispatch(data):
                         raise ValueError('Resultatfilen findes allerede.')
                 else:
                     source.rename(target)
-            atomic(result / '.fjordseed-converted.json',json.dumps({'id':request['id'],'files':[f['output'] for f in files]}),mode=0o644)
+            atomic(result / '.fjordseed-converted.json',json.dumps({'id':request['id'],'files':[f['output'] for f in files], 'bitrate':request['bitrate'],'converted_at':time.time()}),mode=0o644)
             report(work,request['id'],'ready','Pc-konvertering kontrolleret · klar til biblioteket',100)
             return {'complete':True}
         entry = file_info(work, request, data)

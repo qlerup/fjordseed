@@ -277,6 +277,8 @@ def publish_complete(api, rows):
         for row in rows:
             record = next((entries.get(row.get(k)) for k in ('hash','infohash_v1','infohash_v2')
                            if entries.get(row.get(k))), None)
+            if record and record.get('library_replaced'):
+                continue
             if record and record.get('files_deleted'):
                 continue
             if record and record.get('convert'):

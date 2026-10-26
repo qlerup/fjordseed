@@ -277,6 +277,8 @@ class Runtime:
             if result.exit_code:
                 try:
                     failure=json.loads(result.output)
+                    if action in ('library-list','library-convert','library-retry','library-cancel'):
+                        raise ValueError(failure['error'])
                     if failure.get('code')=='seeding_requirement':
                         raise ValueError(failure['error'])
                 except (json.JSONDecodeError,KeyError,TypeError):

@@ -203,7 +203,7 @@ def run_job(work):
                 scratch=checked(work/'scratch');scratch.mkdir(exist_ok=True)
                 partial=checked(scratch/(str(index)+'.sidecar'))
                 shutil.copyfile(source,partial);partial.rename(target)
-        atomic(result/'.fjordseed-converted.json',json.dumps({'id':ident,'files':outputs}),mode=0o644)
+        atomic(result/'.fjordseed-converted.json',json.dumps({'id':ident,'files':outputs,'bitrate':request['bitrate'],'converted_at':time.time()}),mode=0o644)
         report(work,ident,'ready','Kontrolleret · klar til biblioteket',100)
     except Exception as exc:
         LOG.exception('Conversion failed for %s',ident)

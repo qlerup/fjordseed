@@ -111,6 +111,8 @@ def sync_share_limits(api=None):
                 finish_seeding(api,row,credit)
         from download_storage import publish_complete
         storage_errors = publish_complete(api, rows)
+        from library_conversion import reconcile as reconcile_library
+        storage_errors += reconcile_library(api, rows)
         for row,credit in zip(rows,credits):
             apply_limits(api,row)
             converting=any(storage_records.get(row.get(k),{}).get('convert') for k in ('hash','infohash_v1','infohash_v2'))
@@ -157,6 +159,8 @@ def seeding_completion(row,credit):
 
 
 def finish_seeding(api,row,credit):
+    from library_conversion import pending
+    if pending(row['hash']):return
     from download_storage import read, CONFIG
     entries=read(CONFIG/'download-storage.json',{})
     record=next((entries.get(row.get(k)) for k in ('hash','infohash_v1','infohash_v2')
@@ -256,6 +260,12 @@ def execute(action, data):
                 'download_queue':download_queue_summary(rows),
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
                 'interface':prefs['current_network_interface'], 'version':call('app/version').text}
+    if action in ('library-list','library-convert','library-retry','library-cancel'):
+        from library_conversion import listing, queue, retry, cancel
+        if action == 'library-list':return listing(call)
+        if action == 'library-convert':return queue(call,data.get('id'),data.get('bitrate'))
+        if action == 'library-cancel':cancel(data.get('id'));return {'ok':True}
+        retry(data.get('id'));return {'ok':True}
     if action == 'conversion-retry':
         ident=data.get('hash','')
         if not re.fullmatch('[a-f0-9]{40}|[a-f0-9]{64}',ident):raise ValueError('Invalid hash')
@@ -356,6 +366,7 @@ def execute(action, data):
 
 
 if __name__ == '__main__':
+    job={}
     try:
         ident = sys.argv[1]
         if not re.fullmatch('[a-f0-9]{32}', ident):
@@ -364,6 +375,10 @@ if __name__ == '__main__':
         print(json.dumps(execute(job['action'], job.get('data', {}))))
     except SeedingRequirementError as exc:
         print(json.dumps({'error':str(exc),'code':'seeding_requirement'}))
+        sys.exit(1)
+    except ValueError as exc:
+        message=str(exc) if job.get('action','').startswith('library-') else 'qBittorrent kunne ikke udføre handlingen. Kontrollér VPN-status og torrentfilen.'
+        print(json.dumps({'error':message}))
         sys.exit(1)
     except Exception:
         print(json.dumps({'error':'qBittorrent kunne ikke udføre handlingen. Kontrollér VPN-status og torrentfilen.'}))

@@ -39,3 +39,5 @@
 !remote_helper.py
 !converter/
 !converter/Dockerfile
+
+!library_conversion.py
