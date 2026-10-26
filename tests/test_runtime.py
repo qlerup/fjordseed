@@ -24,7 +24,8 @@ def test_status_distinguishes_unavailable_torrents_from_confirmed_empty(runtime,
 
 
 @pytest.fixture
-def runtime(tmp_path):
+def runtime(tmp_path,monkeypatch):
+    monkeypatch.setattr('runtime.Storage.ensure_seeder',Mock())
     r=Runtime.__new__(Runtime)
     r.state=State(tmp_path)
     (tmp_path/'vpn').mkdir()

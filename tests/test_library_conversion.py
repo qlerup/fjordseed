@@ -21,6 +21,7 @@ def film(tmp_path, monkeypatch):
     settings.write_text(json.dumps({'conversion_enabled': True}))
     monkeypatch.setattr(storage, 'SETTINGS', settings)
     monkeypatch.setattr(storage, 'download_root', lambda: root)
+    monkeypatch.setattr(storage, 'seeding_root', lambda: tmp_path/'Seeder')
     monkeypatch.setattr(storage, 'managed_directory', lambda value: bool(value) and Path(value).is_relative_to(root))
     row = {'hash': 'a' * 40, 'name': 'Movie', 'save_path': str(current),
            'progress': 1, 'state': 'uploading', 'share_limit_action': 'Stop'}
@@ -64,6 +65,8 @@ def move_by_qbit(film, job):
 def test_pc_receives_only_selected_movie_and_original_remains_in_library(film, rate):
     root, current, row, rows, files, api = film
     job = enqueue(film, rate)
+    assert Path(job['seed']).parent == root.parent / 'Seeder'
+    assert not Path(job['seed']).is_relative_to(root)
     request = storage.read(Path(job['stage']) / DIRECTORY / 'request.json', {})
     assert request['executor'] == 'pc' and request['bitrate'] == rate
     assert request['files'] == [{'name': 'film.mp4', 'size': 14}]

@@ -119,6 +119,21 @@ def writable():
     return {'writable':True}
 
 
+def seeder(root=Path('/folder')):
+    """Create only the app-owned seeding destination in the scoped download root."""
+    import tempfile
+    folder = root / 'Seeder'
+    if folder.is_symlink():
+        raise ValueError('Seeder-mappen må ikke være et link.')
+    folder.mkdir(mode=0o775, exist_ok=True)
+    if not folder.is_dir():
+        raise ValueError('Seeder skal være en mappe.')
+    with tempfile.TemporaryFile(dir=folder) as probe_file:
+        probe_file.write(b'fjordseed')
+        probe_file.flush()
+    return {'created': True, 'directory': 'Seeder'}
+
+
 def usage(directory):
     disk = shutil.disk_usage(directory)
     return {'total_bytes':disk.total, 'used_bytes':disk.used, 'free_bytes':disk.free,
@@ -156,7 +171,7 @@ def temporary_usage(roots, config=None):
 if __name__ == '__main__':
     try:
         action, value = sys.argv[1:3]
-        result = temporary_usage(sorted(Path('/folder').iterdir(),key=lambda p:int(p.name)),json.loads(value)) if action == 'temporary_usage' else usage(Path('/folder')) if action == 'usage' else writable() if action == 'writable' else mount_status(Path('/host'), value) if action == 'mount' else create(Path('/folder'), value) if action == 'create' else (
+        result = temporary_usage(sorted(Path('/folder').iterdir(),key=lambda p:int(p.name)),json.loads(value)) if action == 'temporary_usage' else usage(Path('/folder')) if action == 'usage' else writable() if action == 'writable' else seeder() if action == 'seeder' else mount_status(Path('/host'), value) if action == 'mount' else create(Path('/folder'), value) if action == 'create' else (
             probe(Path('/host'), value) if action == 'probe' else browse(Path('/host'), value))
         print(json.dumps(result))
     except Exception as exc:

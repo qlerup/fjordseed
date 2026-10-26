@@ -76,6 +76,7 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
             else:
                 pytest.fail('Synthetic torrent did not become complete')
             monkeypatch.setattr(storage, 'download_root', lambda: root)
+            monkeypatch.setattr(storage, 'seeding_root', lambda: tmp_path/'Seeder')
             monkeypatch.setattr(storage, 'managed_directory', lambda value: bool(value) and Path(value).is_relative_to(root))
             settings = tmp_path / 'settings.json'
             settings.write_text(json.dumps({'conversion_enabled': True}))

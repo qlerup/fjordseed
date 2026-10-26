@@ -37,7 +37,7 @@
    const jobs=$('#library-conversion-jobs');jobs.replaceChildren();
    for(const job of data.jobs||[]){
     const row=node('div','library-film'),info=node('div','library-film-info');
-    const phase=job.phase==='moving'?'qBittorrent flytter originalen til seedingmappe':job.detail||'Venter på en tilsluttet pc';
+    const phase=job.phase==='moving'?'qBittorrent flytter originalen til Seeder':job.detail||'Venter på en tilsluttet pc';
     info.append(node('strong','',job.name),node('p','muted small',job.bitrate+' Mbps · '+(rates[job.bitrate]||'')+' · '+phase));
     row.append(info);
     if(job.state==='error'&&job.phase==='queued'){

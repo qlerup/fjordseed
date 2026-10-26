@@ -18,6 +18,15 @@ PUBLISHING_MARKER = '.fjordseed-publishing'
 _lock = threading.RLock()
 
 
+def seeding_root():
+    # The standard download mount is always available to qBittorrent, even when
+    # Behold lives on another selected location. Keep originals outside Behold.
+    from conversion import checked
+    folder = checked(Path('/downloads/Seeder'))
+    folder.mkdir(mode=0o775, parents=True, exist_ok=True)
+    return folder
+
+
 def file_deletion_plan(row,files,prefs):
     """Only qBittorrent-listed files beneath the worker's download mounts."""
     if row.get('state')=='moving':

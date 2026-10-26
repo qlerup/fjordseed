@@ -1,6 +1,7 @@
 """Host-folder selection for future torrents; previous mounts remain available."""
 import json
 from pathlib import Path, PurePosixPath
+import time
 import uuid
 
 from docker.types import Mount
@@ -31,7 +32,7 @@ class Storage:
     def helper(self, action, value='', source='/'):
         r = self.runtime
         script = Path(__file__).with_name('storage_browser.py').read_text(encoding='utf-8')
-        writable = action == 'writable'
+        writable = action in ('writable', 'seeder')
         scoped = writable or action == 'usage'
         mounts=([Mount('/folder/'+str(i),path,type='bind',read_only=True) for i,path in enumerate(source)]
                 if action=='temporary_usage' else
@@ -49,6 +50,15 @@ class Storage:
             return result
         finally:
             worker.remove(force=True)
+
+    def ensure_seeder(self):
+        """FjordSeed owns this directory, independently of VPN/GPU availability."""
+        now = time.monotonic()
+        last = getattr(self.runtime, '_seeder_checked_at', 0)
+        if isinstance(last, (int, float)) and last > 0 and 0 <= now - last < 60:
+            return
+        self.helper('seeder', source=str(self.runtime.host_downloads))
+        self.runtime._seeder_checked_at = now
 
     def temporary_usage(self, paths):
         root=self.runtime.state.root/'qbit'

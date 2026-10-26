@@ -128,7 +128,7 @@ def inventory(api):
     items = []
     truncated = False
     for folder, dirs, files in os.walk(root, followlinks=False):
-        dirs[:] = sorted(d for d in dirs if not d.startswith('.') and d != 'seedingmappe'
+        dirs[:] = sorted(d for d in dirs if not d.startswith('.') and d not in ('seedingmappe', 'Seeder')
                          and not (Path(folder) / d).is_symlink())
         for name in sorted(files):
             path = Path(folder) / name
@@ -217,7 +217,7 @@ def queue(api, ident, bitrate):
         stage.mkdir(parents=True, exist_ok=False)
         job = {'id': jobid, 'hash': row['hash'], 'root': str(root), 'original': str(current),
                'source': item['_path'], 'selected': selected, 'output': output, 'files': files,
-               'stage': str(stage), 'seed': str(root / storage.BUFFER / 'seedingmappe' / (storage.download_name(row.get('name','Film'))[:100] + '-' + jobid[:8])),
+               'stage': str(stage), 'seed': str(storage.seeding_root() / (storage.download_name(row.get('name','Film'))[:100] + '-' + jobid[:8])),
                'bitrate': bitrate, 'phase': 'preparing', 'created_at': time.time()}
         jobs[jobid] = job
         save(jobs)

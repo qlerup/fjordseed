@@ -17,8 +17,11 @@ Forløbet er:
 3. Pc'en bruger jobbets bitrate og returnerer filmen. Den eksisterende broker
    kontrollerer spor, opløsning, HDR, kapitler og øvrige bevaringskrav.
 4. Først efter godkendelsen kaldes qBittorrents `setLocation`. Hele torrentens
-   originalmateriale flyttes til `.incomplete/seedingmappe/<navn>-<job-id>` på
-   samme valgte lager. Den skjulte buffer holder originalerne ude af biblioteket.
+   originalmateriale flyttes til `/downloads/Seeder/<navn>-<job-id>`. FjordSeed
+   opretter selv `Seeder` i sin faste downloadrod ved opstart og kontrollerer
+   løbende, at mappen er skrivbar. Den ligger uden for det valgte FjordFlix-bibliotek.
+   På Medier-netværksdrevet deles den som `M:\Seeder` ved siden af `Bibliotek`.
+   Eksisterende jobs beholder deres journalførte placering.
 5. FjordSeed afventer qBittorrents bekræftede placering og kontrollerer filerne
    igen. Derefter publiceres den komplette konverterede video på bibliotekets
    gamle plads; uændrede ledsagefiler bevares. MP4/AVI osv. får MKV-filendelse.

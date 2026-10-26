@@ -148,6 +148,7 @@ class Runtime:
 
     def reconcile(self):
         storage = Storage(self)
+        storage.ensure_seeder()
         storage.publish()
         write_snapshot(self.state.root,self.uid,self.gid)
         settings = self.state.get()
