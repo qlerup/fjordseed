@@ -1,8 +1,7 @@
 # Fjord-konvertering til Windows
 
-Pc-programmet med mørkt Fjord-design og NVIDIA GPU-konvertering. Det kan både
-bruges lokalt uden login og forbindes til FjordSeed som ekstern GPU-worker.
-Lokale film starter ikke et download eller konverteringsjob på serveren.
+Pc-programmet med én samlet FjordSeed-visning og valg af netværksdrev.
+Forbindelsen til FjordSeed bevares, mens det nye konverteringsflow bygges.
 
 ## Installation
 
@@ -50,53 +49,31 @@ ffmpeg/bin/ffprobe.exe      # med FFmpegs øvrige bin-filer
 mkvtoolnix/mkvpropedit.exe  # med resten af MKVToolNix-arkivet
 ```
 
-## Brug
+## Programfladen
 
-1. Træk én videofil ind i vinduet, eller tryk **Vælg film**.
-2. Vælg gemmemappe og eventuelt en anden video-bitrate.
-3. Tryk **Start konvertering**.
+Programmet har nu én samlet visning: **FjordSeed-konvertering**.
+Vælg drev i listen, f.eks. **M:\**, og brug **Opdatér drev**, hvis et nyt
+netværksdrev er blevet tilsluttet. Valget gemmes uden at ændre eksisterende
+forbindelsesoplysninger eller ældre konverteringspræferencer.
 
-Fremdriften viser procent, fps, anslået resterende tid og tid brugt.
-**Stop** afbryder jobbet. **Se log** viser encoderens log, og **Åbn resultat**
-åbner den færdige video i din standardafspiller.
+Dette trin ændrer kun programfladen. **Konvertér** er endnu ikke aktiv,
+fordi det nye arbejdsforløb aftales separat. Programmet starter ikke den
+ældre HTTP-hentning eller den lokale filkonvertering automatisk.
 
-Originalfilen bruges som input og overskrives ikke. Hvert resultat får et
-unikt filnavn. Under arbejdet hedder filen `.partial.mkv`; den bliver først
-omdøbt til den færdige MKV, når kontrollen består. Ved stop/fejl beholdes
-ufærdig fil og log til undersøgelse. Den valgte mappe skal have mindst
-originalfilens størrelse plus 1 GiB ledigt.
+## Forbindelse og indstillinger
 
-## Forbind til FjordSeed
+**Indstillinger** indeholder forbindelseskoden og **Start med Windows**.
+Tidligere gemte forbindelsesoplysninger bevares. En ny kode erstatter adresse
+og token samlet; tokenet gemmes fortsat krypteret med Windows DPAPI.
+Adressen vises ikke og skal ikke indtastes manuelt.
 
-Åbn **FjordSeed-forbindelse**, og indsæt en forbindelseskode fra
-**Indstillinger → Konvertering** i FjordSeed. Vælg lokal midlertidig plads, og
-tryk **Forbind og hent jobs**. Programmet tester GPU’en, henter et job,
-konverterer og returnerer resultatet. Serveren kontrollerer og publicerer filen
-i biblioteket. Se [hele forløbet og API’et](../docs/pc-conversion.md).
+## Baggrund og Windows-opstart
 
-Pc-tokenet gemmes krypteret med Windows DPAPI, aldrig som klartekst i
-indstillingerne. **Forbind automatisk, når programmet åbnes** er et separat
-valg. Lokal konvertering og FjordSeed-jobs deler samme GPU-lås, så de ikke
-starter samtidig i samme program.
+**Kør i baggrunden** og vinduets lukkeknap skjuler vinduet ved uret.
+**Afslut** eller `Ctrl+Q` lukker programmet helt. Automatisk Windows-opstart
+bruger fortsat `--background`, hvis brugeren har slået det til.
 
-## Baggrund, beskeder og Windows-opstart
-
-- **Kør i baggrunden** og vinduets lukkeknap skjuler vinduet ved uret.
-  Konverteringer og FjordSeed-forbindelsen fortsætter.
-- Klik på Fjord-ikonet ved uret for at åbne igen. Højreklik giver **Åbn** og
-  **Afslut**. Windows kan placere ikonet under pilen med skjulte ikoner.
-- **Afslut** eller `Ctrl+Q` lukker programmet. Stop først et aktivt job.
-- Når en film begynder at blive konverteret, vises filnavnet i en lille besked
-  nederst til højre. Estimeret resterende tid opdateres, når encoderen leverer
-  de første målinger. Beskeden tager ikke tastaturfokus og forsvinder automatisk.
-- **Start med Windows** tilføjer/fjerner programmets egen HKCU Run-værdi for
-  den aktuelle bruger. Det kræver ikke administratorrettigheder og er slået fra
-  som udgangspunkt. Automatisk opstart bruger `--background`.
-- Programmet kører kun én gang pr. installation; en ny åbning viser det
-  eksisterende vindue. Det har sit eget Fjord-ikon og AppUserModelID, så det
-  grupperes separat fra Python på proceslinjen.
-
-## Samme konvertering som FjordSeed
+## Konverteringsmotor til det kommende arbejdsforløb
 
 - NVEncC **9.39**, NVIDIA NVENC, HEVC, preset `quality`.
 - Valg: **20 Mbps – spar plads**, **30 Mbps – balance (anbefalet)** og
@@ -142,16 +119,3 @@ og distribueres under deres respektive licenser:
 
 `preferences.json`, videoer, logs, testfiler og downloadede værktøjer er lokale
 og er udeladt fra Git. Denne mappe indgår ikke i FjordSeeds Docker-image.
-
-FjordSeed-jobs indstiller automatisk pc-motorens bitrate og viser valget i
-**Kvalitet fra FjordSeed** under forbindelsen. Feltet er låst til jobbets valg;
-den lokale konverteringsindstilling ændrer ikke modtagne jobs.
-
-Ny pc-forbindelse: Opret en **forbindelseskode** i FjordSeed og indsæt den i
-pc-programmets felt **Forbindelseskode**. Adressen hentes automatisk fra koden. Koden indeholder adgangstokenet og skal behandles som en adgangskode.
-Tidligere gemte forbindelser virker fortsat. Til nye forbindelser bruges en forbindelseskode.
-
-Filoverførsel tilpasser henteblokke op til 32 MiB på hurtige forbindelser.
-Returlevering bruger serverens annoncerede blokstørrelse (op til 32 MiB),
-med 8 MiB som fallback til ældre servere. Delvist hentede filer genoptages.
-Pc-visningen viser hentede GiB, hastighed og forventet resterende hentetid.
