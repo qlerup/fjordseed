@@ -69,6 +69,13 @@ def test_invalid_result_leaves_entire_torrent_untouched(film,monkeypatch):
     assert not any(c.args[0]=='torrents/setLocation' for c in film[-1].call_args_list)
 
 
+def test_missing_skipped_torrent_file_does_not_leave_an_unreachable_pending_job(film):
+    film[4].append({'name':'missing.bin','size':12,'priority':0})
+    with pytest.raises(ValueError):queue(film)
+    assert not library.pending(film[2]['hash'])
+    assert (film[1]/'film.mp4').read_bytes()==b'original video'
+
+
 def test_second_episode_reuses_the_complete_seeded_pack(film,monkeypatch):
     root,current,row,rows,files,api=film
     (current/'episode2.mkv').write_bytes(b'original episode two')

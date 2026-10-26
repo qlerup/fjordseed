@@ -50,8 +50,8 @@ class ConverterUI(tk.Tk):
         self.tray = None
         self.settings_window = None
         self.title('FjordSeed · Konvertering')
-        self.geometry('900x720')
-        self.minsize(780, 700)
+        self.geometry('900x800')
+        self.minsize(780, 780)
         self.configure(bg=BG)
         self._style()
         if (self.root_dir / 'fjord.ico').exists():
@@ -154,7 +154,7 @@ class ConverterUI(tk.Tk):
                 elif state == 'selected':
                     if value['folder'] != self.media_folder.get():continue
                     self.selected_path.set(value['path'])
-                    self.status.set('Fil valgt fra FjordSeed · klar til næste trin.')
+                    self.status.set('Klar · tryk Send til pc i FjordSeed for at starte.')
                 elif state == 'selection_cleared':
                     self.selected_path.set('')
                     self.status.set(value or 'Ingen fil valgt fra FjordSeed.')

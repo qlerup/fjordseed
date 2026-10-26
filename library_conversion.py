@@ -268,7 +268,9 @@ def queue(api, ident, bitrate, shared=None):
             save(jobs)
         except Exception:
             job['error'] = 'Jobbet kunne ikke klargøres. Originalerne er bevaret.'
+            if shared:job['phase']='cancelled'
             save(jobs)
+            if shared and stage.is_dir():shutil.rmtree(stage)
             raise
         return public_job(job)
 
