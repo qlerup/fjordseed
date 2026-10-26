@@ -28,6 +28,13 @@ def inventory(folder):
             if name.startswith('.') or path.suffix.lower() not in VIDEO or path.is_symlink():continue
             relative=path.relative_to(root).as_posix()
             entry={'name':relative,'size':path.stat().st_size}
+            marker=path.with_name(path.name+'.fjordseed.json')
+            if marker.is_file() and not marker.is_symlink():
+                try:
+                    flag=json.loads(marker.read_text(encoding='utf-8'))
+                    if flag.get('version')==1 and flag.get('output_size')==entry['size']:
+                        entry.update(converted=True,bitrate=flag.get('bitrate'))
+                except (OSError,ValueError):pass
             budget+=len(json.dumps(entry).encode('utf-8'))
             if len(files)>=5000 or budget>2500000:return files,True
             files.append(entry)
@@ -59,26 +66,34 @@ def selected_file(command, folder):
     return path
 
 
-def sync_folder(connection_path, preferences_path, receipt=None, receive=None):
+def worker_request(connection_path, method, path, payload=None, timeout=10):
     from windows_secret import unprotect
     connection=json.loads(Path(connection_path).read_text(encoding='utf-8'))
-    try:preferences=json.loads(Path(preferences_path).read_text(encoding='utf-8'))
-    except FileNotFoundError:preferences={}
-    folder=preferences.get('media_folder','')
     server,token=connection_details(connection.get('server',''),unprotect(connection['token_dpapi']))
     parsed=urllib.parse.urlsplit(server)
     if (parsed.scheme not in ('http','https') or not parsed.hostname or parsed.username or
             parsed.password or parsed.query or parsed.fragment or parsed.path not in ('','/') or
             not token.startswith('fsw_')):
         raise ValueError('Kontrollér forbindelseskoden under Indstillinger.')
-    files,truncated=inventory(folder)
-    payload=json.dumps({'version':1,'media_folder':folder,'files':files,'truncated':truncated,
-                        **({'selection_result':receipt} if receipt else {})}).encode('utf-8')
-    request=urllib.request.Request(server.rstrip('/')+'/api/conversion/worker/workspace',
-        data=payload,method='POST',headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'})
+    request=urllib.request.Request(server.rstrip('/')+'/api/conversion/worker'+path,
+        data=json.dumps(payload).encode('utf-8') if payload is not None else None,method=method,
+        headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'})
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
-    with opener.open(request,timeout=10) as response:
-        result=json.loads(response.read(65537))
+    with opener.open(request,timeout=timeout) as response:
+        raw=response.read(65537)
+        if len(raw)>65536:raise WorkerError('Serverens svar er for stort.')
+        return json.loads(raw)
+
+
+def sync_folder(connection_path, preferences_path, receipt=None, receive=None, conversion_version=0):
+    try:preferences=json.loads(Path(preferences_path).read_text(encoding='utf-8'))
+    except FileNotFoundError:preferences={}
+    folder=preferences.get('media_folder','')
+    files,truncated=inventory(folder)
+    payload={'version':1,'media_folder':folder,'files':files,'truncated':truncated,
+             **({'conversion_version':conversion_version} if conversion_version else {}),
+             **({'selection_result':receipt} if receipt else {})}
+    result=worker_request(connection_path,'POST','/workspace',payload)
     if result.get('ok') is not True or result.get('media_folder')!=folder:
         raise WorkerError('FjordSeed bekræftede ikke mappevalget.')
     if receive:receive(result.get('selection'),folder)
@@ -86,13 +101,17 @@ def sync_folder(connection_path, preferences_path, receipt=None, receive=None):
 
 
 class WorkspaceSync:
-    def __init__(self,connection_path,preferences_path):
+    def __init__(self,connection_path,preferences_path,convert=None,cancelled=None):
         self.connection_path,self.preferences_path=connection_path,preferences_path
         self.messages=queue.SimpleQueue()
         self.stopped=threading.Event()
         self.changed=threading.Event()
         self.receipt=None
         self.selection_id=None
+        self.runner=None
+        if convert:
+            from shared_runner import SharedRunner
+            self.runner=SharedRunner(connection_path,preferences_path,convert,cancelled,self.messages,self.changed)
         self.thread=threading.Thread(target=self.run,daemon=True)
         self.thread.start()
 
@@ -100,7 +119,8 @@ class WorkspaceSync:
         while not self.stopped.is_set():
             self.changed.clear()
             try:
-                folder=sync_folder(self.connection_path,self.preferences_path,self.receipt,self.receive)
+                receipt=self.runner.receipt if self.runner and self.runner.receipt else self.receipt
+                folder=sync_folder(self.connection_path,self.preferences_path,receipt,self.receive,1 if self.runner else 0)
                 self.messages.put(('ok',folder))
             except (OSError,ValueError,KeyError,WorkerError):
                 self.messages.put(('error','Mappevalget er gemt på pc’en. Venter på forbindelse til FjordSeed.'))
@@ -117,6 +137,9 @@ class WorkspaceSync:
         ident=command.get('id')
         if not isinstance(ident,str) or len(ident)!=32 or any(c not in '0123456789abcdef' for c in ident):
             raise WorkerError('Ugyldig besked om filvalg fra FjordSeed.')
+        if command.get('action')=='convert' and getattr(self,'runner',None):
+            self.runner.accept(command,folder)
+            return
         if command.get('state') not in ('queued','selected'):
             self.messages.put(('selection_cleared',command.get('detail','Filvalget er annulleret.')))
             self.selection_id=None;self.receipt=None
@@ -134,5 +157,6 @@ class WorkspaceSync:
         self.changed.set()  # Acknowledge promptly; retry safely if the response is lost.
 
     def close(self):
+        if self.runner:self.runner.stop.set()
         self.stopped.set()
         self.changed.set()

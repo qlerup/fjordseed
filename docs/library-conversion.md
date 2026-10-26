@@ -1,21 +1,21 @@
 # Konverter eksisterende film i Behold
 
-Åbn **Indstillinger → Konvertering → Behold · Eksisterende film**. Listen læser
-videofiler fra den aktuelle Behold/downloadplacering. Søg efter filmen, vælg
-20/30/40 Mbps, og tryk **Send til pc**. Det er et eksplicit job til en tilsluttet
-Windows-pc; indstillingen for automatisk konvertering af nye downloads og RSS
-ændres ikke. En offline pc kan hente jobbet senere.
+Åbn **Indstillinger → Konvertering → Tilsluttede pc’er**. Vælg bibliotekets
+netværksmappe i Windows-programmet. Dets filoversigt vises grupperet i mapper.
+Vælg 20/30/40 Mbps, og tryk **Send til pc**. Det starter GPU-konverteringen
+direkte fra netværksdrevet. En offline pc kan modtage jobbet senere.
+Automatisk konvertering af nye downloads/RSS ændres ikke af dette eksplicitte job.
 
 Forløbet er:
 
 1. FjordSeed kontrollerer, at filmen tilhører én færdig qBittorrent-torrent.
    Delte/cross-seedede filer afvises, så en anden torrent ikke mister sine filer.
-2. Der oprettes en arbejdskopi i den skjulte buffer. Hardlinks sparer plads;
-   på tværs af underliggende diske bruges en kopi med kontrol af ledig plads.
-   Kun den valgte video sendes til pc'en. Andre torrentfiler, undertekster og
-   artwork bevares, men sendes ikke unødigt gennem pc'en.
-3. Pc'en bruger jobbets bitrate og returnerer filmen. Den eksisterende broker
-   kontrollerer spor, opløsning, HDR, kapitler og øvrige bevaringskrav.
+2. En arbejdsmappe under `.fjordseed-shared/<job-id>` oprettes i den valgte
+   netværksmappe. Originalvideoen downloades ikke til pc-cache. Pc og server
+   sammenligner en lille stikprøvesignatur, så de vælger den samme kildefil.
+3. Pc'en læser originalen og skriver resultatet direkte på netværksdrevet.
+   Pc'en kontrollerer spor, opløsning, HDR og kapitler og sender en besked.
+   Serveren kontrollerer resultatet igen før flytning af originalerne.
 4. Først efter godkendelsen kaldes qBittorrents `setLocation`. Hele torrentens
    originalmateriale flyttes til `/downloads/Seeder/<navn>-<job-id>`. FjordSeed
    opretter selv `Seeder` i sin faste downloadrod ved opstart og kontrollerer
@@ -25,6 +25,10 @@ Forløbet er:
 5. FjordSeed afventer qBittorrents bekræftede placering og kontrollerer filerne
    igen. Derefter publiceres den komplette konverterede video på bibliotekets
    gamle plads; uændrede ledsagefiler bevares. MP4/AVI osv. får MKV-filendelse.
+   Undertekster kopieres uafhængigt af originalerne; ændringer i biblioteket
+   ændrer derfor ikke torrentens bytes. Hele den oprindelige torrentstruktur
+   bevares. Senere afsnit fra samme pakke konverteres med originalpakken på
+   dens eksisterende Seeder-placering; qBittorrent flytter ikke pakken igen.
 
 **Behold forbliver Behold.** Ingen ny automatisk sletning tilføjes. Originalen
 bevares i seedingmappen med de eksisterende ratio-, tids- og sletteregler.
@@ -39,7 +43,8 @@ konvertering af nye downloads genkendes også. Verificerede rapportfiler fra
 Windows-programmets lokale konvertering genkendes, hvis de følger med filmen. Videofilens titel ændres ikke.
 
 Filnavnskollisioner, ændrede originaler og uventede torrentplaceringer stopper
-publiceringen. Ingen eksisterende biblioteksfil overskrives. Forløbet er
+publiceringen. Ved senere afsnit i en allerede flyttet seriepakke erstattes kun
+den kontrollerede, uændrede bibliotekskopi. Forløbet er
 journalført og kan fortsætte efter genstart. Før qBittorrent begynder at flytte,
 kan et job annulleres; kun arbejdsfiler fjernes, og originalen bliver i Behold.
 Fejlede pc-jobs kan genstartes med **Prøv igen**.

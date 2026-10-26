@@ -45,7 +45,7 @@ class RemoteConversion:
         with self.state.lock:
             devices=self.devices()
         now=time.time()
-        return [{k:d.get(k) for k in ('id','name','created_at','last_seen','media_folder','files','files_updated_at','files_truncated','selection')} |
+        return [{k:d.get(k) for k in ('id','name','created_at','last_seen','media_folder','files','files_updated_at','files_truncated','selection','conversion_version')} |
                 {'online':0<=now-d.get('last_seen',0)<45,
                  'gpu_ready':0<=now-d.get('gpu_ready_at',0)<45} for d in devices]
 
@@ -81,7 +81,7 @@ class RemoteConversion:
                     d['last_seen']=time.time();d['gpu_ready_at']=d['last_seen'];self.write(devices);return
         raise ValueError('Pc-forbindelsen er fjernet.')
 
-    def select_file(self, ident, folder, name):
+    def select_file(self, ident, folder, name, bitrate=None):
         with self.state.lock:
             devices=self.devices()
             d=next((d for d in devices if d['id']==ident),None)
@@ -90,13 +90,19 @@ class RemoteConversion:
                 raise ValueError('Mappevalget er ændret. Opdatér filoversigten.')
             entry=next((f for f in d.get('files',[]) if f['name']==name),None)
             if entry is None:raise ValueError('Filen findes ikke i pc’ens filoversigt.')
-            selection={'id':uuid.uuid4().hex,'media_folder':folder,'name':entry['name'],
-                       'size':entry['size'],'state':'queued','created_at':time.time()}
+            if d.get('conversion_version')!=1:raise ValueError('Opdatér pc-programmet for at konvertere direkte fra netværksmappen.')
+            previous=d.get('selection',{})
+            if previous.get('action')=='convert' and previous.get('state') not in ('completed','error','cancelled'):
+                raise ValueError('Pc’en har allerede et konverteringsjob. Afvent eller afbryd det først.')
+            bitrate=bitrate if bitrate is not None else self.state.get().get('streaming',{}).get('conversion_bitrate',30)
+            if type(bitrate) is not int or bitrate not in (20,30,40):raise ValueError('Vælg 20, 30 eller 40 Mbps.')
+            selection=self.runtime.rpc('library-shared-queue',{'device':ident,'media_folder':folder,
+                'name':entry['name'],'size':entry['size'],'bitrate':bitrate})
             d['selection']=selection
             self.write(devices)
             return selection
 
-    def workspace(self, device, folder, files=None, truncated=False, receipt=None):
+    def workspace(self, device, folder, files=None, truncated=False, receipt=None, conversion_version=0):
         # This is a PC-local path, never a server filesystem/mount instruction.
         if (not isinstance(folder,str) or len(folder)>2048 or
                 any(ord(c)<32 for c in folder) or
@@ -116,11 +122,15 @@ class RemoteConversion:
                         any(p in ('..','.') or p.startswith('.') or ':' in p for p in name.split('/')) or
                         str(PurePosixPath(name))!=name or type(size) is not int or not 0<=size<2**63 or name in seen):
                     raise ValueError('Ugyldig filoversigt.')
-                clean.append({'name':name,'size':size});seen.add(name)
+                item={'name':name,'size':size}
+                if entry.get('converted') is True and type(entry.get('bitrate')) is int and entry['bitrate'] in (20,30,40):
+                    item.update(converted=True,bitrate=entry['bitrate'])
+                clean.append(item);seen.add(name)
             if not folder and clean:raise ValueError('Vælg en mappe før filoversigten sendes.')
         if receipt is not None and (not isinstance(receipt,dict) or
                 not isinstance(receipt.get('id'),str) or len(receipt['id'])!=32 or
-                receipt.get('state') not in ('selected','error') or
+                receipt.get('state') not in ('selected','converting','error') or
+                (type(receipt.get('progress',0)) not in (int,float) or not 0<=receipt.get('progress',0)<=100) or
                 not isinstance(receipt.get('detail',''),str) or len(receipt.get('detail',''))>300):
             raise ValueError('Ugyldig kvittering for filvalg.')
         with self.state.lock:
@@ -128,21 +138,44 @@ class RemoteConversion:
             for d in devices:
                 if d['id']==device['id']:
                     if d.get('media_folder')!=folder:
+                        old=d.get('selection',{})
+                        if old.get('action')=='convert' and old.get('state') in ('queued','converting','encoding','error'):
+                            self.runtime.rpc('library-shared-cancel',{'id':old['id'],'device':d['id']})
                         for key in ('files','files_updated_at','files_truncated'):d.pop(key,None)
                         if d.get('selection'):
                             d['selection'].update(state='cancelled',detail='Mappen er ændret i pc-programmet.')
-                    d.update(media_folder=folder,last_seen=time.time())
+                    if conversion_version not in (0,1):raise ValueError('Ukendt konverteringsversion.')
+                    d.update(media_folder=folder,last_seen=time.time(),conversion_version=conversion_version)
                     if files is not None:
                         d.update(files=clean,files_updated_at=time.time(),files_truncated=truncated)
                     selection=d.get('selection')
-                    if selection and selection['state'] in ('queued','selected'):
+                    if selection and selection['state'] in ('queued','selected','converting'):
                         if files is not None and not any(f['name']==selection['name'] and f['size']==selection['size'] for f in clean):
                             selection.update(state='error',detail='Filen er ændret eller findes ikke længere i den valgte mappe.')
                         elif receipt and receipt['id']==selection['id']:
-                            selection.update(state=receipt['state'],detail=receipt.get('detail',''))
+                            selection.update(state=receipt['state'],detail=receipt.get('detail',''),progress=receipt.get('progress',0))
+                        if selection.get('action')=='convert' and selection['state']=='error':
+                            self.runtime.rpc('library-shared-error',{'id':selection['id'],'device':d['id'],'detail':selection.get('detail','')})
+                    if selection and selection.get('action')=='convert' and selection['state']=='error':
+                        latest=self.runtime.rpc('library-shared-status',{'id':selection['id'],'device':d['id']})
+                        if isinstance(latest,dict) and (latest.get('attempt')!=selection.get('attempt') or latest.get('phase')=='cancelled'):
+                            selection=d['selection']=latest
                     self.write(devices)
                     return {'ok':True,'media_folder':folder,'selection':selection}
         raise ValueError('Pc-forbindelsen er fjernet.')
+
+    def shared_result(self, device, ident, complete=False, cancel=False):
+        if complete and not self.verify_slots.acquire(blocking=False):raise BrokerBusy('Resultatkontrollen er optaget. Prøv igen.')
+        try:
+            result=self.runtime.rpc('library-shared-'+('complete' if complete else 'cancel' if cancel else 'status'),{'device':device['id'],'id':ident})
+        finally:
+            if complete:self.verify_slots.release()
+        with self.state.lock:
+            devices=self.devices()
+            for d in devices:
+                if d['id']==device['id'] and d.get('selection',{}).get('id')==ident:
+                    d['selection']=result;self.write(devices);break
+        return result
 
     def helper(self):
         r=self.runtime
@@ -262,7 +295,13 @@ def register(app, state, runtime):
     def workspace():
         data=body()
         if data.get('version')!=1:raise ValueError('Ukendt programversion.')
-        return jsonify(manager.workspace(device(),data.get('media_folder'),data.get('files'),data.get('truncated',False),data.get('selection_result')))
+        return jsonify(manager.workspace(device(),data.get('media_folder'),data.get('files'),data.get('truncated',False),data.get('selection_result'),data.get('conversion_version',0)))
+
+    @worker.route('/shared/<ident>',methods=['GET','POST'])
+    def shared_job(ident):
+        action=body().get('action') if request.method=='POST' else 'status'
+        if action not in ('status','complete','cancel'):raise ValueError('Ukendt jobhandling.')
+        return jsonify(manager.shared_result(device(),ident,complete=action=='complete',cancel=action=='cancel'))
 
     @worker.post('/claim')
     def claim():
@@ -349,5 +388,5 @@ def register(app, state, runtime):
     def select_workspace_file(ident):
         try:
             data=body()
-            return jsonify(selection=manager.select_file(ident,data.get('media_folder'),data.get('name'))),202
+            return jsonify(selection=manager.select_file(ident,data.get('media_folder'),data.get('name'),data.get('bitrate'))),202
         except ValueError as exc:return jsonify(error=str(exc)),400

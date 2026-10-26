@@ -109,7 +109,9 @@ def test_shared_file_selection_is_scoped_durable_and_acknowledged_without_transf
     pc=manager.create('PC');other=manager.create('Other')
     worker=app.test_client();auth={'Authorization':'Bearer '+pc['token']}
     folder=r'M:\Bibliotek';files=[{'name':'Series/E01.mkv','size':123}]
-    sync={'version':1,'media_folder':folder,'files':files}
+    sync={'version':1,'media_folder':folder,'files':files,'conversion_version':1}
+    runtime=app.extensions['runtime']
+    runtime.rpc.return_value={'id':'a'*32,'state':'queued','phase':'queued','action':'convert','name':files[0]['name'],'size':123,'media_folder':folder}
     url='/api/conversion/devices/'+pc['id']+'/select'
     worker.post('/api/conversion/worker/workspace',headers=auth,json=sync)
     data={'media_folder':folder,'name':files[0]['name']}
@@ -127,6 +129,9 @@ def test_shared_file_selection_is_scoped_durable_and_acknowledged_without_transf
     assert second.json['selection'] is None
     ack={**sync,'selection_result':{'id':selection['id'],'state':'selected'}}
     assert worker.post('/api/conversion/worker/workspace',headers=auth,json=ack).json['selection']['state']=='selected'
+    assert client.post(url,headers=h,json=data).status_code==400
+    worker.post('/api/conversion/worker/workspace',headers=auth,json={**sync,'selection_result':{'id':selection['id'],'state':'error'}})
+    runtime.rpc.return_value={**selection,'id':'b'*32,'state':'queued'}
     newer=client.post(url,headers=h,json=data).json['selection']
     response=worker.post('/api/conversion/worker/workspace',headers=auth,json=ack)
     assert response.json['selection']['id']==newer['id'] and response.json['selection']['state']=='queued'
@@ -141,7 +146,8 @@ def test_missing_shared_file_cannot_be_acknowledged_as_selected(setup):
     app,manager,client,h=setup
     pc=manager.create('PC');auth={'Authorization':'Bearer '+pc['token']}
     worker=app.test_client();folder=r'M:\Bibliotek'
-    manager.workspace(pc,folder,[{'name':'film.mkv','size':1}])
+    manager.workspace(pc,folder,[{'name':'film.mkv','size':1}],conversion_version=1)
+    app.extensions['runtime'].rpc.return_value={'id':'a'*32,'state':'queued','action':'convert','name':'film.mkv','media_folder':folder}
     selection=manager.select_file(pc['id'],folder,'film.mkv')
     result=worker.post('/api/conversion/worker/workspace',headers=auth,json={
         'version':1,'media_folder':folder,'files':[],
@@ -149,6 +155,22 @@ def test_missing_shared_file_cannot_be_acknowledged_as_selected(setup):
     assert result.json['selection']['state']=='error'
     assert manager.devices()[0]['selection']['state']=='error'
     manager.rpc.assert_not_called()
+
+
+def test_shared_completion_and_status_use_the_token_owner_and_server_validation(setup):
+    app,manager,client,h=setup
+    pc=manager.create('PC');auth={'Authorization':'Bearer '+pc['token']}
+    worker=app.test_client();runtime=app.extensions['runtime']
+    runtime.rpc.return_value={'id':'a'*32,'state':'moving','phase':'moving','action':'convert'}
+    url='/api/conversion/worker/shared/'+'a'*32
+    assert worker.get(url).status_code==401
+    assert worker.post(url,headers=auth,json={'action':'complete','device':'other'}).status_code==200
+    runtime.rpc.assert_called_with('library-shared-complete',{'device':pc['id'],'id':'a'*32})
+    assert worker.get(url,headers=auth).json['phase']=='moving'
+    runtime.rpc.assert_called_with('library-shared-status',{'device':pc['id'],'id':'a'*32})
+    assert worker.post(url,headers=auth,json={'action':'cancel'}).status_code==200
+    runtime.rpc.assert_called_with('library-shared-cancel',{'device':pc['id'],'id':'a'*32})
+    manager.rpc.assert_not_called()  # No legacy HTTP movie broker.
 
 
 def test_conversion_controls_live_in_their_own_settings_tab(setup):

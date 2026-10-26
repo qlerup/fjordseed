@@ -8,11 +8,12 @@
   }
   container.append(node('p','muted small','Mappe på pc: '+device.media_folder));
   if(!device.files_updated_at){container.append(node('p','muted small','Afventer filoversigt fra programmet.'));return;}
-  container.append(node('p','muted small','Send til pc vælger filen direkte i netværksmappen.'));
+  container.append(node('p','muted small','Send til pc starter GPU-konverteringen direkte fra netværksmappen med den valgte videobitrate.'));
+  if(device.conversion_version!==1)container.append(node('p','muted small','Opdatér Windows-programmet for at starte konvertering direkte fra netværksmappen.'));
   const selected=device.selection;
   if(selected){
-   const states={queued:'Afventer valg på pc',selected:'Valgt på pc',error:'Kunne ikke vælge filen',cancelled:'Filvalg annulleret'};
-   container.append(node('p','muted small',(states[selected.state]||'Filvalg')+' · '+selected.name+(selected.detail?' · '+selected.detail:'')));
+   const states={queued:'Afventer pc',selected:'Valgt på pc',converting:'Konverterer på pc',encoding:'Konverterer på pc',encoded:'Afventer resultatkontrol',ready:'Resultatet er kontrolleret',moving:'Originaltorrenten flyttes til Seeder',completed:'Færdig · film i Bibliotek og originaltorrent i Seeder',error:'Jobbet kunne ikke fuldføres',cancelled:'Konvertering afbrudt'};
+   container.append(node('p','muted small',(states[selected.state]||'Konvertering')+' · '+selected.name+(selected.progress>0?' · '+Math.round(selected.progress)+' %':'')+(selected.detail?' · '+selected.detail:'')));
   }
   const search=node('input','workspace-search');search.type='search';search.placeholder='Søg i film og serier';
   search.setAttribute('aria-label','Søg i filer på '+device.name);search.value=searches.get(device.id)||'';
@@ -42,13 +43,15 @@
     for(const file of branch.files){
      const row=node('div','workspace-file'),label=node('div','workspace-file-name');
      label.append(node('span','',file.label),node('p','muted small',new Intl.NumberFormat('da-DK',{maximumFractionDigits:2}).format(file.size/1024**3)+' GiB'));
+     if(file.converted)label.append(node('span','library-converted','✓ Konverteret · '+file.bitrate+' Mbps'));
      const current=selected?.name===file.name&&selected?.media_folder===device.media_folder;
-     const button=node('button','secondary',current&&selected.state==='queued'?'Afventer pc…':current&&selected.state==='selected'?'Valgt på pc':'Send til pc');button.type='button';button.disabled=!!(current&&['queued','selected'].includes(selected.state));
+     const active=selected?.action==='convert'&&!['completed','error','cancelled'].includes(selected.state);
+     const button=node('button','secondary',file.converted?'Konverteret':current&&active?(selected.state==='queued'?'Afventer pc…':'Konvertering i gang'):current&&selected.state==='error'?'Prøv igen':'Send til pc');button.type='button';button.disabled=device.conversion_version!==1||!!active||!!file.converted;
      button.onclick=async()=>{
       button.disabled=true;$('#conversion-settings-error').hidden=true;
       try{
-       await api('/api/conversion/devices/'+device.id+'/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({media_folder:device.media_folder,name:file.name})});
-       toast('Filvalget er sendt til pc’en.');await load(false);
+       await api('/api/conversion/devices/'+device.id+'/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({media_folder:device.media_folder,name:file.name,bitrate:Number($('#conversion-bitrate').value)})});
+       toast('Konverteringen er sendt til pc’en.');await load(false);
       }catch(e){error('#conversion-settings-error',e);button.disabled=false;}
      };
      row.append(label,button);parent.append(row);
@@ -90,6 +93,11 @@
   }catch(e){error('#conversion-settings-error',e);}
  }
  $('#conversion-target').onchange=workerStatus;
+ window.addEventListener('workspace-find',event=>{
+  if(!last)return;
+  for(const device of last.devices)searches.set(device.id,event.detail);
+  devices(last);
+ });
  $('#conversion-settings-form').onsubmit=async e=>{
   e.preventDefault();const button=$('#conversion-settings-save');button.disabled=true;$('#conversion-settings-error').hidden=true;
   try{devices(await api('/api/conversion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversion_enabled:$('#conversion-enabled').checked,conversion_bitrate:Number($('#conversion-bitrate').value),conversion_target:$('#conversion-target').value})}));window.dispatchEvent(new Event('conversion-settings-changed'));toast('Konverteringsvalget er gemt.');}

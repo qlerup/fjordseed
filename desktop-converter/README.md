@@ -73,15 +73,18 @@ Pc'en sender også en begrænset oversigt over videofilernes relative navne og
 størrelser. FjordSeed viser dem i mapper med søgning. Uden valgt mappe vises
 en ventebesked og ingen filliste. Skjulte arbejdsmapper og Seeder udelades.
 
-**Send til pc** ved en fil i denne oversigt sender kun en besked til den valgte
-pc. Programmet vælger den eksisterende fil direkte i netværksmappen og viser
-dens sti. FjordSeed viser **Afventer pc** og derefter **Valgt på pc** ved kvittering.
-Intet videomateriale downloades eller kopieres i dette trin. Filvalget bevares
-på serveren ved genstart; et nyt mappevalg annullerer det tidligere filvalg.
+**Send til pc** starter automatisk GPU-konverteringen med 20, 30 eller 40 Mbps
+fra FjordSeed. Pc'en læser originalfilen direkte fra netværksdrevet og skriver
+resultatet under `.fjordseed-shared/<job-id>` i samme netværksmappe. Der er ingen
+første download til pc'ens cache og ingen upload af en hel færdig film.
 
-**Konvertér** er endnu ikke aktiv,
-fordi det nye arbejdsforløb aftales separat. Programmet starter ikke den
-ældre HTTP-hentning eller den lokale filkonvertering automatisk.
+Efter pc'ens kontrol giver den besked via tokenforbindelsen. Serveren kontrollerer
+resultatet igen og beder qBittorrent flytte hele torrentens oprindelige struktur
+til Seeder. Først derefter publiceres filmen på bibliotekets normale plads.
+Undertekster og øvrige ledsagefiler bevares; undertekster kopieres uafhængigt,
+så en ændring i biblioteket ikke ændrer torrentens original. Ved flere afsnit i
+samme torrent flyttes originalpakken én gang; senere afsnit erstattes i biblioteket.
+**Afbryd konvertering** stopper en igangværende encoding og bevarer originalerne.
 
 ## Forbindelse og indstillinger
 

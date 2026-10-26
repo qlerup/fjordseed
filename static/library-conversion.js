@@ -17,13 +17,10 @@
     const when=flag.converted_at?' · '+new Date(flag.converted_at*1000).toLocaleString('da-DK'):'';
     info.append(node('span','library-converted','✓ Konverteret'+(flag.bitrate?' · '+flag.bitrate+' Mbps':'')+when));
    }else if(item.reason)info.append(node('p','muted small',item.reason));
-   const button=node('button','secondary','Send til pc');button.type='button';button.disabled=!item.eligible;
-   button.onclick=async()=>{
-    button.disabled=true;$('#library-conversion-error').hidden=true;
-    try{
-     await api('/api/conversion/library',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:item.id,bitrate:Number($('#library-conversion-bitrate').value)})});
-     toast('Filmen er sat i kø til pc-konvertering.');await load();
-    }catch(e){error('#library-conversion-error',e);button.disabled=false;}
+   const button=node('button','secondary','Find på pc');button.type='button';button.disabled=!item.eligible;
+   button.onclick=()=>{
+    window.dispatchEvent(new CustomEvent('workspace-find',{detail:item.name.split('/').at(-1)}));
+    $('#conversion-devices').scrollIntoView({behavior:'smooth',block:'start'});
    };
    row.append(info,button);list.append(row);
   }

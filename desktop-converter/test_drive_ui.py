@@ -28,7 +28,7 @@ def test_cancelled_folder_picker_keeps_previous_selection(tmp_path, monkeypatch)
     import fjord_ui
     picker = Mock(return_value='')
     monkeypatch.setattr(fjord_ui.filedialog, 'askdirectory', picker)
-    app = SimpleNamespace(media_folder=Mock(), config_path=tmp_path/'preferences.json', folder_status=Mock())
+    app = SimpleNamespace(media_folder=Mock(), config_path=tmp_path/'preferences.json', folder_status=Mock(),workspace_sync=SimpleNamespace(runner=None))
     app.media_folder.get.return_value=str(tmp_path)
     ConverterUI.choose_folder(app)
     app.media_folder.set.assert_not_called()

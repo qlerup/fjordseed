@@ -64,10 +64,9 @@ with tempfile.TemporaryDirectory() as folder:
             expect(films).to_have_count(3)
             expect(films.filter(has_text='Already converted').locator('.library-converted')).to_contain_text('30 Mbps')
             expect(films.filter(has_text='Unmanaged').get_by_role('button')).to_be_disabled()
-            page.locator('#library-conversion-bitrate').select_option('40')
+            page.evaluate("() => window.addEventListener('workspace-find',event=>window.found=event.detail)")
             films.filter(has_text='Movie/Film').get_by_role('button').click()
-            expect(page.locator('#library-conversion-jobs')).to_contain_text('40 Mbps')
-            page.locator('#library-conversion-jobs').get_by_role('button', name='Annullér').click()
+            assert page.evaluate('found')=='Film <2026>.mkv'
             expect(page.locator('#library-conversion-jobs')).to_be_empty()
             for width in (1440, 390, 320):
                 page.set_viewport_size(dict(width=width, height=1000))
@@ -77,6 +76,6 @@ with tempfile.TemporaryDirectory() as folder:
             expect(films).to_have_count(1)
             assert not errors, errors
             browser.close()
-        print('PASS library list, quality, queue, cancel, flags, search, desktop/mobile and no JS errors')
+        print('PASS library list, shared PC lookup, flags, search, desktop/mobile and no JS errors')
     finally:
         server.shutdown()

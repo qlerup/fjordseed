@@ -22,7 +22,7 @@ CONFIG = ROOT / 'preferences.json'
 class Cancelled(Exception):
     pass
 
-def convert(source, folder, bitrate, notify, stop):
+def convert(source, folder, bitrate, notify, stop, target_name=None):
     source, folder = Path(source), Path(folder)
     if not source.is_file():
         raise ValueError('Kildefilen findes ikke.')
@@ -36,7 +36,10 @@ def convert(source, folder, bitrate, notify, stop):
     if shutil.disk_usage(folder).free < source.stat().st_size + 1024**3:
         raise ValueError('Der skal være mindst originalfilens størrelse + 1 GiB ledigt til konverteringen.')
     stamp = time.strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:6]
-    target = folder / f'{source.stem[:110]}-Fjord-{bitrate}Mbps-{stamp}.mkv'
+    if target_name is not None and (Path(target_name).name!=target_name or Path(target_name).suffix.lower()!='.mkv'):
+        raise ValueError('Ugyldigt resultatnavn.')
+    target = folder / (target_name or f'{source.stem[:110]}-Fjord-{bitrate}Mbps-{stamp}.mkv')
+    if target.exists():raise ValueError('Resultatfilen findes allerede. Ingen filer overskrives.')
     partial = target.with_suffix('.partial.mkv')
     logfile = target.with_suffix('.log')
     started = time.monotonic()

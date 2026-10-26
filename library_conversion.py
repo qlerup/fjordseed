@@ -124,6 +124,17 @@ def inventory(api):
             if path.is_relative_to(root):
                 owners.setdefault(str(path), []).append(row)
     jobs = storage.read(ledger(), {})
+    priors={}
+    for job in jobs.values():
+        if job.get('phase')!='published' or not job.get('shared'):continue
+        row=next((r for r in rows if r['hash']==job['hash'] and r.get('save_path','').rstrip('/')==job['seed']),None)
+        if not row:continue
+        for entry in job['files']:
+            path=Path(job['original'])/entry['name']
+            if path.is_file() and path.is_relative_to(root) and fingerprint(path)==entry['fingerprint']:
+                if not any(r['hash']==row['hash'] for r in owners.get(str(path),[])):
+                    owners.setdefault(str(path),[]).append(row)
+                priors[str(path)]=job
     active = {j['source']: j for j in jobs.values() if j.get('phase') not in ('published', 'cancelled')}
     items = []
     truncated = False
@@ -154,7 +165,7 @@ def inventory(api):
                           'size': path.stat().st_size, 'converted': flag,
                           'eligible': not reason, 'reason': reason,
                           'job': public_job(job) if job else None,
-                          '_row': matches[0] if len(matches) == 1 else None, '_path': str(path)})
+                          '_row': matches[0] if len(matches) == 1 else None, '_path': str(path),'_prior':priors.get(str(path))})
         if truncated:
             break
     return {'items': items, 'truncated': truncated}
@@ -174,12 +185,13 @@ def listing(api):
     for item in result['items']:
         item.pop('_row', None)
         item.pop('_path', None)
+        item.pop('_prior',None)
     result['jobs'] = [{**public_job(j), 'name': Path(j['source']).relative_to(j['root']).as_posix()}
-                      for j in storage.read(ledger(), {}).values() if j['phase'] not in ('published', 'cancelled')]
+                      for j in storage.read(ledger(), {}).values() if j['phase'] not in ('published', 'cancelled') and not j.get('shared')]
     return result
 
 
-def queue(api, ident, bitrate):
+def queue(api, ident, bitrate, shared=None):
     if type(bitrate) is not int or bitrate not in (20, 30, 40):
         raise ValueError('Vælg 20, 30 eller 40 Mbps.')
     with storage.transaction() as entries:
@@ -193,12 +205,22 @@ def queue(api, ident, bitrate):
         if any(entries.get(row.get(k), {}).get('convert') for k in ('hash', 'infohash_v1', 'infohash_v2')):
             raise ValueError('Torrenten har allerede en oprindelig konverteringspolitik.')
         root = checked(storage.download_root())
-        current = checked(row['save_path'].rstrip('/'))
+        prior=item.get('_prior') if shared else None
+        torrent_base=checked(row['save_path'].rstrip('/'))
+        current = checked(prior['original']) if prior else torrent_base
         if not current.is_relative_to(root):
             raise ValueError('Originalen ligger uden for Behold.')
         files = selected_files(api, row)
+        if shared:
+            # Relocate the complete torrent, including skipped files; never
+            # silently turn a partially downloaded pack into a library replacement.
+            files=[]
+            for entry in api('torrents/files?hash='+row['hash']).json():
+                name=str(safe_relative(entry.get('name')))
+                if type(entry.get('size')) is not int or entry['size']<0:raise ValueError('Ugyldig torrentfil.')
+                files.append({'name':name,'size':entry['size']})
         # Check all torrent owners, including torrents whose save_path differs.
-        paths = {str(current / f['name']) for f in files}
+        paths = {str(torrent_base / f['name']) for f in files}
         for other in api('torrents/info').json():
             if other['hash'] == row['hash'] or not storage.managed_directory(other.get('save_path', '')):
                 continue
@@ -213,29 +235,35 @@ def queue(api, ident, bitrate):
         if checked(marker(current / output)).exists():
             raise ValueError('Der findes allerede konverteringsoplysninger til filmen.')
         jobid = uuid.uuid4().hex
-        stage = checked(root / storage.BUFFER / ('library-' + jobid))
+        stage = checked(Path(shared['server_root']) / '.fjordseed-shared' / jobid) if shared else checked(root / storage.BUFFER / ('library-' + jobid))
         stage.mkdir(parents=True, exist_ok=False)
         job = {'id': jobid, 'hash': row['hash'], 'root': str(root), 'original': str(current),
                'source': item['_path'], 'selected': selected, 'output': output, 'files': files,
-               'stage': str(stage), 'seed': str(storage.seeding_root() / (storage.download_name(row.get('name','Film'))[:100] + '-' + jobid[:8])),
+               'stage': str(stage), 'seed': str(torrent_base if prior else storage.seeding_root() / (storage.download_name(row.get('name','Film'))[:100] + '-' + jobid[:8])),
                'bitrate': bitrate, 'phase': 'preparing', 'created_at': time.time()}
+        if shared:job['shared']={**shared,'attempt':uuid.uuid4().hex}
+        if prior:job['reuse_seeding']=True
         jobs[jobid] = job
         save(jobs)
         try:
             for entry in files:
-                source = checked(current / entry['name'])
+                source = checked(torrent_base / entry['name'])
                 if not source.is_file() or source.stat().st_size != entry['size']:
                     raise ValueError('Originalfilen er ændret eller ikke færdig.')
                 entry['fingerprint'] = fingerprint(source)
                 target = checked(stage / entry['name'])
                 target.parent.mkdir(parents=True, exist_ok=True)
-                # Same filesystem, no duplicate 4K-sized copy, no mutable symlink.
-                snapshot(source, target)
+                if not shared:
+                    # Same filesystem, no duplicate 4K-sized copy, no mutable symlink.
+                    snapshot(source, target)
             work = checked(stage / DIRECTORY)
             work.mkdir()
             request = {'version': 1, 'id': jobid, 'executor': 'pc', 'bitrate': bitrate,
                        'files': [{'name': selected, 'size': Path(item['_path']).stat().st_size}]}
-            atomic(work / 'request.json', json.dumps(request), mode=0o644)
+            if not shared:atomic(work / 'request.json', json.dumps(request), mode=0o644)
+            else:
+                (work/'result'/Path(output).parent).mkdir(parents=True,exist_ok=True)
+                atomic(work/'status.json',json.dumps({'id':jobid,'state':'queued','progress':0}),mode=0o644)
             job['phase'] = 'queued'
             save(jobs)
         except Exception:
@@ -276,7 +304,7 @@ def reconcile(api, rows):
 def advance(api, rows, entries, jobs, job):
     stage = checked(job['stage'])
     if job['phase'] in ('published', 'cancelled'):
-        for entry in job['files']:
+        for entry in job['files']+job.get('extras',[]):
             name = job['output'] if entry['name'] == job['selected'] else entry['name']
             scratch(job, Path(job['original']) / name).unlink(missing_ok=True)
         if stage.is_dir():
@@ -299,7 +327,16 @@ def advance(api, rows, entries, jobs, job):
     receipt = storage.read(checked(result / '.fjordseed-converted.json'), {})
     if state.get('id') != job['id'] or receipt.get('id') != job['id'] or receipt.get('files') != [job['output']]:
         raise ValueError('Kvitteringen fra pc-konverteringen matcher ikke filmen.')
+    if job.get('shared') and fingerprint(checked(result/job['output']))!=job.get('verified_result'):
+        raise ValueError('Den kontrollerede konvertering er ændret. Originalerne flyttes ikke.')
     current = str(row.get('save_path', '')).rstrip('/')
+    if job.get('reuse_seeding') and current==str(seed) and job['phase']=='queued':
+        source_path=str(original/job['selected'])
+        for other in rows:
+            if other['hash']!=row['hash'] and storage.managed_directory(other.get('save_path','')):
+                if any(str(Path(other['save_path'])/f['name'])==source_path for f in selected_files(api,other)):
+                    raise ValueError('En anden torrent bruger bibliotekets originalkopi.')
+        job['phase']='moving';save(jobs)
     if current == str(original):
         verify_sources(job, original)
         if job['output'] != job['selected'] and checked(original / job['output']).exists():
@@ -312,6 +349,18 @@ def advance(api, rows, entries, jobs, job):
                     raise ValueError('En anden torrent bruger originalfilerne. Flytning er sat på pause.')
         if seed.exists() and any(seed.iterdir()):
             raise ValueError('Seedingmappen indeholder allerede filer. Flytningen skal kontrolleres.')
+        if job.get('shared'):
+            # Preserve companions before qBittorrent moves its entire storage.
+            # Subtitles/artwork get independent copies, never mutable hardlinks
+            # to the originals that must continue satisfying torrent hashes.
+            for entry in job['files']:
+                if entry['name']==job['selected']:continue
+                source=checked(original/entry['name']);target=checked(stage/entry['name'])
+                target.parent.mkdir(parents=True,exist_ok=True)
+                if not target.exists():
+                    if source.suffix.lower() in VIDEO:snapshot(source,target)
+                    else:shutil.copy2(source,target)
+                if fingerprint(target)!=entry['fingerprint']:raise ValueError('En ledsagefil kunne ikke bevares.')
         seed.mkdir(parents=True, exist_ok=True)
         job['phase'] = 'moving'
         # Persist before asynchronous qBittorrent setLocation; a restart can retry.
@@ -330,10 +379,37 @@ def advance(api, rows, entries, jobs, job):
         name = job['output'] if entry['name'] == job['selected'] else entry['name']
         target = checked(original / name)
         source = checked(result / name) if entry['name'] == job['selected'] else checked(stage / entry['name'])
+        if job.get('reuse_seeding') and entry['name']!=job['selected']:
+            if target.exists():continue
+            source=checked(seed/entry['name'])
+            if source.suffix.lower() not in VIDEO:
+                copied=checked(stage/entry['name']);copied.parent.mkdir(parents=True,exist_ok=True)
+                if not copied.exists():shutil.copy2(source,copied)
+                source=copied
         if not source.is_file():
             raise ValueError('En kontrolleret resultatfil mangler.')
         target.parent.mkdir(parents=True, exist_ok=True)
-        publish_file(job, source, target)
+        if job.get('reuse_seeding') and entry['name']==job['selected'] and name==job['selected']:
+            prepared=scratch(job,target)
+            if not prepared.exists():snapshot(source,prepared)
+            if fingerprint(prepared)!=job['verified_result']:raise ValueError('Resultatkopien er ændret.')
+            if target.exists() and fingerprint(target) not in (entry['fingerprint'],job['verified_result']):
+                raise ValueError('Bibliotekets fil er ændret. Ingen filer erstattes.')
+            os.replace(prepared,target)
+        else:publish_file(job, source, target)
+    if job.get('reuse_seeding') and job['selected']!=job['output']:
+        old=checked(original/job['selected'])
+        if old.exists():
+            expected=next(f['fingerprint'] for f in job['files'] if f['name']==job['selected'])
+            if fingerprint(old)!=expected:raise ValueError('Bibliotekets originalkopi er ændret.')
+            old.unlink()  # The unchanged torrent original remains at seed/selected.
+    for entry in job.get('extras',[]):
+        target=checked(original/entry['name']);source=checked(stage/entry['name'])
+        if target.exists():
+            if fingerprint(target)!=entry['fingerprint']:raise ValueError('En løs ledsagefil er ændret.')
+        else:
+            target.parent.mkdir(parents=True,exist_ok=True)
+            publish_file(job,source,target)
     output = checked(original / job['output'])
     flag = {'version': 1, 'id': job['id'], 'bitrate': job['bitrate'], 'converted_at': time.time(),
             'original_size': next(f['size'] for f in job['files'] if f['name'] == job['selected']),
@@ -366,6 +442,7 @@ def retry(ident):
             raise ValueError('Jobbet er ikke fejlet.')
         atomic(work / 'status.json', json.dumps({'id': ident, 'state': 'queued', 'progress': 0}), mode=0o644)
         job.pop('error', None)
+        if job.get('shared'):job['shared']['attempt']=uuid.uuid4().hex
         save(jobs)
 
 

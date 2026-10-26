@@ -23,12 +23,14 @@ def bencode(value):
         return b'i' + str(value).encode() + b'e'
     if isinstance(value, bytes):
         return str(len(value)).encode() + b':' + value
+    if isinstance(value,list):return b'l'+b''.join(bencode(v) for v in value)+b'e'
     if isinstance(value, dict):
         return b'd' + b''.join(bencode(k) + bencode(v) for k, v in sorted(value.items())) + b'e'
     raise TypeError()
 
 
-def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp_path, monkeypatch):
+@pytest.mark.parametrize('shared_mode',[False,True])
+def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp_path, monkeypatch,shared_mode):
     binary = shutil.which('qbittorrent-nox')
     assert binary, 'This test must use a real qBittorrent binary'
     config = tmp_path / 'profile' / 'qBittorrent' / 'config'
@@ -40,9 +42,20 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
     current = root / 'Movie'
     current.mkdir(parents=True)
     original = b'original torrent payload' * 100
-    (current / 'film.mkv').write_bytes(original)
+    video_name='Release/film.mkv' if shared_mode else 'film.mkv'
+    (current/video_name).parent.mkdir(exist_ok=True)
+    (current / video_name).write_bytes(original)
     info = {b'name': b'film.mkv', b'length': len(original), b'piece length': 16384,
             b'pieces': hashlib.sha1(original).digest()}
+    companions={'Release/Subs/film.en.srt':b'original english subtitle','Release/film.nfo':b'original release information'} if shared_mode else {}
+    if shared_mode:
+        payload=original+b''.join(companions.values())
+        info={b'name':b'Release',b'piece length':16384,b'pieces':hashlib.sha1(payload).digest(),
+              b'files':[{b'length':len(content),b'path':[p.encode() for p in Path(name).parts[1:]]}
+                        for name,content in [(video_name,original),*companions.items()]]}
+        for name,content in companions.items():
+            path=current/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(content)
+        (current/'Release/film.da.srt').write_bytes(b'loose Danish subtitle')
     ident = hashlib.sha1(bencode(info)).hexdigest()
     torrent = bencode({b'announce': b'http://127.0.0.1:9/announce', b'info': info})
     session = requests.Session()
@@ -81,13 +94,25 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
             settings = tmp_path / 'settings.json'
             settings.write_text(json.dumps({'conversion_enabled': True}))
             monkeypatch.setattr(storage, 'SETTINGS', settings)
-            result = library.queue(api, library.key(current / 'film.mkv'), 30)
+            if shared_mode:
+                import shared_library
+                result=shared_library.queue(api,{'device':'test-pc','media_folder':r'M:\Bibliotek',
+                    'name':(current/video_name).relative_to(root).as_posix(),'size':len(original),'bitrate':30})
+            else:result = library.queue(api, library.key(current / video_name), 30)
             job = storage.read(library.ledger(), {})[result['id']]
             work = Path(job['stage']) / DIRECTORY
-            (work / 'result').mkdir()
-            (work / 'result' / 'film.mkv').write_bytes(b'verified converted result')
-            (work / 'result' / '.fjordseed-converted.json').write_text(json.dumps({'id': job['id'], 'files': ['film.mkv']}))
-            (work / 'status.json').write_text(json.dumps({'id': job['id'], 'state': 'ready'}))
+            output=work/'result'/video_name
+            output.parent.mkdir(parents=True,exist_ok=True)
+            output.write_bytes(b'verified converted result')
+            if shared_mode:
+                from unittest.mock import Mock
+                output.with_suffix('.json').write_text(json.dumps({'verified':True,'video_mbps_target':30,'gpu_encoder':'NVEncC test'}))
+                monkeypatch.setattr('converter_worker.probe',Mock(return_value={}))
+                monkeypatch.setattr('converter_worker.validate',Mock())
+                shared_library.complete(api,job['id'],'test-pc')
+            else:
+                (work / 'result' / '.fjordseed-converted.json').write_text(json.dumps({'id': job['id'], 'files': [video_name]}))
+                (work / 'status.json').write_text(json.dumps({'id': job['id'], 'state': 'ready'}))
             for _ in range(100):
                 errors = library.reconcile(api, api('torrents/info').json())
                 assert not errors, errors
@@ -96,8 +121,13 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
                 time.sleep(.1)
             else:
                 pytest.fail('Native relocation/publication did not finish')
-            assert (current / 'film.mkv').read_bytes() == b'verified converted result'
-            assert (Path(job['seed']) / 'film.mkv').read_bytes() == original
+            assert (current / video_name).read_bytes() == b'verified converted result'
+            assert (Path(job['seed']) / video_name).read_bytes() == original
+            for name,content in companions.items():
+                assert (Path(job['seed'])/name).read_bytes()==content
+                assert (current/name).read_bytes()==content
+                assert not os.path.samefile(current/name,Path(job['seed'])/name)
+            if shared_mode:assert (current/'Release/film.da.srt').read_bytes()==b'loose Danish subtitle'
             assert api('torrents/info').json()[0]['save_path'].rstrip('/') == job['seed']
             # Rechecking verifies that qBittorrent still reads the exact torrent
             # bytes at the new location, rather than the converted library file.

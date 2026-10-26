@@ -274,11 +274,15 @@ class Runtime:
         path = self.state.root/'rpc'/(ident+'.json')
         try:
             atomic(path, json.dumps({'action':action,'data':data}), mode=0o644)
-            result = child.exec_run(['python','/app/qbit_rpc.py',ident])
+            if action=='library-shared-complete':
+                verification_client=docker.from_env(timeout=600)
+                try:result=verification_client.containers.get(child.id).exec_run(['python','/app/qbit_rpc.py',ident])
+                finally:verification_client.close()
+            else:result = child.exec_run(['python','/app/qbit_rpc.py',ident])
             if result.exit_code:
                 try:
                     failure=json.loads(result.output)
-                    if action in ('library-list','library-convert','library-retry','library-cancel'):
+                    if action.startswith('library-'):
                         raise ValueError(failure['error'])
                     if failure.get('code')=='seeding_requirement':
                         raise ValueError(failure['error'])

@@ -60,6 +60,8 @@ class ConverterUI(tk.Tk):
         self.media_folder = tk.StringVar(value=settings.get('media_folder', settings.get('drive', '')))
         self.status = tk.StringVar(value='Ingen konvertering i gang.')
         self.selected_path = tk.StringVar()
+        self.percent = tk.StringVar(value='0 %')
+        self.job_detail = tk.StringVar()
         self.folder_status = tk.StringVar(value='Vælg mappen til dine FjordSeed-filer.')
         self.connection_status = tk.StringVar()
         import windows_startup
@@ -93,18 +95,18 @@ class ConverterUI(tk.Tk):
                    wraplength=700, justify='left').pack(anchor='w', pady=(0, 16))
         self.bar = ttk.Progressbar(progress, maximum=100)
         self.bar.pack(fill='x')
-        self.label(progress, '0 %', fg=MINT, font=('Segoe UI', 20, 'bold')).pack(anchor='e', pady=(8, 0))
+        self.label(progress, textvariable=self.percent, fg=MINT, font=('Segoe UI', 20, 'bold')).pack(anchor='e', pady=(8, 0))
+        self.label(progress, textvariable=self.job_detail, fg=MUTED, font=('Segoe UI',10)).pack(anchor='w')
         actions = tk.Frame(outer, bg=BG)
         actions.pack(fill='x', pady=(18, 0))
         ttk.Button(actions, text='Kør i baggrunden', command=self.background).pack(side='left')
         ttk.Button(actions, text='Afslut', command=self.close).pack(side='left', padx=10)
-        # The user is defining a new workflow. Do not start the removed local
-        # converter or silently resume HTTP jobs behind this new interface.
-        self.start_button = ttk.Button(actions, text='Konvertér', style='Primary.TButton', state='disabled')
-        self.start_button.pack(side='right')
+        self.cancel_button=ttk.Button(actions,text='Afbryd konvertering',command=self.cancel_conversion,state='disabled')
+        self.cancel_button.pack(side='left')
+        self.label(actions,'Startes fra FjordSeed',bg=BG,fg=MUTED,font=('Segoe UI',10)).pack(side='right')
         self.refresh_connection()
         from workspace_sync import WorkspaceSync
-        self.workspace_sync = WorkspaceSync(self.connection_path, self.config_path)
+        self.workspace_sync = WorkspaceSync(self.connection_path, self.config_path,worker,cancelled)
         self.after(300, self.poll_workspace)
         self.protocol('WM_DELETE_WINDOW', self.background)
         self.bind('<Control-q>', lambda event: self.close())
@@ -123,6 +125,9 @@ class ConverterUI(tk.Tk):
                                    else 'Tilføj din FjordSeed-forbindelse under Indstillinger')
 
     def choose_folder(self):
+        if self.workspace_sync.runner and self.workspace_sync.runner.busy:
+            self.folder_status.set('Afvent eller afbryd konverteringen før mappen ændres.')
+            return
         folder = filedialog.askdirectory(parent=self, title='Vælg mappe til FjordSeed',
                                          initialdir=self.media_folder.get() or str(Path.home()), mustexist=True)
         if not folder:
@@ -153,11 +158,32 @@ class ConverterUI(tk.Tk):
                 elif state == 'selection_cleared':
                     self.selected_path.set('')
                     self.status.set(value or 'Ingen fil valgt fra FjordSeed.')
+                elif state == 'job_start':
+                    self.selected_path.set(value['path'])
+                    self.job_detail.set(str(value['bitrate'])+' Mbps · direkte fra netværksmappen')
+                    self.status.set('Starter konvertering på NVIDIA-GPU …')
+                    self.bar['value']=0;self.percent.set('0 %')
+                elif state == 'job_status':self.status.set(value)
+                elif state == 'job_progress':
+                    percent,fps,remaining=value
+                    self.bar['value']=percent;self.percent.set(f'{percent:.0f} %')
+                    self.job_detail.set(f'{fps:.1f} billeder/s · cirka {clock(remaining)} tilbage')
+                elif state == 'job_done':
+                    self.bar['value']=100;self.percent.set('100 %')
+                    self.status.set('Færdig · filmen er i Bibliotek, og originaltorrenten er i Seeder.')
+                    self.job_detail.set('Alle originalfiler og torrentens mappestruktur er bevaret.')
+                elif state == 'job_error':self.status.set(value)
                 else:
                     self.folder_status.set(value)
         except queue.Empty:
             pass
+        runner=self.workspace_sync.runner
+        stoppable=runner and ((runner.busy and runner.can_cancel) or (not runner.busy and runner.receipt and runner.receipt.get('state')=='error' and runner.command))
+        self.cancel_button['state']='normal' if stoppable else 'disabled'
         self.after(300, self.poll_workspace)
+
+    def cancel_conversion(self):
+        if self.workspace_sync.runner:self.workspace_sync.runner.cancel()
 
     def open_settings(self):
         if self.settings_window and self.settings_window.winfo_exists():
@@ -194,6 +220,8 @@ class ConverterUI(tk.Tk):
     def save_connection(self, code):
         if not code.strip():
             return
+        if getattr(self,'workspace_sync',None) and self.workspace_sync.runner and self.workspace_sync.runner.busy:
+            raise ValueError('Afvent eller afbryd konverteringen før forbindelsen ændres.')
         from remote_agent import atomic, connection_details
         from windows_secret import protect
         saved = read_settings(self.connection_path)
@@ -228,7 +256,10 @@ class ConverterUI(tk.Tk):
 
     def close(self):
         self.workspace_sync.close()
-        self.destroy()
+        def finish():
+            if self.workspace_sync.runner and self.workspace_sync.runner.busy and self.workspace_sync.runner.can_cancel:self.after(100,finish)
+            else:self.destroy()
+        finish()
 
     def _style(self):
         style = ttk.Style(self)
