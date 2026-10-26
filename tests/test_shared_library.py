@@ -76,6 +76,16 @@ def test_missing_skipped_torrent_file_does_not_leave_an_unreachable_pending_job(
     assert (film[1]/'film.mp4').read_bytes()==b'original video'
 
 
+def test_workspace_cannot_be_created_inside_the_folder_qbittorrent_will_move(film):
+    current=film[1];release=current/'Release';release.mkdir()
+    for entry in film[4]:
+        old=entry['name'];(current/old).rename(release/old);entry['name']='Release/'+old
+    with pytest.raises(ValueError,match='ovenover'):
+        shared.queue(film[-1],{'device':'pc','name':'film.mp4','size':14,'media_folder':r'M:\Bibliotek','bitrate':30})
+    assert not library.pending(film[2]['hash'])
+    assert (release/'film.mp4').read_bytes()==b'original video'
+
+
 def test_second_episode_reuses_the_complete_seeded_pack(film,monkeypatch):
     root,current,row,rows,files,api=film
     (current/'episode2.mkv').write_bytes(b'original episode two')

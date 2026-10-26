@@ -234,6 +234,13 @@ def queue(api, ident, bitrate, shared=None):
             raise ValueError('Der findes allerede en fil på den konverterede films plads.')
         if checked(marker(current / output)).exists():
             raise ValueError('Der findes allerede konverteringsoplysninger til filmen.')
+        if shared and not prior:
+            parts=[Path(f['name']).parts for f in files]
+            tops={p[0] for p in parts}
+            if parts and all(len(p)>1 for p in parts) and len(tops)==1:
+                torrent_folder=current/next(iter(tops))
+                if Path(shared['server_root']).is_relative_to(torrent_folder):
+                    raise ValueError('Vælg en mappe ovenover torrentens egen mappe i programmet, fx Bibliotek.')
         jobid = uuid.uuid4().hex
         stage = checked(Path(shared['server_root']) / '.fjordseed-shared' / jobid) if shared else checked(root / storage.BUFFER / ('library-' + jobid))
         stage.mkdir(parents=True, exist_ok=False)
