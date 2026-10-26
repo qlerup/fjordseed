@@ -1,5 +1,7 @@
 __pycache__/
 preferences.json
+worker-settings.json
+worker-cache/
 downloads/
 test/
 ffmpeg*/

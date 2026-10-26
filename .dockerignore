@@ -35,5 +35,7 @@
 !conversion.py
 !converter_runtime.py
 !converter_worker.py
+!remote_conversion.py
+!remote_helper.py
 !converter/
 !converter/Dockerfile

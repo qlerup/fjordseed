@@ -1,6 +1,7 @@
 """Local NVIDIA converter. Originals are read-only inputs; outputs never overwrite."""
 import json
 import os
+import sys
 from pathlib import Path
 import queue
 import re
@@ -15,7 +16,7 @@ from tkinter import ttk, filedialog, messagebox
 from fractions import Fraction
 import encode_core as core
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else Path(__file__).resolve().parent
 CONFIG = ROOT / 'preferences.json'
 
 class Cancelled(Exception):
@@ -109,4 +110,15 @@ def duration(seconds):
 from fjord_ui import ConverterUI
 
 if __name__=='__main__':
-    ConverterUI(convert, Cancelled, ROOT, CONFIG).mainloop()
+    if os.name=='nt':
+        import ctypes
+        shell=ctypes.WinDLL('shell32',use_last_error=True)
+        shell.SetCurrentProcessExplicitAppUserModelID.argtypes=[ctypes.c_wchar_p]
+        shell.SetCurrentProcessExplicitAppUserModelID('Fjord.Converter.Desktop')
+    from windows_instance import acquire
+    if not acquire(ROOT):raise SystemExit(0)
+    app=ConverterUI(convert, Cancelled, ROOT, CONFIG)
+    if '--background' in sys.argv:
+        app.withdraw()
+        app.after(500,app.background)
+    app.mainloop()

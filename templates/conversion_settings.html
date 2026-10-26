@@ -1,0 +1,34 @@
+<section id="conversion-view" hidden>
+ <div class="connection">
+  <p class="eyebrow">FJORDSEED · KONVERTERING</p><h2>GPU-konvertering før biblioteket</h2>
+  <p class="muted">Lad serveren eller din pc gøre filmen mindre, før den flyttes til FjordFlix og Plex.</p>
+  <form id="conversion-settings-form">
+   <label class="check-label"><input type="checkbox" id="conversion-enabled"> Gør konvertering tilgængelig for downloads og RSS-feeds</label>
+   <div class="tracker-fields">
+    <label>Udfør konverteringen på<select id="conversion-target"><option value="server">Serverens NVIDIA-GPU</option><option value="pc">En tilsluttet pc</option></select></label>
+    <label>Videobitrate<select id="conversion-bitrate"><option value="10">10 Mbps</option><option value="15">15 Mbps</option><option value="20" selected>20 Mbps</option><option value="25">25 Mbps</option><option value="30">30 Mbps</option></select></label>
+   </div>
+   <p id="conversion-worker-status" class="muted small" role="status"></p>
+   <p class="muted small">Maskinvalget gælder nye downloads. Allerede oprettede konverteringsjobs beholder deres valgte maskine.</p>
+   <p class="muted small">Vælg derefter konvertering på den enkelte download eller det enkelte feed. HEVC/MKV med original opløsning, lyd, undertekster og kapitler. Video-bitraten er et gennemsnit; lyd lægges oveni. Lavere bitrate kan koste detaljer.</p>
+   <p class="muted small">Dolby Vision 7 bliver til 8.1 med HDR10; det ekstra billedlag følger ikke med. Originalen seeder i bufferen. Den slettes først efter en kontrolleret fil i biblioteket og ratio 1:1 eller 49 timers seeding.</p>
+   <p class="muted small">Hvis pc’en er offline, venter nye konverteringsdownloads. Allerede modtagne jobs beholdes og kan overtages igen. Slår du funktionen fra, færdiggøres allerede valgte downloads.</p>
+   <button class="primary" type="submit" id="conversion-settings-save">Gem konvertering</button>
+  </form>
+ </div>
+ <div class="connection">
+  <p class="eyebrow">PC-FORBINDELSE</p><h2>Forbind Fjord-konvertering</h2>
+  <p class="muted">Opret et token til pc-programmet. Pc’en henter selv et job, konverterer på sin GPU og returnerer filen. FjordSeed kontrollerer resultatet og flytter det til den valgte biblioteksmappe.</p>
+  <label>FjordSeed-adresse<input id="conversion-server-address" readonly aria-label="FjordSeed-adresse"></label>
+  <form id="conversion-device-form" class="tracker-fields">
+   <label>Navn på pc<input id="conversion-device-name" maxlength="60" placeholder="Fx min RTX 4090-pc" required></label>
+   <div class="tracker-form-actions"><button class="secondary" type="submit" id="conversion-device-create">Opret pc-token</button></div>
+  </form>
+  <div id="conversion-token-result" hidden>
+   <label>Pc-token · vises kun nu<input id="conversion-token-secret" readonly spellcheck="false" autocomplete="off"></label>
+   <p class="muted small">Indsæt adressen og tokenet under FjordSeed i pc-programmet. Tokenet giver kun adgang til tildelte konverteringsjobs. Fjern forbindelsen nedenfor for at tilbagekalde adgangen.</p>
+  </div>
+  <h3>Tilsluttede pc’er</h3><div id="conversion-devices" aria-live="polite"></div>
+ </div>
+ <p id="conversion-settings-error" class="error" role="alert" hidden></p>
+</section>

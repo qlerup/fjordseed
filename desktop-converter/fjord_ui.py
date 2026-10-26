@@ -28,14 +28,16 @@ class ConverterUI(tk.Tk):
         super().__init__()
         self.worker, self.cancelled, self.root_dir, self.config_path = worker, cancelled, root, config
         self.title('Fjord · Konvertering')
-        self.geometry('1040x790')
-        self.minsize(940, 760)
+        self.geometry('1040x850')
+        self.minsize(940, 820)
         self.configure(bg=BG)
         self.events = queue.Queue()
         self.stop = threading.Event()
         self.running = False
+        self.gpu_lock = threading.Lock()
         self.output_file = self.logfile = None
         self.started = 0
+        self.notifications=None;self.tray=None;self.encoding_notice=False
         try:
             settings = json.loads(config.read_text(encoding='utf-8'))
         except (OSError, ValueError):
@@ -56,7 +58,19 @@ class ConverterUI(tk.Tk):
         self._style()
         self._icon()
 
+        nav=tk.Frame(self,bg=BG)
+        nav.pack(fill='x',padx=26,pady=(12,0))
+        ttk.Button(nav,text='Lokal konvertering',command=lambda:self.show_tab('local')).pack(side='left')
+        ttk.Button(nav,text='FjordSeed-forbindelse',command=lambda:self.show_tab('remote')).pack(side='left',padx=10)
+        import windows_startup
+        self.startup=tk.BooleanVar(value=windows_startup.enabled(self.root_dir/'fjord_encode.pyw'))
+        tk.Checkbutton(nav,text='Start med Windows',variable=self.startup,command=self.toggle_startup,
+            bg=BG,fg=MUTED,activebackground=BG,activeforeground=TEXT,selectcolor=FIELD,
+            highlightthickness=0,font=('Segoe UI',9)).pack(side='left',padx=8)
+        ttk.Button(nav,text='Afslut',command=self.close).pack(side='right')
+        ttk.Button(nav,text='Kør i baggrunden',command=self.background).pack(side='right',padx=10)
         outer = tk.Frame(self, bg=BG)
+        self.local_frame=outer
         outer.pack(fill='both', expand=True, padx=26, pady=(18,16))
         brand = tk.Frame(outer, bg=BG)
         brand.pack(fill='x')
@@ -159,7 +173,11 @@ class ConverterUI(tk.Tk):
         self.cancel_button=ttk.Button(actions,text='Stop',style='Stop.TButton',state='disabled',command=self.cancel)
         self.cancel_button.pack(side='right',padx=10)
         self.source.trace_add('write',self.source_changed)
-        self.protocol('WM_DELETE_WINDOW',self.close)
+        from remote_panel import RemotePanel
+        self.remote_panel=RemotePanel(self)
+        self.protocol('WM_DELETE_WINDOW',self.background)
+        self.bind('<Control-q>',lambda e:self.close())
+        self.after_idle(self.enable_background)
         self.after(150,self.poll)
         self.after(1000,self.timer)
         self.after_idle(self.enable_drop)
@@ -168,6 +186,39 @@ class ConverterUI(tk.Tk):
         options=dict(bg=CARD,fg=TEXT,font=('Segoe UI',10),bd=0,anchor='w')
         options.update(kw)
         return tk.Label(parent,text=text,**options)
+
+    def show_tab(self,tab):
+        self.local_frame.pack_forget();self.remote_panel.frame.pack_forget()
+        frame=self.remote_panel.frame if tab=='remote' else self.local_frame
+        if tab=='remote':frame.pack(fill='both',expand=True)
+        else:frame.pack(fill='both',expand=True,padx=26,pady=(18,16))
+
+    def enable_background(self):
+        if os.name!='nt':return
+        from windows_background import Notice,Tray
+        self.notifications=Notice(self)
+        try:self.tray=Tray(self,self.root_dir/'fjord.ico',self.restore,self.close)
+        except OSError:self.tray=None
+
+    def toggle_startup(self):
+        import windows_startup
+        try:windows_startup.configure(self.root_dir/'fjord_encode.pyw',self.startup.get())
+        except OSError:
+            self.startup.set(not self.startup.get())
+            messagebox.showerror('Opstart kunne ikke ændres','Windows kunne ikke gemme opstartsvalget. Prøv igen med din normale Windows-bruger.')
+
+    def background(self):
+        if self.tray:self.withdraw()
+        else:self.iconify()
+
+    def restore(self):
+        self.deiconify();self.lift();self.focus_set()
+
+    def notify_started(self,name):
+        if self.notifications:self.notifications.started(name)
+
+    def notify_eta(self,seconds):
+        if self.notifications:self.notifications.progress(seconds)
 
     def card(self,parent,padding=20):
         return tk.Frame(parent,bg=CARD,highlightbackground=LINE,highlightthickness=1,padx=padding,pady=padding)
@@ -195,6 +246,8 @@ class ConverterUI(tk.Tk):
         s.configure('Horizontal.TProgressbar',background=MINT,troughcolor='#23354a',bordercolor='#23354a',borderwidth=0,lightcolor=MINT,darkcolor=MINT,thickness=7)
 
     def _icon(self):
+        if (self.root_dir/'fjord.ico').exists():
+            self.iconbitmap(default=str(self.root_dir/'fjord.ico'))
         self.app_icon=tk.PhotoImage(width=32,height=32)
         self.app_icon.put('#173e3b',to=(0,0,32,32))
         for rect in ((9,7,13,26),(13,7,25,11),(13,15,22,19)):
@@ -257,9 +310,13 @@ class ConverterUI(tk.Tk):
         except OSError:
             messagebox.showerror('Indstillinger kunne ikke gemmes','Kontrollér skriveadgangen til programmets mappe.')
             return
+        if not self.gpu_lock.acquire(blocking=False):
+            self.status.set('Pc’en behandler et FjordSeed-job. Se FjordSeed-forbindelse.')
+            return
         self.running=True
         self.stop.clear()
         self.started=time.monotonic()
+        self.encoding_notice=False
         self.bar['value']=0
         self.percent.set('0 %')
         self.speed.set('—');self.remaining.set('—');self.elapsed.set('0:00')
@@ -272,7 +329,9 @@ class ConverterUI(tk.Tk):
             try:self.worker(source,folder,rate,lambda k,v:self.events.put((k,v)),self.stop)
             except self.cancelled:self.events.put(('error','Stoppet. En eventuel .partial.mkv er ufærdig.'))
             except Exception as exc:self.events.put(('error',str(exc)))
-            finally:self.events.put(('finished',None))
+            finally:
+                self.gpu_lock.release()
+                self.events.put(('finished',None))
         threading.Thread(target=work,daemon=True).start()
 
     def cancel(self):
@@ -286,13 +345,19 @@ class ConverterUI(tk.Tk):
         try:
             while True:
                 kind,value=self.events.get_nowait()
-                if kind=='drop':self.dropped(value)
-                elif kind=='status':self.status.set(value)
+                if kind=='remote':self.remote_panel.event(*value)
+                elif kind=='drop':self.dropped(value)
+                elif kind=='status':
+                    self.status.set(value)
+                    if value.startswith('Konverterer på NVIDIA') and not self.encoding_notice:
+                        self.encoding_notice=True
+                        self.notify_started(Path(self.source.get()).name)
                 elif kind=='log':self.logfile=value;self.log_button['state']='normal'
                 elif kind=='progress':
                     pct,fps,remaining=value
                     self.bar['value']=pct;self.percent.set(f'{pct:.0f} %')
                     self.speed.set(f'{fps:.1f} fps');self.remaining.set('≈ '+clock(remaining))
+                    self.notify_eta(remaining)
                 elif kind=='done':
                     self.output_file,seconds,report=value
                     self.bar['value']=100;self.percent.set('100 %')
@@ -313,4 +378,8 @@ class ConverterUI(tk.Tk):
 
     def close(self):
         if self.running:messagebox.showinfo('Konvertering i gang','Brug Stop, og vent på at jobbet afsluttes, før du lukker.')
-        else:self.destroy()
+        elif self.remote_panel.agent and self.remote_panel.agent.busy:
+            messagebox.showinfo('FjordSeed-job i gang','Afbryd forbindelsen under FjordSeed, og vent på at jobbet stopper.')
+        else:
+            if self.remote_panel.agent:self.remote_panel.agent.disconnect()
+            self.destroy()

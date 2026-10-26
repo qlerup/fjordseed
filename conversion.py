@@ -16,9 +16,10 @@ def choice(value):
     return value
 
 
-def available(root):
+def available(root,target='server'):
     try:
-        data = json.loads((Path(root)/'.incomplete'/HEARTBEAT).read_text())
+        heartbeat='.fjordseed-remote.json' if target=='pc' else HEARTBEAT
+        data = json.loads((Path(root)/'.incomplete'/heartbeat).read_text())
         return data.get('version') == 1 and 0 <= time.time()-data['at'] < 45
     except (OSError, ValueError, TypeError, KeyError):
         return False
@@ -27,8 +28,8 @@ def available(root):
 def require_enabled():
     from download_storage import read, SETTINGS, download_root
     if not read(SETTINGS, {}).get('conversion_enabled', False):
-        raise ValueError('Slå GPU-konvertering til under Streaming først.')
-    if not available(download_root()):
+        raise ValueError('Slå GPU-konvertering til under Indstillinger → Konvertering først.')
+    if not available(download_root(),read(SETTINGS,{}).get('conversion_target','server')):
         raise ValueError('GPU-konverteren er ikke klar til den valgte buffer. Download afventer.')
 
 
@@ -94,7 +95,8 @@ def reconcile(api, row, record):
             if request.get('files')!=names or request.get('bitrate')!=record['conversion_bitrate']:
                 raise ValueError('Konverteringsjobbet matcher ikke længere torrenten.')
         else:
-            request={'version':1,'id':uuid.uuid4().hex,'files':names,'bitrate':record['conversion_bitrate']}
+            request={'version':1,'id':uuid.uuid4().hex,'files':names,'bitrate':record['conversion_bitrate'],
+                     'executor':record.get('conversion_target','server')}
             atomic(request_path,json.dumps(request),mode=0o644)
         record['conversion_id']=request['id']
     result=status(record)

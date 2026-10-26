@@ -9,9 +9,6 @@
  }
  function render(data){
   $('#streaming-enabled').checked=data.enabled;
-  $('#conversion-enabled').checked=!!data.conversion_enabled;
-  $('#conversion-bitrate').value=String(data.conversion_bitrate||20);
-  $('#conversion-worker-status').textContent=data.conversion_error||(data.conversion_configured?'GPU-service er valgt i installationen. Downloads starter kun med konvertering, når workeren er klar.':'GPU-service er ikke valgt i installationen. Aktivér GPU-valget, når du installerer FjordSeed gennem FjordHub.');
   $('#streaming-move-retained').checked=!!data.move_retained;
   bufferWithoutFlix=data.buffer_when_disabled??(!data.enabled&&!!data.buffer_enabled);
   updateBuffer();
@@ -26,7 +23,7 @@
  }
  $('#streaming-form').onsubmit=async e=>{
   e.preventDefault();const button=$('#streaming-save');button.disabled=true;$('#streaming-error').hidden=true;
-  try{render(await api('/api/streaming',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:$('#streaming-enabled').checked,buffer_enabled:bufferWithoutFlix,move_retained:$('#streaming-move-retained').checked,conversion_enabled:$('#conversion-enabled').checked,conversion_bitrate:Number($('#conversion-bitrate').value)})}));window.dispatchEvent(new Event('conversion-settings-changed'));toast('Streamingvalget er gemt.');}
+  try{render(await api('/api/streaming',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:$('#streaming-enabled').checked,buffer_enabled:bufferWithoutFlix,move_retained:$('#streaming-move-retained').checked})}));window.dispatchEvent(new Event('conversion-settings-changed'));toast('Streamingvalget er gemt.');}
   catch(e){error('#streaming-error',e);}finally{button.disabled=false;}
  };
  $('#streaming-find').onclick=async()=>{

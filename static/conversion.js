@@ -6,7 +6,7 @@ function updateConversionChoice(prefix){
  input.disabled=!enabled&&!input.checked;
  $('#'+prefix+'-conversion-hint').textContent=enabled?
   'GPU · HEVC/MKV · '+conversionSettings.conversion_bitrate+' Mbps video. Lyd og undertekster bevares.':
-  'Konvertering er slået fra under Indstillinger → Streaming. Feeds med dette valg venter med nye downloads.';
+  'Konvertering er slået fra under Indstillinger → Konvertering. Feeds med dette valg venter med nye downloads.';
  $('#'+prefix+'-conversion-policy').hidden=!input.checked;
  $('#'+prefix+'-normal-seeding').hidden=input.checked;
  for(const field of $('#'+prefix+'-normal-seeding').querySelectorAll('input,select'))field.disabled=input.checked;

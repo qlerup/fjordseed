@@ -179,7 +179,7 @@ function card(t){const row=node('article','torrent'),head=node('div','torrent-he
  actions.prepend(toggle);head.append(actions);
  row.append(head,torrentProgress(t));
  if(t.conversion){
-  const c=t.conversion;row.append(node('p',c.state==='error'?'error small':'torrent-policy conversion-status',c.detail+(c.state==='encoding'?' · '+Number(c.progress||0).toFixed(1)+' %':'')));
+  const c=t.conversion;row.append(node('p',c.state==='error'?'error small':'torrent-policy conversion-status',c.detail+(['encoding','remote'].includes(c.state)?' · '+Number(c.progress||0).toFixed(1)+' %':'')));
   if(c.state==='error'){
    const retry=node('button','secondary','Prøv konvertering igen');retry.type='button';
    retry.onclick=async()=>{retry.disabled=true;try{await api(`/api/torrents/${t.hash}/conversion-retry`,{method:'POST'});await refresh();}catch(e){toast(e.message);}finally{retry.disabled=false;}};
@@ -206,7 +206,7 @@ function renderDownloadLists(data,filter='manual'){
    if(state?.active){state.idleSince=null;activeKeys.add(key);}
    continue;
   }
-  const transferring=Number(torrent.dlspeed)>0||Number(torrent.upspeed)>0||['queued','encoding','verifying','waiting_space','error'].includes(torrent.conversion?.state);
+  const transferring=Number(torrent.dlspeed)>0||Number(torrent.upspeed)>0||['queued','encoding','remote','verifying','waiting_space','error'].includes(torrent.conversion?.state);
   if(!state){state={active:transferring,idleSince:null};activity.rows.set(key,state);}
   if(transferring){state.active=true;state.idleSince=null;}
   else if(state.active){
@@ -433,9 +433,9 @@ $('#delete-form').onsubmit=async e=>{
 let downloadFilter='all';
 function showView(focus=false){
  const requested=location.hash==='#settings'?'connection':location.hash.slice(1);
- const view=['overview','torrents','streaming','storage','connection','trackers','rss'].includes(requested)?requested:'overview';
+ const view=['overview','torrents','streaming','storage','connection','trackers','rss','conversion'].includes(requested)?requested:'overview';
  const downloads=view==='torrents'||view==='rss';
- const settings=['connection','streaming','storage','trackers'].includes(view);
+ const settings=['connection','streaming','storage','trackers','conversion'].includes(view);
  $('#settings-tabs').hidden=!settings;
  document.querySelectorAll('#settings-tabs a').forEach(link=>{
   if(link.hash==='#'+view)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
@@ -445,7 +445,7 @@ function showView(focus=false){
  $('#download-toolbar').hidden=!downloads;$('#download-summary').hidden=!downloads;
  document.querySelectorAll('[data-download-filter]').forEach(button=>button.setAttribute('aria-pressed',button.dataset.downloadFilter===downloadFilter));
  const overview=view==='overview';$('#overview-view').hidden=!overview;
- const streaming=view==='streaming';$('#streaming-view').hidden=!streaming;
+ const streaming=view==='streaming';$('#streaming-view').hidden=!streaming;$('#conversion-view').hidden=view!=='conversion';
  const vpn=view==='connection',trackers=view==='trackers',rss=view==='rss',storage=view==='storage';
  $('#storage-view').hidden=!storage;
  // Keep the shared queue above the list it describes in each download view.
@@ -458,7 +458,8 @@ function showView(focus=false){
  if(streaming){$('#breadcrumb').textContent='Seedbox / Streaming';$('#page-title').textContent='Streaming';$('#page-description').textContent='Vælg buffer og forbind dine færdige downloads til FjordFlix.';}
  if(overview){$('#breadcrumb').textContent='Seedbox / Oversigt';$('#page-title').textContent='Din seedbox i overblik';$('#page-description').textContent='Følg din VPN-forbindelse, dine trackerkonti og din udvikling over tid.';}
  document.querySelectorAll('.nav').forEach(link=>{const active=link.hash==='#'+(settings?'settings':downloads?'torrents':view);link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
- if(settings){$('#breadcrumb').textContent='Seedbox / Indstillinger / '+({connection:'VPN-forbindelse',streaming:'Streaming',storage:'Lager og mapper',trackers:'Trackere'}[view]);$('#page-title').textContent='Indstillinger';}
+ if(settings){$('#breadcrumb').textContent='Seedbox / Indstillinger / '+({connection:'VPN-forbindelse',streaming:'Streaming',storage:'Lager og mapper',trackers:'Trackere',conversion:'Konvertering'}[view]);$('#page-title').textContent='Indstillinger';}
+ if(view==='conversion')$('#page-description').textContent='Vælg GPU-konvertering på serveren eller en tilsluttet pc.';
  if(downloads){$('#breadcrumb').textContent='Seedbox / Downloads';$('#page-title').textContent='Dine downloads';$('#page-description').textContent='Manuelle downloads og automatiske feeds. Samlet ét sted, gennem din VPN.';}
  $('#torrents h2').textContent=downloadFilter==='all'?'Alle downloads':'Manuelle downloads';
  if(downloads&&current){renderDownloadLists(current,downloadFilter);renderDownloadSummary(current);}

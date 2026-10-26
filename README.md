@@ -4,6 +4,11 @@ The standalone Windows GPU converter is in
 [`desktop-converter/`](desktop-converter/README.md), including the desktop UI,
 drag-and-drop support and an installer for its NVEncC toolchain.
 
+Conversion can also run on a paired Windows PC: see
+[PC conversion and device tokens](docs/pc-conversion.md). Conversion settings
+and PC pairing share **Indstillinger → Konvertering**. This mode needs no
+server GPU and remains disabled until explicitly enabled.
+
 A separate FjordHub seedbox with bundled qBittorrent. FjordVPN manages Proton profiles; installation starts no torrents. The interface currently uses Danish labels.
 
 ## Optional GPU conversion before library publication
@@ -15,7 +20,7 @@ builds a checksum-pinned NVEncC 9.39 toolchain, FFmpeg and MKVToolNix. FjordHub
 tests both NVENC and an actual NVEncC HEVC encode. No separate HandBrake Lab
 installation, fixed IP address or Proxmox container ID is required.
 
-In Seed, enable conversion under **Indstillinger → Streaming**, choose a video
+In Seed, enable conversion under **Indstillinger → Konvertering**, choose a video
 bitrate (20 Mbps by default), then opt in on individual manual downloads or RSS
 feeds. Feed edits affect future downloads only. Disabling the main switch stops
 new converted additions; already accepted jobs finish. Conversion-enabled feeds

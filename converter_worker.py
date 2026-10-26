@@ -136,6 +136,7 @@ def restore_flags(original,target):
 def run_job(work):
     work=checked(work)
     request=json.loads(checked(work/'request.json').read_text())
+    if request.get('executor','server')!='server':return
     ident=request.get('id','')
     if not re.fullmatch('[a-f0-9]{32}',ident):raise ValueError('Invalid job identity')
     try:

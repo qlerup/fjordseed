@@ -21,7 +21,7 @@ RUN curl --fail --location --retry 3 \
     && test "$(/out/qbittorrent-nox --version)" = "qBittorrent v${QBITTORRENT_VERSION}"
 
 FROM base
-RUN apk add --no-cache libtorrent-rasterbar qt6-qtbase
+RUN apk add --no-cache libtorrent-rasterbar qt6-qtbase ffmpeg mkvtoolnix
 COPY --from=qbittorrent-build /out/qbittorrent-nox /usr/bin/qbittorrent-nox
 RUN qbittorrent-nox --version
 WORKDIR /app
@@ -32,6 +32,7 @@ COPY templates ./templates
 COPY streaming.py ./
 COPY conversion.py ./
 COPY converter_runtime.py ./
+COPY converter_worker.py remote_conversion.py remote_helper.py ./
 COPY seed_potential.py ./
 COPY rss_history.py ./
 COPY tracker_credit.py ./

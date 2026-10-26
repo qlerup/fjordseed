@@ -41,6 +41,7 @@ class Streaming:
         return {'enabled':data.get('enabled',True),'buffer_enabled':storage['streaming_enabled'],
                 'conversion_enabled':data.get('conversion_enabled',False),
                 'conversion_bitrate':data.get('conversion_bitrate',20),
+                'conversion_target':data.get('conversion_target','server'),
                 'conversion_configured':bool(os.environ.get('FJORDSEED_CONVERTER_CONTAINER')),
                 'conversion_error':getattr(self.runtime,'conversion_error',''),
                 'move_retained':data.get('move_retained',False),
@@ -49,7 +50,9 @@ class Streaming:
                 'host_path':storage['path'],'library_path':data.get('library_path'),
                 'connected_host_path':data.get('host_path')}
 
-    def save(self,enabled,connection=None,buffer_enabled=None,move_retained=None,conversion_enabled=None,conversion_bitrate=None):
+    def save(self,enabled,connection=None,buffer_enabled=None,move_retained=None,conversion_enabled=None,conversion_bitrate=None,conversion_target=None):
+        if conversion_target is not None and conversion_target not in ('server','pc'):
+            raise ValueError('Vælg server eller pc til konvertering.')
         if conversion_enabled is not None and type(conversion_enabled) is not bool:
             raise ValueError('Vælg om GPU-konvertering skal være slået til.')
         if conversion_bitrate is not None and (type(conversion_bitrate) is not int or conversion_bitrate not in (10,15,20,25,30)):
@@ -67,6 +70,7 @@ class Streaming:
             if move_retained is not None:data['streaming']['move_retained']=move_retained
             if conversion_enabled is not None:data['streaming']['conversion_enabled']=conversion_enabled
             if conversion_bitrate is not None:data['streaming']['conversion_bitrate']=conversion_bitrate
+            if conversion_target is not None:data['streaming']['conversion_target']=conversion_target
             atomic(self.runtime.state.path,json.dumps(data))
             Storage(self.runtime).publish()
         return self.public()

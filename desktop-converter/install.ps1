@@ -3,7 +3,8 @@
 param(
     [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'FjordEncode'),
     [string]$ArchiveDirectory = '',
-    [switch]$NoShortcut
+    [switch]$NoShortcut,
+    [switch]$SourceOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -45,7 +46,7 @@ foreach ($name in @('nvenc', 'ffmpeg', 'mkvtoolnix')) {
     if ($LASTEXITCODE -ne 0) { throw "Extraction failed for $name." }
 }
 
-foreach ($file in @('fjord_encode.pyw', 'fjord_ui.py', 'encode_core.py', 'windows_drop.py', 'fjord.ico')) {
+foreach ($file in @('fjord_encode.pyw', 'fjord_ui.py', 'encode_core.py', 'windows_drop.py', 'remote_agent.py', 'remote_panel.py', 'windows_secret.py', 'windows_background.py', 'windows_startup.py', 'windows_instance.py', 'fjord.ico')) {
     $source = Join-Path $PSScriptRoot $file
     $destination = Join-Path $InstallDir $file
     if ([IO.Path]::GetFullPath($source) -ne [IO.Path]::GetFullPath($destination)) {
@@ -60,11 +61,22 @@ if ($LASTEXITCODE -ne 0) { throw 'FFprobe could not start.' }
 & (Join-Path $InstallDir 'mkvtoolnix\mkvpropedit.exe') --version
 if ($LASTEXITCODE -ne 0) { throw 'MKVToolNix could not start.' }
 
+$executable = Join-Path $InstallDir 'Fjord-konvertering.exe'
+if (-not $SourceOnly) {
+    & python.exe (Join-Path $PSScriptRoot 'build_windows.py') --install-dir $InstallDir
+    if ($LASTEXITCODE -ne 0) { throw 'Could not build Fjord-konvertering.exe. Close the app before updating.' }
+}
+
 if (-not $NoShortcut) {
     $shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Fjord-konvertering.lnk'
     $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = $pythonGui
-    $shortcut.Arguments = '"' + (Join-Path $InstallDir 'fjord_encode.pyw') + '"'
+    if (-not $SourceOnly) {
+        $shortcut.TargetPath = $executable
+        $shortcut.Arguments = ''
+    } else {
+        $shortcut.TargetPath = $pythonGui
+        $shortcut.Arguments = '"' + (Join-Path $InstallDir 'fjord_encode.pyw') + '"'
+    }
     $shortcut.WorkingDirectory = $InstallDir
     $shortcut.IconLocation = Join-Path $InstallDir 'fjord.ico'
     $shortcut.Description = 'Fjord GPU video conversion'

@@ -1,9 +1,9 @@
 # Preservation and encoding routines copied from FjordSeed converter_worker.py.
-import json, os, subprocess as _subprocess
+import json, os, sys, subprocess as _subprocess
 from pathlib import Path
 from collections import Counter
 from fractions import Fraction
-ROOT=Path(__file__).resolve().parent
+ROOT=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else Path(__file__).resolve().parent
 FFPROBE=ROOT/'ffmpeg'/'bin'/'ffprobe.exe'
 if not FFPROBE.exists():
     FFPROBE=ROOT/'ffmpeg-master-latest-win64-gpl'/'bin'/'ffprobe.exe'

@@ -66,6 +66,10 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                 allowed = False
             if not allowed:
                 return jsonify(error='Ukendt værtsnavn.'), 403
+        # Device routes require their own scoped Bearer token, never a browser
+        # session. Their blueprint performs authentication before any work.
+        if request.blueprint == 'conversion_worker':
+            return
         if request.method == 'POST':
             expected = session.get('csrf','')
             actual = request.headers.get('X-CSRF-Token') or request.form.get('csrf','')
@@ -677,6 +681,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         threading.Thread(target=trackers.benefits.run, args=(stop,), daemon=True).start()
         threading.Thread(target=covers.run, args=(stop,), daemon=True).start()
         threading.Thread(target=rss_gate.run, args=(stop,), daemon=True).start()
+    from remote_conversion import register as register_remote_conversion
+    register_remote_conversion(app,state,runtime)
     return app
 
 

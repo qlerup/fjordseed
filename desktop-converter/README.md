@@ -1,8 +1,8 @@
 # Fjord-konvertering til Windows
 
-Det selvstændige pc-program med mørkt Fjord-design og NVIDIA GPU-konvertering.
-Det kræver ingen FjordSeed-server eller login. Konvertering på pc'en starter
-ikke konvertering i FjordSeed.
+Pc-programmet med mørkt Fjord-design og NVIDIA GPU-konvertering. Det kan både
+bruges lokalt uden login og forbindes til FjordSeed som ekstern GPU-worker.
+Lokale film starter ikke et download eller konverteringsjob på serveren.
 
 ## Installation
 
@@ -22,6 +22,18 @@ SHA-256 og opretter genvejen **Fjord-konvertering** på skrivebordet. Den kræve
 ikke administratorrettigheder. Programmet installeres i
 `%LOCALAPPDATA%\FjordEncode`. En eventuel lokal PowerShell-politik kan kræve,
 at du godkender den downloadede installationsfil, før Windows vil køre den.
+
+Installationen bygger en almindelig `Fjord-konvertering.exe` med indlejret ikon
+ved hjælp af PyInstaller 6.22.3 fra PyPI. Python kræves til installation/bygning;
+den færdige EXE indeholder sin egen Python/Tk-runtime. Værktøjerne fra `tools.json`
+skal fortsat ligge ved siden af EXE’en. `-SourceOnly` springer EXE-bygningen over.
+EXE’er og byggede binære værktøjer lægges ikke i Git.
+
+Genbyg EXE’en fra kildekoden med:
+
+```powershell
+python .\build_windows.py
+```
 
 Alternativ mappe og ingen skrivebordsgenvej:
 
@@ -54,6 +66,36 @@ omdøbt til den færdige MKV, når kontrollen består. Ved stop/fejl beholdes
 ufærdig fil og log til undersøgelse. Den valgte mappe skal have mindst
 originalfilens størrelse plus 1 GiB ledigt.
 
+## Forbind til FjordSeed
+
+Åbn **FjordSeed-forbindelse**, og indsæt serveradressen og et pc-token fra
+**Indstillinger → Konvertering** i FjordSeed. Vælg lokal midlertidig plads, og
+tryk **Forbind og hent jobs**. Programmet tester GPU’en, henter et job,
+konverterer og returnerer resultatet. Serveren kontrollerer og publicerer filen
+i biblioteket. Se [hele forløbet og API’et](../docs/pc-conversion.md).
+
+Pc-tokenet gemmes krypteret med Windows DPAPI, aldrig som klartekst i
+indstillingerne. **Forbind automatisk, når programmet åbnes** er et separat
+valg. Lokal konvertering og FjordSeed-jobs deler samme GPU-lås, så de ikke
+starter samtidig i samme program.
+
+## Baggrund, beskeder og Windows-opstart
+
+- **Kør i baggrunden** og vinduets lukkeknap skjuler vinduet ved uret.
+  Konverteringer og FjordSeed-forbindelsen fortsætter.
+- Klik på Fjord-ikonet ved uret for at åbne igen. Højreklik giver **Åbn** og
+  **Afslut**. Windows kan placere ikonet under pilen med skjulte ikoner.
+- **Afslut** eller `Ctrl+Q` lukker programmet. Stop først et aktivt job.
+- Når en film begynder at blive konverteret, vises filnavnet i en lille besked
+  nederst til højre. Estimeret resterende tid opdateres, når encoderen leverer
+  de første målinger. Beskeden tager ikke tastaturfokus og forsvinder automatisk.
+- **Start med Windows** tilføjer/fjerner programmets egen HKCU Run-værdi for
+  den aktuelle bruger. Det kræver ikke administratorrettigheder og er slået fra
+  som udgangspunkt. Automatisk opstart bruger `--background`.
+- Programmet kører kun én gang pr. installation; en ny åbning viser det
+  eksisterende vindue. Det har sit eget Fjord-ikon og AppUserModelID, så det
+  grupperes separat fra Python på proceslinjen.
+
 ## Samme konvertering som FjordSeed
 
 - NVEncC **9.39**, NVIDIA NVENC, HEVC, preset `quality`.
@@ -82,6 +124,11 @@ konvertering skal disse funktioner også opdateres her.
 - `encode_core.py`: encoderkommando og kontrol af resultatet.
 - `fjord.ico`: program- og genvejsikon.
 - `tools.json` / `install.ps1`: versionsfastlåste downloads og checksums.
+- `remote_agent.py` / `remote_panel.py`: forbindelsen og joboverførslen til FjordSeed.
+- `windows_secret.py`: tokenlagring med DPAPI.
+- `windows_background.py`: ikon ved uret og beskeder med forventet tid.
+- `windows_startup.py` / `windows_instance.py`: valgfri opstart og én programinstans.
+- `make_icon.py`: genererer Fjord-ikonet i størrelser fra 16 til 256 pixels.
 
 Python-koden bruger kun standardbiblioteket. Binære værktøjer downloades separat
 og distribueres under deres respektive licenser:

@@ -1,0 +1,73 @@
+import hashlib
+import json
+from pathlib import PurePosixPath
+from unittest.mock import Mock
+
+import pytest
+
+from app import create_app
+from test_app import FakeRuntime,login
+
+
+@pytest.fixture
+def setup(tmp_path):
+    app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
+    app.extensions['runtime'].host_downloads=PurePosixPath('/downloads')
+    manager=app.extensions['remote_conversion']
+    manager.rpc=Mock(return_value=None)
+    client,headers=login(app)
+    return app,manager,client,headers
+
+
+def test_tokens_are_scoped_hashed_revocable_and_never_listed(setup):
+    app,manager,client,h=setup
+    assert app.test_client().post('/api/conversion/devices',json={'name':'PC'}).status_code==403
+    assert client.post('/api/conversion/devices',json={'name':'PC'}).status_code==403
+    created=client.post('/api/conversion/devices',json={'name':'PC'},headers=h)
+    assert created.status_code==201
+    token=created.json['token'];ident=created.json['id']
+    raw=manager.path.read_text()
+    assert token not in raw and hashlib.sha256(token.encode()).hexdigest() in raw
+    assert token not in client.get('/api/conversion').get_data(as_text=True)
+    worker=app.test_client();auth={'Authorization':'Bearer '+token}
+    assert worker.post('/api/conversion/worker/claim',headers=auth,json={}).status_code==200
+    assert worker.get('/api/status',headers=auth).status_code==401
+    assert worker.post('/api/conversion/worker/claim').status_code==401
+    assert client.post('/api/conversion/worker/claim',json={}).status_code==401
+    assert client.post('/api/conversion/devices/'+ident+'/revoke',headers=h).status_code==200
+    assert worker.post('/api/conversion/worker/claim',headers=auth,json={}).status_code==401
+
+
+def test_remote_device_heartbeat_and_bounded_upload(setup):
+    app,manager,client,h=setup
+    token=client.post('/api/conversion/devices',json={'name':'PC'},headers=h).json['token']
+    auth={'Authorization':'Bearer '+token};worker=app.test_client()
+    assert worker.post('/api/conversion/worker/heartbeat',headers=auth,json={'version':1,'gpu_ready':False}).status_code==409
+    assert worker.post('/api/conversion/worker/heartbeat',headers=auth,json={'version':1,'gpu_ready':True}).status_code==200
+    assert manager.public()[0]['online']
+    assert manager.rpc.call_args.args[0]=='heartbeat'
+    manager.upload=Mock(return_value={'offset':4})
+    result=worker.put('/api/conversion/worker/jobs/'+'a'*32+'/files/0?offset=0',headers={**auth,'X-Job-Lease':'b'*32},data=b'file')
+    assert result.status_code==200 and manager.upload.call_args.args[2]==b'file'
+    assert worker.put('/api/conversion/worker/jobs/'+'a'*32+'/files/0?offset=-1',headers=auth,data=b'x').status_code==409
+    assert worker.put('/api/conversion/worker/jobs/'+'a'*32+'/files/0?offset=0',headers=auth,data=b'x'*(8*1024*1024+1)).status_code==413
+
+
+def test_conversion_settings_separate_from_streaming_and_default_off(setup):
+    app,manager,client,h=setup
+    assert client.get('/api/conversion').json['conversion_enabled'] is False
+    result=client.post('/api/conversion',headers=h,json={'conversion_enabled':False,'conversion_bitrate':20,'conversion_target':'pc'})
+    assert result.status_code==200 and result.json['conversion_target']=='pc'
+    assert result.json['enabled'] is True and result.json['conversion_enabled'] is False
+    assert app.extensions['state'].get()['streaming']['conversion_target']=='pc'
+    for body in ([],{'conversion_target':'anywhere'},{'conversion_target':'pc','conversion_enabled':'yes'}):
+        assert client.post('/api/conversion',headers=h,json=body).status_code==400
+
+
+def test_conversion_controls_live_in_their_own_settings_tab(setup):
+    app,manager,client,h=setup
+    html=client.get('/').get_data(as_text=True)
+    assert 'href="#conversion"' in html and 'id="conversion-view"' in html
+    stream=html.split('id="streaming-view"',1)[1].split('id="conversion-view"',1)[0]
+    assert 'id="conversion-enabled"' not in stream
+    assert html.count('id="conversion-enabled"')==1

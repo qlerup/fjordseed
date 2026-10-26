@@ -212,7 +212,9 @@ def prepare(hashes, folder='', name='', convert=False):
             else:raise ValueError('Kunne ikke oprette en unik downloadmappe.')
             record = {'stage': str(stage), 'target': str(destination), 'published': False}
             if convert:
-                record.update(convert=True,conversion_bitrate=read(SETTINGS,{}).get('conversion_bitrate',20))
+                settings=read(SETTINGS,{})
+                record.update(convert=True,conversion_bitrate=settings.get('conversion_bitrate',20),
+                              conversion_target=settings.get('conversion_target','server'))
             if not buffered:
                 # Lightweight marker also protects a future Flix connection from
                 # indexing these files before the entire torrent is complete.
