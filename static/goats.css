@@ -1,0 +1,6 @@
+.goat-mountain{position:fixed;inset:0;pointer-events:none;z-index:3;overflow:hidden}
+.mountain-goat{position:absolute;left:0;top:0;width:58px;height:48px;padding:0;border:0;background:none;pointer-events:auto;touch-action:none;user-select:none;cursor:grab;transform-origin:center;filter:drop-shadow(0 3px 3px #04091999);-webkit-user-select:none}
+.mountain-goat svg{width:100%;height:100%;transform:scaleX(var(--facing,1));overflow:visible}.mountain-goat.is-held{cursor:grabbing;filter:drop-shadow(0 0 7px #a9f6da);z-index:1}.mountain-goat:focus-visible{outline:2px solid #a9f6da;border-radius:12px}
+.is-walking .goat-legs{transform-origin:50% 65%;animation:goat-step .4s ease-in-out infinite alternate}.is-walking .goat-face{animation:goat-nod 1.2s ease-in-out infinite alternate;transform-origin:70% 35%}
+@keyframes goat-step{to{transform:skewX(12deg)}}@keyframes goat-nod{to{transform:rotate(-7deg)}}
+@media(prefers-reduced-motion:reduce){.mountain-goat *{animation:none!important}}
