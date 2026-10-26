@@ -115,7 +115,7 @@ class Storage:
         streaming=self.runtime.state.get().get('streaming',{})
         config={'path':path,'streaming_enabled':buffer_enabled(streaming),
                 'conversion_enabled':streaming.get('conversion_enabled',False),
-                'conversion_bitrate':streaming.get('conversion_bitrate',20),
+                'conversion_bitrate':streaming.get('conversion_bitrate',30),
                 'conversion_target':streaming.get('conversion_target','server')}
         if (streaming.get('enabled',True) and streaming.get('move_retained') is True
                 and streaming.get('library_path') and streaming.get('host_path')==self.public()['path']):

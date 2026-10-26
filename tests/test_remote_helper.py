@@ -78,3 +78,12 @@ def test_symlinks_and_traversal_are_rejected(job):
     original['files'][0]['name']='film.mkv';(work/'request.json').write_text(json.dumps(original))
     (work.parent/'film.mkv').unlink();(work.parent/'film.mkv').symlink_to('/etc/passwd')
     with pytest.raises(ValueError):helper.dispatch({**data,'action':'read','offset':0,'size':8})
+
+
+@pytest.mark.parametrize('rate',[10,15,20,25,30,40])
+def test_broker_keeps_quality_choice_including_legacy_jobs(job,rate):
+    work,claim,data=job
+    request=helper.read(work/'request.json')
+    request['bitrate']=rate
+    (work/'request.json').write_text(json.dumps(request))
+    assert helper.manifest(work,request)

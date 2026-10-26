@@ -28,7 +28,7 @@ class RemotePanel:
         bg='#0b1220';muted='#9caec5'
         self.frame=tk.Frame(app,bg=bg,padx=26,pady=20)
         app.label(self.frame,'Konvertér for FjordSeed',bg=bg,font=('Segoe UI',25,'bold')).pack(anchor='w',pady=(6,7))
-        app.label(self.frame,'Brug pc’ens GPU, og send den færdige film tilbage til biblioteket.',bg=bg,fg=muted,font=('Segoe UI',11)).pack(anchor='w',pady=(0,20))
+        app.label(self.frame,'Brug pc’ens GPU, og send den færdige film tilbage til biblioteket. Kvaliteten vælges i FjordSeed.',bg=bg,fg=muted,font=('Segoe UI',11)).pack(anchor='w',pady=(0,20))
         card=app.card(self.frame);card.pack(fill='x');card.columnconfigure(0,weight=1)
         app.label(card,'01  /  FORBIND PC OG SERVER',fg=muted,font=('Segoe UI',9,'bold')).grid(row=0,column=0,columnspan=2,sticky='w',pady=(0,14))
         app.label(card,'FjordSeed-adresse').grid(row=1,column=0,columnspan=2,sticky='w')

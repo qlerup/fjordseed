@@ -61,7 +61,7 @@ def read(path, default=None):
 def manifest(work, request):
     if not re.fullmatch('[a-f0-9]{32}', request.get('id', '')):
         raise ValueError('Ugyldigt job.')
-    if request.get('version') != 1 or request.get('bitrate') not in (10,15,20,25,30):
+    if request.get('version') != 1 or request.get('bitrate') not in (10,15,20,25,30,40):
         raise ValueError('Ugyldige konverteringsindstillinger.')
     files = request.get('files')
     if not isinstance(files, list) or not 1 <= len(files) <= 10000:

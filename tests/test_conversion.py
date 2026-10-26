@@ -122,3 +122,11 @@ def test_gpu_preserves_tracks_and_rejects_missing_dovi():
 def test_unsupported_dovi_fails_without_losing_original():
     data=media();data['streams'][0]['side_data_list'][0]['dv_profile']=5
     with pytest.raises(ValueError,match='Dolby Vision'):command('in','out',20,data)
+
+
+@pytest.mark.parametrize('rate',[20,30,40])
+def test_quality_choice_reaches_encoder_with_variable_bitrate(rate):
+    args=command(Path('in.mkv'),Path('out.mkv'),rate,media())
+    assert args[args.index('--vbr')+1]==str(rate*1000)
+    assert args[args.index('--max-bitrate')+1]==str(rate*1500)
+    assert args[args.index('--output-depth')+1]=='10'

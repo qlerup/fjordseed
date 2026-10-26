@@ -16,6 +16,7 @@ TEXT = '#edf3fb'
 MUTED = '#9caec5'
 MINT = '#7ce4c4'
 BLUE = '#8eb8ff'
+QUALITY_CHOICES = {20: '20 Mbps – spar plads', 30: '30 Mbps – balance (anbefalet)', 40: '40 Mbps – høj kvalitet'}
 
 
 def clock(seconds):
@@ -46,8 +47,11 @@ class ConverterUI(tk.Tk):
         default.mkdir(exist_ok=True)
         self.source = tk.StringVar()
         self.folder = tk.StringVar(value=settings.get('folder', str(default)))
-        rate = settings.get('bitrate', 20)
-        self.bitrate = tk.StringVar(value=str(rate if rate in (10,15,20,25,30) else 20))
+        rate = settings.get('bitrate', 30)
+        self.rate_choices = dict(QUALITY_CHOICES)
+        if type(rate) is int and rate in (10,15,25):
+            self.rate_choices[rate] = f'{rate} Mbps – tidligere valg'
+        self.bitrate = tk.StringVar(value=self.rate_choices.get(rate, QUALITY_CHOICES[30]))
         self.filename = tk.StringVar(value='Ingen film valgt endnu')
         self.status = tk.StringVar(value='Vælg en film, så er du klar.')
         self.percent = tk.StringVar(value='0 %')
@@ -136,10 +140,9 @@ class ConverterUI(tk.Tk):
         self.divider(recipe).pack(fill='x',pady=(12,10))
         rate_row=tk.Frame(recipe,bg=CARD)
         rate_row.pack(fill='x')
-        self.label(rate_row,'Video-bitrate',font=('Segoe UI',10)).pack(side='left')
-        self.rate_box=ttk.Combobox(rate_row,textvariable=self.bitrate,values=(10,15,20,25,30),state='readonly',width=4)
-        self.rate_box.pack(side='left',padx=(10,6))
-        self.label(rate_row,'Mbps',fg=MUTED,font=('Segoe UI',9)).pack(side='left')
+        self.label(rate_row,'Videokvalitet',font=('Segoe UI',10)).pack(anchor='w')
+        self.rate_box=ttk.Combobox(rate_row,textvariable=self.bitrate,values=tuple(self.rate_choices.values()),state='readonly',width=30)
+        self.rate_box.pack(fill='x',pady=(6,0))
         info=tk.Label(recipe,text='* Om kvalitet og Dolby Vision',fg=BLUE,bg=CARD,cursor='hand2',font=('Segoe UI',9),anchor='w',takefocus=True)
         info.pack(anchor='w',pady=(14,0))
         info.bind('<Button-1>',lambda e:self.show_info())
@@ -294,7 +297,7 @@ class ConverterUI(tk.Tk):
         if name:self.folder.set(name)
 
     def show_info(self):
-        messagebox.showinfo('Dine Fjord-indstillinger','GPU: NVIDIA NVENC · HEVC quality\nOriginal opløsning og billedhastighed bevares.\nLyd, undertekster og kapitler kopieres.\n\nHDR10 bevares, når det findes i originalen. Dolby Vision-profil 7/8.1 konverteres til 8.1; profil 7’s ekstra billedlag følger ikke med. Andre Dolby Vision-profiler afvises.\n\n20 Mbps er videoens gennemsnitlige mål. Lyd lægges oveni. Lavere bitrate kan koste detaljer. Resultatet kontrolleres før det meldes færdigt.')
+        messagebox.showinfo('Dine Fjord-indstillinger','GPU: NVIDIA NVENC · HEVC quality\nOriginal opløsning og billedhastighed bevares.\nLyd, undertekster og kapitler kopieres.\n\nHDR10 bevares, når det findes i originalen. Dolby Vision-profil 7/8.1 konverteres til 8.1; profil 7’s ekstra billedlag følger ikke med. Andre Dolby Vision-profiler afvises.\n\nVælg 20 Mbps for at spare plads, 30 Mbps for balance eller 40 Mbps for høj kvalitet. Valget er videoens gennemsnitlige mål. Lyd lægges oveni. Lavere bitrate kan koste detaljer. Resultatet kontrolleres før det meldes færdigt.')
 
     def start(self):
         if self.running:return
@@ -305,7 +308,7 @@ class ConverterUI(tk.Tk):
             self.badge.set('●  VÆLG FILM')
             self.source_entry.focus_set()
             return
-        rate=int(self.bitrate.get())
+        rate=next(rate for rate,label in self.rate_choices.items() if label==self.bitrate.get())
         try:self.config_path.write_text(json.dumps({'folder':folder,'bitrate':rate}),encoding='utf-8')
         except OSError:
             messagebox.showerror('Indstillinger kunne ikke gemmes','Kontrollér skriveadgangen til programmets mappe.')

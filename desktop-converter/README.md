@@ -99,7 +99,11 @@ starter samtidig i samme program.
 ## Samme konvertering som FjordSeed
 
 - NVEncC **9.39**, NVIDIA NVENC, HEVC, preset `quality`.
-- Standard: **20 Mbps video**, maksimum/VBV 30 Mbps. Valg: 10/15/20/25/30 Mbps.
+- Valg: **20 Mbps – spar plads**, **30 Mbps – balance (anbefalet)** og
+  **40 Mbps – høj kvalitet**. Nye installationer starter på 30 Mbps.
+  Maksimum/VBV er 1,5 gange den valgte bitrate (30/45/60 Mbps).
+  Tidligere gemte valg og allerede oprettede FjordSeed-jobs bevares.
+  Pc-jobs bruger FjordSeeds bitrate; programmets valg gælder lokale film.
 - Original opløsning, billedhastighed og farver; MKV som container.
 - CPU-afkodning (`--avsw`), GPU-encoding. Ingen automatisk CPU-encoding.
 - Lyd, undertekster, vedhæftninger, metadata og kapitler kopieres.

@@ -21,7 +21,8 @@ tests both NVENC and an actual NVEncC HEVC encode. No separate HandBrake Lab
 installation, fixed IP address or Proxmox container ID is required.
 
 In Seed, enable conversion under **Indstillinger → Konvertering**, choose a video
-bitrate (20 Mbps by default), then opt in on individual manual downloads or RSS
+bitrate (30 Mbps by default; 20 Mbps saves space, 30 Mbps balances size and quality,
+and 40 Mbps prioritizes quality), then opt in on individual manual downloads or RSS
 feeds. Feed edits affect future downloads only. Disabling the main switch stops
 new converted additions; already accepted jobs finish. Conversion-enabled feeds
 wait for re-enablement or for their conversion option to be cleared, rather than

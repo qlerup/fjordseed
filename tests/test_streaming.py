@@ -104,7 +104,7 @@ def test_toggle_preserves_vpn_storage_and_existing_torrents_without_restart(tmp_
     assert r.state.get()['profile_id']=='a'*32 and r.state.get()['enabled'] is True
     assert Storage(r).public()['buffer'] is None
     settings=json.loads((tmp_path/'rpc/download-settings.json').read_text())
-    assert settings=={'path':'/downloads','streaming_enabled':False,'conversion_enabled':False,'conversion_bitrate':20,'conversion_target':'server'}
+    assert settings=={'path':'/downloads','streaming_enabled':False,'conversion_enabled':False,'conversion_bitrate':30,'conversion_target':'server'}
     r.stop.assert_not_called()
     assert Streaming(r).public()['enabled'] is False
     assert streaming.save(True)['enabled'] is True

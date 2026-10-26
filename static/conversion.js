@@ -1,4 +1,4 @@
-let conversionSettings={conversion_enabled:false,conversion_bitrate:20};
+let conversionSettings={conversion_enabled:false,conversion_bitrate:30};
 function updateConversionChoice(prefix){
  const input=$('#'+prefix+'-convert');
  const enabled=conversionSettings.conversion_enabled;

@@ -22,7 +22,7 @@
   if(location.hash!=='#conversion')return;
   try{
    const data=await api('/api/conversion');
-   if(form){$('#conversion-enabled').checked=!!data.conversion_enabled;$('#conversion-bitrate').value=String(data.conversion_bitrate||20);$('#conversion-target').value=data.conversion_target||'server';}
+   if(form){$('#conversion-enabled').checked=!!data.conversion_enabled;const rate=String(data.conversion_bitrate||30);const rates=$('#conversion-bitrate');rates.querySelectorAll('[data-legacy]').forEach(option=>option.remove());if(![...rates.options].some(option=>option.value===rate)){const option=new Option(rate+' Mbps – tidligere valg',rate);option.dataset.legacy='true';rates.add(option);}rates.value=rate;$('#conversion-target').value=data.conversion_target||'server';}
    devices(data);$('#conversion-server-address').value=location.origin;
   }catch(e){error('#conversion-settings-error',e);}
  }

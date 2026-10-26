@@ -40,7 +40,7 @@ class Streaming:
         storage=Storage(self.runtime).public()
         return {'enabled':data.get('enabled',True),'buffer_enabled':storage['streaming_enabled'],
                 'conversion_enabled':data.get('conversion_enabled',False),
-                'conversion_bitrate':data.get('conversion_bitrate',20),
+                'conversion_bitrate':data.get('conversion_bitrate',30),
                 'conversion_target':data.get('conversion_target','server'),
                 'conversion_configured':bool(os.environ.get('FJORDSEED_CONVERTER_CONTAINER')),
                 'conversion_error':getattr(self.runtime,'conversion_error',''),
@@ -55,8 +55,8 @@ class Streaming:
             raise ValueError('Vælg server eller pc til konvertering.')
         if conversion_enabled is not None and type(conversion_enabled) is not bool:
             raise ValueError('Vælg om GPU-konvertering skal være slået til.')
-        if conversion_bitrate is not None and (type(conversion_bitrate) is not int or conversion_bitrate not in (10,15,20,25,30)):
-            raise ValueError('Vælg en videobitrate mellem 10 og 30 Mbps.')
+        if conversion_bitrate is not None and (type(conversion_bitrate) is not int or conversion_bitrate not in (10,15,20,25,30,40)):
+            raise ValueError('Vælg 20, 30 eller 40 Mbps.')
         if type(enabled) is not bool:
             raise ValueError('Vælg om streaming skal være slået til.')
         if buffer_enabled is not None and type(buffer_enabled) is not bool:

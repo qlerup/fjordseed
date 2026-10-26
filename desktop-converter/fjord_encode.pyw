@@ -28,7 +28,7 @@ def convert(source, folder, bitrate, notify, stop):
         raise ValueError('Kildefilen findes ikke.')
     if not folder.is_dir():
         raise ValueError('Vælg en eksisterende mappe til resultatet.')
-    if bitrate not in (10, 15, 20, 25, 30):
+    if bitrate not in (10, 15, 20, 25, 30, 40):
         raise ValueError('Ugyldig bitrate.')
     for tool in core.TOOLS.values():
         if not tool.is_file():

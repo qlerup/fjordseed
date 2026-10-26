@@ -116,7 +116,7 @@ def test_converted_rss_uses_buffer_and_fixed_retention(gate,monkeypatch):
     assert options['shareLimitAction']=='RemoveWithContent'
     assert Path(options['savepath']).parent.name=='.incomplete'
     saved=storage.read(storage.CONFIG/'download-storage.json',{})[candidate['meta']['hashes'][0]]
-    assert saved['convert'] and saved['conversion_bitrate']==20
+    assert saved['convert'] and saved['conversion_bitrate']==30
 
 
 def test_rss_downloads_directly_when_streaming_is_disabled(gate,monkeypatch):

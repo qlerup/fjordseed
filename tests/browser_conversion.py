@@ -27,6 +27,14 @@ with tempfile.TemporaryDirectory() as folder:
    page.locator('.nav[href="#settings"]').click()
    page.locator('#settings-tabs a[href="#conversion"]').click()
    expect(page.locator('#conversion-enabled')).not_to_be_checked()
+   expect(page.locator('#conversion-bitrate')).to_have_value('30')
+   assert page.locator('#conversion-bitrate option').evaluate_all('(options)=>options.map(o=>o.value)')==['20','30','40']
+   for rate in ('20','30','40'):
+    page.locator('#conversion-bitrate').select_option(rate)
+    page.locator('#conversion-settings-save').click()
+    expect(page.locator('#toast')).to_contain_text('gemt')
+    page.reload()
+    expect(page.locator('#conversion-bitrate')).to_have_value(rate)
    page.locator('#conversion-enabled').check()
    page.locator('#conversion-settings-save').click()
    expect(page.locator('#toast')).to_contain_text('gemt')

@@ -71,3 +71,24 @@ def test_conversion_controls_live_in_their_own_settings_tab(setup):
     stream=html.split('id="streaming-view"',1)[1].split('id="conversion-view"',1)[0]
     assert 'id="conversion-enabled"' not in stream
     assert html.count('id="conversion-enabled"')==1
+
+
+@pytest.mark.parametrize('rate',[20,30,40])
+def test_quality_choices_are_saved_and_returned_for_pc_jobs(setup,rate):
+    app,manager,client,h=setup
+    assert client.get('/api/conversion').json['conversion_bitrate']==30
+    result=client.post('/api/conversion',headers=h,json={
+        'conversion_enabled':False,'conversion_bitrate':rate,'conversion_target':'pc'})
+    assert result.status_code==200
+    assert result.json['conversion_bitrate']==rate
+    assert client.get('/api/conversion').json['conversion_bitrate']==rate
+    assert app.extensions['runtime'].state.get()['streaming']['conversion_bitrate']==rate
+
+
+@pytest.mark.parametrize('rate',[0,21,50,True,'40'])
+def test_invalid_quality_choices_are_rejected(setup,rate):
+    app,manager,client,h=setup
+    result=client.post('/api/conversion',headers=h,json={
+        'conversion_enabled':False,'conversion_bitrate':rate,'conversion_target':'pc'})
+    assert result.status_code==400
+    assert client.get('/api/conversion').json['conversion_bitrate']==30

@@ -213,7 +213,7 @@ def prepare(hashes, folder='', name='', convert=False):
             record = {'stage': str(stage), 'target': str(destination), 'published': False}
             if convert:
                 settings=read(SETTINGS,{})
-                record.update(convert=True,conversion_bitrate=settings.get('conversion_bitrate',20),
+                record.update(convert=True,conversion_bitrate=settings.get('conversion_bitrate',30),
                               conversion_target=settings.get('conversion_target','server'))
             if not buffered:
                 # Lightweight marker also protects a future Flix connection from

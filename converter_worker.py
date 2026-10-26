@@ -140,7 +140,7 @@ def run_job(work):
     ident=request.get('id','')
     if not re.fullmatch('[a-f0-9]{32}',ident):raise ValueError('Invalid job identity')
     try:
-        if request.get('version')!=1 or type(request.get('bitrate')) is not int or request['bitrate'] not in (10,15,20,25,30):
+        if request.get('version')!=1 or type(request.get('bitrate')) is not int or request['bitrate'] not in (10,15,20,25,30,40):
             raise ValueError('Ugyldige konverteringsindstillinger.')
         files=request.get('files')
         if not isinstance(files,list) or not 1<=len(files)<=10000:raise ValueError('Ugyldig filliste.')
