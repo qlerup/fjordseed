@@ -96,3 +96,6 @@ dialog::backdrop{background:#060b1ad9}
 body:has(.ambient-scene) aside{background:#0b1635c9;border-color:#6a8bd14d}
 body:has(.ambient-scene) header{border-bottom-color:#6686c547}
 @media(max-width:800px){.ambient-scene{background-position:64% center}body:has(.ambient-scene) aside{background:#0b1635ed}}
+
+/* Let the landscape show through settings cards. */
+body:has(.ambient-scene) .connection{background:#1b2542b3}
