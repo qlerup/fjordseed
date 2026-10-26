@@ -3,24 +3,37 @@ from types import SimpleNamespace
 
 import pytest
 
-from fjord_ui import ConverterUI, read_settings, save_drive
+from fjord_ui import ConverterUI, read_settings, save_media_folder
 
 
-def test_drive_selection_preserves_existing_preferences(tmp_path):
+def test_folder_selection_preserves_existing_preferences(tmp_path):
     path = tmp_path / 'preferences.json'
-    path.write_text(json.dumps({'bitrate': 30, 'folder': 'old-output'}))
-    assert save_drive(path, 'm:\\') == 'M:\\'
-    assert read_settings(path) == {'bitrate': 30, 'folder': 'old-output', 'drive': 'M:\\'}
+    folder = tmp_path / 'Media'
+    folder.mkdir()
+    path.write_text(json.dumps({'bitrate': 30, 'folder': 'old-output', 'drive': 'M:\\'}))
+    assert save_media_folder(path, str(folder)) == str(folder)
+    assert read_settings(path) == {'bitrate': 30, 'folder': 'old-output', 'drive': 'M:\\', 'media_folder': str(folder)}
 
 
-@pytest.mark.parametrize('drive', ['', 'M:', 'M:\\Downloads', '../files', '\\\\server\\share'])
-def test_only_selected_drive_roots_are_saved(tmp_path, drive):
+def test_invalid_folder_is_not_saved(tmp_path):
     path = tmp_path / 'preferences.json'
-    path.write_text('{"drive":"M:\\\\"}')
-    before = path.read_bytes()
+    path.write_text('{}')
     with pytest.raises(ValueError):
-        save_drive(path, drive)
-    assert path.read_bytes() == before
+        save_media_folder(path, str(tmp_path / 'missing'))
+    assert read_settings(path) == {}
+
+
+def test_cancelled_folder_picker_keeps_previous_selection(tmp_path, monkeypatch):
+    from unittest.mock import Mock
+    import fjord_ui
+    picker = Mock(return_value='')
+    monkeypatch.setattr(fjord_ui.filedialog, 'askdirectory', picker)
+    app = SimpleNamespace(media_folder=Mock(), config_path=tmp_path/'preferences.json', folder_status=Mock())
+    app.media_folder.get.return_value=str(tmp_path)
+    ConverterUI.choose_folder(app)
+    app.media_folder.set.assert_not_called()
+    assert not app.config_path.exists()
+    assert picker.call_args.kwargs['mustexist'] is True
 
 
 def test_saving_new_pairing_code_preserves_connection_options_and_encrypts_token(tmp_path, monkeypatch):

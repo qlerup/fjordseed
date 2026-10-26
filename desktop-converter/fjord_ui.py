@@ -1,11 +1,9 @@
 """One FjordSeed workspace; the replacement conversion flow is added separately."""
-import ctypes
 import json
 import os
 from pathlib import Path
-import re
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 
 BG = '#0b1220'
 CARD = '#121e30'
@@ -32,27 +30,15 @@ def read_settings(path):
         return {}
 
 
-def save_drive(path, drive):
-    if not re.fullmatch(r'[A-Za-z]:\\', drive):
-        raise ValueError('Vælg et drev fra listen.')
+def save_media_folder(path, folder):
+    selected = Path(folder)
+    if not selected.is_absolute() or not selected.is_dir():
+        raise ValueError('Vælg en eksisterende mappe.')
     from remote_agent import atomic
     data = read_settings(path)
-    data['drive'] = drive.upper()
+    data['media_folder'] = str(selected)
     atomic(Path(path), data)
-    return data['drive']
-
-
-def drive_choices():
-    if os.name != 'nt':
-        return [], []
-    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
-    kernel.GetLogicalDrives.restype = ctypes.c_uint32
-    kernel.GetDriveTypeW.argtypes = [ctypes.c_wchar_p]
-    kernel.GetDriveTypeW.restype = ctypes.c_uint
-    mask = kernel.GetLogicalDrives()
-    drives = [chr(65+i) + ':\\' for i in range(26) if mask & (1 << i)]
-    network = [drive for drive in drives if kernel.GetDriveTypeW(drive) == 4]
-    return drives, network
+    return data['media_folder']
 
 
 class ConverterUI(tk.Tk):
@@ -70,9 +56,9 @@ class ConverterUI(tk.Tk):
         if (self.root_dir / 'fjord.ico').exists():
             self.iconbitmap(default=str(self.root_dir / 'fjord.ico'))
         settings = read_settings(self.config_path)
-        self.drive = tk.StringVar(value=settings.get('drive', ''))
+        self.media_folder = tk.StringVar(value=settings.get('media_folder', settings.get('drive', '')))
         self.status = tk.StringVar(value='Ingen konvertering i gang.')
-        self.drive_status = tk.StringVar()
+        self.folder_status = tk.StringVar(value='Vælg mappen til dine FjordSeed-filer.')
         self.connection_status = tk.StringVar()
         import windows_startup
         self.startup = tk.BooleanVar(value=windows_startup.enabled(self.root_dir / 'fjord_encode.pyw'))
@@ -84,19 +70,18 @@ class ConverterUI(tk.Tk):
         self.label(header, 'FJORD', bg=BG, fg=MINT, font=('Segoe UI', 11, 'bold')).pack(side='left')
         ttk.Button(header, text='Indstillinger', command=self.open_settings).pack(side='right')
         self.label(outer, 'FjordSeed-konvertering', bg=BG, font=('Segoe UI', 26, 'bold')).pack(anchor='w', pady=(20, 6))
-        self.label(outer, 'Vælg det drev, hvor dine FjordSeed-filer ligger.', bg=BG, fg=MUTED).pack(anchor='w')
+        self.label(outer, 'Vælg den mappe, hvor dine FjordSeed-filer ligger.', bg=BG, fg=MUTED).pack(anchor='w')
         self.label(outer, textvariable=self.connection_status, bg=BG, fg=MINT, font=('Segoe UI', 9)).pack(anchor='w', pady=(10, 18))
 
         drive_card = self.card(outer)
         drive_card.pack(fill='x')
-        self.label(drive_card, 'DREV TIL FJORDSEED', fg=MUTED, font=('Segoe UI', 9, 'bold')).pack(anchor='w', pady=(0, 10))
+        self.label(drive_card, 'MAPPE TIL FJORDSEED', fg=MUTED, font=('Segoe UI', 9, 'bold')).pack(anchor='w', pady=(0, 10))
         row = tk.Frame(drive_card, bg=CARD)
         row.pack(fill='x')
-        self.drive_box = ttk.Combobox(row, textvariable=self.drive, state='readonly', font=('Segoe UI', 14))
-        self.drive_box.pack(side='left', fill='x', expand=True)
-        ttk.Button(row, text='Opdatér drev', command=self.refresh_drives).pack(side='right', padx=(12, 0))
-        self.drive_box.bind('<<ComboboxSelected>>', self.drive_changed)
-        self.label(drive_card, textvariable=self.drive_status, fg=MUTED, font=('Segoe UI', 10)).pack(anchor='w', pady=(12, 0))
+        self.folder_entry = ttk.Entry(row, textvariable=self.media_folder, state='readonly', font=('Segoe UI', 12))
+        self.folder_entry.pack(side='left', fill='x', expand=True)
+        ttk.Button(row, text='Vælg mappe…', command=self.choose_folder).pack(side='right', padx=(12, 0))
+        self.label(drive_card, textvariable=self.folder_status, fg=MUTED, font=('Segoe UI', 10)).pack(anchor='w', pady=(12, 0))
 
         progress = self.card(outer)
         progress.pack(fill='both', expand=True, pady=(18, 0))
@@ -114,7 +99,6 @@ class ConverterUI(tk.Tk):
         self.start_button = ttk.Button(actions, text='Konvertér', style='Primary.TButton', state='disabled')
         self.start_button.pack(side='right')
         self.refresh_connection()
-        self.refresh_drives()
         self.protocol('WM_DELETE_WINDOW', self.background)
         self.bind('<Control-q>', lambda event: self.close())
         self.after_idle(self.enable_background)
@@ -131,22 +115,17 @@ class ConverterUI(tk.Tk):
         self.connection_status.set('FjordSeed-forbindelse gemt' if saved.get('server') and saved.get('token_dpapi')
                                    else 'Tilføj din FjordSeed-forbindelse under Indstillinger')
 
-    def refresh_drives(self):
-        drives, network = drive_choices()
-        self.drive_box['values'] = drives
-        if self.drive.get() not in drives:
-            self.drive.set('M:\\' if 'M:\\' in network else network[0] if network else '')
-        self.drive_changed()
-
-    def drive_changed(self, *_):
-        if not self.drive.get():
-            self.drive_status.set('Vælg et drev fra listen.')
+    def choose_folder(self):
+        folder = filedialog.askdirectory(parent=self, title='Vælg mappe til FjordSeed',
+                                         initialdir=self.media_folder.get() or str(Path.home()), mustexist=True)
+        if not folder:
             return
         try:
-            selected = save_drive(self.config_path, self.drive.get())
-            self.drive_status.set('Valgt drev: ' + selected)
+            selected = save_media_folder(self.config_path, folder)
+            self.media_folder.set(selected)
+            self.folder_status.set('Mappe valgt.')
         except (OSError, ValueError) as exc:
-            self.drive_status.set(str(exc))
+            self.folder_status.set(str(exc))
 
     def open_settings(self):
         if self.settings_window and self.settings_window.winfo_exists():

@@ -1,4 +1,7 @@
 .library-conversion{margin-top:20px}
+.conversion-installer{display:flex;align-items:center;flex-wrap:wrap;gap:12px 18px;margin:16px 0}
+.conversion-installer>a{display:inline-flex;align-items:center}
+.conversion-installer>p{flex:1;min-width:180px}
 .library-conversion>.muted{margin-top:8px}
 .library-conversion .tracker-fields{margin:18px 0}
 .library-film{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:16px 0;border-top:1px solid var(--border)}

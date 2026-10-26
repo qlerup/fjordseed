@@ -1,0 +1,51 @@
+name: Windows installer
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New installer version (for example 0.4.1)'
+        required: true
+        default: '0.4.0'
+permissions:
+  contents: write
+jobs:
+  installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/fjord-tool-archives
+          key: windows-converter-tools-${{ hashFiles('desktop-converter/tools.json') }}
+      - name: Install verified compiler
+        shell: pwsh
+        run: |
+          $setup = Join-Path $env:RUNNER_TEMP 'innosetup-6.7.3.exe'
+          Invoke-WebRequest 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe' -OutFile $setup
+          $signature = Get-AuthenticodeSignature -LiteralPath $setup
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Pyrsys') { throw 'Compiler publisher verification failed.' }
+          $directory = Join-Path $env:RUNNER_TEMP 'FjordInstallerCompiler'
+          $process = Start-Process $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER','/NOICONS',('/DIR="'+$directory+'"')) -Wait -PassThru -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) { throw 'Compiler installation failed.' }
+      - name: Build installer
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:APP_VERSION -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version.' }
+          python desktop-converter/build_installer.py --compiler "$env:RUNNER_TEMP/FjordInstallerCompiler/ISCC.exe" --archives "$env:RUNNER_TEMP/fjord-tool-archives" --output-dir dist --version $env:APP_VERSION
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
+      - name: Publish installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_VERSION: ${{ inputs.version }}
+        run: |
+          $tag = 'windows-v' + $env:APP_VERSION
+          gh release view $tag --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -eq 0) { throw 'This version already exists. Choose a new version.' }
+          gh release create $tag dist/Fjord-konvertering-Setup.exe dist/Fjord-konvertering-Setup.exe.sha256 --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Fjord-konvertering $env:APP_VERSION til Windows" --notes-file desktop-converter/RELEASE_NOTES.md --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed.' }

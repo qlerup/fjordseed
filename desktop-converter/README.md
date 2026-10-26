@@ -3,7 +3,17 @@
 Pc-programmet med én samlet FjordSeed-visning og valg af netværksdrev.
 Forbindelsen til FjordSeed bevares, mens det nye konverteringsflow bygges.
 
-## Installation
+## Installation til Windows
+
+Hent **Fjord-konvertering-Setup.exe** under **Indstillinger → Konvertering**
+i FjordSeed eller fra [seneste Windows-udgivelse](https://github.com/qlerup/fjordseed/releases/latest).
+Installationspakken indeholder programmet og videoværktøjerne; Python skal
+ikke installeres på pc’en. Den opretter en startmenugenvej og tilbyder en
+skrivebordsgenvej. Afinstallation findes under Windows’ installerede apps.
+Brugerens egne forbindelsesoplysninger og præferencer bliver ikke pakket med
+og bevares ved opdatering og afinstallation.
+
+## Udviklerinstallation fra kildekode
 
 Krav: Windows 10/11 64-bit med `tar.exe`, Python 3.13 med tkinter og Python på
 PATH samt en NVIDIA-GPU og driver med HEVC/NVENC-understøttelse. Programmet er
@@ -52,9 +62,9 @@ mkvtoolnix/mkvpropedit.exe  # med resten af MKVToolNix-arkivet
 ## Programfladen
 
 Programmet har nu én samlet visning: **FjordSeed-konvertering**.
-Vælg drev i listen, f.eks. **M:\**, og brug **Opdatér drev**, hvis et nyt
-netværksdrev er blevet tilsluttet. Valget gemmes uden at ændre eksisterende
-forbindelsesoplysninger eller ældre konverteringspræferencer.
+Tryk **Vælg mappe…** for at åbne Windows' mappevælger. Vælg f.eks. en
+mappe på **M:** eller en tilgængelig netværksmappe. Valget gemmes uden at
+ændre eksisterende forbindelsesoplysninger eller konverteringspræferencer.
 
 Dette trin ændrer kun programfladen. **Konvertér** er endnu ikke aktiv,
 fordi det nye arbejdsforløb aftales separat. Programmet starter ikke den
@@ -119,3 +129,17 @@ og distribueres under deres respektive licenser:
 
 `preferences.json`, videoer, logs, testfiler og downloadede værktøjer er lokale
 og er udeladt fra Git. Denne mappe indgår ikke i FjordSeeds Docker-image.
+
+## Byg installationspakken
+
+Installer Inno Setup 6.7.3 fra den officielle udgivelse, og kør på Windows:
+
+```powershell
+python build_installer.py --compiler "C:/path/to/ISCC.exe" --archives "C:/path/to/archive-cache" --output-dir dist
+```
+
+Bygningen bruger kun den nye EXE og checksum-kontrollerede leverandørarkiver,
+ikke indholdet af en eksisterende brugerinstallation. SHA-256 for den færdige
+installer gemmes ved siden af filen. GitHub-workflowet **Windows installer**
+kan bygge og udgive en ny version manuelt. Brug et nyt versionsnummer ved
+hver udgivelse. Den seneste udgivelse er downloadmålet i FjordSeed.

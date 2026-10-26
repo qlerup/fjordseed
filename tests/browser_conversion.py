@@ -40,6 +40,7 @@ with tempfile.TemporaryDirectory() as folder:
    expect(page.locator('#toast')).to_contain_text('gemt')
    page.reload();expect(page.locator('#conversion-enabled')).to_be_checked()
    assert page.locator('#conversion-server-address').count()==0
+   expect(page.locator('#conversion-download-windows')).to_have_attribute('href','https://github.com/qlerup/fjordseed/releases/latest/download/Fjord-konvertering-Setup.exe')
    page.locator('#conversion-device-name').fill('Test-pc')
    page.locator('#conversion-device-create').click()
    expect(page.locator('#conversion-token-result')).to_be_visible()
