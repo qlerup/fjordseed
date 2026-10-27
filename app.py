@@ -407,8 +407,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             feed['download_status']=rss_gate.reports.get(feed['id'],'Afventer feedposter.')
             if feed['enabled'] and budget.get('near_limit') and feed['id'] in rss_gate.storage_paused:
                 feed['status']='storage_paused'
-            if feed['enabled'] and budget['paused']:
-                feed['status']='storage_paused'
+            if feed['enabled'] and budget.get('reason') in ('pending','measurement_error'):
+                feed['status']='pending'
                 from rss_gate import budget_message
                 feed['download_status']=budget_message(budget)
         return jsonify({**result,'download_path':Storage(runtime).public()['path'] if hasattr(runtime,'host_downloads') else '/downloads'})

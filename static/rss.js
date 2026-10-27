@@ -321,7 +321,7 @@ function renderRssBudget(budget){
   if(known)texts.push(size(budget.temporary_bytes,true)+' brugt + '+size(budget.reserved_bytes,true)+' reserveret af '+size(budget.limit_bytes,true)+'.');
   if(budget.reason==='measurement_error')texts.push('RSS er på pause, fordi lageret ikke kan måles sikkert.');
   else if(budget.reason==='pending')texts.push('Afventer en ny lagermåling fra torrentklienten.');
-  else if(budget.paused)texts.push('RSS genoptager automatisk, når der er plads til nye feedposter.');
+  else if(budget.paused)texts.push('Lagergrænsen er nået. Hvert feed kontrolleres for sig og genoptager, når en post kan være der.');
   else if(budget.near_limit)texts.push('Højst 100 GB tilbage. Feeds uden poster, der kan være her, lagerpauses hver for sig. Andre feeds fortsætter.');
   else texts.push('Nye RSS-downloads starter kun, når der er plads til hele indholdet.');
  }

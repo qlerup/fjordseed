@@ -26,7 +26,9 @@ def budget_message(budget):
         'unknown_size':'RSS-posten afventer kendt størrelse i torrentmetadata. Intet indhold er startet.',
         'too_large':'RSS-posten er større end den samlede lagergrænse og springes over.',
         'candidate_space':'RSS-posten afventer tilstrækkelig plads under den samlede lagergrænse.',
-    }.get(budget.get('reason'), 'Alle RSS-feeds er automatisk på lagerpause. Genoptager, når der er plads til nye feedposter.')
+        'pending':'Dette feed afventer en ny måling af det midlertidige lager.',
+        'limit':'Dette feed afventer plads: den samlede lagergrænse er nået. Feedets poster kontrolleres igen automatisk.',
+    }.get(budget.get('reason'), 'Dette feed afventer plads til nye feedposter.')
 
 
 def fingerprint(feed):
@@ -39,6 +41,29 @@ def article_size(article):
     if isinstance(value,str) and re.fullmatch(r'[0-9]{1,16}',value):
         value=int(value)
     return value if type(value) is int and value>0 else None
+
+
+def feed_space(candidates, feed, budget):
+    """Assess this feed's eligible unread items, including when the cap is full."""
+    sizes=[article_size(c[3]) for c in candidates]
+    sizes=[size for size in sizes if size is None or feed.get('max_size_bytes') is None
+           or size<=feed['max_size_bytes']]
+    known=[size for size in sizes if size is not None]
+    available=budget.get('available_bytes',0)
+    fits=sum(size<=available for size in known)
+    unknown=len(sizes)-len(known)
+    return {'eligible':len(sizes), 'fits':fits, 'unknown':unknown,
+            'smallest_bytes':min(known) if known else None, 'available_bytes':available,
+            'paused':bool(sizes and not fits and (not unknown or budget.get('reason')=='limit'))}
+
+
+def feed_space_message(assessment):
+    def gb(value):return f'{value/1024**3:.2f}'.replace('.',',')+' GB'
+    text=f"Ingen af feedets {assessment['eligible']} aktuelle poster kan være under grænsen. "
+    if assessment['smallest_bytes'] is not None:
+        text+='Mindste oplyste størrelse: '+gb(assessment['smallest_bytes'])+'. '
+    text+='Plads til nye downloads: '+gb(assessment['available_bytes'])+'. '
+    return text+'Feedet kontrolleres igen automatisk; andre feeds vurderes hver for sig.'
 
 
 def badges_match(result,feed,now=None):
@@ -119,11 +144,11 @@ def _gate_rpc(action,data,api,root):
     if action=='rss_prepare':
         from rss_budget import status
         budget = status(api, root)
-        if budget['paused']:
+        if budget['paused'] and budget.get('reason')!='limit':
             return {'storage_blocked': True, 'storage_budget': budget}
         size_skipped=0
         storage_skipped=0
-        if not pending:
+        if not pending or budget['paused']:
             item=api('rss/items?withData=true').json().get(name,{})
             if item.get('url')!=feed['url'] or item.get('hasError'):
                 raise ValueError('RSS feed unavailable')
@@ -138,12 +163,16 @@ def _gate_rpc(action,data,api,root):
                 if token not in history['done']:
                     candidates.append((history['retry'].get(token,0),token,url,article))
             if budget.get('near_limit'):
-                relevant=[c for c in candidates if article_size(c[3]) is None
-                          or feed.get('max_size_bytes') is None or article_size(c[3])<=feed['max_size_bytes']]
-                if relevant and all(article_size(c[3]) is not None and article_size(c[3])>budget['available_bytes'] for c in relevant):
+                assessment=feed_space(candidates,feed,budget)
+                if assessment['paused']:
                     # Pause this feed only. Re-evaluate the current feed and free
                     # space on the next tick, without changing its enabled flag.
-                    return {'storage_skipped':len(relevant), 'storage_paused':True}
+                    return {'storage_skipped':assessment['eligible'], 'storage_paused':True,
+                            'storage_assessment':assessment}
+                if budget['paused']:
+                    # Empty/already-consumed feeds have no pending payload to
+                    # pause. Still keep a previously prepared add behind the cap.
+                    return {}
             # Oldest attempts first: busy feeds must not starve later entries.
             deadline=time.monotonic()+8
             for _,token,url,article in sorted(candidates,key=lambda c:c[0]):
@@ -287,7 +316,8 @@ class RssGate:
                 if candidate and candidate.get('storage_skipped'):
                     if candidate.get('storage_paused'):
                         self.storage_paused.add(feed['id'])
-                    self.reports[feed['id']]=('Feedet er automatisk på lagerpause: ingen af de aktuelle feedposter kan være under grænsen. Andre feeds fortsætter, og dette feed genoptager, så snart en post kan være der.' if candidate.get('storage_paused') else
+                    self.reports[feed['id']]=(feed_space_message(candidate['storage_assessment']) if candidate.get('storage_assessment') else
+                        'Feedet er automatisk på lagerpause: ingen af de aktuelle feedposter kan være under grænsen. Andre feeds fortsætter, og dette feed genoptager, så snart en post kan være der.' if candidate.get('storage_paused') else
                         'RSS-poster afventer plads under den samlede lagergrænse. Størrelsen er læst direkte fra feedet; intet indhold er startet.')
                     continue
                 if candidate and candidate.get('size_skipped'):

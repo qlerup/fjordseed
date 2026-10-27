@@ -126,7 +126,8 @@ def candidate_sizes(monkeypatch, size):
 def test_prepare_pauses_without_fetching_or_consuming_history(gate, monkeypatch):
     invoke,calls,fetched,articles,root,entry=gate
     configure(root);usage=measuring(monkeypatch, allocated=1000)
-    assert invoke('rss_prepare')['storage_blocked']
+    result=invoke('rss_prepare')
+    assert result['storage_paused'] and result['storage_assessment']['eligible']==2
     assert not fetched and not any(p=='torrents/add' for p,_ in calls)
     assert not (root/('rss-history-'+entry['id']+'.json')).exists()
     usage['allocated']=890
@@ -139,7 +140,9 @@ def test_advertised_sizes_skip_metadata_and_do_not_mark_read(gate, monkeypatch):
     invoke,calls,fetched,articles,root,entry=gate
     configure(root);measuring(monkeypatch,allocated=500)
     for article in articles:article['contentlength']='600'
-    assert invoke('rss_prepare')=={'storage_skipped':2, 'storage_paused':True}
+    result=invoke('rss_prepare')
+    assert result['storage_skipped']==2 and result['storage_paused']
+    assert result['storage_assessment']['smallest_bytes']==600
     assert not fetched
     assert not any(p in ('torrents/add','rss/markAsRead') for p,_ in calls)
 
@@ -215,7 +218,8 @@ def test_one_feed_pauses_while_smaller_feed_continues_and_recovers(tmp_path, mon
     monkeypatch.setattr(rss_gate,'fetch_metadata',metadata)
     def invoke(f,action='rss_prepare',**kwargs):
         return rss_gate.gate_rpc(action,{'feed_id':f['id'],'revision':rss_gate.fingerprint(f),**kwargs},api,tmp_path)
-    assert invoke(feeds[0])=={'storage_skipped':1,'storage_paused':True}
+    result=invoke(feeds[0])
+    assert result['storage_skipped']==1 and result['storage_paused']
     assert fetched==[]
     candidate=invoke(feeds[1])
     assert invoke(feeds[1],'rss_resolve',token=candidate['token'],hashes=candidate['meta']['hashes'],approved=True)=={'ok':True}
@@ -224,3 +228,45 @@ def test_one_feed_pauses_while_smaller_feed_continues_and_recovers(tmp_path, mon
     usage['allocated']=920*gb
     assert 'token' in invoke(feeds[0])
     assert [f['enabled'] for f in json.loads((tmp_path/'fjord-rss.json').read_text())]==[True,True]
+
+
+def test_full_budget_still_reads_this_feed_and_does_not_pause_empty_feed(gate,monkeypatch):
+    invoke,calls,fetched,articles,root,entry=gate
+    configure(root);measuring(monkeypatch,allocated=1100)
+    for article in articles:article['contentlength']='60'
+    result=invoke('rss_prepare')
+    assert result['storage_assessment']=={
+        'eligible':2,'fits':0,'unknown':0,'smallest_bytes':60,'available_bytes':0,'paused':True}
+    assert any(p=='rss/items?withData=true' for p,_ in calls)
+    assert not fetched
+    message=rss_gate.feed_space_message(result['storage_assessment'])
+    assert 'feedets 2 aktuelle poster' in message and 'Alle RSS-feeds' not in message
+    for article in articles:article['isRead']=True
+    assert invoke('rss_prepare')=={}
+
+
+def test_api_does_not_replace_individual_feed_status_with_global_pause(tmp_path,monkeypatch):
+    from test_rss_gate import feed
+    gates=[]
+    class Gate(rss_gate.RssGate):
+        def __init__(self,*args,**kwargs):
+            super().__init__(*args,**kwargs);gates.append(self)
+    monkeypatch.setattr('app.RssGate',Gate)
+    app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
+    store=app.extensions['rss']
+    ids=[]
+    for i in range(2):
+        data=feed(name='Feed '+str(i),url=f'https://tracker.example/rss/{i}');data.pop('id')
+        ids.append(store.save(data))
+    store.save_storage_limit({'limit_bytes':1000})
+    (tmp_path/'qbit').mkdir(exist_ok=True)
+    (tmp_path/'qbit/rss-budget-state.json').write_text(json.dumps({
+        'limit_bytes':1000,'paused':True,'near_limit':True,'reason':'limit','checked_at':time.time()}))
+    gates[0].storage_paused.add(ids[0]);gates[0].reports[ids[0]]='Dette feed har 2 for store poster.'
+    gates[0].reports[ids[1]]='Afventer nye feedposter.'
+    client,_=login(app)
+    feeds=client.get('/api/rss').json['feeds']
+    assert feeds[0]['status']=='storage_paused'
+    assert feeds[0]['download_status']=='Dette feed har 2 for store poster.'
+    assert feeds[1]['status']!='storage_paused'
+    assert feeds[1]['download_status']=='Afventer nye feedposter.'
