@@ -75,7 +75,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             actual = request.headers.get('X-CSRF-Token') or request.form.get('csrf','')
             if not expected or not secrets.compare_digest(expected, actual):
                 return jsonify(error='Genindlæs siden og prøv igen.'),403
-        if request.endpoint in ('bot_seeding', 'bot_upload'):
+        if request.endpoint in ('bot_seeding', 'bot_upload', 'bot_storage'):
             supplied = request.headers.get('X-Hub-Key', '')
             if not hub.enabled or not hub.key or not secrets.compare_digest(hub.key, supplied):
                 return jsonify(ok=False, error='Ugyldig appnøgle.'), 403
@@ -202,6 +202,16 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                                   if (url:=covers.request(m.get('poster')))),None)
         return jsonify(result)
 
+    @app.get('/api/hub/bot/storage')
+    def bot_storage():
+        try:
+            result = temporary_snapshot()
+            return jsonify(ok=True, **{key: result[key] for key in
+                           ('temporary_bytes', 'rss_temporary_bytes')})
+        except Exception:
+            app.logger.exception('Bot storage measurement failed')
+            return jsonify(ok=False, error='Midlertidigt pladsforbrug kunne ikke måles.'), 503
+
     @app.get('/api/hub/bot/upload')
     def bot_upload():
         from bot_upload import upload_choices
@@ -303,6 +313,18 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     temporary_cache={}
     temporary_lock=threading.Lock()
 
+    def temporary_snapshot():
+        storage = Storage(runtime)
+        paths = tuple(dict.fromkeys([str(runtime.host_downloads), storage.public()['path']] +
+                                    [p['path'] for p in storage.settings()['locations']]))
+        with temporary_lock:
+            selected = storage.public()['path']
+            if (temporary_cache.get('paths') != paths or temporary_cache.get('selected') != selected
+                    or time.monotonic() - temporary_cache.get('at', 0) >= 30):
+                result = storage.temporary_usage(paths)
+                temporary_cache.update(paths=paths, selected=selected, at=time.monotonic(), result=result)
+            return dict(temporary_cache['result'])
+
     @app.route('/api/storage', methods=['GET','POST'])
     @app.get('/api/storage/usage')
     @app.get('/api/storage/temporary-usage')
@@ -312,14 +334,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                 return jsonify(error='Valg af servermapper kræver en FjordHub-administrator.'),403
             storage = Storage(runtime)
             if request.path.endswith('/temporary-usage'):
-                paths=tuple(dict.fromkeys([str(runtime.host_downloads),storage.public()['path']]+
-                                         [p['path'] for p in storage.settings()['locations']]))
-                with temporary_lock:
-                    selected=storage.public()['path']
-                    if temporary_cache.get('paths')!=paths or temporary_cache.get('selected')!=selected or time.monotonic()-temporary_cache.get('at',0)>=30:
-                        result=storage.temporary_usage(paths)
-                        temporary_cache.update(paths=paths,selected=selected,at=time.monotonic(),result=result)
-                    return jsonify(ok=True,path=selected,**temporary_cache['result'])
+                return jsonify(ok=True, path=storage.public()['path'], **temporary_snapshot())
             if request.path.endswith('/usage'):
                 current = storage.public()
                 usage = storage.helper('usage',source=current['path'])

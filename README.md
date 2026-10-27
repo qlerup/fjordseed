@@ -399,3 +399,7 @@ to the paired PC. After validation, qBittorrent moves the original torrent into
 the hidden seeding folder before the converted movie is published. Keep policies
 remain unchanged. Converted movies receive a persistent bitrate/date badge.
 See [retained-library conversion](docs/library-conversion.md).
+
+### RSS temporary storage in the Matrix bot
+
+Ask “Hvor meget midlertidig plads bruger RSS?” to read allocated RSS buffer bytes and total temporary buffer bytes. The measurement shares FjordSeed’s 30-second storage cache, excludes permanent media, and counts hardlinks once. Unknown RSS attribution is shown as unknown. Update FjordSeed, FjordHub and the Matrix bot together. The dedicated storage endpoints use the existing app key and bot-only token; no paths or torrent controls are exposed.
