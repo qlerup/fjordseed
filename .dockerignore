@@ -21,6 +21,7 @@
 !tracker_credit.py
 !tracker_history.py
 !rss_gate.py
+!rss_budget.py
 !templates/
 !templates/*.html
 !static/

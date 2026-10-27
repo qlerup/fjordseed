@@ -221,7 +221,7 @@ function rssFeedCard(feed){
  const arrow=node('span','torrent-chevron');arrow.setAttribute('aria-hidden','true');
  titleToggle.append(arrow,node('span','torrent-name',feed.name));heading.append(titleToggle);
  const controls=node('div','rss-heading-controls'),toggle=node('button','secondary torrent-toggle');toggle.type='button';
- controls.append(node('span','badge'+(feed.status==='active'?' ready':''),{active:'Aktivt',paused:'På pause',pending:'Afventer VPN / synkronisering',error:'Feedfejl'}[feed.status]),toggle);
+ controls.append(node('span','badge'+(feed.status==='active'?' ready':''),{active:'Aktivt',paused:'På pause',storage_paused:'Lagerpause',pending:'Afventer VPN / synkronisering',error:'Feedfejl'}[feed.status]),toggle);
  const enabledToggle=node('button','rss-enabled-toggle');enabledToggle.type='button';
  enabledToggle.setAttribute('role','switch');enabledToggle.setAttribute('aria-checked',String(feed.enabled));
  enabledToggle.setAttribute('aria-label','Automatisk hentning for '+feed.name);
@@ -260,6 +260,7 @@ function rssFeedCard(feed){
  if(feed.credit_estimated)upload.append(node('span','muted small','Beregnet konservativt'));
  upload.title='Samlet beregnet kredit fra feedets torrents, inkl. Green-periodens halve kredit. Gemmes også efter sletning af torrents. Tidligere slettede torrents kan mangle i historikken.';
  card.append(upload);
+ if(feed.status==='storage_paused')card.append(node('p','muted small','Automatisk lagerpause · '+(feed.download_status||'Afventer plads til nye feedposter.')));
  panel.append(node('p','torrent-policy','Mappe: '+rssRoot+(feed.folder?'/'+feed.folder:'')+(feed.ratio_action==='stop_keep'?' · Stop seeding efter download og behold filerne':feed.ratio_action==='automatic'?' · Automatisk: optimer ratio og slet · målratio '+feed.ratio_limit+' eller 49 timers seedtid':feed.ratio_action!=='keep'?' · Slet ved ratio '+feed.ratio_limit+(feed.ratio_action==='delete_ratio'?' uden tidsgrænse':' eller 49 timers seeding'):' · Behold filer og seed uden grænse')));
  panel.append(node('p','torrent-policy',feed.download_from?'Hent fra: '+new Date(feed.download_from).toLocaleString('da-DK'):'Hent alle poster i feedet'));
  if(feed.max_size_bytes)panel.append(node('p','torrent-policy','Maksimal torrentstørrelse: '+size(feed.max_size_bytes)));
@@ -284,7 +285,9 @@ async function refreshRss(){
    const result=await api('/api/rss');
    if(rssToggleBusy.size)return;
    rssFeeds=result.feeds;rssRoot=result.download_path;updateRssPath();
-   const summary=rssFeeds.length+' feeds · '+rssFeeds.filter(feed=>feed.enabled).length+' tændt';
+   renderRssBudget(result.storage_budget);
+   const paused=rssFeeds.filter(feed=>feed.status==='storage_paused').length;
+   const summary=rssFeeds.length+' feeds · '+rssFeeds.filter(feed=>feed.enabled).length+' tændt'+(paused?' · '+paused+' på lagerpause':'');
    $('#rss-feed-summary').textContent=summary;
    $('#rss-feeds-summary').textContent=summary;
    const uploads=rssFeeds.map(feed=>feed.own_credited_uploaded??feed.credited_uploaded);
@@ -301,6 +304,46 @@ async function refreshRss(){
 
 $('#rss-new').onclick=()=>openRssForm();
 $('#rss-feeds-add').onclick=()=>openRssForm();
+let rssBudgetDirty=false,rssBudgetSaving=false;
+function renderRssBudget(budget){
+ if(!budget)return;
+ const limited=Number.isSafeInteger(budget.limit_bytes)&&budget.limit_bytes>0;
+ if(!rssBudgetDirty&&!rssBudgetSaving){
+  const unit=limited&&budget.limit_bytes>=1024**4?'TB':'GB';
+  $('#rss-storage-unit').value=unit;
+  $('#rss-storage-limit').value=limited?String(budget.limit_bytes/rssSizeUnits[unit]):'';
+ }
+ $('#rss-storage-badge').textContent=!limited?'Ingen grænse':budget.reason==='pending'?'Afventer måling':budget.paused?'RSS på lagerpause':budget.near_limit?'Pladskontrol pr. feed':'RSS kan hente';
+ $('#rss-storage-badge').classList.toggle('ready',limited&&!budget.paused);
+ const known=Number.isFinite(budget.committed_bytes),texts=[];
+ if(!limited)texts.push('Ingen samlet lagergrænse er sat.');
+ else{
+  if(known)texts.push(size(budget.temporary_bytes,true)+' brugt + '+size(budget.reserved_bytes,true)+' reserveret af '+size(budget.limit_bytes,true)+'.');
+  if(budget.reason==='measurement_error')texts.push('RSS er på pause, fordi lageret ikke kan måles sikkert.');
+  else if(budget.reason==='pending')texts.push('Afventer en ny lagermåling fra torrentklienten.');
+  else if(budget.paused)texts.push('RSS genoptager automatisk, når der er plads til nye feedposter.');
+  else if(budget.near_limit)texts.push('Højst 100 GB tilbage. Feeds uden poster, der kan være her, lagerpauses hver for sig. Andre feeds fortsætter.');
+  else texts.push('Nye RSS-downloads starter kun, når der er plads til hele indholdet.');
+ }
+ $('#rss-storage-status').textContent=texts.join(' ');
+}
+$('#rss-storage-limit').oninput=()=>{rssBudgetDirty=true;$('#rss-storage-limit').setCustomValidity('');};
+$('#rss-storage-unit').onchange=()=>{rssBudgetDirty=true;$('#rss-storage-limit').setCustomValidity('');};
+$('#rss-storage-form').onsubmit=async event=>{
+ event.preventDefault();if(rssBudgetSaving)return;
+ const input=$('#rss-storage-limit');input.setCustomValidity('');
+ const bytes=input.value.trim()===''?null:Math.floor(Number(input.value)*rssSizeUnits[$('#rss-storage-unit').value]);
+ if(bytes!==null&&(!Number.isSafeInteger(bytes)||bytes<=0)){
+  input.setCustomValidity('Indtast en grænse større end nul, eller lad feltet være tomt.');input.reportValidity();return;
+ }
+ rssBudgetSaving=true;$('#rss-storage-save').disabled=true;$('#rss-storage-error').hidden=true;
+ try{
+  await api('/api/rss/storage-limit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit_bytes:bytes})});
+  rssBudgetDirty=false;toast(bytes===null?'Lagergrænsen er slået fra.':'Lagergrænsen er gemt.');
+ }catch(error){$('#rss-storage-error').textContent=error.message;$('#rss-storage-error').hidden=false;}
+ finally{rssBudgetSaving=false;$('#rss-storage-save').disabled=false;}
+ await refreshRss();
+};
 let rssTemporaryBusy=false;
 async function refreshRssTemporary(){
  if(rssTemporaryBusy||!$('#rss-feeds-dialog').open||document.hidden)return;

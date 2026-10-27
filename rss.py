@@ -185,6 +185,17 @@ class Rss:
     def entries(self):
         return json.loads(self.path.read_text(encoding='utf-8'))
 
+    def storage_limit(self):
+        from rss_budget import read, validate
+        return validate(read(self.root/'rss-storage-limit.json', {}))
+
+    def save_storage_limit(self, data):
+        from rss_budget import validate
+        config = validate(data)
+        with self.lock:
+            atomic(self.root/'rss-storage-limit.json', json.dumps(config))
+        return config
+
     def save(self,data):
         if not isinstance(data,dict):
             raise ValueError('Ugyldigt RSS-feed.')
@@ -324,6 +335,13 @@ def write_snapshot(root,uid,gid):
         atomic(path,data)
         if hasattr(os,'chown'):
             os.chown(path,uid,gid)
+    from rss_budget import read, validate
+    limit = json.dumps(validate(read(root/'rss-storage-limit.json', {})), sort_keys=True)
+    limit_path = root/'qbit/fjord-rss-limit.json'
+    if not limit_path.exists() or limit_path.read_text() != limit:
+        atomic(limit_path, limit)
+        if hasattr(os, 'chown'):
+            os.chown(limit_path, uid, gid)
 
 
 def sync_rss(feeds,api=call):

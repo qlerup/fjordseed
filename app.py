@@ -400,9 +400,29 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     @app.get('/api/rss')
     def rss_status():
         result=rss.public()
+        from rss_budget import public as budget_public
+        budget=budget_public(state.root, rss.storage_limit())
+        result['storage_budget']=budget
         for feed in result['feeds']:
             feed['download_status']=rss_gate.reports.get(feed['id'],'Afventer feedposter.')
+            if feed['enabled'] and budget.get('near_limit') and feed['id'] in rss_gate.storage_paused:
+                feed['status']='storage_paused'
+            if feed['enabled'] and budget['paused']:
+                feed['status']='storage_paused'
+                from rss_gate import budget_message
+                feed['download_status']=budget_message(budget)
         return jsonify({**result,'download_path':Storage(runtime).public()['path'] if hasattr(runtime,'host_downloads') else '/downloads'})
+
+    @app.post('/api/rss/storage-limit')
+    def rss_storage_limit():
+        try:
+            with state.lock, rss.lock:
+                config=rss.save_storage_limit(request.get_json(silent=True))
+                if not testing:
+                    write_snapshot(state.root,runtime.uid,runtime.gid)
+            return jsonify(ok=True, **config)
+        except ValueError as exc:
+            return jsonify(error=str(exc)),400
 
     @app.get('/api/rss/<ident>/history')
     def rss_download_history(ident):

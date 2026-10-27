@@ -124,6 +124,7 @@ class Storage:
         (self.runtime.state.root/'rpc').mkdir(exist_ok=True)
         streaming=self.runtime.state.get().get('streaming',{})
         config={'path':path,'streaming_enabled':buffer_enabled(streaming),
+                'buffer_roots':['/downloads', *[v['bind'] for v in self.mounts().values()]],
                 'conversion_enabled':streaming.get('conversion_enabled',False),
                 'conversion_bitrate':streaming.get('conversion_bitrate',30),
                 'conversion_target':streaming.get('conversion_target','server')}

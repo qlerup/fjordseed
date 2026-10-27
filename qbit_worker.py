@@ -197,6 +197,11 @@ def run():
                             rss_last=0
                         if time.monotonic()-rss_last>10:
                             reports=rss_report()
+                            # A failed space measurement pauses new RSS only;
+                            # it must never interrupt active downloads/seeders.
+                            from rss_budget import admission_lock, status as budget_status
+                            with admission_lock(Path('/config')):
+                                budget_status(call)
                             rss_last=time.monotonic()
                         status['rss']=reports
                     except Exception:

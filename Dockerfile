@@ -35,6 +35,7 @@ COPY converter_runtime.py ./
 COPY converter_worker.py remote_conversion.py remote_helper.py ./
 COPY seed_potential.py ./
 COPY rss_history.py ./
+COPY rss_budget.py ./
 COPY tracker_credit.py ./
 COPY tracker_providers.py ./
 COPY tracker_history.py ./

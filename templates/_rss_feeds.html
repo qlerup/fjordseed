@@ -18,6 +18,20 @@
       </div>
       <button type="button" class="primary" id="rss-feeds-add">＋ Tilføj RSS-feed</button>
     </div>
+    <section class="rss-storage-budget" aria-labelledby="rss-storage-heading">
+      <div class="section-heading"><h3 id="rss-storage-heading">Samlet grænse for midlertidigt lager</h3><span class="badge" id="rss-storage-badge">Ingen grænse</span></div>
+      <p class="muted small">På tværs af alle downloadmapper, inklusive manuelle downloads og midlertidig seeding. RSS reserverer plads til hele downloadet, før indholdet starter.</p>
+      <form id="rss-storage-form">
+        <div class="rss-storage-controls">
+          <label for="rss-storage-limit">Maksimalt lager<input id="rss-storage-limit" type="number" min="0" step="any" inputmode="decimal" placeholder="Ingen grænse" aria-describedby="rss-storage-help"></label>
+          <label for="rss-storage-unit">Enhed<select id="rss-storage-unit"><option value="GB">GB</option><option value="TB">TB</option></select></label>
+          <button type="submit" class="secondary" id="rss-storage-save">Gem grænse</button>
+        </div>
+        <p class="muted small" id="rss-storage-help">Tomt felt slår grænsen fra. Med højst 100 GB tilbage kontrolleres pladsen pr. feed: kan ingen poster være der, lagerpauses kun det feed. Andre feeds fortsætter. Feedet genoptager, når en post kan være der. Eksisterende downloads og seeding fortsætter. Manuelle downloads og konvertering kan øge forbruget over grænsen. 1 TB = 1024 GB.</p>
+        <p class="small" id="rss-storage-status" role="status">Henter lagerstatus…</p>
+        <div class="error" id="rss-storage-error" role="alert" hidden></div>
+      </form>
+    </section>
     <div id="rss-feed-list"><p class="muted">Henter feeds…</p></div>
   </div>
   <div class="dialog-footer"><button type="button" class="secondary close">Luk</button></div>

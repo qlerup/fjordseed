@@ -400,6 +400,48 @@ the hidden seeding folder before the converted movie is published. Keep policies
 remain unchanged. Converted movies receive a persistent bitrate/date badge.
 See [retained-library conversion](docs/library-conversion.md).
 
+### Overall temporary storage limit for RSS
+
+In **Downloads → Manage feeds**, set the overall temporary storage limit in GB
+or TB (binary units, as elsewhere in FjordSeed). A blank field disables the limit.
+The setting is adjustable and disabled by default. It applies across all known
+download locations, including manual temporary downloads and temporary seeding.
+
+Before starting RSS payloads, FjordSeed counts allocated buffer bytes plus the
+remaining payload of existing buffered downloads, including queued and paused
+downloads. It reserves each admitted torrent's full size before submitting it.
+Feeds share a durable admission lock and reservations, so simultaneous feeds,
+asynchronous adds and restarts cannot spend the same available space twice.
+Reservations for ambiguous adds remain until the client reports the torrent;
+an explicit rejection releases the reservation.
+
+With 100 GB or less available (including reservations), FjordSeed cross-checks
+all eligible unread RSS articles per feed. A feed whose advertised candidates
+all exceed the available capacity receives its own automatic storage pause;
+other feeds can continue adding smaller torrents that fit. Each paused feed is
+rechecked automatically and resumes as soon as a candidate fits. The final
+metadata-based admission check applies at every usage level. All feeds pause
+only when the overall limit is reached or storage cannot be measured safely.
+Individual feed switches remain unchanged. Existing
+downloads and seeders continue; lowering the limit never removes data. This is
+an RSS admission limit, not a filesystem quota: manual additions, conversion
+outputs and filesystem allocation overhead can increase usage independently.
+Unmeasurable storage or unknown payload sizes block new RSS payloads safely.
+
+RSS `contentlength`, when available, skips advertised torrents that will not fit
+before fetching their torrent metadata. Metadata is always checked again before
+adding payloads; an understated or missing feed size cannot bypass the limit.
+Blocked articles remain unread and retry later. Oversized/unknown candidates
+yield to other candidates rather than consuming their download history.
+
+Configuration: `DATA_DIR/rss-storage-limit.json`; worker snapshot and durable
+reservations: `DATA_DIR/qbit/fjord-rss-limit.json` and `rss-budget-state.json`.
+Back up these files with the existing RSS history. Rolling back the application
+disables enforcement; existing feed switches and downloads are unchanged.
+
+Validation: `python -m pytest tests/test_rss_budget.py tests/test_rss_gate.py
+tests/test_rss_size.py` and `python tests/browser_rss_budget.py`.
+
 ### RSS temporary storage in the Matrix bot
 
 Ask “Hvor meget midlertidig plads bruger RSS?” to read allocated RSS buffer bytes and total temporary buffer bytes. The measurement shares FjordSeed’s 30-second storage cache, excludes permanent media, and counts hardlinks once. Unknown RSS attribution is shown as unknown. Update FjordSeed, FjordHub and the Matrix bot together. The dedicated storage endpoints use the existing app key and bot-only token; no paths or torrent controls are exposed.

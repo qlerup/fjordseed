@@ -20,8 +20,25 @@ from qbit_rpc import seed_ratio, initial_managed_ratio
 from benefits import effective_freeleech
 
 
+def budget_message(budget):
+    return {
+        'measurement_error':'RSS afventer, at det midlertidige lager kan måles sikkert.',
+        'unknown_size':'RSS-posten afventer kendt størrelse i torrentmetadata. Intet indhold er startet.',
+        'too_large':'RSS-posten er større end den samlede lagergrænse og springes over.',
+        'candidate_space':'RSS-posten afventer tilstrækkelig plads under den samlede lagergrænse.',
+    }.get(budget.get('reason'), 'Alle RSS-feeds er automatisk på lagerpause. Genoptager, når der er plads til nye feedposter.')
+
+
 def fingerprint(feed):
     return hashlib.sha256(json.dumps(feed,sort_keys=True).encode()).hexdigest()
+
+
+def article_size(article):
+    """Optional advertised payload size. Metadata still decides final admission."""
+    value=article.get('contentlength')
+    if isinstance(value,str) and re.fullmatch(r'[0-9]{1,16}',value):
+        value=int(value)
+    return value if type(value) is int and value>0 else None
 
 
 def badges_match(result,feed,now=None):
@@ -72,6 +89,12 @@ def fetch_metadata(url):
 
 
 def gate_rpc(action,data,api,root=Path('/config')):
+    from rss_budget import admission_lock
+    with admission_lock(root):
+        return _gate_rpc(action, data, api, root)
+
+
+def _gate_rpc(action,data,api,root):
     ident=data.get('feed_id','')
     if not isinstance(ident,str) or not re.fullmatch('[a-f0-9]{32}',ident):
         raise ValueError('Invalid feed')
@@ -94,7 +117,12 @@ def gate_rpc(action,data,api,root=Path('/config')):
         pending_path.unlink(missing_ok=True)
         pending={}
     if action=='rss_prepare':
+        from rss_budget import status
+        budget = status(api, root)
+        if budget['paused']:
+            return {'storage_blocked': True, 'storage_budget': budget}
         size_skipped=0
+        storage_skipped=0
         if not pending:
             item=api('rss/items?withData=true').json().get(name,{})
             if item.get('url')!=feed['url'] or item.get('hasError'):
@@ -107,7 +135,15 @@ def gate_rpc(action,data,api,root=Path('/config')):
                         or not isinstance(url,str) or not url):
                     continue
                 token=hashlib.sha256((str(article.get('id',''))+'\n'+url).encode()).hexdigest()
-                candidates.append((history['retry'].get(token,0),token,url,article))
+                if token not in history['done']:
+                    candidates.append((history['retry'].get(token,0),token,url,article))
+            if budget.get('near_limit'):
+                relevant=[c for c in candidates if article_size(c[3]) is None
+                          or feed.get('max_size_bytes') is None or article_size(c[3])<=feed['max_size_bytes']]
+                if relevant and all(article_size(c[3]) is not None and article_size(c[3])>budget['available_bytes'] for c in relevant):
+                    # Pause this feed only. Re-evaluate the current feed and free
+                    # space on the next tick, without changing its enabled flag.
+                    return {'storage_skipped':len(relevant), 'storage_paused':True}
             # Oldest attempts first: busy feeds must not starve later entries.
             deadline=time.monotonic()+8
             for _,token,url,article in sorted(candidates,key=lambda c:c[0]):
@@ -115,6 +151,14 @@ def gate_rpc(action,data,api,root=Path('/config')):
                     continue
                 if time.monotonic()>=deadline:
                     break
+                advertised=article_size(article)
+                if advertised is not None:
+                    if feed.get('max_size_bytes') is not None and advertised>feed['max_size_bytes']:
+                        size_skipped+=1
+                        continue
+                    if budget['limit_bytes'] is not None and advertised>budget.get('available_bytes',0):
+                        storage_skipped+=1
+                        continue
                 # A broken item must not starve later articles.
                 history['retry'][token]=now+300
                 active_tokens={c[1] for c in candidates}
@@ -131,6 +175,7 @@ def gate_rpc(action,data,api,root=Path('/config')):
                 atomic(pending_path,json.dumps(pending))
                 break
         return ({k:pending[k] for k in ('token','meta') if k in pending} if pending else
+                {'storage_skipped':storage_skipped} if storage_skipped else
                 {'size_skipped':size_skipped} if size_skipped else {})
     if action!='rss_resolve' or not pending or pending['token']!=data.get('token'):
         raise ValueError('Candidate expired')
@@ -154,8 +199,20 @@ def gate_rpc(action,data,api,root=Path('/config')):
             require_enabled()  # Do not consume RSS history while disabled/offline.
             feed={**feed,'ratio_limit':1,'ratio_action':'delete'}
         if not already_added:
+            from rss_budget import status, release
+            budget = status(api, root, candidate=pending['meta'], reserve=True)
+            if budget.get('fits') is False:
+                if not budget['paused']:
+                    history['retry'][pending['token']]=now+60
+                    atomic(history_path,json.dumps(history))
+                    pending_path.unlink(missing_ok=True)
+                return {'storage_blocked': True, 'storage_budget': budget}
             from download_storage import prepare
-            path=prepare(hashes, feed['folder'],name=pending['meta'].get('name') or pending.get('title',''),convert=feed.get('convert',False))
+            try:
+                path=prepare(hashes, feed['folder'],name=pending['meta'].get('name') or pending.get('title',''),convert=feed.get('convert',False))
+            except Exception:
+                release(root, hashes)
+                raise
         # Record intent before POST: an ambiguous timeout must not start it twice.
         history['done']=list(dict.fromkeys([*history['done'],*keys]))
         atomic(history_path,json.dumps(history))
@@ -173,6 +230,8 @@ def gate_rpc(action,data,api,root=Path('/config')):
             if response.text.strip()!='Ok.':
                 result=response.json()
                 if result.get('failure_count',0) or result.get('success_count',0)+result.get('pending_count',0)<1:
+                    from rss_budget import release
+                    release(root, hashes)
                     history['done']=[k for k in history['done'] if k not in keys]
                     atomic(history_path,json.dumps(history))
                     raise ValueError('Torrent rejected')
@@ -196,11 +255,13 @@ class RssGate:
         self.rss,self.runtime,self.state=rss,runtime,state
         self.benefits=benefits
         self.reports={}
+        self.storage_paused=set()
 
     def tick(self):
         with self.rss.lock:
             entries=self.rss.entries()
         for feed in entries:
+            self.storage_paused.discard(feed['id'])
             if not feed['enabled']:
                 continue
             try:
@@ -220,6 +281,15 @@ class RssGate:
                         self.reports[feed['id']]='RSS-feedet og den valgte tracker passer ikke sammen. Ret trackerkontoen før download.'
                         continue
                 candidate=self.runtime.rpc('rss_prepare',{'feed_id':feed['id'],'revision':fingerprint(feed)})
+                if candidate and candidate.get('storage_blocked'):
+                    self.reports[feed['id']]=budget_message(candidate['storage_budget'])
+                    continue
+                if candidate and candidate.get('storage_skipped'):
+                    if candidate.get('storage_paused'):
+                        self.storage_paused.add(feed['id'])
+                    self.reports[feed['id']]=('Feedet er automatisk på lagerpause: ingen af de aktuelle feedposter kan være under grænsen. Andre feeds fortsætter, og dette feed genoptager, så snart en post kan være der.' if candidate.get('storage_paused') else
+                        'RSS-poster afventer plads under den samlede lagergrænse. Størrelsen er læst direkte fra feedet; intet indhold er startet.')
+                    continue
                 if candidate and candidate.get('size_skipped'):
                     self.reports[feed['id']]='Feedposter sprunget over: for store eller med ukendt størrelse. Kontrolleres igen senere.'
                     continue
@@ -255,13 +325,14 @@ class RssGate:
                                 continue
                             if approved:
                                 self.benefits.remember(candidate['meta'],result)
-                            self.runtime.rpc('rss_resolve',{'feed_id':feed['id'],'revision':fingerprint(feed),
+                            resolved=self.runtime.rpc('rss_resolve',{'feed_id':feed['id'],'revision':fingerprint(feed),
                                 'token':candidate['token'],'hashes':candidate['meta']['hashes'],
                                 'approved':approved,'benefits':result})
                     else:
-                        self.runtime.rpc('rss_resolve',{'feed_id':feed['id'],'revision':fingerprint(feed),
+                        resolved=self.runtime.rpc('rss_resolve',{'feed_id':feed['id'],'revision':fingerprint(feed),
                             'token':candidate['token'],'hashes':candidate['meta']['hashes'],'approved':True})
-                self.reports[feed['id']]='Feedpost tilføjet.' if approved else 'Valgte badges er ikke alle bekræftet. Torrenten springes over og kontrolleres igen senere.'
+                self.reports[feed['id']]=(budget_message(resolved['storage_budget']) if resolved.get('storage_blocked') else
+                    'Feedpost tilføjet.' if approved else 'Valgte badges er ikke alle bekræftet. Torrenten springes over og kontrolleres igen senere.')
             except Exception:
                 self.reports[feed['id']]='Afventer VPN eller feedsynkronisering.'
 
