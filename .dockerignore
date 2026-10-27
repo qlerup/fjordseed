@@ -43,3 +43,5 @@
 !library_conversion.py
 !shared_library.py
 !media_bitrates.py
+
+!deletion_events.py

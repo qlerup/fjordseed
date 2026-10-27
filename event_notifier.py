@@ -44,9 +44,25 @@ class EventNotifier:
             return
         pending.append({"type": kind, "event_id": uuid.uuid4().hex, **fields})
 
+    def flush_deletions(self):
+        # Worker receipts survive app/worker restarts. Hub deduplicates the stable
+        # ID if delivery succeeds but acknowledgement is interrupted.
+        folder = self.path.parent / 'qbit' / 'auto-delete-events'
+        for path in sorted(folder.glob('deleted-*.json'))[:500]:
+            try:
+                receipt = json.loads(path.read_text(encoding='utf-8'))
+                if not receipt.get('ready'):
+                    continue
+                self.hub.call('/api/hub/apps/notifications', receipt['event'])
+                path.unlink(missing_ok=True)
+            except Exception:
+                LOG.warning('Automatic deletion notification retained for retry')
+                return
+
     def flush(self):
         if not self.hub.enabled:
             return
+        self.flush_deletions()
         while True:
             with self.lock:
                 if not self.state["pending"]:

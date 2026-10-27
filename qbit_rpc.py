@@ -98,6 +98,8 @@ def sync_share_limits(api=None):
     api=api or call
     with CreditLedger().transaction() as ledger:
         rows=api('torrents/info').json()
+        from deletion_events import confirm_deletions
+        confirm_deletions(rows)
         normalize_forced_downloads(api, rows)
         prioritize_rss_downloads(api,rows)
         credits=[ledger.update(row) for row in rows]
@@ -183,9 +185,8 @@ def finish_seeding(api,row,credit):
         return
     action=row.get('share_limit_action')
     if action=='RemoveWithContent':
-        api('torrents/delete',{'hashes':row['hash'],
-            'deleteFiles':'true' if action=='RemoveWithContent' else 'false'})
-        return True
+        from deletion_events import delete_completed
+        return delete_completed(api, row, credit)
 
 
 def extra_seed_hours(value):

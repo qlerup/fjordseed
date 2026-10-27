@@ -27,7 +27,7 @@ RUN qbittorrent-nox --version
 WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py bot_upload.py event_notifier.py hub_email.py hub.py runtime.py state.py qbit_rpc.py qbit_worker.py torrent_port.py trackers.py benefits.py covers.py torrent_meta.py rss.py rss_gate.py green_credit.py download_storage.py storage.py storage_browser.py ./
+COPY app.py deletion_events.py bot_upload.py event_notifier.py hub_email.py hub.py runtime.py state.py qbit_rpc.py qbit_worker.py torrent_port.py trackers.py benefits.py covers.py torrent_meta.py rss.py rss_gate.py green_credit.py download_storage.py storage.py storage_browser.py ./
 COPY templates ./templates
 COPY streaming.py ./
 COPY conversion.py library_conversion.py shared_library.py media_bitrates.py ./

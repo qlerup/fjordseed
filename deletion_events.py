@@ -1,0 +1,69 @@
+"""Durable receipts for automatic deletions, confirmed on a later worker poll."""
+import hashlib
+import json
+import logging
+import os
+from pathlib import Path
+
+from state import atomic
+
+LOG = logging.getLogger(__name__)
+
+
+def directory():
+    from download_storage import CONFIG
+    return CONFIG / 'auto-delete-events'
+
+
+def delete_completed(api, row, credit, *, converted=False):
+    from green_credit import real_ratio
+    target = 1 if converted else credit['ratio_limit']
+    hours = 49 if converted else 49 + credit.get('extra_seed_hours', 0)
+    identity = str(row['hash']) + ':' + str(row.get('added_on', 0))
+    event_id = 'deleted-' + hashlib.sha256(identity.encode()).hexdigest()
+    path = directory() / (event_id + '.json')
+    event = {'type': 'download_deleted', 'event_id': event_id,
+             'filename': str(row.get('name') or 'Ukendt fil')[:200],
+             'reason': 'ratio' if real_ratio(credit) >= target else 'time',
+             'ratio_limit': target, 'seed_hours': hours, 'library_retained': converted}
+    content = row.get('content_path')
+    # qBittorrent supplies this path; never send it to the Hub or Matrix.
+    receipt = {'hash': row['hash'], 'content_path': content if isinstance(content, str) else '',
+               'ready': False, 'event': event}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic(path, json.dumps(receipt), mode=0o644)
+    try:
+        api('torrents/delete', {'hashes': row['hash'], 'deleteFiles': 'true'})
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+    # A successful API response accepts an asynchronous operation. Confirm it
+    # on a fresh snapshot, including removal of the original content, before notifying.
+    return True
+
+
+def confirm_deletions(rows):
+    active = {row.get('hash') for row in rows}
+    for path in directory().glob('deleted-*.json'):
+        try:
+            receipt = json.loads(path.read_text())
+            if receipt['ready'] or receipt['hash'] in active:
+                continue
+            content = receipt.get('content_path')
+            if not content:
+                # No trustworthy file location: do not claim confirmed file deletion.
+                continue
+            source = Path(content)
+            if source.is_symlink() or source.is_file():
+                continue
+            if source.exists():
+                def fail(error):
+                    raise error
+                if any(files for _, _, files in os.walk(source, followlinks=False, onerror=fail)):
+                    continue
+            receipt['ready'] = True
+            atomic(path, json.dumps(receipt), mode=0o644)
+        except FileNotFoundError:
+            continue  # Sender may have acknowledged a ready receipt.
+        except (OSError, ValueError, KeyError, TypeError):
+            LOG.exception('Could not confirm automatic deletion receipt')

@@ -127,8 +127,8 @@ def finish(api,row,credit,record):
     from qbit_rpc import stop_requirement
     if not stop_requirement({**row,**credit})['seeding_requirement_met']:
         return False
-    api('torrents/delete',{'hashes':row['hash'],'deleteFiles':'true'})
-    return True
+    from deletion_events import delete_completed
+    return delete_completed(api, row, credit, converted=True)
 
 
 def retry(ident):
