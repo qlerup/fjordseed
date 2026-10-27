@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import os
+import stat
 from pathlib import Path
 
 from state import atomic
@@ -13,6 +14,42 @@ LOG = logging.getLogger(__name__)
 def directory():
     from download_storage import CONFIG
     return CONFIG / 'auto-delete-events'
+
+
+def releasable_bytes(content):
+    """Allocated file blocks, excluding inodes with links outside the deleted tree.
+
+    This is an estimate: filesystem snapshots/reflinks and open files can retain
+    blocks after unlink. An unreadable/missing source is unknown, never zero.
+    """
+    if not isinstance(content, str) or not content:
+        return None
+    seen = {}
+    def collect(info):
+        if not stat.S_ISREG(info.st_mode):
+            return
+        identity = (info.st_dev, info.st_ino)
+        if identity not in seen:
+            seen[identity] = [info.st_blocks * 512, info.st_nlink, 0]
+        seen[identity][2] += 1
+    try:
+        source = Path(content)
+        if any(part.is_symlink() for part in (source, *source.parents)):
+            return None
+        info = source.stat()
+        if stat.S_ISREG(info.st_mode):
+            collect(info)
+        elif stat.S_ISDIR(info.st_mode):
+            def fail(error):
+                raise error
+            for _, _, files, fd in os.fwalk(source, follow_symlinks=False, onerror=fail):
+                for name in files:
+                    collect(os.stat(name, dir_fd=fd, follow_symlinks=False))
+        else:
+            return None
+        return sum(size for size, links, found in seen.values() if found == links)
+    except (OSError, ValueError, AttributeError):
+        return None
 
 
 def delete_completed(api, row, credit, *, converted=False):
@@ -27,6 +64,7 @@ def delete_completed(api, row, credit, *, converted=False):
              'reason': 'ratio' if real_ratio(credit) >= target else 'time',
              'ratio_limit': target, 'seed_hours': hours, 'library_retained': converted}
     content = row.get('content_path')
+    event['freed_bytes'] = releasable_bytes(content)
     # qBittorrent supplies this path; never send it to the Hub or Matrix.
     receipt = {'hash': row['hash'], 'content_path': content if isinstance(content, str) else '',
                'ready': False, 'event': event}

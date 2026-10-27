@@ -61,3 +61,34 @@ def test_id_stable_on_retry_but_new_for_readded_torrent():
     assert len(list(directory().glob('*.json')))==1
     delete_completed(Mock(),dict(row,added_on=2),credit)
     assert len(list(directory().glob('*.json')))==2
+
+
+def test_allocated_size_sparse_and_hardlinks(tmp_path):
+    import os
+    from deletion_events import releasable_bytes
+    content=tmp_path/'content';content.mkdir()
+    original=content/'original'; original.write_bytes(b'x'*10000)
+    blocks=original.stat().st_blocks*512
+    assert releasable_bytes(str(original))==blocks
+    os.link(original,content/'internal')
+    assert releasable_bytes(str(content))==blocks
+    os.link(original,tmp_path/'retained')
+    assert releasable_bytes(str(content))==0
+    with (content/'sparse').open('wb') as f:f.truncate(10**9)
+    sparse=(content/'sparse').stat().st_blocks*512
+    assert releasable_bytes(str(content))==sparse
+    (content/'link').symlink_to(tmp_path/'retained')
+    assert releasable_bytes(str(content))==sparse
+
+
+def test_unknown_measurement_and_saved_size(tmp_path):
+    from deletion_events import releasable_bytes
+    assert releasable_bytes(None) is None
+    assert releasable_bytes(str(tmp_path/'missing')) is None
+    content=tmp_path/'movie';content.write_bytes(b'x'*5000)
+    expected=content.stat().st_blocks*512
+    delete_completed(Mock(),{'hash':'a'*40,'name':'Movie','content_path':str(content)}, {'ratio':1,'ratio_limit':1})
+    path=next(directory().glob('*.json'))
+    content.unlink();confirm_deletions([])
+    receipt=json.loads(path.read_text())
+    assert receipt['ready'] and receipt['event']['freed_bytes']==expected
