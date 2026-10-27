@@ -2,6 +2,7 @@
 import hashlib
 import json
 import logging
+import math
 import os
 import stat
 from pathlib import Path
@@ -65,6 +66,13 @@ def delete_completed(api, row, credit, *, converted=False):
              'ratio_limit': target, 'seed_hours': hours, 'library_retained': converted}
     content = row.get('content_path')
     event['freed_bytes'] = releasable_bytes(content)
+    # Preserve the durable ledger totals, not resettable client counters or
+    # the configured ratio target. Unknown data must not look like zero upload.
+    event['transfer'] = {
+        field: value if type(value) in (int, float) and math.isfinite(value) and value >= 0 else None
+        for field in ('uploaded', 'credited_uploaded', 'ratio')
+        for value in (credit.get(field),)
+    }
     # qBittorrent supplies this path; never send it to the Hub or Matrix.
     receipt = {'hash': row['hash'], 'content_path': content if isinstance(content, str) else '',
                'ready': False, 'event': event}

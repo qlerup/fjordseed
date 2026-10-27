@@ -92,3 +92,23 @@ def test_unknown_measurement_and_saved_size(tmp_path):
     content.unlink();confirm_deletions([])
     receipt=json.loads(path.read_text())
     assert receipt['ready'] and receipt['event']['freed_bytes']==expected
+
+
+def test_final_transfer_totals_survive_deletion_and_delivery(tmp_path, monkeypatch):
+    monkeypatch.setattr(download_storage,'CONFIG',tmp_path/'qbit')
+    content=tmp_path/'file';content.write_text('original')
+    row={'hash':'e'*40,'name':'Episode','content_path':str(content),'uploaded':10,'ratio':.01}
+    credit={'uploaded':2350000000,'client_uploaded':10,'credited_uploaded':1175000000,'ratio':2.35,'ratio_limit':2}
+    delete_completed(Mock(),row,credit)
+    content.unlink();confirm_deletions([])
+    hub=Hub();EventNotifier(tmp_path,hub,'fjordseed').flush()
+    assert hub.calls[0][1]['transfer']=={'uploaded':2350000000,'credited_uploaded':1175000000,'ratio':2.35}
+    assert hub.calls[0][1]['ratio_limit']==2
+
+
+@pytest.mark.parametrize('value',[None,-1,True,float('nan'),float('inf'),'123'])
+def test_invalid_or_unknown_transfer_remains_unknown(value):
+    delete_completed(Mock(),{'hash':'f'*40,'name':'Unknown'},
+                     {'ratio_limit':1,'ratio':0,'uploaded':value,'credited_uploaded':value})
+    transfer=json.loads(next(directory().glob('*.json')).read_text())['event']['transfer']
+    assert transfer=={'uploaded':None,'credited_uploaded':None,'ratio':0}
