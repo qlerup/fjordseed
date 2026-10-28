@@ -12,7 +12,7 @@ from urllib.parse import urlencode, urljoin, urlsplit
 
 import requests
 
-from rss import PREFIX, validate_feed, folder_path, date_matches, title_matches, size_matches
+from rss import PREFIX, validate_feed, folder_path, date_matches, title_matches, size_matches, article_timestamp
 from state import atomic
 from torrent_meta import magnet_meta, torrent_meta
 from tracker_providers import PROVIDERS
@@ -27,7 +27,7 @@ def budget_message(budget):
         'too_large':'RSS-posten er større end den samlede lagergrænse og springes over.',
         'candidate_space':'RSS-posten afventer tilstrækkelig plads under den samlede lagergrænse.',
         'pending':'Dette feed afventer en ny måling af det midlertidige lager.',
-        'limit':'Dette feed afventer plads: den samlede lagergrænse er nået. Feedets poster kontrolleres igen automatisk.',
+        'limit':'Dette feed afventer plads: den samlede lagergrænse er nået. Ved genoptagelse hentes kun nye poster fra genaktiveringstidspunktet.',
     }.get(budget.get('reason'), 'Dette feed afventer plads til nye feedposter.')
 
 
@@ -63,7 +63,7 @@ def feed_space_message(assessment):
     if assessment['smallest_bytes'] is not None:
         text+='Mindste oplyste størrelse: '+gb(assessment['smallest_bytes'])+'. '
     text+='Plads til nye downloads: '+gb(assessment['available_bytes'])+'. '
-    return text+'Feedet kontrolleres igen automatisk; andre feeds vurderes hver for sig.'
+    return text+'Ved genoptagelse hentes kun nye poster; andre feeds vurderes hver for sig.'
 
 
 def badges_match(result,feed,now=None):
@@ -137,6 +137,16 @@ def _gate_rpc(action,data,api,root):
     history_path=root/('rss-history-'+ident+'.json')
     history=read_json(history_path,{'done':[], 'retry':{}})
     pending=read_json(pending_path,{})
+
+    def pause_storage():
+        if not history.get('storage_paused'):
+            history['storage_paused']=True
+            atomic(history_path,json.dumps(history))
+
+    def after_resume(article):
+        cutoff=history.get('resumed_after')
+        stamp=article_timestamp(article.get('date'))
+        return cutoff is None or (stamp is not None and stamp>=cutoff)
     now=time.time()
     if pending and (pending['revision']!=data['revision'] or not 0<=now-pending['created_at']<600):
         pending_path.unlink(missing_ok=True)
@@ -145,10 +155,11 @@ def _gate_rpc(action,data,api,root):
         from rss_budget import status
         budget = status(api, root)
         if budget['paused'] and budget.get('reason')!='limit':
+            pause_storage()
             return {'storage_blocked': True, 'storage_budget': budget}
         size_skipped=0
         storage_skipped=0
-        if not pending or budget['paused']:
+        if not pending or budget['paused'] or history.get('storage_paused'):
             item=api('rss/items?withData=true').json().get(name,{})
             if item.get('url')!=feed['url'] or item.get('hasError'):
                 raise ValueError('RSS feed unavailable')
@@ -156,7 +167,7 @@ def _gate_rpc(action,data,api,root):
             candidates=[]
             for article in articles:
                 url=article.get('torrentURL') or article.get('link','')
-                if (article.get('isRead') is True or not date_matches(article,feed) or not title_matches(article,feed)
+                if (article.get('isRead') is True or not date_matches(article,feed) or not after_resume(article) or not title_matches(article,feed)
                         or not isinstance(url,str) or not url):
                     continue
                 token=hashlib.sha256((str(article.get('id',''))+'\n'+url).encode()).hexdigest()
@@ -165,14 +176,23 @@ def _gate_rpc(action,data,api,root):
             if budget.get('near_limit'):
                 assessment=feed_space(candidates,feed,budget)
                 if assessment['paused']:
+                    pause_storage()
                     # Pause this feed only. Re-evaluate the current feed and free
                     # space on the next tick, without changing its enabled flag.
                     return {'storage_skipped':assessment['eligible'], 'storage_paused':True,
                             'storage_assessment':assessment}
                 if budget['paused']:
+                    pause_storage()
                     # Empty/already-consumed feeds have no pending payload to
                     # pause. Still keep a previously prepared add behind the cap.
                     return {}
+            if history.get('storage_paused'):
+                # Durable boundary: discard backlog and any pre-pause preparation.
+                history.update(storage_paused=False,resumed_after=now)
+                atomic(history_path,json.dumps(history))
+                pending_path.unlink(missing_ok=True)
+                pending={}
+                candidates=[c for c in candidates if after_resume(c[3])]
             # Oldest attempts first: busy feeds must not starve later entries.
             deadline=time.monotonic()+8
             for _,token,url,article in sorted(candidates,key=lambda c:c[0]):
@@ -211,7 +231,7 @@ def _gate_rpc(action,data,api,root):
     if data.get('approved') is True:
         if not badges_match(data.get('benefits',{}),feed):
             raise ValueError('Selected badges not verified')
-        if not date_matches(pending,feed):
+        if history.get('storage_paused') or not after_resume(pending) or not date_matches(pending,feed):
             raise ValueError('Article predates feed start or has no date')
         if not title_matches(pending,feed):
             raise ValueError('Article does not match title filters')
@@ -231,6 +251,7 @@ def _gate_rpc(action,data,api,root):
             from rss_budget import status, release
             budget = status(api, root, candidate=pending['meta'], reserve=True)
             if budget.get('fits') is False:
+                pause_storage()
                 if not budget['paused']:
                     history['retry'][pending['token']]=now+60
                     atomic(history_path,json.dumps(history))
@@ -317,7 +338,7 @@ class RssGate:
                     if candidate.get('storage_paused'):
                         self.storage_paused.add(feed['id'])
                     self.reports[feed['id']]=(feed_space_message(candidate['storage_assessment']) if candidate.get('storage_assessment') else
-                        'Feedet er automatisk på lagerpause: ingen af de aktuelle feedposter kan være under grænsen. Andre feeds fortsætter, og dette feed genoptager, så snart en post kan være der.' if candidate.get('storage_paused') else
+                        'Feedet er automatisk på lagerpause: ingen af de aktuelle feedposter kan være under grænsen. Andre feeds fortsætter, og dette feed genoptager med nye poster, når der er plads.' if candidate.get('storage_paused') else
                         'RSS-poster afventer plads under den samlede lagergrænse. Størrelsen er læst direkte fra feedet; intet indhold er startet.')
                     continue
                 if candidate and candidate.get('size_skipped'):

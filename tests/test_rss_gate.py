@@ -328,3 +328,31 @@ def test_all_posts_follow_date_lookup_without_browser(tmp_path):
     worker=rss_gate.RssGate(app.extensions['rss'],runtime,state,benefits);worker.tick()
     benefits.snapshot.assert_called_once_with(meta)
     assert runtime.rpc.call_args_list[-1].args[0]=='rss_resolve'
+
+
+@pytest.mark.parametrize('start', [None, START, '2099-01-01T00:00:00+00:00'])
+def test_manual_reactivation_advances_start_and_survives_restart(tmp_path, monkeypatch, start):
+    now=rss.article_timestamp('2026-10-28T12:34:56+00:00')
+    monkeypatch.setattr(rss.time, 'time', lambda: now)
+    store=rss.Rss(tmp_path,tmp_path/'downloads')
+    data=feed(enabled=False,download_from=start);data.pop('id')
+    ident=store.save(data)
+    store.save({**store.entries()[0], 'enabled':True})
+    saved=rss.Rss(tmp_path,tmp_path/'downloads').entries()[0]
+    assert rss.article_timestamp(saved['download_from'])==max(now,rss.article_timestamp(start) or 0)
+    assert not rss.date_matches({'date':'2026-10-28T10:34:56Z'},saved)
+    assert not rss.date_matches({},saved)
+    # Editing an active feed must not keep moving the boundary forward.
+    monkeypatch.setattr(rss.time, 'time', lambda: now+3600)
+    store.save({**saved,'name':'Renamed'})
+    assert store.entries()[0]['download_from']==saved['download_from']
+
+
+def test_manual_reactivation_invalidates_prepared_candidate(gate, monkeypatch):
+    invoke,calls,_,_,root,entry=gate
+    candidate=invoke('rss_prepare')
+    changed={**entry,'download_from':'2026-10-28T12:00:00Z'}
+    (root/'fjord-rss.json').write_text(json.dumps([changed]))
+    with pytest.raises(ValueError,match='Feed changed'):
+        resolve(invoke,candidate)
+    assert not any(p=='torrents/add' for p,_ in calls)

@@ -74,7 +74,8 @@ def test_api_auth_and_separate_origin_even_after_feed_removed(tmp_path):
     assert client.get('/api/status').json['torrents'][1]['rss_feed']=='RSS-feed (fjernet)'
 
 
-def test_toggle_preserves_feed_settings_and_existing_torrents(tmp_path):
+def test_toggle_preserves_feed_settings_and_existing_torrents(tmp_path,monkeypatch):
+    monkeypatch.setattr(rss.time,'time',lambda:1793188800)
     app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
     client,headers=login(app)
     ident=client.post('/api/rss',headers=headers,json=feed()).json['id']
@@ -85,7 +86,7 @@ def test_toggle_preserves_feed_settings_and_existing_torrents(tmp_path):
     for enabled in (True,True,False):
         response=client.post(endpoint,headers=headers,json={'enabled':enabled,'name':'Ignored'})
         assert response.status_code==200
-        assert store.entries()[0]=={**original,'enabled':enabled}
+        assert store.entries()[0]=={**original,'enabled':enabled,'download_from':'2026-10-28T12:00:00+00:00'}
         assert rss.Rss(tmp_path).entries()[0]['enabled'] is enabled
         public=client.get('/api/rss').json['feeds'][0]
         assert public['enabled'] is enabled

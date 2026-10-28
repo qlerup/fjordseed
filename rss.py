@@ -224,6 +224,11 @@ class Rss:
                 preset=next((p for p in presets if title_key(p.get('name',''))==title_key(data.get('name',''))),{})
                 if preset:data={**data,'history_sources':preset['sources']}
             feed=validate_feed(data)
+            if existing and not existing['enabled'] and feed['enabled']:
+                # Reactivation starts a fresh window, preserving a later user date.
+                now=time.time()
+                if (article_timestamp(feed.get('download_from')) or 0)<now:
+                    feed['download_from']=datetime.fromtimestamp(now,timezone.utc).isoformat()
             if ident in feed['history_sources']:
                 raise ValueError('Et feed kan ikke medtage sig selv som historikkilde.')
             allowed={e['id'] for e in entries}|set((existing or {}).get('history_sources',[]))|set(preset.get('sources',[]))

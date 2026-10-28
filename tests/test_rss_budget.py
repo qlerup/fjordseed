@@ -129,9 +129,11 @@ def test_prepare_pauses_without_fetching_or_consuming_history(gate, monkeypatch)
     result=invoke('rss_prepare')
     assert result['storage_paused'] and result['storage_assessment']['eligible']==2
     assert not fetched and not any(p=='torrents/add' for p,_ in calls)
-    assert not (root/('rss-history-'+entry['id']+'.json')).exists()
+    assert json.loads((root/('rss-history-'+entry['id']+'.json')).read_text())['storage_paused']
     usage['allocated']=890
     candidate_sizes(monkeypatch,100)
+    assert invoke('rss_prepare')=={}  # Backlog is discarded on resumption.
+    articles[-1]['date']=rss.datetime.now(rss.timezone.utc).isoformat()
     candidate=invoke('rss_prepare');resolve(invoke,candidate)
     assert len([p for p,_ in calls if p=='torrents/add'])==1
 
@@ -171,6 +173,8 @@ def test_resolve_checks_space_again_without_starving_other_candidates(gate, monk
     history=json.loads((root/('rss-history-'+entry['id']+'.json')).read_text())
     assert candidate['token'] not in history['done']
     usage['allocated']=700
+    assert invoke('rss_prepare')=={}
+    gate[3][-1]['date']=rss.datetime.now(rss.timezone.utc).isoformat()
     assert resolve(invoke,invoke('rss_prepare'))=={'ok':True}
     assert len([p for p,_ in calls if p=='torrents/add'])==1
 
@@ -226,7 +230,7 @@ def test_one_feed_pauses_while_smaller_feed_continues_and_recovers(tmp_path, mon
     assert len([p for p,_ in calls if p=='torrents/add'])==1
     # Capacity released by cleanup resumes the large feed automatically.
     usage['allocated']=920*gb
-    assert 'token' in invoke(feeds[0])
+    assert invoke(feeds[0])=={}  # Only future publications can start after recovery.
     assert [f['enabled'] for f in json.loads((tmp_path/'fjord-rss.json').read_text())]==[True,True]
 
 
@@ -270,3 +274,27 @@ def test_api_does_not_replace_individual_feed_status_with_global_pause(tmp_path,
     assert feeds[0]['download_status']=='Dette feed har 2 for store poster.'
     assert feeds[1]['status']!='storage_paused'
     assert feeds[1]['download_status']=='Afventer nye feedposter.'
+
+
+def test_auto_resume_boundary_survives_calls_and_rejects_pending(gate,monkeypatch):
+    invoke,calls,fetched,articles,root,entry=gate
+    now=rss.article_timestamp('2026-10-28T12:00:00Z')
+    monkeypatch.setattr(rss_gate.time,'time',lambda:now)
+    configure(root);usage=measuring(monkeypatch,allocated=700)
+    candidate_sizes(monkeypatch,100)
+    pending=invoke('rss_prepare')
+    usage['allocated']=1000
+    assert resolve(invoke,pending)['storage_blocked']
+    usage['allocated']=0
+    assert invoke('rss_prepare')=={}
+    assert not (root/('rss-pending-'+entry['id']+'.json')).exists()
+    history=json.loads((root/('rss-history-'+entry['id']+'.json')).read_text())
+    assert history['resumed_after']==now and not history['storage_paused']
+    # An item first discovered later still cannot be downloaded with an old date.
+    articles[-1].update(id='late',date='2026-10-28T11:59:59Z')
+    assert invoke('rss_prepare')=={}
+    articles[-1]['date']=None
+    assert invoke('rss_prepare')=={}
+    articles[-1]['date']='2026-10-28T12:00:00Z'
+    assert resolve(invoke,invoke('rss_prepare'))=={'ok':True}
+    assert len([p for p,_ in calls if p=='torrents/add'])==1
