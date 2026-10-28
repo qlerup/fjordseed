@@ -3,7 +3,7 @@
  const folderOpen=new Set(),searches=new Map();
  const views=new Map(),bitrateCache=new Map(),bitrateBusy=new Set();
  const scope=d=>d.id+'\0'+d.media_folder;
- const fmt=n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:0}).format(n/1000)+' kb/s';
+ const fmt=n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(n/1000000)+' Mbps';
  const seriesNames=new Map();
  function seriesKey(name){return seriesNames.get(name.toLocaleLowerCase('da'))||'';}
  function skipped(name,rules,family){
@@ -75,7 +75,7 @@
    };
    return button;
   }
-  tools.append(toggle,skipButton('','folder'));
+  tools.append(toggle);
   function range(rows){
    if(rows.length>1)return rows.length+' filer · fold ud for bitrate pr. fil';
    const info=meta(rows[0]);
