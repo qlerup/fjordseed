@@ -29,6 +29,7 @@
 
 !download_storage.py
 !storage.py
+!storage_release.py
 !streaming.py
 !storage_browser.py
 

@@ -31,6 +31,10 @@ def test_allocated_bytes_rss_subset_links_sparse_and_old_locations(tmp_path):
     result=temporary_usage([a,b],{'rss_stages':[['.incomplete/rss'],['.incomplete/old']],'selected':0})
     assert result['rss_temporary_bytes']==expected_rss
     assert result['current_rss_bytes']==expected_rss
+    assert len(result['rss_stage_usage'])==2
+    current=next(r for r in result['rss_stage_usage'] if r['stage']=='.incomplete/rss')
+    assert current['bytes']==allocated(rss/'episode')
+    assert current['reclaimable_bytes']==0  # Another hardlink keeps the disk blocks alive.
     assert result['temporary_bytes']==expected_rss+allocated(manual/'other')+allocated(manual/'sparse')+allocated(a/'.fjordseed-buffer/legacy')
     (rss/'episode').unlink()
     (manual/'duplicate').unlink()

@@ -145,6 +145,7 @@ def temporary_usage(roots, config=None):
     config=config or {}
     seen={}
     stages=config.get('rss_stages',[[] for _ in roots])
+    stage_files={}
     selected_device=Path(roots[config.get('selected',0)]).stat().st_dev if roots else None
     def fail(error):
         if not isinstance(error,FileNotFoundError):raise error
@@ -155,6 +156,7 @@ def temporary_usage(roots, config=None):
         rss_roots=[Path(root)/p for p in stages[index]]
         for directory,dirs,files,fd in os.fwalk(buffer,follow_symlinks=False,onerror=fail):
             is_rss=any(Path(directory).is_relative_to(p) for p in rss_roots)
+            owner=next((str(p.relative_to(root)) for p in rss_roots if Path(directory).is_relative_to(p)),None)
             for name in files:
                 try:info=os.stat(name,dir_fd=fd,follow_symlinks=False)
                 except FileNotFoundError:continue  # Concurrent completion/removal.
@@ -162,10 +164,15 @@ def temporary_usage(roots, config=None):
                 if stat.S_ISREG(info.st_mode):
                     previous=seen.get(identity)
                     seen[identity]=(info.st_blocks*512,is_rss or bool(previous and previous[1]))
+                    if owner is not None and info.st_dev==selected_device:
+                        stage_files.setdefault((index,owner),{})[identity]=(info.st_blocks*512,info.st_nlink==1)
     known=config.get('rss_known',True)
     return {'temporary_bytes':sum(n for n,rss in seen.values()),
             'rss_temporary_bytes':sum(n for n,rss in seen.values() if rss) if known else None,
-            'current_rss_bytes':sum(n for (device,inode),(n,rss) in seen.items() if rss and device==selected_device) if known else None}
+            'current_rss_bytes':sum(n for (device,inode),(n,rss) in seen.items() if rss and device==selected_device) if known else None,
+            'rss_stage_usage':[{'root':index,'stage':stage,'bytes':sum(n for n,_ in files.values()),
+                'reclaimable_bytes':sum(n for n,exclusive in files.values() if exclusive)}
+                for (index,stage),files in stage_files.items()]}
 
 
 if __name__ == '__main__':

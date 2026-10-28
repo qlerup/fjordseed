@@ -3,6 +3,29 @@
  const cards=[...document.querySelectorAll('[data-storage-usage]')];
  const field=(card,name)=>card.querySelector('[data-usage-'+name+']');
  const text=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
+ function releases(card,schedule,format){
+  const summary=field(card,'release-summary'),list=field(card,'release-list');
+  if(!schedule){text(summary,'Oprydningsoversigten kunne ikke hentes.');if(list.children.length)list.replaceChildren();delete list.dataset.snapshot;return;}
+  const items=schedule.items||[];
+  text(summary,schedule.count===0?'Ingen midlertidige RSS-filer registreret på dette lager.':
+   (schedule.scheduled_bytes>0?format(schedule.scheduled_bytes)+' kan frigives ved de beregnede seedingmål. ':'')+
+   (schedule.count>items.length?'Viser de næste '+items.length+' af '+schedule.count+' downloads.':schedule.count+' midlertidige downloads.')+
+   (!schedule.available?' Afventer forbindelse til FjordSeed.':''));
+  const signature=JSON.stringify(items);
+  if(list.dataset.snapshot===signature)return;
+  list.dataset.snapshot=signature;
+  list.replaceChildren(...items.map(item=>{
+   const row=document.createElement('li'),title=document.createElement('strong'),amount=document.createElement('span'),when=document.createElement('span'),note=document.createElement('p');
+   title.textContent=item.name;title.className='storage-release-name';title.title=item.name;
+   amount.textContent=format(item.reclaimable_bytes)+' frigives';amount.className='storage-release-amount';
+   when.textContent=item.release_at?new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(item.release_at*1000)):'Tidspunkt afventer';
+   if(item.state==='soon')when.textContent='Ved næste oprydning';
+   if(item.state==='retained')when.textContent='Beholdes';
+   when.className='storage-release-time';note.className='small muted';note.textContent=item.message;
+   if(item.bytes!==item.reclaimable_bytes)note.textContent+=' Fylder '+format(item.bytes)+'; delte filer eller filer, der beholdes, tælles ikke som frigivet plads.';
+   row.append(title,amount,when,note);return row;
+  }));
+ }
  async function load(reset=false){
   if(!['#storage','#streaming'].includes(location.hash))return;
   const id=++requestId;
@@ -45,10 +68,11 @@
      if(segment.hidden!==(bytes===0))segment.hidden=bytes===0;
      text(field(card,'temporary-label'),'Heraf midlertidige RSS-filer: '+format(bytes)+' · indgår i Brugt');
      text(field(card,'used-temporary'),'('+format(bytes)+' midlertidigt)');
+     releases(card,temporary.release_schedule,format);
     }
    }catch(e){
     if(id!==requestId)return;
-    for(const card of cards){field(card,'temporary-segment').hidden=true;text(field(card,'temporary-label'),'Midlertidig RSS-plads kunne ikke måles.');text(field(card,'used-temporary'),'(midlertidig plads ukendt)');}
+    for(const card of cards){field(card,'temporary-segment').hidden=true;text(field(card,'temporary-label'),'Midlertidig RSS-plads kunne ikke måles.');text(field(card,'used-temporary'),'(midlertidig plads ukendt)');releases(card,null,format);}
    }
   }catch(e){
    if(id!==requestId)return;

@@ -322,6 +322,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             if (temporary_cache.get('paths') != paths or temporary_cache.get('selected') != selected
                     or time.monotonic() - temporary_cache.get('at', 0) >= 30):
                 result = storage.temporary_usage(paths)
+                from storage_release import schedule
+                result['release_schedule']=schedule(result.pop('_release_sources',[]),runtime)
                 temporary_cache.update(paths=paths, selected=selected, at=time.monotonic(), result=result)
             return dict(temporary_cache['result'])
 
