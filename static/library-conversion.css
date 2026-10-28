@@ -1,3 +1,4 @@
+#conversion-view>.connection+.connection{margin-top:24px}
 .conversion-pc-heading,.conversion-connected-heading{display:flex;justify-content:space-between;align-items:center;gap:16px}
 .conversion-pc-heading .eyebrow{margin-bottom:6px}.conversion-platform{font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:7px;padding:5px 10px;white-space:nowrap}
 .conversion-intro{max-width:780px;margin-top:12px;line-height:1.7}
