@@ -7,24 +7,29 @@ import tkinter as tk
 
 class Notice:
     def __init__(self,root):
-        self.root=root;self.window=None;self.hide_timer=None
+        self.root=root;self.window=None;self.hide_timer=None;self.slide_timer=None
 
-    def started(self,name,title='Konvertering startet'):
+    def started(self,name,title='Konvertering startet',detail=''):
         self.hide()
         win=tk.Toplevel(self.root);self.window=win
         win.title('Fjord · Konvertering startet')
         win.withdraw();win.overrideredirect(True);win.attributes('-topmost',True)
         win.configure(bg='#2d635e',padx=1,pady=1)
         panel=tk.Frame(win,bg='#122332',padx=17,pady=14);panel.pack(fill='both',expand=True)
-        tk.Label(panel,text='FJORD  ·  '+title.upper(),bg='#122332',fg='#7ce4c4',font=('Segoe UI',9,'bold'),anchor='w').pack(fill='x')
+        self.heading=tk.StringVar(value='FJORD  ·  '+title.upper())
+        tk.Label(panel,textvariable=self.heading,bg='#122332',fg='#7ce4c4',font=('Segoe UI',9,'bold'),anchor='w').pack(fill='x')
         tk.Label(panel,text=name,bg='#122332',fg='#edf3fb',font=('Segoe UI',11,'bold'),wraplength=310,justify='left',anchor='w').pack(fill='x',pady=(8,5))
+        if detail:tk.Label(panel,text=detail,bg='#122332',fg='#7ce4c4',font=('Segoe UI',9),anchor='w').pack(fill='x',pady=(0,5))
+        self.status=tk.StringVar(value='Starter konvertering på NVIDIA-GPU …')
+        tk.Label(panel,textvariable=self.status,bg='#122332',fg='#edf3fb',font=('Segoe UI',9),wraplength=310,justify='left',anchor='w',height=2).pack(fill='x')
         self.eta=tk.StringVar(value='Beregner resterende tid …')
         tk.Label(panel,textvariable=self.eta,bg='#122332',fg='#aebed5',font=('Segoe UI',10),anchor='w').pack(fill='x')
         win.update_idletasks()
         user=ctypes.WinDLL('user32',use_last_error=True)
         rect=wintypes.RECT();user.SystemParametersInfoW(48,0,ctypes.byref(rect),0)
         width=350;height=win.winfo_reqheight()
-        win.geometry(f'{width}x{height}+{rect.right-width-18}+{rect.bottom-height-18}')
+        x=rect.right-width-18;target=rect.bottom-height-18;start=rect.bottom
+        win.geometry(f'{width}x{height}+{x}+{start}')
         user.GetParent.argtypes=[wintypes.HWND];user.GetParent.restype=wintypes.HWND
         hwnd=user.GetParent(win.winfo_id()) or win.winfo_id()
         get=user.GetWindowLongPtrW;get.argtypes=[wintypes.HWND,ctypes.c_int];get.restype=ctypes.c_ssize_t
@@ -34,17 +39,36 @@ class Notice:
         user.ShowWindow.argtypes=[wintypes.HWND,ctypes.c_int];user.ShowWindow(hwnd,4)
         win.bind('<Button-1>',lambda e:self.hide())
         for child in panel.winfo_children():child.bind('<Button-1>',lambda e:self.hide())
+        def slide(frame=0):
+            if self.window is not win:return
+            fraction=min(1,frame/18)
+            y=round(start+(target-start)*(1-(1-fraction)**3))
+            win.geometry(f'{width}x{height}+{x}+{y}')
+            self.slide_timer=self.root.after(16,lambda:slide(frame+1)) if frame<18 else None
+        slide()
         self.hide_timer=self.root.after(18000,self.hide)
 
-    def progress(self,seconds):
+    def update_status(self,message):
+        if self.window and self.window.winfo_exists():self.status.set(str(message)[:160])
+
+    def progress(self,seconds,percent=None):
         if not self.window or not self.window.winfo_exists():return
         seconds=max(0,int(seconds))
         if seconds>=3600:text=f'{seconds//3600} t. {seconds//60%60} min.'
         elif seconds>=60:text=f'{seconds//60} min. {seconds%60} sek.'
         else:text=f'{seconds} sek.'
-        self.eta.set('Ca. '+text+' tilbage')
+        self.eta.set((f'{percent:.0f} % · ' if percent is not None else '')+'Ca. '+text+' tilbage')
+
+    def finish(self,message,failed=False):
+        if not self.window or not self.window.winfo_exists():return
+        self.heading.set('FJORD  ·  '+('KONVERTERING STOPPET' if failed else 'KONVERTERING FÆRDIG'))
+        self.update_status(message);self.eta.set('Originalfilerne er bevaret.' if failed else '100 % · Færdig')
+        if self.hide_timer:self.root.after_cancel(self.hide_timer)
+        self.hide_timer=self.root.after(7000,self.hide)
 
     def hide(self):
+        if self.slide_timer:
+            self.root.after_cancel(self.slide_timer);self.slide_timer=None
         if self.hide_timer:
             self.root.after_cancel(self.hide_timer);self.hide_timer=None
         if self.window:

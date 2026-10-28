@@ -48,6 +48,7 @@ class ConverterUI(tk.Tk):
         self.root_dir, self.config_path = Path(root), Path(config)
         self.connection_path = self.root_dir / 'worker-settings.json'
         self.tray = None
+        self.notice = None
         self.settings_window = None
         self.title('FjordSeed · Konvertering')
         self.geometry('900x800')
@@ -163,19 +164,25 @@ class ConverterUI(tk.Tk):
                     self.job_detail.set(str(value['bitrate'])+' Mbps · direkte fra netværksmappen')
                     self.status.set('Starter konvertering på NVIDIA-GPU …')
                     self.bar['value']=0;self.percent.set('0 %')
-                elif state == 'job_status':self.status.set(value)
+                    if self.notice:self.notice.started(Path(value['path']).name,detail=str(value['bitrate'])+' Mbps · NVIDIA-GPU · HEVC/MKV')
+                elif state == 'job_status':
+                    self.status.set(value)
+                    if self.notice:self.notice.update_status(value)
                 elif state == 'job_progress':
                     percent,fps,remaining=value
                     self.bar['value']=percent;self.percent.set(f'{percent:.0f} %')
                     self.job_detail.set(f'{fps:.1f} billeder/s · cirka {clock(remaining)} tilbage')
+                    if self.notice:self.notice.progress(remaining,percent)
                 elif state == 'job_done':
                     self.bar['value']=100;self.percent.set('100 %')
                     self.status.set('Færdig · filmen er i Bibliotek, og originaltorrenten er i Seeder.')
                     self.job_detail.set('Alle originalfiler og torrentens mappestruktur er bevaret.')
+                    if self.notice:self.notice.finish('Filmen er klar i Bibliotek.')
                 elif state == 'job_error':
                     self.status.set(value)
                     self.percent.set(f"Stoppet ved {float(self.bar['value']):.0f} %")
                     self.job_detail.set('Originalfilerne er bevaret.')
+                    if self.notice:self.notice.finish(value,failed=True)
                 else:
                     self.folder_status.set(value)
         except queue.Empty:
@@ -243,7 +250,8 @@ class ConverterUI(tk.Tk):
 
     def enable_background(self):
         if os.name == 'nt':
-            from windows_background import Tray
+            from windows_background import Tray, Notice
+            self.notice = Notice(self)
             try:
                 self.tray = Tray(self, self.root_dir / 'fjord.ico', self.restore, self.close)
             except OSError:
@@ -258,6 +266,7 @@ class ConverterUI(tk.Tk):
         self.focus_set()
 
     def close(self):
+        if self.notice:self.notice.hide()
         self.workspace_sync.close()
         def finish():
             if self.workspace_sync.runner and self.workspace_sync.runner.busy and self.workspace_sync.runner.can_cancel:self.after(100,finish)
