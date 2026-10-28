@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import urllib.request
 
-VERSION = '0.5.2'
+VERSION = '0.5.3'
 ROOT = Path(__file__).resolve().parent
 FORBIDDEN = {'worker-settings.json', 'preferences.json', 'client-state.json'}
 

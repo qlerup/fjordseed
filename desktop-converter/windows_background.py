@@ -1,5 +1,6 @@
 """Windows tray icon and non-activating notifications beside the clock."""
 import ctypes
+import queue
 from ctypes import wintypes
 from pathlib import Path
 import tkinter as tk
@@ -30,12 +31,14 @@ class Notice:
         width=350;height=win.winfo_reqheight()
         x=rect.right-width-18;target=rect.bottom-height-18;start=rect.bottom
         win.geometry(f'{width}x{height}+{x}+{start}')
+        win.update_idletasks()
         user.GetParent.argtypes=[wintypes.HWND];user.GetParent.restype=wintypes.HWND
         hwnd=user.GetParent(win.winfo_id()) or win.winfo_id()
         get=user.GetWindowLongPtrW;get.argtypes=[wintypes.HWND,ctypes.c_int];get.restype=ctypes.c_ssize_t
         put=user.SetWindowLongPtrW;put.argtypes=[wintypes.HWND,ctypes.c_int,ctypes.c_ssize_t];put.restype=ctypes.c_ssize_t
         put(hwnd,-20,get(hwnd,-20)|0x08000000|0x00000080)  # no activation, no taskbar entry
-        win.deiconify()
+        # Tk's deiconify can recreate the wrapper and activate it, discarding
+        # the no-activate style. Map the existing wrapper through Win32 instead.
         user.ShowWindow.argtypes=[wintypes.HWND,ctypes.c_int];user.ShowWindow(hwnd,4)
         win.bind('<Button-1>',lambda e:self.hide())
         for child in panel.winfo_children():child.bind('<Button-1>',lambda e:self.hide())
@@ -88,6 +91,8 @@ class Tray:
 
     def __init__(self,root,icon,show,quit):
         self.root,self.show,self.quit=root,show,quit
+        self.actions=queue.SimpleQueue()
+        self.poll_timer=None
         self.user=ctypes.WinDLL('user32',use_last_error=True)
         self.shell=ctypes.WinDLL('shell32',use_last_error=True)
         self.comctl=ctypes.WinDLL('comctl32',use_last_error=True)
@@ -128,17 +133,31 @@ class Tray:
         self.data.version=4;self.shell.Shell_NotifyIconW(4,ctypes.byref(self.data))
         self.closed=False
         root.bind('<Destroy>',self._destroy,add='+')
+        self.poll_timer=root.after(50,self._dispatch)
+
+    def _dispatch(self):
+        """Only Tk's own event loop may call Tk; native callbacks just enqueue."""
+        self.poll_timer=None
+        try:
+            while not self.closed:
+                action=self.actions.get_nowait()
+                if action=='show':self.show()
+                elif action=='quit':self.quit()
+        except queue.Empty:
+            pass
+        finally:
+            if not self.closed:self.poll_timer=self.root.after(50,self._dispatch)
 
     def _message(self,hwnd,message,wparam,lparam,ident,reference):
         if message==self.wake:
-            self.root.after(0,self.show)
+            self.actions.put('show')
             return 0
         if message==self.recreated:
             self.shell.Shell_NotifyIconW(0,ctypes.byref(self.data))
             self.shell.Shell_NotifyIconW(4,ctypes.byref(self.data))
         elif message==self.MESSAGE:
             event=lparam&0xffff
-            if event in (0x203,0x400,0x401):self.root.after(0,self.show)
+            if event in (0x203,0x400,0x401):self.actions.put('show')
             elif event in (0x205,0x7B):
                 point=wintypes.POINT();self.user.GetCursorPos(ctypes.byref(point))
                 menu=self.user.CreatePopupMenu()
@@ -147,13 +166,15 @@ class Tray:
                 self.user.SetForegroundWindow(hwnd)
                 selected=self.user.TrackPopupMenu(menu,0x100|0x2,point.x,point.y,0,hwnd,None)
                 self.user.DestroyMenu(menu);self.user.PostMessageW(hwnd,0,0,0)
-                if selected:self.root.after(0,self.show if selected==1 else self.quit)
+                if selected:self.actions.put('show' if selected==1 else 'quit')
             return 0
         return self.comctl.DefSubclassProc(hwnd,message,wparam,lparam)
 
     def _destroy(self,event):
         if event.widget is self.root and not self.closed:
             self.closed=True
+            if self.poll_timer:
+                self.root.after_cancel(self.poll_timer);self.poll_timer=None
             self.shell.Shell_NotifyIconW(2,ctypes.byref(self.data))
             self.comctl.RemoveWindowSubclass(self.hwnd,self.callback,0xF10E)
             self.user.DestroyIcon(self.icon)

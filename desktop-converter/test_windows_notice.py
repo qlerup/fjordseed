@@ -34,7 +34,8 @@ def test_popup_slides_above_taskbar_without_stealing_focus(tmp_path):
     notice=Notice(root)
     user=ctypes.WinDLL('user32')
     user.GetForegroundWindow.restype=wintypes.HWND
-    before=user.GetForegroundWindow()
+    user.GetAncestor.argtypes=[wintypes.HWND,wintypes.UINT]
+    user.GetAncestor.restype=wintypes.HWND
     try:
         notice.started('Scary Movie 3 (2003).mkv',detail='30 Mbps · NVIDIA-GPU · HEVC/MKV')
         start=notice.window.winfo_y()
@@ -42,7 +43,10 @@ def test_popup_slides_above_taskbar_without_stealing_focus(tmp_path):
         rect=wintypes.RECT();user.SystemParametersInfoW(48,0,ctypes.byref(rect),0)
         assert notice.window.winfo_y()<start
         assert notice.window.winfo_y()+notice.window.winfo_height()==rect.bottom-18
-        assert user.GetForegroundWindow()==before
+        # The user may switch apps while the test runs; neither Tk window may
+        # become foreground as a result of showing this notification.
+        assert user.GetForegroundWindow() not in {
+            user.GetAncestor(notice.window.winfo_id(),2),user.GetAncestor(root.winfo_id(),2)}
         notice.update_status('Konverterer på NVIDIA-GPU')
         notice.progress(125,24)
         root.update()

@@ -1,5 +1,7 @@
 Windows-installationspakke til Fjord-konvertering.
 
+- Retter et programnedbrud ved genåbning fra systembakken eller ved at starte programmet igen under en konvertering. Windows-callbacks sender nu handlinger til programmets hændelseskø i stedet for at kalde direkte ind i Tk.
+
 - Når FjordSeed sender en konvertering til pc'en, glider en popup op nederst til højre med filnavn, bitrate, status, fremdrift og forventet tid. Den vises også, når programmet kører i baggrunden, uden at tage tastaturfokus.
 
 - HEVC bruger NVDEC-afkodning, når GPU'ens afkodningsfunktioner er verificeret. Det undgår den FFmpeg-softwareafkodningssti, hvor NVEncC crashede i `avcodec-63.dll` på den undersøgte 4K-fil.
