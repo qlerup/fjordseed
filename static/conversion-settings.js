@@ -42,7 +42,8 @@
   const selected=device.selection;
   const active=selected?.action==='convert'&&!['completed','error','cancelled'].includes(selected.state);
   if(selected){
-   const states={queued:'Afventer pc',selected:'Valgt på pc',converting:'Konverterer på pc',encoding:'Konverterer på pc',encoded:'Afventer resultatkontrol',ready:'Resultatet er kontrolleret',moving:'Originaltorrenten flyttes til Seeder',completed:'Færdig · film i Bibliotek og originaltorrent i Seeder',error:'Jobbet kunne ikke fuldføres',cancelled:'Konvertering afbrudt'};
+   const machine=selected.executor==='server'?'server':'pc';
+   const states={queued:'Afventer '+machine,selected:'Valgt på pc',converting:'Konverterer på '+machine,encoding:'Konverterer på '+machine,encoded:'Afventer resultatkontrol',ready:'Resultatet er kontrolleret',moving:'Originaltorrenten flyttes til Seeder',completed:'Færdig · film i Bibliotek og originaltorrent i Seeder',error:'Jobbet kunne ikke fuldføres',cancelled:'Konvertering afbrudt'};
    const job=node('div','workspace-job'+(active?' is-active':'')),copy=node('div','workspace-job-copy');
    copy.append(node('span','workspace-job-state',states[selected.state]||'Konvertering'));
    const filename=node('strong','workspace-job-name',selected.name.split('/').at(-1));filename.title=selected.name;
@@ -55,6 +56,22 @@
   const meta=file=>cached?.files.get(file.name+'\0'+file.size);
   const finished=selected?.state==='completed'&&selected.media_folder===device.media_folder?selected.name.replace(/\.[^/.]+$/,'.mkv'):null;
   const all=(device.files||[]).map(f=>({...f,converted:!!f.converted||f.name===finished,skipped:skipped(f.name,rules)}));
+  const queued=(device.queue||[]).filter(q=>q.state==='queued');
+  if(queued.length){
+   const queue=node('div','workspace-queue'),heading=node('div','workspace-queue-heading');
+   heading.append(node('strong','','Konverteringskø · '+queued.length),node('span','small muted','Pc foretrækkes · serveren er fallback'));
+   queue.append(heading);
+   if(!device.online)queue.append(node('p','muted small',device.server_fallback_ready?'Pc’en er offline. Serverens GPU tager næste ventende job.':'Venter på pc’en eller en klar server-GPU. Køen er gemt.'));
+   for(const [index,task] of queued.entries()){
+    const row=node('div','workspace-queue-row'),copy=node('div');
+    const name=node('strong','',task.name.split('/').at(-1));name.title=task.name;
+    copy.append(name,node('p','muted small',task.bitrate+' Mbps'+(task.detail?' · '+task.detail:'')));
+    const remove=node('button','quiet','Fjern fra kø');remove.type='button';remove.setAttribute('aria-label','Fjern '+task.name+' fra kø');
+    remove.onclick=async()=>{remove.disabled=true;try{await api('/api/conversion/devices/'+device.id+'/queue/'+task.id+'/cancel',{method:'POST'});await load(false);}catch(e){error('#conversion-settings-error',e);remove.disabled=false;}};
+    row.append(node('span','workspace-queue-position',String(index+1)),copy,remove);queue.append(row);
+   }
+   container.append(queue);
+  }
   const search=node('input','workspace-search');search.type='search';search.placeholder='Søg i film og serier';
   search.setAttribute('aria-label','Søg i filer på '+device.name);search.value=searches.get(device.id)||'';
   const tools=node('div','workspace-tools'),toggle=node('label','workspace-toggle'),checkbox=node('input');
@@ -135,12 +152,13 @@
      label.append(filename,metrics);
      if(file.skipped)label.append(node('span','workspace-skipped','Sprunget over'));
      const current=selected?.name===file.name&&selected?.media_folder===device.media_folder;
-     const send=node('button','primary workspace-send',current&&active?(selected.state==='queued'?'Afventer pc…':'Konvertering i gang'):current&&selected.state==='error'?'Prøv igen':'Send til pc');send.type='button';send.disabled=device.conversion_version!==1||!!active||file.skipped;
+     const queuedIndex=queued.findIndex(q=>q.name===file.name&&q.media_folder===device.media_folder);
+     const send=node('button','primary workspace-send',queuedIndex>=0?'I kø · '+(queuedIndex+1):current&&active?(selected.state==='queued'?'Afventer GPU…':'Konvertering i gang'):current&&selected.state==='error'?'Prøv igen':'Sæt i kø');send.type='button';send.disabled=device.conversion_version!==1||(current&&!!active)||queuedIndex>=0||file.skipped;
      send.onclick=async()=>{
       send.disabled=true;$('#conversion-settings-error').hidden=true;
       try{
        await api('/api/conversion/devices/'+device.id+'/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({media_folder:device.media_folder,name:file.name,bitrate:Number($('#conversion-bitrate').value)})});
-       toast('Konverteringen er sendt til pc’en.');await load(false);
+       toast('Konverteringen er sat i kø. Pc’en foretrækkes, ellers bruges serverens GPU.');await load(false);
       }catch(e){error('#conversion-settings-error',e);send.disabled=false;}
      };
      const actions=node('div','workspace-file-actions');actions.append(send,skipButton(file.name,'file'));

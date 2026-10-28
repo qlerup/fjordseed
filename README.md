@@ -51,7 +51,7 @@ reserve is required; source, output and temporary work share the buffer disk.
 The idle `converter` Compose service supplies the tested image/GPU configuration.
 Seed creates one bounded queue worker with those NVIDIA devices, 4 CPU cores,
 6 GiB memory, no network, no Docker socket, a read-only root and writable mounts
-of **only the known `.incomplete` directories**. qBittorrent remains GPU-free
+of **only the known `.incomplete` and `.fjordseed-shared` work directories**. qBittorrent remains GPU-free
 inside its original VPN network. Storage changes recreate only the converter
 worker as needed; verified per-file results survive restarts. Per-job file locks
 prevent duplicate encoding when buffers are shared. GPU capacity is shared with

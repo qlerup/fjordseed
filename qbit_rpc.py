@@ -261,16 +261,21 @@ def execute(action, data):
                 'download_queue':download_queue_summary(rows),
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
                 'interface':prefs['current_network_interface'], 'version':call('app/version').text}
+    if action=='library-shared-capacity':
+        from conversion import available
+        from download_storage import download_root
+        return {'ready':available(download_root(),'server')}
     if action=='library-bitrates':
         from media_bitrates import listing
         return listing(data.get('files',[]))
-    if action in ('library-shared-queue','library-shared-status','library-shared-complete','library-shared-cancel','library-shared-error'):
+    if action in ('library-shared-queue','library-shared-status','library-shared-complete','library-shared-cancel','library-shared-error','library-shared-fallback'):
         import shared_library
         if action=='library-shared-queue':return shared_library.queue(call,data)
+        if action=='library-shared-fallback':return shared_library.fallback(call,data.get('id'),data.get('device'))
         if action=='library-shared-complete':return shared_library.complete(call,data.get('id'),data.get('device'))
         if action=='library-shared-cancel':return shared_library.cancel(call,data.get('id'),data.get('device'))
         if action=='library-shared-error':return shared_library.failed(data.get('id'),data.get('device'),data.get('detail'))
-        return shared_library.status(call,data.get('id'),data.get('device'))
+        return shared_library.status(call,data.get('id'),data.get('device'),claim=data.get('claim') is True)
     if action in ('library-list','library-convert','library-retry','library-cancel'):
         from library_conversion import listing, queue, retry, cancel
         if action == 'library-list':return listing(call)

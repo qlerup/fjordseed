@@ -16,6 +16,7 @@ files=[dict(name=f'A series/episode-{i:02}.mkv',size=1000000000) for i in range(
 files += [dict(name=f'Film-{i:02}/film.mkv',size=2000000000) for i in range(70)]
 device=dict(id='pc',name='Test-pc',online=True,gpu_ready=True,media_folder='Z:/media',
             files_updated_at=1793226867,conversion_version=1,files=files,skip_rules=[],
+            queue=[dict(id='q1',state='queued',name=files[1]['name'],media_folder='Z:/media',bitrate=30)],
             selection=dict(action='convert',name=files[0]['name'],media_folder='Z:/media',state='encoding',progress=24,
                            detail='Konverterer på NVIDIA-GPU'))
 data=dict(devices=[device],conversion_bitrate=30,conversion_enabled=False,
@@ -50,6 +51,9 @@ with tempfile.TemporaryDirectory() as folder:
     series.locator('summary').click()
     expect(series.locator('.workspace-file').first).to_contain_text('Videobitrate: 7,9 Mbps')
     expect(series.locator('.workspace-file').first).to_contain_text('Samlet bitrate: 8,5 Mbps')
+    expect(series.locator('.workspace-file').nth(1).get_by_role('button',name='I kø · 1',exact=True)).to_be_disabled()
+    expect(series.locator('.workspace-file').nth(2).get_by_role('button',name='Sæt i kø',exact=True)).to_be_enabled()
+    expect(page.locator('.workspace-queue-heading')).to_contain_text('Konverteringskø · 1')
     assert 'kb/s' not in pane.inner_text()
     pane.scroll_into_view_if_needed()
     pane.evaluate('(el)=>el.scrollTop=370')

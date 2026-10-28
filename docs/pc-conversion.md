@@ -1,5 +1,23 @@
 # Konvertering på en tilsluttet pc
 
+## Kø i pc’ens filoversigt
+
+**Sæt i kø** gemmer valgte biblioteksfiler på serveren. Flere filer behandles
+efter hinanden, også efter genstart. Ventende jobs kan fjernes fra køen.
+Pc’en foretrækkes, når dens program er online; efter 45 sekunder uden kontakt
+kan næste job behandles af serverens installerede GPU-service. Uden en klar
+GPU-service bliver køen stående, til pc’en vender tilbage.
+
+Pc’en skal reservere jobbet på serveren, før encoding starter. Et reserveret
+eller påbegyndt job skifter ikke maskine ved et forbindelsesudfald. Et job,
+der blev sendt til en pc, som forsvandt før reservationen, kan derimod overtages
+atomisk af serveren. Når pc’en kommer tilbage, får den ingen besked om at starte
+serverens job. Køen fortsætter efter verificering og qBittorrents publicering.
+
+Serveren får kun adgang til arbejdsmapperne. Originaltorrentens flytning til
+Seeder og den kontrollerede publicering i Bibliotek går gennem samme forløb
+som ved pc-konvertering. Den langsommere server-GPU deler kapacitet med Plex.
+
 FjordSeed kan sende konverteringsarbejdet til Windows-programmet i
 [`desktop-converter`](../desktop-converter/README.md). Pc’en kontakter selv
 FjordSeed og behøver ingen indgående port. Serveren behøver ingen GPU til denne

@@ -167,7 +167,7 @@ def test_shared_completion_and_status_use_the_token_owner_and_server_validation(
     assert worker.post(url,headers=auth,json={'action':'complete','device':'other'}).status_code==200
     runtime.rpc.assert_called_with('library-shared-complete',{'device':pc['id'],'id':'a'*32})
     assert worker.get(url,headers=auth).json['phase']=='moving'
-    runtime.rpc.assert_called_with('library-shared-status',{'device':pc['id'],'id':'a'*32})
+    runtime.rpc.assert_called_with('library-shared-status',{'device':pc['id'],'id':'a'*32,'claim':True})
     assert worker.post(url,headers=auth,json={'action':'cancel'}).status_code==200
     runtime.rpc.assert_called_with('library-shared-cancel',{'device':pc['id'],'id':'a'*32})
     manager.rpc.assert_not_called()  # No legacy HTTP movie broker.

@@ -684,6 +684,11 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         history_checked=None
         while not stop.is_set():
             runtime.tick()
+            try:
+                manager=app.extensions.get('remote_conversion')
+                if manager:manager.tick()
+            except Exception:
+                app.logger.exception('Conversion queue check failed; durable jobs remain queued.')
             if time.monotonic()-checked>10:
                 try:
                     # Dates for RSS downloads must be discovered with no open UI.

@@ -22,6 +22,8 @@ def source_signature(path):
 def command(job):
     shared=job['shared']
     result={**library.public_job(job),'action':'convert','attempt':shared['attempt'],
+            'executor':shared.get('executor','pc'),
+            'claimed':bool(shared.get('claimed_at')),
             'media_folder':shared['media_folder'],'name':shared['name'],
             'size':next(f['size'] for f in job['files'] if f['name']==job['selected']),
             'work':(Path(job['stage'])/DIRECTORY).relative_to(shared['server_root']).as_posix(),
@@ -39,6 +41,8 @@ def owned(ident,device):
 
 
 def queue(api,data):
+    executor=data.get('executor','pc')
+    if executor not in ('pc','server'):raise ValueError('Ukendt konverteringsmaskine.')
     if type(data.get('bitrate')) is not int or data['bitrate'] not in (20,30,40):raise ValueError('Vælg 20, 30 eller 40 Mbps.')
     name=str(safe_relative(data.get('name')))
     with storage.transaction():
@@ -46,6 +50,8 @@ def queue(api,data):
         previous=next((j for j in jobs.values() if j.get('shared',{}).get('device')==data.get('device') and
             j['shared']['media_folder']==data.get('media_folder') and j['shared']['name']==name and j['phase']=='queued'),None)
         if previous:
+            if previous['shared'].get('executor','pc')!=executor:
+                raise ValueError('Jobbet er allerede tildelt en anden maskine.')
             work=Path(previous['stage'])/DIRECTORY
             state=storage.read(work/'status.json',{})
             if state.get('state')!='error':
@@ -65,14 +71,42 @@ def queue(api,data):
     item=candidates[0]
     server_root=Path(item['_path']).parents[len(Path(name).parts)-1]
     shared={'server_root':str(server_root),'media_folder':data['media_folder'],
-            'name':name,'device':data['device'],'source_signature':source_signature(item['_path'])}
+            'name':name,'device':data['device'],'source_signature':source_signature(item['_path']),'executor':executor}
     queued=library.queue(api,item['id'],data.get('bitrate'),shared=shared)
-    return command(owned(queued['id'],data['device']))
+    job=owned(queued['id'],data['device'])
+    if executor=='server':
+        fallback(api,job['id'],data['device'])
+    return command(job)
 
 
-def status(api,ident,device):
+def status(api,ident,device,claim=False):
     # The normal qBittorrent reconciliation performs moves and publication.
+    if claim:
+        with storage.transaction():
+            jobs=storage.read(library.ledger(),{});job=owned(ident,device)
+            if job['shared'].get('executor','pc')!='pc':raise ValueError('Jobbet behandles af serverens GPU.')
+            if job['phase']=='queued' and not job['shared'].get('claimed_at'):
+                job['shared']['claimed_at']=time.time();jobs[ident]=job;library.save(jobs)
+            return command(job)
     return command(owned(ident,device))
+
+
+def fallback(api,ident,device):
+    """Atomic ownership handoff: a PC must claim before it can start encoding."""
+    with storage.transaction():
+        jobs=storage.read(library.ledger(),{});job=owned(ident,device)
+        work=checked(Path(job['stage'])/DIRECTORY)
+        state=storage.read(work/'status.json',{})
+        if job['phase']!='queued' or job['shared'].get('claimed_at') or state.get('state')!='queued':
+            raise ValueError('Et startet job kan ikke overtages af serveren.')
+        stage=checked(job['stage']);source=checked(job['source']);target=checked(stage/job['selected'])
+        target.parent.mkdir(parents=True,exist_ok=True)
+        if not target.exists():library.snapshot(source,target)
+        if library.fingerprint(target)!=library.fingerprint(source):raise ValueError('Arbejdskopien matcher ikke originalen.')
+        job['shared']['executor']='server';jobs[ident]=job;library.save(jobs)
+        atomic(work/'request.json',json.dumps({'version':1,'id':ident,'executor':'server',
+            'shared':True,'bitrate':job['bitrate'],'files':[{'name':job['selected'],'size':source.stat().st_size}]}),mode=0o644)
+        return command(job)
 
 
 def cancel(api,ident,device):

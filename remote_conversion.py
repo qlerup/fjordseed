@@ -69,6 +69,8 @@ class RemoteConversion:
         now=time.time()
         return [{k:d.get(k) for k in ('id','name','created_at','last_seen','media_folder','files','files_updated_at','files_truncated','selection','conversion_version')} |
                 {'online':0<=now-d.get('last_seen',0)<45,
+                 'queue':[q for q in d.get('queue',[]) if q['state'] in ('queued','running')],
+                 'server_fallback_ready':getattr(self,'server_ready',False),
                  'files':[{**f,**series(f['name'])} for f in d.get('files',[])],
                  'skip_rules':rules.get(d['id'],{}).get(str(PureWindowsPath(d.get('media_folder') or '')).lower(),[]),
                  'gpu_ready':0<=now-d.get('gpu_ready_at',0)<45} for d in devices]
@@ -167,16 +169,78 @@ class RemoteConversion:
             rules=self.rules().get(ident,{}).get(str(PureWindowsPath(folder)).lower(),[])
             if skipped(name,rules):raise ValueError('Filen er sprunget over. Medtag den igen før konvertering.')
             if d.get('conversion_version')!=1:raise ValueError('Opdatér pc-programmet for at konvertere direkte fra netværksmappen.')
-            previous=d.get('selection',{})
-            if previous.get('action')=='convert' and previous.get('state') not in ('completed','error','cancelled'):
-                raise ValueError('Pc’en har allerede et konverteringsjob. Afvent eller afbryd det først.')
             bitrate=bitrate if bitrate is not None else self.state.get().get('streaming',{}).get('conversion_bitrate',30)
             if type(bitrate) is not int or bitrate not in (20,30,40):raise ValueError('Vælg 20, 30 eller 40 Mbps.')
-            selection=self.runtime.rpc('library-shared-queue',{'device':ident,'media_folder':folder,
-                'name':entry['name'],'size':entry['size'],'bitrate':bitrate})
-            d['selection']=selection
+            waiting=d.setdefault('queue',[])
+            previous=d.get('selection') or {}
+            if previous.get('state') in ('completed','cancelled','error'):
+                for task in waiting:
+                    if task.get('job_id')==previous.get('id') and task['state']=='running':task['state']=previous['state']
+            if any(q['media_folder']==folder and q['name']==name and q['state'] in ('queued','running') for q in waiting):
+                raise ValueError('Filen er allerede i konverteringskøen.')
+            previous=d.get('selection') or {}
+            if previous.get('name')==name and previous.get('media_folder')==folder and previous.get('state') not in ('completed','error','cancelled',None):
+                raise ValueError('Filen er allerede under konvertering.')
+            if sum(q['state'] in ('queued','running') for q in waiting)>=500:
+                raise ValueError('Køen kan højst indeholde 500 filer.')
+            task={'id':uuid.uuid4().hex,'media_folder':folder,'name':name,'size':entry['size'],
+                  'bitrate':bitrate,'state':'queued','created_at':time.time()}
+            waiting.append(task)
+            d['queue']=[q for q in waiting if q['state'] in ('queued','running')]+[q for q in waiting if q['state'] not in ('queued','running')][-20:]
+            self.write(devices)  # Persist the request before any external work starts.
+            if 0<=time.time()-d.get('last_seen',0)<45:self.start_next(d,'pc')
             self.write(devices)
-            return selection
+            return d['selection'] if task.get('job_id') else task
+
+    def start_next(self, device, executor):
+        """Called under state.lock: only one selected job per PC, on either GPU."""
+        selected=device.get('selection') or {}
+        if selected.get('action')=='convert' and selected.get('state') not in ('completed','cancelled','error'):
+            return
+        for task in device.get('queue',[]):
+            if task['state']=='running' and task.get('job_id')==selected.get('id'):
+                task['state']=selected['state']
+        task=next((q for q in device.get('queue',[]) if q['state']=='queued'),None)
+        if not task:return
+        if task['media_folder']!=device.get('media_folder'):
+            task.update(state='cancelled',detail='Pc’ens mappe er ændret.');return
+        try:
+            selection=self.runtime.rpc('library-shared-queue',{'device':device['id'],
+                **{k:task[k] for k in ('media_folder','name','size','bitrate')},'executor':executor})
+        except ValueError as exc:
+            task['detail']=str(exc);return
+        task.update(state='running',job_id=selection['id'],executor=executor);task.pop('detail',None)
+        device['selection']={**selection,'queue_id':task['id'],'executor':executor}
+
+    def cancel_queued(self, ident, task_id):
+        with self.state.lock:
+            devices=self.devices()
+            device=next((d for d in devices if d['id']==ident),None)
+            task=next((q for q in (device or {}).get('queue',[]) if q['id']==task_id),None)
+            if not task or task['state']!='queued':raise ValueError('Kun ventende jobs kan fjernes fra køen.')
+            task['state']='cancelled';self.write(devices)
+
+    def tick(self):
+        """Refresh durable job results and dispatch waiting work, including offline PCs."""
+        with self.state.lock:
+            devices=self.devices()
+            if not any(q['state'] in ('queued','running') for d in devices for q in d.get('queue',[])):return
+            self.server_ready=bool(os.environ.get('FJORDSEED_CONVERTER_CONTAINER') and
+                self.runtime.rpc('library-shared-capacity',{}).get('ready') is True)
+            for device in devices:
+                online=0<=time.time()-device.get('last_seen',0)<45
+                selected=device.get('selection') or {}
+                if selected.get('action')=='convert' and selected.get('state') not in ('completed','cancelled','error'):
+                    latest=self.runtime.rpc('library-shared-status',{'device':device['id'],'id':selected['id']})
+                    if (not online and self.server_ready and latest.get('executor','pc')=='pc'
+                            and not latest.get('claimed') and latest.get('state')=='queued'):
+                        latest=self.runtime.rpc('library-shared-fallback',{'device':device['id'],'id':selected['id']})
+                    if latest.get('executor')=='server' and latest.get('state')=='encoded':
+                        latest=self.runtime.rpc('library-shared-complete',{'device':device['id'],'id':selected['id']})
+                    device['selection']={**latest,'queue_id':selected.get('queue_id')}
+                online=0<=time.time()-device.get('last_seen',0)<45
+                if online or self.server_ready:self.start_next(device,'pc' if online else 'server')
+            self.write(devices)
 
     def workspace(self, device, folder, files=None, truncated=False, receipt=None, conversion_version=0):
         # This is a PC-local path, never a server filesystem/mount instruction.
@@ -214,6 +278,8 @@ class RemoteConversion:
             for d in devices:
                 if d['id']==device['id']:
                     if d.get('media_folder')!=folder:
+                        for task in d.get('queue',[]):
+                            if task['state']=='queued':task.update(state='cancelled',detail='Pc’ens mappe er ændret.')
                         old=d.get('selection',{})
                         if old.get('action')=='convert' and old.get('state') in ('queued','converting','encoding','error'):
                             self.runtime.rpc('library-shared-cancel',{'id':old['id'],'device':d['id']})
@@ -225,7 +291,7 @@ class RemoteConversion:
                     if files is not None:
                         d.update(files=clean,files_updated_at=time.time(),files_truncated=truncated)
                     selection=d.get('selection')
-                    if selection and selection['state'] in ('queued','selected','converting'):
+                    if selection and selection.get('executor')!='server' and selection['state'] in ('queued','selected','converting'):
                         if files is not None and not any(f['name']==selection['name'] and f['size']==selection['size'] for f in clean):
                             selection.update(state='error',detail='Filen er ændret eller findes ikke længere i den valgte mappe.')
                         elif receipt and receipt['id']==selection['id']:
@@ -236,14 +302,21 @@ class RemoteConversion:
                         latest=self.runtime.rpc('library-shared-status',{'id':selection['id'],'device':d['id']})
                         if isinstance(latest,dict) and (latest.get('attempt')!=selection.get('attempt') or latest.get('phase')=='cancelled'):
                             selection=d['selection']=latest
+                    self.start_next(d,'pc')
+                    selection=d.get('selection')
                     self.write(devices)
-                    return {'ok':True,'media_folder':folder,'selection':selection}
+                    return {'ok':True,'media_folder':folder,'selection':None if selection and selection.get('executor')=='server' else selection}
         raise ValueError('Pc-forbindelsen er fjernet.')
 
     def shared_result(self, device, ident, complete=False, cancel=False):
+        with self.state.lock:
+            current=next((d for d in self.devices() if d['id']==device['id']),{})
+            selected=current.get('selection') or {}
+            if selected.get('id')==ident and selected.get('executor')=='server':
+                raise ValueError('Jobbet behandles af serverens GPU.')
         if complete and not self.verify_slots.acquire(blocking=False):raise BrokerBusy('Resultatkontrollen er optaget. Prøv igen.')
         try:
-            result=self.runtime.rpc('library-shared-'+('complete' if complete else 'cancel' if cancel else 'status'),{'device':device['id'],'id':ident})
+            result=self.runtime.rpc('library-shared-'+('complete' if complete else 'cancel' if cancel else 'status'),{'device':device['id'],'id':ident,**({'claim':True} if not complete and not cancel else {})})
         finally:
             if complete:self.verify_slots.release()
         with self.state.lock:
@@ -472,6 +545,11 @@ def register(app, state, runtime):
         try:
             data=body()
             return jsonify(manager.skip(ident,data.get('media_folder'),data.get('path'),data.get('kind'),data.get('skip')))
+        except ValueError as exc:return jsonify(error=str(exc)),400
+
+    @app.post('/api/conversion/devices/<ident>/queue/<task_id>/cancel')
+    def cancel_queued_conversion(ident,task_id):
+        try:manager.cancel_queued(ident,task_id);return jsonify(ok=True)
         except ValueError as exc:return jsonify(error=str(exc)),400
 
     @app.get('/api/conversion/devices/<ident>/bitrates')

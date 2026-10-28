@@ -69,6 +69,37 @@ def test_invalid_result_leaves_entire_torrent_untouched(film,monkeypatch):
     assert not any(c.args[0]=='torrents/setLocation' for c in film[-1].call_args_list)
 
 
+def test_server_fallback_uses_scoped_snapshot_and_same_verified_publication(film,monkeypatch):
+    command=shared.queue(film[-1],{'device':'pc','name':'Movie/film.mp4',
+        'size':(film[0]/'Movie/film.mp4').stat().st_size,'media_folder':r'M:\Bibliotek','bitrate':30,'executor':'server'})
+    job=shared.owned(command['id'],'pc');stage=Path(job['stage']);work=stage/DIRECTORY
+    assert command['executor']=='server'
+    request=json.loads((work/'request.json').read_text())
+    assert request['executor']=='server' and request['shared'] is True
+    assert os.path.samefile(stage/job['selected'],Path(job['source']))
+    encoded(command,film,monkeypatch)
+    assert library.reconcile(film[-1],film[3])==[]
+    move_by_qbit(film,job)
+    assert library.reconcile(film[-1],film[3])==[]
+    assert shared.status(film[-1],job['id'],'pc')['state']=='completed'
+    assert (Path(job['seed'])/'film.mp4').read_bytes()==b'original video'
+
+
+def test_pc_claim_and_server_fallback_are_mutually_exclusive(film):
+    command=queue(film)
+    assert shared.status(film[-1],command['id'],'pc')['claimed'] is False
+    claimed=shared.status(film[-1],command['id'],'pc',claim=True)
+    assert claimed['claimed'] is True
+    with pytest.raises(ValueError,match='startet job'):shared.fallback(film[-1],command['id'],'pc')
+
+
+def test_unclaimed_pc_job_can_be_taken_by_server_but_then_pc_cannot_start(film):
+    command=queue(film)
+    assert shared.fallback(film[-1],command['id'],'pc')['executor']=='server'
+    with pytest.raises(ValueError,match='serverens GPU'):
+        shared.status(film[-1],command['id'],'pc',claim=True)
+
+
 def test_missing_skipped_torrent_file_does_not_leave_an_unreachable_pending_job(film):
     film[4].append({'name':'missing.bin','size':12,'priority':0})
     with pytest.raises(ValueError):queue(film)

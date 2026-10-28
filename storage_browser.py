@@ -112,6 +112,9 @@ def writable():
     if folder.is_symlink():
         raise ValueError('Buffermappen må ikke være et link.')
     folder.mkdir(mode=0o755, exist_ok=True)
+    shared=Path('/folder/.fjordseed-shared')
+    if shared.is_symlink():raise ValueError('Arbejdsmappe til konvertering må ikke være et link.')
+    shared.mkdir(mode=0o755,exist_ok=True)
     for directory in (Path('/folder'), folder):
         with tempfile.TemporaryFile(dir=directory) as probe_file:
             probe_file.write(b'fjordseed')

@@ -24,7 +24,9 @@ def test_worker_has_gpu_but_only_buffer_mounts_and_no_network(runtime):
     args=runtime.client.containers.create.call_args.kwargs
     assert args['network_disabled'] and args['read_only'] and args['user']=='1000:1000'
     assert args['cap_drop']==['ALL'] and args['devices']==['/dev/nvidia0:/dev/nvidia0:rwm']
-    assert len(args['mounts'])==1 and args['mounts'][0]['Source']=='/mnt/media/.incomplete'
+    assert len(args['mounts'])==2 and args['mounts'][0]['Source']=='/mnt/media/.incomplete'
+    assert args['mounts'][1]['Source']=='/mnt/media/.fjordseed-shared'
+    assert args['mounts'][1]['Target']=='/shared/0'
     assert args['mounts'][0]['Target']=='/buffers/0'
     assert not any('docker.sock' in mount['Source'] for mount in args['mounts'])
     assert args['labels'][OWNER]==runtime.state.get()['id']

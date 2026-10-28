@@ -18,7 +18,7 @@
  </div>
  <div class="connection conversion-pc">
   <div class="conversion-pc-heading"><div><p class="eyebrow">PC-FORBINDELSE</p><h2>Forbind Fjord-konvertering</h2></div><span class="conversion-platform">Windows 10 / 11</span></div>
-  <p class="muted conversion-intro">Brug pc’ens GPU til dit bibliotek. Forbind programmet, vælg din netværksmappe, og start konverteringen fra filoversigten.</p>
+  <p class="muted conversion-intro">Sæt flere filer i kø fra dit bibliotek. Din pc foretrækkes, når den er online. Ellers tager serverens GPU de ventende jobs i baggrunden. Køen er gemt, også når pc’en er slukket.</p>
   <div class="conversion-setup">
   <div class="conversion-installer">
    <span class="conversion-step">01 · INSTALLÉR PROGRAMMET</span>
@@ -38,7 +38,7 @@
    <label>Forbindelseskode · vises kun nu<input id="conversion-token-secret" readonly spellcheck="false" autocomplete="off"></label>
    <p class="muted small">Indsæt forbindelseskoden under FjordSeed i pc-programmet. Adressen følger automatisk med koden. Tokenet giver kun adgang til tildelte konverteringsjobs. Fjern forbindelsen nedenfor for at tilbagekalde adgangen.</p>
   </div>
-  <div class="conversion-connected-heading"><h3>Tilsluttede pc’er</h3><p class="muted small">Konvertér direkte fra dit bibliotek</p></div><div id="conversion-devices" aria-live="polite"></div>
+  <div class="conversion-connected-heading"><h3>Tilsluttede pc’er</h3><p class="muted small">Pc først · serveren som fallback</p></div><div id="conversion-devices" aria-live="polite"></div>
  </div>
  <p id="conversion-settings-error" class="error" role="alert" hidden></p>
 </section>

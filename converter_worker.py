@@ -204,7 +204,11 @@ def run_job(work):
                 partial=checked(scratch/(str(index)+'.sidecar'))
                 shutil.copyfile(source,partial);partial.rename(target)
         atomic(result/'.fjordseed-converted.json',json.dumps({'id':ident,'files':outputs,'bitrate':request['bitrate'],'converted_at':time.time()}),mode=0o644)
-        report(work,ident,'ready','Kontrolleret · klar til biblioteket',100)
+        if request.get('shared'):
+            for name in outputs:
+                atomic((result/name).with_suffix('.json'),json.dumps({'verified':True,
+                    'video_mbps_target':request['bitrate'],'gpu_encoder':'NVEncC server'}),mode=0o644)
+        report(work,ident,'encoded' if request.get('shared') else 'ready','Kontrolleret · klar til biblioteket',100)
     except Exception as exc:
         LOG.exception('Conversion failed for %s',ident)
         report(work,ident,'error',str(exc) if isinstance(exc,ValueError) else 'Konverteringen fejlede. Se worker-loggen; originalen beholdes.')
@@ -231,14 +235,14 @@ def run():
                 try:
                     status_path=checked(request.parent/'status.json')
                     status=json.loads(status_path.read_text()) if status_path.exists() else {}
-                    if status.get('state') in ('ready','error'):continue
+                    if status.get('state') in ('ready','encoded','error'):continue
                     # Shared lock also prevents two installations sharing a buffer
                     # from ever processing the same request concurrently.
                     with checked(request.parent/'worker.lock').open('a') as job_lock:
                         try:fcntl.flock(job_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
                         except BlockingIOError:continue
                         latest=json.loads(status_path.read_text()) if status_path.exists() else {}
-                        if latest.get('state') in ('ready','error'):continue
+                        if latest.get('state') in ('ready','encoded','error'):continue
                         run_job(request.parent)
                 except Exception:LOG.exception('Could not read conversion request')
                 if STOP.is_set():return
