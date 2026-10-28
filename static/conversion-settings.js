@@ -5,6 +5,11 @@
  const scope=d=>d.id+'\0'+d.media_folder;
  const fmt=n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(n/1000000)+' Mbps';
  const seriesNames=new Map();
+ function icon(kind){
+  const paths={pc:'M4 4h16v12H4z M8 21h8 M12 16v5',folder:'M3 7V5h6l2 2h10v13H3z',file:'M6 3h8l4 4v14H6z M14 3v5h4',chevron:'M9 5l7 7-7 7'};
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),path=document.createElementNS(svg.namespaceURI,'path');
+  svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');svg.classList.add('workspace-icon');path.setAttribute('d',paths[kind]);svg.append(path);return svg;
+ }
  function seriesKey(name){return seriesNames.get(name.toLocaleLowerCase('da'))||'';}
  function skipped(name,rules,family){
   name=name.toLocaleLowerCase('da');family=family||seriesKey(name);
@@ -32,15 +37,19 @@
  }
  function workspace(device,container){
   if(!device.media_folder){container.append(node('p','muted small','Afventer valgt lokaltion i programmet'));return;}
-  container.append(node('p','muted small','Mappe på pc: '+device.media_folder));
   if(!device.files_updated_at){container.append(node('p','muted small','Afventer filoversigt fra programmet.'));return;}
-  container.append(node('p','muted small','Send til pc starter GPU-konverteringen direkte fra netværksmappen med den valgte videobitrate.'));
   if(device.conversion_version!==1)container.append(node('p','muted small','Opdatér Windows-programmet for at starte konvertering direkte fra netværksmappen.'));
   const selected=device.selection;
   const active=selected?.action==='convert'&&!['completed','error','cancelled'].includes(selected.state);
   if(selected){
    const states={queued:'Afventer pc',selected:'Valgt på pc',converting:'Konverterer på pc',encoding:'Konverterer på pc',encoded:'Afventer resultatkontrol',ready:'Resultatet er kontrolleret',moving:'Originaltorrenten flyttes til Seeder',completed:'Færdig · film i Bibliotek og originaltorrent i Seeder',error:'Jobbet kunne ikke fuldføres',cancelled:'Konvertering afbrudt'};
-   container.append(node('p','muted small',(states[selected.state]||'Konvertering')+' · '+selected.name+(selected.progress>0?' · '+Math.round(selected.progress)+' %':'')+(selected.detail?' · '+selected.detail:'')));
+   const job=node('div','workspace-job'+(active?' is-active':'')),copy=node('div','workspace-job-copy');
+   copy.append(node('span','workspace-job-state',states[selected.state]||'Konvertering'));
+   const filename=node('strong','workspace-job-name',selected.name.split('/').at(-1));filename.title=selected.name;
+   copy.append(filename,node('p','small muted',selected.detail||'FjordSeed kontrollerer resultatet, før filmen lægges i biblioteket.'));
+   job.append(copy);
+   if(active){const percent=Math.max(0,Math.min(100,Number(selected.progress)||0));job.append(node('strong','workspace-job-percent',Math.round(percent)+' %'));const progress=node('progress','workspace-job-progress');progress.max=100;progress.value=percent;progress.setAttribute('aria-label','Konverteringens fremdrift');job.append(progress);}
+   container.append(job);
   }
   const rules=device.skip_rules||[],key=scope(device),cached=bitrateCache.get(key);
   const meta=file=>cached?.files.get(file.name+'\0'+file.size);
@@ -51,7 +60,7 @@
   const tools=node('div','workspace-tools'),toggle=node('label','workspace-toggle'),checkbox=node('input');
   checkbox.type='checkbox';checkbox.checked=views.get(key)||false;
   toggle.append(checkbox,document.createTextNode('Vis sprunget over'));
-  const summary=node('p','muted small workspace-summary'),files=node('div','workspace-files');
+  const summary=node('div','workspace-summary'),files=node('div','workspace-files');
   files.dataset.workspaceScope=key;
   function skipButton(path,kind){
    const sample=kind==='series'?all.find(f=>f.series_key===path)?.name:path;
@@ -86,7 +95,9 @@
    const converted=all.filter(f=>f.converted).length,ignored=all.filter(f=>!f.converted&&f.skipped).length;
    const pending=all.length-converted-ignored;
    const matches=all.filter(f=>!f.converted&&(checkbox.checked||!f.skipped)&&f.name.toLocaleLowerCase('da').includes(query));
-   summary.textContent=pending+' mangler · '+converted+' konverterede skjult · '+ignored+' sprunget over'+(query?' · '+matches.length+' matcher':'')+(matches.length>200?' · viser de første 200, brug søgningen':'')+(device.files_truncated?' · oversigten er begrænset':'')+' · opdateret '+new Date(device.files_updated_at*1000).toLocaleString('da-DK');
+   const counts=node('div','workspace-counts');
+   for(const [value,label] of [[pending,'Mangler konvertering'],[converted,'Konverteret'],[ignored,'Sprunget over']]){const stat=node('div','workspace-count');stat.append(node('strong','',String(value)),node('span','',label));counts.append(stat);}
+   summary.replaceChildren(counts,node('p','workspace-update muted small',(query?matches.length+' matcher · ':'')+(matches.length>200?'Viser de første 200 · brug søgningen. ':'')+(device.files_truncated?'Oversigten er begrænset. ':'')+'Sidst opdateret '+new Date(device.files_updated_at*1000).toLocaleString('da-DK')));
    files.replaceChildren();
    const tree={folders:new Map(),files:[],all:[]};
    for(const file of matches){
@@ -103,11 +114,13 @@
      if(budget<=0)break;
      const full=path+name,folderKey=device.id+'/'+full,details=node('details','workspace-folder');
      details.open=folderOpen.has(folderKey)||!!query;
-     const heading=node('summary','workspace-folder-heading'),title=node('span','workspace-folder-name',name);
+     const heading=node('summary','workspace-folder-heading'),title=node('span','workspace-folder-name');
+     const label=node('strong','',name);label.title=name;title.append(label);
      title.append(node('small','muted',range(child.all)));
-     heading.append(title,skipButton(full,'folder'));
+     const chevron=icon('chevron');chevron.classList.add('workspace-chevron');heading.append(chevron,icon('folder'),title);
+     const folderActions=node('span','workspace-folder-actions');folderActions.append(skipButton(full,'folder'));heading.append(folderActions);
      const series=[...new Set(child.all.map(f=>f.series_key).filter(Boolean))];
-     if(series.length===1&&child.all.every(f=>f.series_key))heading.append(skipButton(series[0],'series'));
+     if(series.length===1&&child.all.every(f=>f.series_key))folderActions.append(skipButton(series[0],'series'));
      details.append(heading);
      details.addEventListener('toggle',()=>{if(!details.isConnected)return;if(details.open)folderOpen.add(folderKey);else folderOpen.delete(folderKey);});
      append(child,details,full+'/');parent.append(details);
@@ -116,10 +129,13 @@
      if(budget--<=0)break;
      const row=node('div','workspace-file'),label=node('div','workspace-file-name'),info=meta(file);
      const rates=info?.video_bps?' · Videobitrate: '+fmt(info.video_bps):' · Videobitrate: '+(info?.state==='unavailable'||cached?.error?'ukendt':'henter…');
-     label.append(node('span','',file.label),node('p','muted small',new Intl.NumberFormat('da-DK',{maximumFractionDigits:2}).format(file.size/1024**3)+' GiB'+rates+(info?.total_bps?' · Samlet bitrate: '+fmt(info.total_bps):'')));
+     const filename=node('span','workspace-filename',file.label);filename.title=file.name;
+     const metrics=node('div','workspace-metrics');metrics.append(node('span','',new Intl.NumberFormat('da-DK',{maximumFractionDigits:2}).format(file.size/1024**3)+' GiB'),node('span','workspace-video-rate',rates.replace(/^ · /,'')));
+     if(info?.total_bps)metrics.append(node('span','','Samlet bitrate: '+fmt(info.total_bps)));
+     label.append(filename,metrics);
      if(file.skipped)label.append(node('span','workspace-skipped','Sprunget over'));
      const current=selected?.name===file.name&&selected?.media_folder===device.media_folder;
-     const send=node('button','secondary',current&&active?(selected.state==='queued'?'Afventer pc…':'Konvertering i gang'):current&&selected.state==='error'?'Prøv igen':'Send til pc');send.type='button';send.disabled=device.conversion_version!==1||!!active||file.skipped;
+     const send=node('button','primary workspace-send',current&&active?(selected.state==='queued'?'Afventer pc…':'Konvertering i gang'):current&&selected.state==='error'?'Prøv igen':'Send til pc');send.type='button';send.disabled=device.conversion_version!==1||!!active||file.skipped;
      send.onclick=async()=>{
       send.disabled=true;$('#conversion-settings-error').hidden=true;
       try{
@@ -129,14 +145,15 @@
      };
      const actions=node('div','workspace-file-actions');actions.append(send,skipButton(file.name,'file'));
      if(file.series_key)actions.append(skipButton(file.series_key,'series'));
-     row.append(label,actions);parent.append(row);
+     row.append(icon('file'),label,actions);parent.append(row);
     }
    }
    append(tree,files);
    if(!matches.length)files.append(node('p','muted small',query?'Ingen filer matcher søgningen.':pending===0?'Intet mangler i den valgte mappe.':'Ingen filer i denne visning.'));
   }
   checkbox.onchange=()=>{views.set(key,checkbox.checked);render();};search.oninput=render;
-  container.append(search,tools,summary,files);render();
+  const toolbar=node('div','workspace-toolbar');toolbar.append(search,tools);
+  container.append(summary,toolbar,files);render();
  }
  function devices(data){
   last=data;seriesNames.clear();
@@ -150,13 +167,16 @@
   const list=$('#conversion-devices');list.replaceChildren();
   if(!data.devices.length)list.append(node('p','muted small','Ingen pc’er forbundet endnu.'));
   for(const device of data.devices){
-   const row=node('div','storage-summary workspace-device');
-   const info=node('div');info.append(node('strong','',device.name),node('p','muted small',device.online?(device.gpu_ready?'Forbundet · GPU klar':'Forbundet'):device.last_seen?'Offline · sidst set '+new Date(device.last_seen*1000).toLocaleString('da-DK'):'Afventer første forbindelse'));
+   const row=node('article','workspace-device'),header=node('div','workspace-device-header'),identity=node('div','workspace-identity'),name=node('div','workspace-device-name');
+   name.append(node('h3','',device.name),node('span','workspace-connection'+(device.online?' is-online':''),device.online?(device.gpu_ready?'GPU klar':'Forbundet'):'Offline'));
+   const description=node('div');description.append(name,node('p','workspace-source muted small',device.media_folder||'Vælg en mappe i pc-programmet'));
+   identity.append(icon('pc'),description);header.append(identity);
+   const info=node('div','workspace-body');
    workspace(device,info);
    const search=info.querySelector('.workspace-search');if(search)search.dataset.workspaceDevice=device.id;
-   const revoke=node('button','secondary','Fjern adgang');revoke.type='button';
+   const revoke=node('button','quiet workspace-revoke','Fjern adgang');revoke.type='button';
    revoke.onclick=async()=>{revoke.disabled=true;try{await api('/api/conversion/devices/'+device.id+'/revoke',{method:'POST'});await load(false);toast('Pc-tokenet er tilbagekaldt.');}catch(e){error('#conversion-settings-error',e);}finally{revoke.disabled=false;}};
-   row.append(info,revoke);list.append(row);
+   header.append(revoke);row.append(header,info);list.append(row);
   }
   for(const files of list.querySelectorAll('.workspace-files')){const saved=scrolls.get(files.dataset.workspaceScope);if(saved){files.scrollTop=saved.top;files.scrollLeft=saved.left;}}
   if(focusId){const search=[...list.querySelectorAll('.workspace-search')].find(s=>s.dataset.workspaceDevice===focusId);if(search){search.focus({preventScroll:true});if(selection!=null)search.setSelectionRange(selection,selection);}}

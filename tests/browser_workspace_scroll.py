@@ -15,7 +15,9 @@ class Demo(FakeRuntime):
 files=[dict(name=f'A series/episode-{i:02}.mkv',size=1000000000) for i in range(20)]
 files += [dict(name=f'Film-{i:02}/film.mkv',size=2000000000) for i in range(70)]
 device=dict(id='pc',name='Test-pc',online=True,gpu_ready=True,media_folder='Z:/media',
-            files_updated_at=1793226867,conversion_version=1,files=files,skip_rules=[])
+            files_updated_at=1793226867,conversion_version=1,files=files,skip_rules=[],
+            selection=dict(action='convert',name=files[0]['name'],media_folder='Z:/media',state='encoding',progress=24,
+                           detail='Konverterer på NVIDIA-GPU'))
 data=dict(devices=[device],conversion_bitrate=30,conversion_enabled=False,
           conversion_target='server',conversion_configured=True)
 rates=dict(media_folder='Z:/media',pending=False,files=[dict(**f,video_bps=7900000,total_bps=8500000,state='ready') for f in files])
@@ -41,6 +43,10 @@ with tempfile.TemporaryDirectory() as folder:
     expect(page.locator('.workspace-folder').nth(1)).to_contain_text('Videobitrate: 7,9 Mbps')
     expect(page.locator('.workspace-tools .workspace-skip')).to_have_count(0)
     expect(page.locator('.workspace-folder .workspace-skip').first).to_be_visible()
+    expect(page.locator('.workspace-job progress')).to_have_attribute('value','24')
+    expect(page.locator('.workspace-counts .workspace-count')).to_have_count(3)
+    Path('test-results').mkdir(exist_ok=True)
+    page.locator('.conversion-pc').screenshot(path=f'test-results/workspace-design-{width}.png')
     series.locator('summary').click()
     expect(series.locator('.workspace-file').first).to_contain_text('Videobitrate: 7,9 Mbps')
     expect(series.locator('.workspace-file').first).to_contain_text('Samlet bitrate: 8,5 Mbps')

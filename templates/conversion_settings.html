@@ -16,22 +16,29 @@
    <button class="primary" type="submit" id="conversion-settings-save">Gem konvertering</button>
   </form>
  </div>
- <div class="connection">
-  <p class="eyebrow">PC-FORBINDELSE</p><h2>Forbind Fjord-konvertering</h2>
+ <div class="connection conversion-pc">
+  <div class="conversion-pc-heading"><div><p class="eyebrow">PC-FORBINDELSE</p><h2>Forbind Fjord-konvertering</h2></div><span class="conversion-platform">Windows 10 / 11</span></div>
+  <p class="muted conversion-intro">Brug pc’ens GPU til dit bibliotek. Forbind programmet, vælg din netværksmappe, og start konverteringen fra filoversigten.</p>
+  <div class="conversion-setup">
   <div class="conversion-installer">
+   <span class="conversion-step">01 · INSTALLÉR PROGRAMMET</span>
+   <h3>Gør din pc klar</h3>
+   <p class="muted small">Program og videoværktøjer er samlet i én installation til Windows. Åbn programmet, og vælg bibliotekets netværksmappe.</p>
    <a class="secondary" id="conversion-download-windows" href="https://github.com/qlerup/fjordseed/releases/latest/download/Fjord-konvertering-Setup.exe">Hent Windows-installation</a>
-   <p class="muted small">Windows 10/11 · 64-bit. Installationspakken indeholder programmet og videoværktøjerne. Python er ikke nødvendigt.</p>
   </div>
-  <p class="muted">Forbind pc-programmet, og vælg bibliotekets netværksmappe i programmet. Send til pc starter konverteringen direkte fra mappen med den valgte videobitrate. FjordSeed kontrollerer resultatet, flytter hele originaltorrenten til Seeder via qBittorrent og lægger den konverterede film i Bibliotek. Løse undertekster bevares begge steder.</p>
-  <form id="conversion-device-form" class="tracker-fields">
+  <form id="conversion-device-form" class="conversion-pairing">
+   <span class="conversion-step">02 · FORBIND TIL FJORDSEED</span>
+   <h3>Tilføj en pc</h3>
+   <p class="muted small">Giv pc’en et navn, og indsæt forbindelseskoden i programmet.</p>
    <label>Navn på pc<input id="conversion-device-name" maxlength="60" placeholder="Fx min RTX 4090-pc" required></label>
    <div class="tracker-form-actions"><button class="secondary" type="submit" id="conversion-device-create">Opret forbindelseskode</button></div>
   </form>
+  </div>
   <div id="conversion-token-result" hidden>
    <label>Forbindelseskode · vises kun nu<input id="conversion-token-secret" readonly spellcheck="false" autocomplete="off"></label>
    <p class="muted small">Indsæt forbindelseskoden under FjordSeed i pc-programmet. Adressen følger automatisk med koden. Tokenet giver kun adgang til tildelte konverteringsjobs. Fjern forbindelsen nedenfor for at tilbagekalde adgangen.</p>
   </div>
-  <h3>Tilsluttede pc’er</h3><div id="conversion-devices" aria-live="polite"></div>
+  <div class="conversion-connected-heading"><h3>Tilsluttede pc’er</h3><p class="muted small">Konvertér direkte fra dit bibliotek</p></div><div id="conversion-devices" aria-live="polite"></div>
  </div>
  <p id="conversion-settings-error" class="error" role="alert" hidden></p>
 </section>
