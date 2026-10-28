@@ -42,7 +42,7 @@ def forecast(row, source, now):
 def schedule(sources, runtime, now=None):
     now=time.time() if now is None else now
     if not sources:
-        return dict(items=[],count=0,scheduled_bytes=0,available=True)
+        return dict(items=[],count=0,scheduled_bytes=0,available=True,timeline=[],soon_bytes=0,unplaced_bytes=0)
     try:
         rows=runtime.rpc('status',{}).get('torrents',[])
         if not isinstance(rows,list):raise ValueError()
@@ -60,4 +60,8 @@ def schedule(sources, runtime, now=None):
         items.append(item)
     items.sort(key=lambda item:(item['state']!='soon',item['release_at'] is None,item['release_at'] or 0,-item['bytes']))
     return dict(items=items[:10],count=len(items),available=available,
+                timeline=[dict(at=i['release_at'],bytes=i['reclaimable_bytes']) for i in items
+                          if i['state']=='estimated' and i['reclaimable_bytes']>0],
+                soon_bytes=sum(i['reclaimable_bytes'] for i in items if i['state']=='soon'),
+                unplaced_bytes=sum(i['reclaimable_bytes'] for i in items if i['state'] not in ('soon','estimated')),
                 scheduled_bytes=sum(i['reclaimable_bytes'] for i in items if i['state'] in ('soon','estimated')))

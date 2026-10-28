@@ -6,12 +6,9 @@ root=Path(__file__).resolve().parents[1]
 markup=(root/'templates/storage_usage.html').read_text(encoding='utf-8')
 script=(root/'static/storage-usage.js').read_text(encoding='utf-8')
 gib=1024**3
-items=[dict(name='Safari.Norge.S01.NORWEGiAN.720p.HDTV.x264-NORPiLT',bytes=6*gib,reclaimable_bytes=6*gib,
-            release_at=1793226867,state='estimated',message='Ved fortsat seeding; kan ske tidligere ved opnået ratio.'),
-       dict(name='A long episode waiting for downloaders',bytes=2*gib,reclaimable_bytes=2*gib,release_at=None,
-            state='waiting',message='Målet er nået; venter på aktive downloadere.'),
-       dict(name='<img src=x onerror=alert(1)>',bytes=gib,reclaimable_bytes=0,release_at=None,
-            state='retained',message='Beholdes i biblioteket.')]
+# Midnight on 29 October in Copenhagen. Span requires six-hour windows.
+base=1793228400
+points=[dict(at=base+hour*3600,bytes=gib) for hour in (0,1,2,3,4,5,18,18,18,18,18,18)]
 with sync_playwright() as p:
     browser=p.chromium.launch()
     for width in (390,1440):
@@ -23,13 +20,14 @@ with sync_playwright() as p:
             location.hash='#storage';window.payload=data;
             window.api=url=>Promise.resolve(url.endsWith('temporary-usage')?payload:{path:'/mnt/media',total_bytes:2000*1024**3,used_bytes:1500*1024**3,free_bytes:500*1024**3});
             window.setInterval=callback=>{window.poll=callback;};
-        }""",dict(path='/mnt/media',current_rss_bytes=9*gib,release_schedule=dict(items=items,count=3,scheduled_bytes=6*gib,available=True)))
+        }""",dict(path='/mnt/media',current_rss_bytes=9*gib,release_schedule=dict(items=[],count=12,scheduled_bytes=12*gib,available=True,timeline=points,soon_bytes=0,unplaced_bytes=2*gib)))
         page.add_script_tag(content=script)
         expect(page.locator('.storage-release-list li')).to_have_count(3)
-        expect(page.locator('.storage-release-amount').first).to_have_text('6,00 GiB frigives')
-        expect(page.locator('.storage-release-time').first).to_have_text('28. okt., 23.34')
-        expect(page.locator('.storage-release-time').last).to_have_text('Beholdes')
-        assert page.locator('.storage-release-list img').count()==0
+        expect(page.locator('.storage-release-amount').first).to_have_text('Ca. 6,00 GiB frigives')
+        expect(page.locator('.storage-release-name').first).to_have_text('29. okt. kl. 00\u201306')
+        expect(page.locator('.storage-release-name').nth(1)).to_have_text('29. okt. kl. 18\u201324')
+        expect(page.locator('.storage-release-amount').nth(1)).to_have_text('Ca. 6,00 GiB frigives')
+        expect(page.locator('.storage-release-name').last).to_have_text('Tidspunkt afventer')
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         page.evaluate("""()=>{window.changes=[];new MutationObserver(rows=>changes.push(...rows)).observe(document.querySelector('main'),{subtree:true,childList:true,attributes:true,characterData:true});poll();}""")
         page.wait_for_timeout(100)
@@ -42,4 +40,4 @@ with sync_playwright() as p:
         assert not errors
         page.close()
     browser.close()
-print('PASS desktop/mobile cleanup list, local dates, amounts, empty state, safe titles and stable polling')
+print('PASS desktop/mobile cleanup list, local dates, amounts, empty state, all-download aggregation and stable polling')

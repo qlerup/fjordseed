@@ -60,4 +60,6 @@ def test_schedule_is_bounded_and_prioritises_next_cleanup():
     runtime=Mock();runtime.rpc.return_value={'torrents':rows}
     result=schedule(sources,runtime,100)
     assert result['count']==12 and len(result['items'])==10
+    assert len(result['timeline'])==12  # The summary includes downloads beyond the detail limit.
+    assert sum(p['bytes'] for p in result['timeline'])==12*4096
     assert result['items'][0]['release_at']<result['items'][-1]['release_at']
