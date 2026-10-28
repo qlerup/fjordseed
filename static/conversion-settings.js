@@ -1,9 +1,9 @@
 (() => {
- let last;
+ let last,renderedSignature;
  const folderOpen=new Set(),searches=new Map();
  const views=new Map(),bitrateCache=new Map(),bitrateBusy=new Set();
  const scope=d=>d.id+'\0'+d.media_folder;
- const fmt=n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(n/1000000)+' Mbps';
+ const fmt=n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:0}).format(n/1000)+' kb/s';
  const seriesNames=new Map();
  function seriesKey(name){return seriesNames.get(name.toLocaleLowerCase('da'))||'';}
  function skipped(name,rules,family){
@@ -52,6 +52,7 @@
   checkbox.type='checkbox';checkbox.checked=views.get(key)||false;
   toggle.append(checkbox,document.createTextNode('Vis sprunget over'));
   const summary=node('p','muted small workspace-summary'),files=node('div','workspace-files');
+  files.dataset.workspaceScope=key;
   function skipButton(path,kind){
    const sample=kind==='series'?all.find(f=>f.series_key===path)?.name:path;
    const descendants=kind==='folder'?all.filter(f=>!path||f.name.startsWith(path+'/')):[];
@@ -76,10 +77,9 @@
   }
   tools.append(toggle,skipButton('','folder'));
   function range(rows){
-   const values=rows.map(f=>meta(f)?.video_bps).filter(n=>Number.isFinite(n)&&n>0);
-   if(!values.length)return rows.some(f=>!meta(f)||meta(f).state==='pending')&&!cached?.error?'Video: henter bitrate…':'Video: ukendt';
-   const min=Math.min(...values),max=Math.max(...values);
-   return 'Video: '+(Math.abs(max-min)<100000?fmt(max):fmt(min).replace(' Mbps','')+'–'+fmt(max))+(values.length<rows.length?' · enkelte ukendte':'');
+   if(rows.length>1)return rows.length+' filer · fold ud for bitrate pr. fil';
+   const info=meta(rows[0]);
+   return 'Videobitrate: '+(info?.video_bps?fmt(info.video_bps):!cached?.error&&(!info||info.state==='pending')?'henter…':'ukendt')+' · 1 fil';
   }
   function render(){
    const query=search.value.trim().toLocaleLowerCase('da');searches.set(device.id,search.value);
@@ -104,19 +104,19 @@
      const full=path+name,folderKey=device.id+'/'+full,details=node('details','workspace-folder');
      details.open=folderOpen.has(folderKey)||!!query;
      const heading=node('summary','workspace-folder-heading'),title=node('span','workspace-folder-name',name);
-     title.append(node('small','muted',range(child.all)+' · '+child.all.length+' filer'));
+     title.append(node('small','muted',range(child.all)));
      heading.append(title,skipButton(full,'folder'));
      const series=[...new Set(child.all.map(f=>f.series_key).filter(Boolean))];
      if(series.length===1&&child.all.every(f=>f.series_key))heading.append(skipButton(series[0],'series'));
      details.append(heading);
-     details.addEventListener('toggle',()=>{if(details.open)folderOpen.add(folderKey);else folderOpen.delete(folderKey);});
+     details.addEventListener('toggle',()=>{if(!details.isConnected)return;if(details.open)folderOpen.add(folderKey);else folderOpen.delete(folderKey);});
      append(child,details,full+'/');parent.append(details);
     }
     for(const file of branch.files){
      if(budget--<=0)break;
      const row=node('div','workspace-file'),label=node('div','workspace-file-name'),info=meta(file);
-     const rates=info?.video_bps?' · Video: '+fmt(info.video_bps):' · Video: '+(info?.state==='unavailable'||cached?.error?'ukendt':'henter bitrate…');
-     label.append(node('span','',file.label),node('p','muted small',new Intl.NumberFormat('da-DK',{maximumFractionDigits:2}).format(file.size/1024**3)+' GiB'+rates+(info?.total_bps?' · Fil i alt: '+fmt(info.total_bps):'')));
+     const rates=info?.video_bps?' · Videobitrate: '+fmt(info.video_bps):' · Videobitrate: '+(info?.state==='unavailable'||cached?.error?'ukendt':'henter…');
+     label.append(node('span','',file.label),node('p','muted small',new Intl.NumberFormat('da-DK',{maximumFractionDigits:2}).format(file.size/1024**3)+' GiB'+rates+(info?.total_bps?' · Samlet bitrate: '+fmt(info.total_bps):'')));
      if(file.skipped)label.append(node('span','workspace-skipped','Sprunget over'));
      const current=selected?.name===file.name&&selected?.media_folder===device.media_folder;
      const send=node('button','secondary',current&&active?(selected.state==='queued'?'Afventer pc…':'Konvertering i gang'):current&&selected.state==='error'?'Prøv igen':'Send til pc');send.type='button';send.disabled=device.conversion_version!==1||!!active||file.skipped;
@@ -141,6 +141,11 @@
  function devices(data){
   last=data;seriesNames.clear();
   for(const d of data.devices)for(const f of d.files||[])if(f.series_key)seriesNames.set(f.name.toLocaleLowerCase('da'),f.series_key);
+  const signature=JSON.stringify([data.devices,[...bitrateCache].map(([key,c])=>[key,c.error,[...c.files]])]);
+  if(signature===renderedSignature){workerStatus();return;}
+  renderedSignature=signature;
+  const scrolls=new Map([...document.querySelectorAll('.workspace-files')].map(el=>[el.dataset.workspaceScope,{top:el.scrollTop,left:el.scrollLeft}]));
+  const pageScroll={top:window.scrollY,left:window.scrollX};
   const active=document.activeElement,focusId=active?.dataset.workspaceDevice,selection=active?.selectionStart;
   const list=$('#conversion-devices');list.replaceChildren();
   if(!data.devices.length)list.append(node('p','muted small','Ingen pc’er forbundet endnu.'));
@@ -153,7 +158,9 @@
    revoke.onclick=async()=>{revoke.disabled=true;try{await api('/api/conversion/devices/'+device.id+'/revoke',{method:'POST'});await load(false);toast('Pc-tokenet er tilbagekaldt.');}catch(e){error('#conversion-settings-error',e);}finally{revoke.disabled=false;}};
    row.append(info,revoke);list.append(row);
   }
-  if(focusId){const search=[...list.querySelectorAll('.workspace-search')].find(s=>s.dataset.workspaceDevice===focusId);if(search){search.focus();if(selection!=null)search.setSelectionRange(selection,selection);}}
+  for(const files of list.querySelectorAll('.workspace-files')){const saved=scrolls.get(files.dataset.workspaceScope);if(saved){files.scrollTop=saved.top;files.scrollLeft=saved.left;}}
+  if(focusId){const search=[...list.querySelectorAll('.workspace-search')].find(s=>s.dataset.workspaceDevice===focusId);if(search){search.focus({preventScroll:true});if(selection!=null)search.setSelectionRange(selection,selection);}}
+  window.scrollTo(pageScroll.left,pageScroll.top);
   workerStatus();
  }
  function workerStatus(){
