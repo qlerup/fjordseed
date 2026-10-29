@@ -17,7 +17,7 @@ def job(tmp_path,monkeypatch):
     monkeypatch.setattr(helper,'roots',lambda:[buffer])
     monkeypatch.setattr(helper,'probe',lambda p:{'file':str(p)})
     monkeypatch.setattr(helper,'restore_flags',lambda *a:None)
-    monkeypatch.setattr('conversion_media.prepare_output',lambda *a:None)
+    monkeypatch.setattr('conversion_media.prepare_output',lambda *a,**kw:None)
     claim=helper.dispatch({'action':'claim','worker':'one'})
     data={'worker':'one','job':request['id'],'lease':claim['lease'],'index':0}
     return work,claim,data
@@ -62,7 +62,7 @@ def test_chunks_are_scoped_idempotent_and_only_verified_results_publish(job):
 
 def test_server_validates_instead_of_trusting_pc_success(job,monkeypatch):
     work,claim,data=job;upload(work,data)
-    def fail(*a):raise ValueError('HDR metadata missing')
+    def fail(*a,**kw):raise ValueError('HDR metadata missing')
     monkeypatch.setattr('conversion_media.prepare_output',fail)
     with pytest.raises(ValueError,match='HDR'):helper.dispatch({**data,'action':'verify','size':9})
     assert not (work/'result').exists()

@@ -47,6 +47,8 @@ def run_job(work):
     ident=request.get('id','')
     if not re.fullmatch('[a-f0-9]{32}',ident):raise ValueError('Invalid job identity')
     try:
+        from conversion_media import dolby_mode
+        dolby_mode(request.get('dolby_vision_mode','separate'))
         if request.get('version')!=1 or type(request.get('bitrate')) is not int or request['bitrate'] not in (10,15,20,25,30,40):
             raise ValueError('Ugyldige konverteringsindstillinger.')
         files=request.get('files')
@@ -75,8 +77,8 @@ def run_job(work):
                 report(work,ident,'probing','Undersøger video, HDR, lyd og undertekster: '+entry['name'])
                 original=probe(source)
                 if target.exists():
-                    if dovi(original) and dovi(probe(target)):prepare_output(original,target)
-                    validate_file(original,target);continue
+                    if dovi(original) and dovi(probe(target)):prepare_output(original,target,mode=request.get('dolby_vision_mode','separate'))
+                    validate_file(original,target,mode=request.get('dolby_vision_mode','separate'));continue
                 scratch=checked(work/'scratch');scratch.mkdir(exist_ok=True)
                 partial=checked(scratch/(str(index)+'.mkv'))
                 partial.unlink(missing_ok=True)
@@ -105,9 +107,9 @@ def run_job(work):
                 if STOP.is_set():return
                 if code:raise ValueError('GPU-konverteringen fejlede (kode '+str(code)+'). Se encoder.log; originalen beholdes.')
                 report(work,ident,'metadata','Bevarer HDR og skriver sporoplysninger · dette kan tage flere minutter')
-                prepare_output(original,partial)
+                prepare_output(original,partial,mode=request.get('dolby_vision_mode','separate'))
                 report(work,ident,'verifying','Kontrollerer den færdige video, lyd, undertekster, HDR og kapitler')
-                validate_file(original,partial)
+                validate_file(original,partial,mode=request.get('dolby_vision_mode','separate'))
                 if source.stat().st_size!=entry['size']:raise ValueError('Originalfilen ændrede sig under konverteringen.')
                 publish_output(partial,target)
             elif not target.exists():
@@ -119,7 +121,7 @@ def run_job(work):
         if request.get('shared'):
             for name in outputs:
                 atomic((result/name).with_suffix('.json'),json.dumps({'verified':True,
-                    'video_mbps_target':request['bitrate'],'gpu_encoder':'NVEncC server'}),mode=0o644)
+                    'video_mbps_target':request['bitrate'],'dolby_vision_mode':request.get('dolby_vision_mode','separate'),'gpu_encoder':'NVEncC server'}),mode=0o644)
         report(work,ident,'encoded' if request.get('shared') else 'ready','Kontrolleret · klar til biblioteket',100)
     except Exception as exc:
         LOG.exception('Conversion failed for %s',ident)

@@ -7,7 +7,9 @@
    <div class="tracker-fields">
     <label>Udfør konverteringen på<select id="conversion-target"><option value="server">Serverens NVIDIA-GPU</option><option value="pc">En tilsluttet pc</option></select></label>
     <label>Videobitrate<select id="conversion-bitrate"><option value="20">20 Mbps – spar plads</option><option value="30" selected>30 Mbps – balance (anbefalet)</option><option value="40">40 Mbps – høj kvalitet</option></select></label>
+    <label>Dolby Vision<select id="conversion-dolby-vision"><option value="separate">Gem ved siden af · HDR10 nu, gendan senere</option><option value="preserve">Bevar i filmen · Dolby Vision 8.1</option></select></label>
    </div>
+   <p class="muted small">Dolby Vision-valget gælder nye konverteringsjobs på både server og pc. Gem ved siden af giver HDR10 og mulighed for at gendanne Dolby Vision fra listen nedenfor. Bevar i filmen aktiverer Dolby Vision med det samme og kan stadig give afspilningsproblemer i Plex på Apple-enheder. Listen scanner både bitrate og Dolby Vision-profil. Hver konvertering kontrollerer filen igen før kodning. Filer uden Dolby Vision påvirkes ikke.</p>
    <p id="conversion-worker-status" class="muted small" role="status"></p>
    <p class="muted small">Maskinvalget gælder nye downloads. Allerede oprettede konverteringsjobs beholder deres valgte maskine.</p>
    <p class="muted small">Vælg derefter konvertering på den enkelte download eller det enkelte feed. HEVC/MKV med original opløsning, lyd, undertekster og kapitler. Video-bitraten er et gennemsnit; lyd lægges oveni. Lavere bitrate kan koste detaljer.</p>
@@ -43,7 +45,7 @@
  </div>
  <div class="connection" id="dolby-vision-panel">
   <h2>Gemte Dolby Vision-konverteringer</h2>
-  <p class="muted">Nye konverteringer med Dolby Vision 7/8.1 afspilles som HDR10. 4K og de originale lydspor bevares. Dolby Vision 8.1 kan gendannes her uden ny billedkomprimering, når din afspiller understøtter det.</p>
+  <p class="muted">Konverteringer med valget “Gem ved siden af” afspilles som HDR10 og vises her. 4K og de originale lydspor bevares. Dolby Vision 8.1 kan gendannes her uden ny billedkomprimering, når din afspiller understøtter det.</p>
   <p class="muted small">Gendannelse kræver midlertidigt plads til en ekstra kopi af filmen. Gamle konverteringer uden gemte Dolby Vision-data vises ikke.</p>
   <label>Søg efter film eller episode<input id="dolby-vision-search" type="search" placeholder="Filnavn eller serie"></label>
   <button type="button" class="secondary" id="dolby-vision-refresh">Opdater liste</button>

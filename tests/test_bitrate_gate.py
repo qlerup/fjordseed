@@ -51,3 +51,10 @@ def test_mixed_pack_marks_each_file_independently(monkeypatch,tmp_path):
     result=decisions([{'name':'low.mp4','size':1},{'name':'high.mkv','size':1},{'name':'sub.srt','size':1}],tmp_path,30)
     assert result[0]['convert'] is False and result[1]['convert'] is True
     assert 'convert' not in result[2]
+
+
+def test_automatic_scan_records_dolby_for_each_file(monkeypatch,tmp_path):
+    monkeypatch.setattr('media_bitrates.probe',lambda path:{'total_bps':40_000_000,'dolby_vision':path.name=='dv.mkv','dolby_vision_profile':'7' if path.name=='dv.mkv' else None,'dolby_vision_supported':True if path.name=='dv.mkv' else None})
+    result=decisions([{'name':'dv.mkv','size':1},{'name':'hdr.mkv','size':1}],tmp_path,30)
+    assert result[0]['dolby_vision'] is True and result[0]['dolby_vision_profile']=='7'
+    assert result[1]['dolby_vision'] is False and all(f['convert'] for f in result)

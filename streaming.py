@@ -42,6 +42,7 @@ class Streaming:
                 'conversion_enabled':data.get('conversion_enabled',False),
                 'conversion_bitrate':data.get('conversion_bitrate',30),
                 'conversion_target':data.get('conversion_target','server'),
+                'conversion_dolby_vision':data.get('conversion_dolby_vision','separate'),
                 'conversion_configured':bool(os.environ.get('FJORDSEED_CONVERTER_CONTAINER')),
                 'conversion_error':getattr(self.runtime,'conversion_error',''),
                 'move_retained':data.get('move_retained',False),
@@ -50,7 +51,10 @@ class Streaming:
                 'host_path':storage['path'],'library_path':data.get('library_path'),
                 'connected_host_path':data.get('host_path')}
 
-    def save(self,enabled,connection=None,buffer_enabled=None,move_retained=None,conversion_enabled=None,conversion_bitrate=None,conversion_target=None):
+    def save(self,enabled,connection=None,buffer_enabled=None,move_retained=None,conversion_enabled=None,conversion_bitrate=None,conversion_target=None,conversion_dolby_vision=None):
+        if conversion_dolby_vision is not None:
+            from conversion_media import dolby_mode
+            dolby_mode(conversion_dolby_vision)
         if conversion_target is not None and conversion_target not in ('server','pc'):
             raise ValueError('Vælg server eller pc til konvertering.')
         if conversion_enabled is not None and type(conversion_enabled) is not bool:
@@ -71,6 +75,7 @@ class Streaming:
             if conversion_enabled is not None:data['streaming']['conversion_enabled']=conversion_enabled
             if conversion_bitrate is not None:data['streaming']['conversion_bitrate']=conversion_bitrate
             if conversion_target is not None:data['streaming']['conversion_target']=conversion_target
+            if conversion_dolby_vision is not None:data['streaming']['conversion_dolby_vision']=conversion_dolby_vision
             atomic(self.runtime.state.path,json.dumps(data))
             Storage(self.runtime).publish()
         return self.public()

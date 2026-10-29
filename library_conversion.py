@@ -175,6 +175,7 @@ def public_job(job):
     work = Path(job['stage']) / DIRECTORY
     result = storage.read(checked(work / 'status.json'), {})
     return {'id': job['id'], 'bitrate': job['bitrate'], 'phase': job['phase'],
+            'dolby_vision_mode':job.get('dolby_vision_mode','separate'),
             'state': 'error' if job.get('error') else result.get('state', job['phase']),
             'detail': job.get('error') or result.get('detail', ''),
             'progress': result.get('progress', 0),
@@ -192,7 +193,11 @@ def listing(api):
     return result
 
 
-def queue(api, ident, bitrate, shared=None):
+def queue(api, ident, bitrate, shared=None, dolby_vision_mode=None):
+    from conversion_media import dolby_mode
+    if dolby_vision_mode is None:
+        dolby_vision_mode=storage.read(storage.SETTINGS,{}).get('conversion_dolby_vision','separate')
+    dolby_vision_mode=dolby_mode(dolby_vision_mode)
     if type(bitrate) is not int or bitrate not in (20, 30, 40):
         raise ValueError('Vælg 20, 30 eller 40 Mbps.')
     with storage.transaction() as entries:
@@ -248,7 +253,7 @@ def queue(api, ident, bitrate, shared=None):
         job = {'id': jobid, 'hash': row['hash'], 'root': str(root), 'original': str(current),
                'source': item['_path'], 'selected': selected, 'output': output, 'files': files,
                'stage': str(stage), 'seed': str(torrent_base if prior else storage.seeding_root() / (storage.download_name(row.get('name','Film'))[:100] + '-' + jobid[:8])),
-               'bitrate': bitrate, 'phase': 'preparing', 'created_at': time.time()}
+               'bitrate': bitrate, 'dolby_vision_mode':dolby_vision_mode, 'phase': 'preparing', 'created_at': time.time()}
         if shared:job['shared']={**shared,'attempt':uuid.uuid4().hex}
         if prior:job['reuse_seeding']=True
         jobs[jobid] = job
@@ -266,7 +271,7 @@ def queue(api, ident, bitrate, shared=None):
                     snapshot(source, target)
             work = checked(stage / DIRECTORY)
             work.mkdir()
-            request = {'version': 1, 'id': jobid, 'executor': 'pc', 'bitrate': bitrate,
+            request = {'version': 1, 'id': jobid, 'executor': 'pc', 'bitrate': bitrate, 'dolby_vision_mode':dolby_vision_mode,
                        'files': [{'name': selected, 'size': Path(item['_path']).stat().st_size}]}
             if not shared:atomic(work / 'request.json', json.dumps(request), mode=0o644)
             else:

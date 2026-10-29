@@ -133,6 +133,8 @@ class Agent:
     def run_job(self,job):
         if not isinstance(job.get('id'),str) or len(job['id'])!=32 or any(c not in '0123456789abcdef' for c in job['id']):
             raise WorkerError('Ugyldigt job fra serveren.')
+        from conversion_media import dolby_mode
+        dolby_mode(job.get('dolby_vision_mode','separate'))
         bitrate=job.get('bitrate')
         if type(bitrate) is not int or bitrate not in (10,15,20,25,30,40):
             raise WorkerError('Ugyldig videobitrate fra FjordSeed.')
@@ -147,8 +149,8 @@ class Agent:
         if state.get('files')!=job['files']:
             # Server offsets change between claims; source identity is immutable.
             identity=[{k:f[k] for k in ('name','size','output','video','index')} for f in job['files']]
-            if state.get('identity')!=identity or state.get('bitrate')!=job['bitrate']:
-                state={'identity':identity,'bitrate':job['bitrate'],'outputs':{}}
+            if state.get('identity')!=identity or state.get('bitrate')!=job['bitrate'] or state.get('dolby_vision_mode','separate')!=job.get('dolby_vision_mode','separate'):
+                state={'identity':identity,'bitrate':job['bitrate'],'dolby_vision_mode':job.get('dolby_vision_mode','separate'),'outputs':{}}
                 atomic(state_path,state)
         self.job=job;self.job_stop.clear();self.busy=True
         finished=threading.Event()
@@ -202,7 +204,7 @@ class Agent:
                                 self.progress=(i+.25+value[0]/100*.5)/len(files)*100
                                 self.notify('progress',self.progress)
                                 self.notify('metrics',value)
-                        target=self.convert(source,filedir,job['bitrate'],progress,self.job_stop)
+                        target=self.convert(source,filedir,job['bitrate'],progress,self.job_stop,dolby_vision_mode=job.get('dolby_vision_mode','separate'))
                         # Legacy HTTP transports one media file; archive on the server.
                         from dolby_backup import sidecar, restore
                         if sidecar(target).exists():restore(target)

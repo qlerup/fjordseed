@@ -135,7 +135,8 @@ class Storage:
                 'buffer_roots':['/downloads', *[v['bind'] for v in self.mounts().values()]],
                 'conversion_enabled':streaming.get('conversion_enabled',False),
                 'conversion_bitrate':streaming.get('conversion_bitrate',30),
-                'conversion_target':streaming.get('conversion_target','server')}
+                'conversion_target':streaming.get('conversion_target','server'),
+                'conversion_dolby_vision':streaming.get('conversion_dolby_vision','separate')}
         if (streaming.get('enabled',True) and streaming.get('move_retained') is True
                 and streaming.get('library_path') and streaming.get('host_path')==self.public()['path']):
             config['retained_library_path']=path

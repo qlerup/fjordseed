@@ -118,10 +118,15 @@
    return button;
   }
   tools.append(toggle);
+  function dolbyLabel(info){
+   if(info?.dolby_vision===true)return 'Dolby Vision'+(info.dolby_vision_profile?' '+info.dolby_vision_profile:'')+(info.dolby_vision_supported===false?' · profilen understøttes ikke':'');
+   if(info?.dolby_vision===false)return 'Ingen Dolby Vision';
+   return 'Dolby Vision: '+(cached?.error||(info&&info.state!=='pending')?'ukendt':'henter…');
+  }
   function range(rows){
-   if(rows.length>1)return rows.length+' filer · fold ud for bitrate pr. fil';
+   if(rows.length>1)return rows.length+' filer · fold ud for bitrate og Dolby Vision';
    const info=meta(rows[0]);
-   return 'Videobitrate: '+(info?.video_bps?fmt(info.video_bps):!cached?.error&&(!info||info.state==='pending')?'henter…':'ukendt')+' · 1 fil';
+   return 'Videobitrate: '+(info?.video_bps?fmt(info.video_bps):!cached?.error&&(!info||info.state==='pending')?'henter…':'ukendt')+' · '+dolbyLabel(info)+' · 1 fil';
   }
   function render(){
    const query=search.value.trim().toLocaleLowerCase('da');searches.set(device.id,search.value);
@@ -165,6 +170,7 @@
      const filename=node('span','workspace-filename',file.label);filename.title=file.name;
      const metrics=node('div','workspace-metrics');metrics.append(node('span','',new Intl.NumberFormat('da-DK',{maximumFractionDigits:2}).format(file.size/1024**3)+' GiB'),node('span','workspace-video-rate',rates.replace(/^ · /,'')));
      if(info?.total_bps)metrics.append(node('span','','Samlet bitrate: '+fmt(info.total_bps)));
+     metrics.append(node('span','workspace-dolby-vision',dolbyLabel(info)));
      label.append(filename,metrics);
      if(file.skipped)label.append(node('span','workspace-skipped','Sprunget over'));
      const current=selected?.name===file.name&&selected?.media_folder===device.media_folder;
@@ -226,7 +232,7 @@
   if(location.hash!=='#conversion')return;
   try{
    const data=await api('/api/conversion');
-   if(form){$('#conversion-enabled').checked=!!data.conversion_enabled;const rate=String(data.conversion_bitrate||30);const rates=$('#conversion-bitrate');rates.querySelectorAll('[data-legacy]').forEach(option=>option.remove());if(![...rates.options].some(option=>option.value===rate)){const option=new Option(rate+' Mbps – tidligere valg',rate);option.dataset.legacy='true';rates.add(option);}rates.value=rate;$('#conversion-target').value=data.conversion_target||'server';}
+   if(form){$('#conversion-enabled').checked=!!data.conversion_enabled;const rate=String(data.conversion_bitrate||30);const rates=$('#conversion-bitrate');rates.querySelectorAll('[data-legacy]').forEach(option=>option.remove());if(![...rates.options].some(option=>option.value===rate)){const option=new Option(rate+' Mbps – tidligere valg',rate);option.dataset.legacy='true';rates.add(option);}rates.value=rate;$('#conversion-target').value=data.conversion_target||'server';$('#conversion-dolby-vision').value=data.conversion_dolby_vision||'separate';}
    devices(data);
    for(const device of data.devices)fetchBitrates(device);
   }catch(e){error('#conversion-settings-error',e);}
@@ -234,7 +240,7 @@
  $('#conversion-target').onchange=workerStatus;
  $('#conversion-settings-form').onsubmit=async e=>{
   e.preventDefault();const button=$('#conversion-settings-save');button.disabled=true;$('#conversion-settings-error').hidden=true;
-  try{devices(await api('/api/conversion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversion_enabled:$('#conversion-enabled').checked,conversion_bitrate:Number($('#conversion-bitrate').value),conversion_target:$('#conversion-target').value})}));window.dispatchEvent(new Event('conversion-settings-changed'));toast('Konverteringsvalget er gemt.');}
+  try{devices(await api('/api/conversion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversion_enabled:$('#conversion-enabled').checked,conversion_bitrate:Number($('#conversion-bitrate').value),conversion_target:$('#conversion-target').value,conversion_dolby_vision:$('#conversion-dolby-vision').value})}));window.dispatchEvent(new Event('conversion-settings-changed'));toast('Konverteringsvalget er gemt.');}
   catch(e){error('#conversion-settings-error',e);}finally{button.disabled=false;}
  };
  $('#conversion-device-form').onsubmit=async e=>{

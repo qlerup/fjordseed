@@ -63,6 +63,8 @@ def owned(ident,device):
 
 
 def queue(api,data):
+    from conversion_media import dolby_mode
+    mode=dolby_mode(data.get('dolby_vision_mode','separate'))
     executor=data.get('executor','pc')
     if executor not in ('pc','server'):raise ValueError('Ukendt konverteringsmaskine.')
     if type(data.get('bitrate')) is not int or data['bitrate'] not in (20,30,40):raise ValueError('Vælg 20, 30 eller 40 Mbps.')
@@ -72,6 +74,8 @@ def queue(api,data):
         previous=next((j for j in jobs.values() if j.get('shared',{}).get('device')==data.get('device') and
             j['shared']['media_folder']==data.get('media_folder') and j['shared']['name']==name and j['phase']=='queued'),None)
         if previous:
+            if previous.get('dolby_vision_mode','separate')!=mode:
+                raise ValueError('Jobbet har et andet Dolby Vision-valg. Afbryd det først.')
             if previous['shared'].get('executor','pc')!=executor:
                 raise ValueError('Jobbet er allerede tildelt en anden maskine.')
             work=Path(previous['stage'])/DIRECTORY
@@ -94,7 +98,7 @@ def queue(api,data):
     server_root=Path(item['_path']).parents[len(Path(name).parts)-1]
     shared={'server_root':str(server_root),'media_folder':data['media_folder'],
             'name':name,'device':data['device'],'source_signature':source_signature(item['_path']),'executor':executor}
-    queued=library.queue(api,item['id'],data.get('bitrate'),shared=shared)
+    queued=library.queue(api,item['id'],data.get('bitrate'),shared=shared,dolby_vision_mode=mode)
     job=owned(queued['id'],data['device'])
     if executor=='server':
         fallback(api,job['id'],data['device'])
@@ -131,7 +135,7 @@ def fallback(api,ident,device):
         if library.fingerprint(target)!=library.fingerprint(source):raise ValueError('Arbejdskopien matcher ikke originalen.')
         job['shared']['executor']='server';jobs[ident]=job;library.save(jobs)
         atomic(work/'request.json',json.dumps({'version':1,'id':ident,'executor':'server',
-            'shared':True,'bitrate':job['bitrate'],'files':[{'name':job['selected'],'size':source.stat().st_size}]}),mode=0o644)
+            'shared':True,'bitrate':job['bitrate'],'dolby_vision_mode':job.get('dolby_vision_mode','separate'),'files':[{'name':job['selected'],'size':source.stat().st_size}]}),mode=0o644)
         return command(job)
 
 
@@ -174,11 +178,11 @@ def complete(api,ident,device):
             'detail':'Serveren kontrollerer video, lyd, undertekster, HDR og kapitler'}),mode=0o644)
         from conversion_media import probe,validate_file,prepare_output,dovi
         original=probe(job['source'])
-        if dovi(original) and dovi(probe(output)):
-            # Older Windows clients return DV; apply the same policy here.
-            prepare_output(original,output)
+        if dovi(original):
+            # Normalize older Windows outputs to the job-selected policy.
+            prepare_output(original,output,mode=job.get('dolby_vision_mode','separate'))
             before=library.fingerprint(output)
-        validate_file(original,output)
+        validate_file(original,output,mode=job.get('dolby_vision_mode','separate'))
         if library.fingerprint(output)!=before:raise ValueError('Resultatet er ændret under kontrollen.')
         # Preserve loose companions even when not listed in the torrent.
         # Restrict discovery to torrent-owned subdirectories, never the whole library.

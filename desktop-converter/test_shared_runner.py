@@ -23,7 +23,7 @@ def fixture(tmp_path):
 
 def test_runner_encodes_on_share_then_sends_only_completion_metadata(tmp_path):
     source,command,work,prefs=fixture(tmp_path)
-    def convert(input,folder,bitrate,notify,stop,target_name=None):
+    def convert(input,folder,bitrate,notify,stop,target_name=None,dolby_vision_mode='separate'):
         assert input==source and folder.is_relative_to(tmp_path/'.fjordseed-shared') and bitrate==30
         (folder/target_name).write_bytes(b'converted')
         (folder/target_name).with_suffix('.json').write_text(json.dumps({'verified':True,'video_mbps_target':30}))

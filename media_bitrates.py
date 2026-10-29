@@ -25,7 +25,7 @@ def number(value):
 
 def probe(path):
     result=subprocess.run(['ffprobe','-v','error','-select_streams','v:0','-show_entries',
-        'stream=bit_rate:stream_tags=BPS,BPS-eng,NUMBER_OF_BYTES,NUMBER_OF_BYTES-eng,DURATION,DURATION-eng:format=bit_rate,duration',
+        'stream=codec_type,bit_rate:stream_side_data:stream_tags=BPS,BPS-eng,NUMBER_OF_BYTES,NUMBER_OF_BYTES-eng,DURATION,DURATION-eng:format=bit_rate,duration',
         '-of','json',str(path)],capture_output=True,text=True,check=True,timeout=2)
     data=json.loads(result.stdout);stream=(data.get('streams') or [{}])[0]
     tags=stream.get('tags',{});fmt=data.get('format',{})
@@ -40,7 +40,13 @@ def probe(path):
     total=number(fmt.get('bit_rate'))
     duration=number(fmt.get('duration'))
     if not total and duration:total=path.stat().st_size*8/duration
-    return {'video_bps':video,'total_bps':total,'state':'ready' if video or total else 'unavailable'}
+    dv=next((s for s in stream.get('side_data_list',[]) if s.get('side_data_type')=='DOVI configuration record'),None)
+    profile=dv.get('dv_profile') if dv else None
+    compatibility=dv.get('dv_bl_signal_compatibility_id') if dv else None
+    label=(str(profile)+('.'+str(compatibility) if profile==8 and compatibility is not None else '')) if profile is not None else None
+    return {'video_bps':video,'total_bps':total,'state':'ready' if data.get('streams') or total else 'unavailable',
+            'dolby_vision':bool(dv) if data.get('streams') else None,'dolby_vision_profile':label,
+            'dolby_vision_supported':(profile==7 or (profile==8 and compatibility==1)) if dv else None}
 
 
 @contextmanager
@@ -84,16 +90,16 @@ def listing(files):
             if len(matches)==1:
                 path=matches[0];ident=key(path);signature=fingerprint(path)
                 saved=cache.get(ident,{})
-                valid=saved.get('fingerprint')==signature and (saved.get('state')=='ready' or time.time()-saved.get('checked_at',0)<300)
+                valid=saved.get('scan_version')==2 and saved.get('fingerprint')==signature and (saved.get('state')=='ready' or time.time()-saved.get('checked_at',0)<300)
                 if not valid and available and probed<2:
                     before=signature
                     try:
                         entry=probe(path)
                         if fingerprint(path)!=before:raise ValueError('File changed during probe')
                     except (OSError,ValueError,subprocess.SubprocessError):entry={'state':'unavailable','video_bps':None,'total_bps':None}
-                    saved=cache[ident]={**entry,'fingerprint':signature,'checked_at':time.time()}
+                    saved=cache[ident]={**entry,'fingerprint':signature,'checked_at':time.time(),'scan_version':2}
                     valid=True;probed+=1
-                if valid:entry={k:saved.get(k) for k in ('state','video_bps','total_bps')}
+                if valid:entry={k:saved.get(k) for k in ('state','video_bps','total_bps','dolby_vision','dolby_vision_profile','dolby_vision_supported')}
                 else:entry['state']='pending';pending=True
             results.append({'name':name,'size':size,**entry})
         if probed:

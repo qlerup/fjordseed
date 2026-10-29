@@ -113,11 +113,21 @@ def restore_flags(original,target, run=None):
     if result.returncode not in (0,1):raise ValueError('MKV-metadata kunne ikke bevares; originalen beholdes.')
 
 
-def validate_file(original, path, run=None):
-    """Verify HDR output and its reversible DV archive before publication."""
+def dolby_mode(value='separate'):
+    if value not in ('separate', 'preserve'):
+        raise ValueError('Vælg Dolby Vision i filmen eller gemt separat.')
+    return value
+
+
+def validate_file(original, path, run=None, mode='separate'):
+    """Verify the job-selected DV output or HDR output with reversible archive."""
     from copy import deepcopy
     from dolby_backup import verify
+    mode = dolby_mode(mode)
     result = probe(path, run=run)
+    if mode == 'preserve':
+        validate(original,result)
+        return result
     if dovi(original) and not dovi(result):
         manifest=verify(path)
         if result.get('_rpu_frames'):
@@ -136,15 +146,22 @@ def validate_file(original, path, run=None):
     return result
 
 
-def prepare_output(original, path, run=None):
-    """Same policy on Windows and server: encode DV, archive, publish HDR10."""
-    from dolby_backup import suspend, sidecar
-    if sidecar(path).exists() and not dovi(probe(path,run=run)):
-        return validate_file(original,path,run=run)
+def prepare_output(original, path, run=None, mode='separate'):
+    """Same Windows/server policy: preserve DV or archive it for HDR10 playback."""
+    from dolby_backup import suspend, sidecar, restore
+    mode = dolby_mode(mode)
+    if sidecar(path).exists():
+        if mode == 'preserve':
+            restore(path)
+            result = validate_file(original,path,run=run,mode=mode)
+            sidecar(path).unlink()
+            return result
+        if not dovi(probe(path,run=run)):
+            return validate_file(original,path,run=run,mode=mode)
     restore_flags(original,path,run=run)
     result = probe(path,run=run)
     validate(original,result)
-    if dovi(original):
+    if dovi(original) and mode == 'separate':
         suspend(path,dovi(result))
         result = validate_file(original,path,run=run)
     return result

@@ -74,12 +74,15 @@ def bitrate_decisions(files,stage,bitrate):
     for entry in files:
         entry=dict(entry)
         if Path(entry['name']).suffix.lower() in VIDEO:
-            try:total=probe(checked(Path(stage)/entry['name'])).get('total_bps')
+            try:
+                metadata=probe(checked(Path(stage)/entry['name']))
+                total=metadata.get('total_bps')
             except (OSError,subprocess.SubprocessError) as exc:
                 raise ValueError('Samlet bitrate kunne ikke måles. Automatisk konvertering afventer.') from exc
             if type(total) not in (int,float) or not math.isfinite(total) or total<=0:
                 raise ValueError('Samlet bitrate kunne ikke måles. Automatisk konvertering afventer.')
-            entry.update(input_total_bps=total,convert=total>bitrate*1_050_000)
+            entry.update(input_total_bps=total,convert=total>bitrate*1_050_000,
+                         **{k:metadata.get(k) for k in ('dolby_vision','dolby_vision_profile','dolby_vision_supported')})
         result.append(entry)
     return result
 
@@ -119,7 +122,8 @@ def reconcile(api, row, record):
             if record.get('conversion_bitrate_margin')==5:
                 names=bitrate_decisions(names,stage,record['conversion_bitrate'])
             request={'version':1,'id':uuid.uuid4().hex,'files':names,'bitrate':record['conversion_bitrate'],
-                     'executor':record.get('conversion_target','server')}
+                     'executor':record.get('conversion_target','server'),
+                     'dolby_vision_mode':record.get('conversion_dolby_vision','separate')}
             if any(f.get('convert') is not False and Path(f['name']).suffix.lower() in {'.mkv','.mp4','.m4v','.avi','.mov','.ts','.m2ts','.webm'} for f in names):
                 atomic(request_path,json.dumps(request),mode=0o644)
         record['conversion_id']=request['id']

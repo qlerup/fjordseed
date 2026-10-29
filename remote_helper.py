@@ -168,7 +168,7 @@ def dispatch(data):
                         target = uploaded(work, lease, f['index'])
                         f['uploaded'] = target.stat().st_size if target.exists() else 0
                         f['verified'] = str(f['index']) in lease['done']
-                    return dict(id=request['id'], lease=lease['lease'], bitrate=request['bitrate'], files=files, upload_chunk_size=UPLOAD_CHUNK)
+                    return dict(id=request['id'], lease=lease['lease'], bitrate=request['bitrate'], dolby_vision_mode=request.get('dolby_vision_mode','separate'), files=files, upload_chunk_size=UPLOAD_CHUNK)
             except BlockingIOError:
                 continue
             except ValueError as exc:
@@ -198,7 +198,7 @@ def dispatch(data):
             if entry['video']:
                 original = probe(source)
                 from conversion_media import prepare_output
-                prepare_output(original, target)
+                prepare_output(original, target, mode=request.get('dolby_vision_mode','separate'))
             elif target.stat().st_size != entry['size'] or digest(source) != digest(target):
                 raise ValueError('En ledsagefil blev ændret.')
             with locked(work):

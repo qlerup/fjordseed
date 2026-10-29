@@ -184,7 +184,7 @@ class RemoteConversion:
             if sum(q['state'] in ('queued','running') for q in waiting)>=500:
                 raise ValueError('Køen kan højst indeholde 500 filer.')
             task={'id':uuid.uuid4().hex,'media_folder':folder,'name':name,'size':entry['size'],
-                  'bitrate':bitrate,'state':'queued','created_at':time.time()}
+                  'bitrate':bitrate,'dolby_vision_mode':self.state.get().get('streaming',{}).get('conversion_dolby_vision','separate'),'state':'queued','created_at':time.time()}
             waiting.append(task)
             d['queue']=[q for q in waiting if q['state'] in ('queued','running')]+[q for q in waiting if q['state'] not in ('queued','running')][-20:]
             self.write(devices)  # Persist the request before any external work starts.
@@ -206,7 +206,8 @@ class RemoteConversion:
             task.update(state='cancelled',detail='Pc’ens mappe er ændret.');return
         try:
             selection=self.runtime.rpc('library-shared-queue',{'device':device['id'],
-                **{k:task[k] for k in ('media_folder','name','size','bitrate')},'executor':executor})
+                **{k:task[k] for k in ('media_folder','name','size','bitrate')},
+                'dolby_vision_mode':task.get('dolby_vision_mode','separate'),'executor':executor})
         except ValueError as exc:
             task['detail']=str(exc);return
         task.update(state='running',job_id=selection['id'],executor=executor);task.pop('detail',None)
@@ -504,7 +505,8 @@ def register(app, state, runtime):
             with state.lock:
                 enabled=state.get().get('streaming',{}).get('enabled',True)
                 result=Streaming(runtime).save(enabled,conversion_enabled=data.get('conversion_enabled'),
-                    conversion_bitrate=data.get('conversion_bitrate'),conversion_target=target)
+                    conversion_bitrate=data.get('conversion_bitrate'),conversion_target=target,
+                    conversion_dolby_vision=data.get('conversion_dolby_vision'))
             return jsonify(**result,devices=manager.public())
         except ValueError as exc:return jsonify(error=str(exc)),400
 

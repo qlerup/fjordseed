@@ -82,6 +82,8 @@ class SharedRunner:
                 self.messages.put(('job_done',command) if command['state']=='completed' else ('job_error',command.get('detail') or 'Jobbet er stoppet. Originalerne er bevaret.'))
             self.key=key;self.terminal=terminal;return
         if key==self.key:return
+        from conversion_media import dolby_mode
+        dolby_mode(command.get('dolby_vision_mode','separate'))
         if command.get('bitrate') not in (20,30,40):raise ValueError('Ugyldig videokvalitet.')
         self.key=key;self.command=command;self.stop.clear()
         self.thread=threading.Thread(target=self.run,args=(command,folder),daemon=True)
@@ -161,10 +163,10 @@ class SharedRunner:
                     # Only disposable outputs in this server-created job are removed on retry.
                     target.with_suffix('.partial.mkv').unlink(missing_ok=True)
                     target.with_suffix('.log').unlink(missing_ok=True)
-                    self.convert(source,target.parent,command['bitrate'],notify,self.stop,target_name=target.name)
+                    self.convert(source,target.parent,command['bitrate'],notify,self.stop,target_name=target.name, dolby_vision_mode=command.get('dolby_vision_mode','separate'))
                 else:
                     report=json.loads(target.with_suffix('.json').read_text(encoding='utf-8'))
-                    if report.get('verified') is not True or report.get('video_mbps_target')!=command['bitrate']:
+                    if report.get('verified') is not True or report.get('video_mbps_target')!=command['bitrate'] or report.get('dolby_vision_mode','separate')!=command.get('dolby_vision_mode','separate'):
                         raise ValueError('En eksisterende resultatfil kan ikke genbruges.')
                 if self.stop.is_set():raise self.cancelled()
                 atomic(work/'status.json',{'id':ident,'state':'encoded','progress':100,'detail':'Pc-konvertering kontrolleret · afventer FjordSeed'})

@@ -59,7 +59,7 @@ def test_received_job_automatically_selects_encoder_bitrate_and_ui(tmp_path,rate
     panel.quality=Mock()
     a.notify=lambda kind,value:panel.event(kind,value) if kind=='settings' else None
     actual=[]
-    def convert(source,folder,rate,progress,stop):
+    def convert(source,folder,rate,progress,stop,dolby_vision_mode='separate'):
         actual.append(rate)
         target=folder/'result.mkv'
         target.write_bytes(b'converted')

@@ -33,5 +33,5 @@ def restore_flags(original,target):
 from conversion_media import publish_output
 from conversion_media import prepare_output as _prepare_output
 
-def prepare_output(original,target):
-    return _prepare_output(original,target,run=subprocess.run)
+def prepare_output(original,target,mode='separate'):
+    return _prepare_output(original,target,run=subprocess.run,mode=mode)

@@ -22,12 +22,14 @@ CONFIG = ROOT / 'preferences.json'
 class Cancelled(Exception):
     pass
 
-def convert(source, folder, bitrate, notify, stop, target_name=None):
+def convert(source, folder, bitrate, notify, stop, target_name=None, dolby_vision_mode='separate'):
     source, folder = Path(source), Path(folder)
     if not source.is_file():
         raise ValueError('Kildefilen findes ikke.')
     if not folder.is_dir():
         raise ValueError('Vælg en eksisterende mappe til resultatet.')
+    from conversion_media import dolby_mode
+    dolby_mode(dolby_vision_mode)
     if bitrate not in (10, 15, 20, 25, 30, 40):
         raise ValueError('Ugyldig bitrate.')
     for tool in core.TOOLS.values():
@@ -93,16 +95,16 @@ def convert(source, folder, bitrate, notify, stop, target_name=None):
             if code:
                 detail='crashede' if code & 0xffffffff==0xc0000005 else 'stoppede med en fejl'
                 raise RuntimeError(f'NVEncC {detail} (0x{code & 0xffffffff:08X}). Originalerne er bevaret. Se jobbets log.')
-            notify('status', 'Gemmer Dolby Vision og kontrollerer HDR10, lyd og kapitler …')
-            notify('phase', {'stage':'metadata','detail':'Gemmer Dolby Vision separat og bevarer HDR10 og lyd · dette kan tage flere minutter'})
-            result = core.prepare_output(original, partial)
+            notify('status', 'Behandler Dolby Vision-valget og kontrollerer HDR, lyd og kapitler …')
+            notify('phase', {'stage':'metadata','detail':'Bevarer Dolby Vision i filmen' if dolby_vision_mode=='preserve' else 'Gemmer Dolby Vision separat og bevarer HDR10 og lyd · dette kan tage flere minutter'})
+            result = core.prepare_output(original, partial, mode=dolby_vision_mode)
             notify('phase', {'stage':'verifying','detail':'Kontrollerer den færdige fil, alle spor og kapitler · kodningen er færdig'})
             if stop.is_set():
                 raise Cancelled()
             core.publish_output(partial,target)
             seconds = time.monotonic() - started
             report = {'source': str(source), 'output': str(target), 'seconds': round(seconds, 2),
-                      'video_mbps_target': bitrate, 'gpu_encoder': 'NVEncC 9.39 HEVC quality',
+                      'video_mbps_target': bitrate, 'dolby_vision_mode':dolby_vision_mode, 'gpu_encoder': 'NVEncC 9.39 HEVC quality',
                       'video_decoder':'NVDEC' if reader=='avhw' else 'FFmpeg software',
                       'audio_tracks': sum(s['codec_type']=='audio' for s in result['streams']),
                       'subtitle_tracks': sum(s['codec_type']=='subtitle' for s in result['streams']),
