@@ -76,10 +76,20 @@ async function openRssHistory(feed){
  const generation=++rssHistoryGeneration;
  const list=$('#rss-history-list'),status=$('#rss-history-status');
  const overview=$('#rss-history-overview'),search=$('#rss-history-search');
- const sort=$('#rss-history-sort'),direction=$('#rss-history-sort-direction');
- let descending=false;
- sort.value='title';sort.disabled=true;sort.onchange=null;
- direction.disabled=true;direction.onclick=null;direction.textContent='Stigende ↑';
+ const sortButtons=[...document.querySelectorAll('[data-history-sort]')];
+ let sortField='title',descending=false;
+ function updateSortButtons(){
+  for(const button of sortButtons){
+   const active=button.dataset.historySort===sortField;
+   button.setAttribute('aria-pressed',String(active));
+   button.querySelector('.rss-history-sort-arrow').textContent=active?(descending?'↓':'↑'):'↕';
+   const label=button.querySelector('span').textContent;
+   const nextDescending=active?!descending:button.dataset.historySort!=='title';
+   button.setAttribute('aria-label',label+(active?(descending?', faldende':', stigende'):'')+'. Klik for at sortere '+(nextDescending?'faldende':'stigende')+'.');
+  }
+ }
+ sortButtons.forEach(button=>{button.disabled=true;button.onclick=null;});
+ updateSortButtons();
  overview.hidden=true;overview.replaceChildren();search.value='';search.disabled=true;search.oninput=null;
  $('#rss-history-title').textContent='Downloadhistorik · '+feed.name;
  list.replaceChildren();status.textContent='Henter historik…';
@@ -90,7 +100,7 @@ async function openRssHistory(feed){
   status.textContent=result.count?result.count+' torrents · '+result.groups.length+' grupper':'Ingen hentede titler registreret endnu.';
   const totals=rssHistoryStats(result.groups.flatMap(group=>group.downloads));
   overview.append(rssHistoryStat('Krediteret upload i alt',totals.total,'is-credit',totals.partial),rssHistoryStat('Gns. krediteret pr. torrent',totals.average,'',totals.partial),rssHistoryStat('Download i alt',totals.download,'',totals.downloadPartial));overview.hidden=!result.count;search.disabled=false;
-  sort.disabled=false;direction.disabled=false;
+  sortButtons.forEach(button=>button.disabled=false);
   const statsByGroup=new Map(result.groups.map(group=>[group,rssHistoryStats(group.downloads)]));
   let visible=0,groups=[];
   async function loadCovers(targets,attempt=0){
@@ -144,9 +154,9 @@ async function openRssHistory(feed){
    groups=result.groups.filter(group=>group.title.toLocaleLowerCase('da-DK').includes(search.value.trim().toLocaleLowerCase('da-DK')));
    groups.sort((a,b)=>{
     const titleOrder=a.title.localeCompare(b.title,'da-DK',{numeric:true});
-    if(sort.value==='title')return descending?-titleOrder:titleOrder;
-    const left=sort.value==='count'?a.downloads.length:statsByGroup.get(a)[sort.value];
-    const right=sort.value==='count'?b.downloads.length:statsByGroup.get(b)[sort.value];
+    if(sortField==='title')return descending?-titleOrder:titleOrder;
+    const left=sortField==='count'?a.downloads.length:statsByGroup.get(a)[sortField];
+    const right=sortField==='count'?b.downloads.length:statsByGroup.get(b)[sortField];
     // Unknown measurements stay last in both directions; real zero remains sortable.
     if(left===null||right===null)return left===right?titleOrder:left===null?1:-1;
     return (descending?right-left:left-right)||titleOrder;
@@ -155,10 +165,12 @@ async function openRssHistory(feed){
    if(!groups.length)list.append(node('li','rss-history-empty','Ingen titler matcher din søgning.'));
    list.append(next);
   }
-  function updateDirection(){direction.textContent=descending?'Faldende ↓':'Stigende ↑';}
   search.oninput=renderGroups;
-  sort.onchange=()=>{descending=sort.value!=='title';updateDirection();renderGroups();};
-  direction.onclick=()=>{descending=!descending;updateDirection();renderGroups();};
+  for(const button of sortButtons)button.onclick=()=>{
+   const field=button.dataset.historySort;
+   descending=field===sortField?!descending:field!=='title';sortField=field;
+   updateSortButtons();renderGroups();
+  };
   renderGroups();
   $('#rss-history-dialog').addEventListener('close',()=>next.remove(),{once:true});
  }catch(e){if(generation===rssHistoryGeneration)status.textContent=e.message;}

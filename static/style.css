@@ -173,8 +173,12 @@ details[open]>summary>.rss-history-chevron{transform:rotate(225deg);margin-top:4
 
 .conversion-choice,.conversion-settings{border:1px solid var(--border,#344663);border-radius:12px;padding:18px;margin:18px 0;min-width:0}.conversion-choice legend,.conversion-settings legend{font-weight:700;color:var(--green)}.conversion-status{color:#8cbcff;overflow-wrap:anywhere}.conversion-settings select{max-width:240px}
 
-.rss-history-sort-controls{display:flex;align-items:flex-end;gap:12px;margin-bottom:16px;flex-wrap:wrap}
-#rss-history-dialog .rss-history-sort-controls label{margin:0;flex:1;max-width:300px;min-width:0;font-size:11px;color:var(--muted)}
-#rss-history-sort{margin:5px 0 0;font-size:12px;padding:9px 13px;border-radius:9px}
-#rss-history-sort-direction{font-size:12px;padding:9px 13px;white-space:nowrap}
-@media(max-width:520px){#rss-history-dialog .rss-history-sort-controls label{flex-basis:180px;max-width:none}}
+.rss-history-columns{display:grid;grid-template-columns:minmax(0,1fr) 318px 12px;gap:20px;align-items:end;padding:0 110px 0 18px;margin:0 0 8px}
+.rss-history-title-columns{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.rss-history-stat-columns{display:grid;grid-template-columns:repeat(3,minmax(94px,1fr));gap:18px}
+.rss-history-sort{display:flex;align-items:center;gap:5px;padding:8px 0;border:0;border-radius:4px;background:transparent;color:var(--muted);font-size:10px;font-weight:500;text-align:left;line-height:1.5;min-width:0}
+.rss-history-sort:hover:not(:disabled),.rss-history-sort[aria-pressed=true]{color:var(--green);background:transparent}
+.rss-history-sort:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.rss-history-sort-arrow{font-size:12px;flex-shrink:0}
+@media(max-width:850px){.rss-history-columns{grid-template-columns:minmax(0,1fr);gap:0;padding:0 106px 0 16px}.rss-history-stat-columns{padding-left:48px;gap:12px}}
+@media(max-width:520px){.rss-history-columns{padding:0 12px;gap:0}.rss-history-title-columns{padding-right:78px}.rss-history-stat-columns{padding-left:0;gap:8px;grid-template-columns:repeat(3,minmax(0,1fr))}.rss-history-sort{font-size:9px;gap:3px}}
