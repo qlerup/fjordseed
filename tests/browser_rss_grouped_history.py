@@ -120,6 +120,46 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('.rss-history-group')).to_have_count(1)
             expect(page.locator('.rss-history-group-icon svg')).to_have_count(1)
             page.locator('#rss-history-dialog').get_by_role('button',name='Luk',exact=True).click()
+            # Sort the complete archive before paging, preserving unknown and zero values.
+            fixture={'count':46,'groups':[
+                {'key':str(i),'title':f'Titel {i:02}','exclude_title':f'Titel {i:02}','excluded':False,
+                 'downloads':[{'title':'Episode','credited_uploaded':i*1024**2,'downloaded':(44-i)*1024**3}]}
+                for i in range(43)]}
+            fixture['groups'][42]['downloads']*=2
+            fixture['groups'].append({'key':'unknown','title':'Ukendt','exclude_title':'Ukendt','excluded':False,'downloads':[{'title':'Episode'}]})
+            page.route('**/api/rss/*/history/covers',lambda route:route.fulfill(json={'covers':{}}))
+            for width in (1440,390):
+                page.set_viewport_size({'width':width,'height':844})
+                page.get_by_role('button',name='Downloadhistorik for Dansk TV',exact=True).click()
+                titles=page.locator('.rss-history-group-title > strong')
+                expect(titles).to_have_count(40)
+                expect(titles.first).to_have_text('Titel 00')
+                for field,first,last in [('count','Titel 42','Ukendt'),('total','Titel 42','Ukendt'),('average','Titel 42','Ukendt'),('download','Titel 00','Ukendt')]:
+                    page.locator('#rss-history-sort-trigger').scroll_into_view_if_needed()
+                    page.wait_for_timeout(150)  # Let the existing select close on scroll before opening.
+                    page.locator('#rss-history-sort-trigger').click()
+                    page.locator('#rss-history-sort-options [data-value="'+field+'"]').click()
+                    expect(titles.first).to_have_text(first)
+                    page.get_by_role('button',name='Vis flere grupper',exact=True).click()
+                    expect(titles).to_have_count(44)
+                    expect(titles.last).to_have_text(last)
+                    page.locator('#rss-history-sort-direction').click()
+                    expect(titles.first).to_have_text('Titel 41' if field=='download' else 'Titel 00')
+                    page.get_by_role('button',name='Vis flere grupper',exact=True).click()
+                    expect(titles.last).to_have_text('Titel 42' if field=='count' else 'Ukendt')
+                page.locator('#rss-history-sort-trigger').scroll_into_view_if_needed()
+                page.wait_for_timeout(150)
+                page.locator('#rss-history-sort-trigger').click()
+                page.locator('#rss-history-sort-options [data-value="average"]').click()
+                page.locator('#rss-history-search').fill('Titel 4')
+                expect(titles).to_have_text(['Titel 42','Titel 41','Titel 40'])
+                page.locator('#rss-history-sort-direction').click()
+                expect(titles).to_have_text(['Titel 40','Titel 41','Titel 42'])
+                page.locator('#rss-history-search').fill('')
+                expect(titles).to_have_count(40)
+                assert page.locator('.rss-history-sort-controls').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
+                page.screenshot(path=str(out/f'rss-history-sorting-{width}.png'))
+                page.locator('#rss-history-dialog').get_by_role('button',name='Luk',exact=True).click()
             page.unroute('**/api/rss/*/history/groups')
             page.route('**/api/rss/*/history/groups',lambda route:route.fulfill(status=503,content_type='application/json',body='{"error":"Historik afventer"}'))
             page.get_by_role('button',name='Downloadhistorik for Dansk TV',exact=True).click()

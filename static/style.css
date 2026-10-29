@@ -172,3 +172,9 @@ details[open]>summary>.rss-history-chevron{transform:rotate(225deg);margin-top:4
 @media(max-width:520px){#rss-exclude-dialog .dialog-heading{padding:18px}#rss-exclude-dialog .dialog-body{padding:18px 18px 4px}#rss-exclude-dialog .dialog-footer{padding:14px 18px;flex-wrap:wrap}#rss-exclude-dialog .dialog-footer button{font-size:12px}}
 
 .conversion-choice,.conversion-settings{border:1px solid var(--border,#344663);border-radius:12px;padding:18px;margin:18px 0;min-width:0}.conversion-choice legend,.conversion-settings legend{font-weight:700;color:var(--green)}.conversion-status{color:#8cbcff;overflow-wrap:anywhere}.conversion-settings select{max-width:240px}
+
+.rss-history-sort-controls{display:flex;align-items:flex-end;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+#rss-history-dialog .rss-history-sort-controls label{margin:0;flex:1;max-width:300px;min-width:0;font-size:11px;color:var(--muted)}
+#rss-history-sort{margin:5px 0 0;font-size:12px;padding:9px 13px;border-radius:9px}
+#rss-history-sort-direction{font-size:12px;padding:9px 13px;white-space:nowrap}
+@media(max-width:520px){#rss-history-dialog .rss-history-sort-controls label{flex-basis:180px;max-width:none}}
