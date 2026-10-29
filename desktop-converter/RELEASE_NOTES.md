@@ -1,4 +1,9 @@
-Windows-installationspakke til Fjord-konvertering.
+Windows-installationspakke til Fjord-konvertering 0.5.4.
+
+- Windows og serverkonvertering bruger nu samme kode til encoderindstillinger, valg af decoder, metadata og slutkontrol.
+- Dolby Vision bevarer kildens level i stedet for NVEncC 9.39's faste level 10 ved tvungen profil 8.1. Understøttet profil 7 omdannes fortsat til HDR10-kompatibel profil 8.1 med RPU; level kontrolleres før publicering.
+- Resultater med ændret eller manglende Dolby Vision-level eller inkonsistente Dolby Vision-lag afvises. 4K, HDR, valgt bitrate, lyd og undertekster bevares som hidtil.
+- Afspilning på den konkrete Windows-pc/iPhone skal fortsat efterprøves. Rettelsen ændrer ikke allerede konverterede filer.
 
 - Retter et programnedbrud ved genåbning fra systembakken eller ved at starte programmet igen under en konvertering. Windows-callbacks sender nu handlinger til programmets hændelseskø i stedet for at kalde direkte ind i Tk.
 

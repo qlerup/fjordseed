@@ -32,7 +32,7 @@ COPY templates ./templates
 COPY streaming.py ./
 COPY conversion.py library_conversion.py shared_library.py media_bitrates.py ./
 COPY converter_runtime.py ./
-COPY converter_worker.py remote_conversion.py remote_helper.py ./
+COPY conversion_media.py conversion_decoder.py converter_worker.py remote_conversion.py remote_helper.py ./
 COPY seed_potential.py ./
 COPY rss_history.py ./
 COPY rss_budget.py ./

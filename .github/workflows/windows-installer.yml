@@ -20,6 +20,13 @@ jobs:
         with:
           path: ${{ runner.temp }}/fjord-tool-archives
           key: windows-converter-tools-${{ hashFiles('desktop-converter/tools.json') }}
+      - name: Test shared conversion policy on Windows
+        shell: pwsh
+        run: |
+          python -m pip install -r requirements.txt pytest
+          if ($LASTEXITCODE -ne 0) { throw 'Test dependency installation failed.' }
+          python -m pytest -q desktop-converter/test_parity.py desktop-converter/test_nvidia_decoder.py desktop-converter/test_installer.py
+          if ($LASTEXITCODE -ne 0) { throw 'Shared conversion policy tests failed.' }
       - name: Install verified compiler
         shell: pwsh
         run: |

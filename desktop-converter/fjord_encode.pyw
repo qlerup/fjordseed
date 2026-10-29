@@ -53,8 +53,7 @@ def convert(source, folder, bitrate, notify, stop, target_name=None):
                 raise Cancelled()
             from nvidia_decoder import select as select_decoder
             reader=select_decoder(core.video(original),core.TOOLS['nvencc'])
-            args = core.command(source, partial, bitrate, original)
-            if reader=='avhw':args[1]='--avhw'
+            args = core.command(source, partial, bitrate, original, reader=reader)
             args[0] = str(core.TOOLS['nvencc'])
             expected = float(original['format']['duration']) * float(Fraction(core.video(original)['avg_frame_rate']))
             log.write(json.dumps(args, ensure_ascii=False) + '\n')

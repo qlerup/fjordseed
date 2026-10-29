@@ -20,7 +20,7 @@ def build(install_dir):
         subprocess.run([sys.executable,'-m','PyInstaller','--onefile','--noconsole',
             '--name','Fjord-konvertering','--icon',str(source/'fjord.ico'),
             '--distpath',str(work/'dist'),'--workpath',str(work/'work'),'--specpath',str(work),
-            '--paths',str(source),str(source/'fjord_encode.pyw')],env=env,cwd=source,check=True)
+            '--paths',str(source),'--paths',str(source.parent),str(source/'fjord_encode.pyw')],env=env,cwd=source,check=True)
         target=install_dir/'Fjord-konvertering.exe'
         shutil.copy2(work/'dist'/'Fjord-konvertering.exe',target)
         print('Built '+str(target))

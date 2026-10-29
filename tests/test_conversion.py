@@ -103,7 +103,8 @@ def media():
     return {'format':{'duration':'900'},'_rpu_frames':3,'chapters':[], 'streams':[
         {'codec_type':'video','codec_name':'hevc','width':3840,'height':2160,'pix_fmt':'yuv420p10le',
          'avg_frame_rate':'24000/1001','color_transfer':'smpte2084','side_data_list':[
-             {'side_data_type':'DOVI configuration record','dv_profile':8,'dv_bl_signal_compatibility_id':1},
+             {'side_data_type':'DOVI configuration record','dv_profile':8,'dv_bl_signal_compatibility_id':1,'dv_level':6,
+              'bl_present_flag':1,'el_present_flag':0,'rpu_present_flag':1},
              {'side_data_type':'Mastering display metadata'}]},
         {'codec_type':'audio','codec_name':'truehd','channels':8,'tags':{'language':'eng'}},
         {'codec_type':'subtitle','codec_name':'subrip','tags':{'language':'dan'}}]}
@@ -131,3 +132,23 @@ def test_quality_choice_reaches_encoder_with_variable_bitrate(rate):
     assert args[args.index('--vbr')+1]==str(rate*1000)
     assert args[args.index('--max-bitrate')+1]==str(rate*1500)
     assert args[args.index('--output-depth')+1]=='10'
+
+
+@pytest.mark.parametrize('profile',[7,8])
+@pytest.mark.parametrize('reader',['avsw','avhw'])
+def test_dolby_vision_preserves_source_level_instead_of_forcing_level_10(profile,reader):
+    original=media();original['streams'][0]['side_data_list'][0]['dv_profile']=profile
+    args=command('in.mkv','out.mkv',30,original,reader=reader)
+    assert args[1]=='--'+reader
+    assert args[args.index('--dolby-vision-profile')+1]=='copy'
+    assert args[args.index('--dolby-vision-rpu')+1]=='copy'
+    assert all(flag in args for flag in ['--repeat-headers','--aud','--pic-struct'])
+    validate(original,media())
+
+
+@pytest.mark.parametrize('field,value', [('dv_level',10),('dv_level',None),('el_present_flag',1),('bl_present_flag',0),('rpu_present_flag',0)])
+def test_dolby_vision_rejects_changed_level_or_inconsistent_layers(field,value):
+    original=media();result=media()
+    result['streams'][0]['side_data_list'][0][field]=value
+    with pytest.raises(ValueError,match='Dolby Vision'):
+        validate(original,result)

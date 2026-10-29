@@ -48,3 +48,6 @@
 !media_bitrates.py
 
 !deletion_events.py
+
+!conversion_media.py
+!conversion_decoder.py

@@ -170,3 +170,17 @@ ikke indholdet af en eksisterende brugerinstallation. SHA-256 for den færdige
 installer gemmes ved siden af filen. GitHub-workflowet **Windows installer**
 kan bygge og udgive en ny version manuelt. Brug et nyt versionsnummer ved
 hver udgivelse. Den seneste udgivelse er downloadmålet i FjordSeed.
+
+## Fælles konverteringspolitik
+
+`conversion_media.py` og `conversion_decoder.py` i repoets rod bruges af både
+Windows-programmet og serverkonverteringen. De skal med i PyInstaller-pakken
+og begge Docker-images. Platformene vælger kun værktøjsstier og processtart;
+encoderindstillinger og slutkontrol er fælles. Hardwareafkodning vælges efter
+samme capability-kontrol på begge GPU'er.
+
+NVEncC 9.39 skriver et fast Dolby Vision-level 10 ved eksplicit `8.1`.
+`--dolby-vision-profile copy` bevarer kildens level og konverterer understøttet
+profil 7 til 8.1. Slutkontrollen kræver uændret level, BL+RPU uden EL samt HDR10-
+kompatibel profil 8.1. Dette er en metadatarettelse, ikke en garanti for enhver
+Plex-klient; praktisk afspilning kontrolleres separat.
