@@ -115,8 +115,15 @@ def validate(original,result):
 
 
 def report(work,ident,state,detail,progress=0):
+    now=time.time()
+    try:previous=json.loads(checked(work/'status.json').read_text())
+    except (OSError,ValueError):previous={}
+    if not isinstance(previous,dict):previous={}
+    stage={'encoded':'server_verifying','ready':'publishing'}.get(state,state)
+    started=previous.get('stage_started_at') if previous.get('stage')==stage and previous.get('id')==ident else now
     atomic(checked(work/'status.json'),json.dumps({'id':ident,'state':state,'detail':detail,
-           'progress':round(progress,1),'at':time.time()}),mode=0o644)
+           'progress':round(progress,1),'at':now,'stage':stage,'stage_started_at':started or now,
+           'phase_progress':round(progress,1) if state=='encoding' else None}),mode=0o644)
 
 
 def restore_flags(original,target):
@@ -165,13 +172,14 @@ def run_job(work):
             target.parent.mkdir(parents=True,exist_ok=True)
             # On restart re-validate completed files, never assume length means success.
             if source.suffix.lower() in VIDEO and entry.get('convert',True):
+                report(work,ident,'probing','Undersøger video, HDR, lyd og undertekster: '+entry['name'])
                 original=probe(source)
                 if target.exists():
                     validate(original,probe(target));continue
                 scratch=checked(work/'scratch');scratch.mkdir(exist_ok=True)
                 partial=checked(scratch/(str(index)+'.mkv'))
                 partial.unlink(missing_ok=True)
-                report(work,ident,'encoding','GPU-konvertering: '+entry['name'],index/len(files)*100)
+                report(work,ident,'encoding','GPU-konvertering: '+entry['name'],0)
                 expected=max(1,float(original['format']['duration'])*float(Fraction(video(original)['avg_frame_rate'])))
                 with log.open('a',encoding='utf-8') as handle:
                     process=subprocess.Popen(command(source,partial,request['bitrate'],original),
@@ -188,13 +196,14 @@ def run_job(work):
                         handle.write(line);handle.flush()
                         match=re.search(r'\b(\d+)(?:/\d+)? frames:',line)
                         if match:
-                            percent=(index+min(.99,int(match[1])/expected))/len(files)*100
+                            percent=min(99,int(match[1])/expected*100)
                             report(work,ident,'encoding','GPU-konvertering: '+entry['name'],percent)
                     code=process.wait()
                 if STOP.is_set():return
                 if code:raise ValueError('GPU-konverteringen fejlede (kode '+str(code)+'). Se encoder.log; originalen beholdes.')
-                report(work,ident,'verifying','Kontrollerer video, lyd, undertekster, HDR og kapitler',index/len(files)*100)
+                report(work,ident,'metadata','Bevarer HDR og skriver sporoplysninger · dette kan tage flere minutter')
                 restore_flags(original,partial)
+                report(work,ident,'verifying','Kontrollerer den færdige video, lyd, undertekster, HDR og kapitler')
                 validate(original,probe(partial))
                 if source.stat().st_size!=entry['size']:raise ValueError('Originalfilen ændrede sig under konverteringen.')
                 partial.rename(target)

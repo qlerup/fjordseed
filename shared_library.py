@@ -46,7 +46,8 @@ def live_status(api,job):
     if job['phase']=='moving' and not job.get('error'):
         row=next((r for r in api('torrents/info').json() if r['hash']==job['hash']),None)
         if row:
-            result.update(checked_at=time.time(),stage_started_at=job.get('move_requested_at'),qbit_state=row.get('state'))
+            result.update(checked_at=time.time(),qbit_state=row.get('state'))
+            if result['stage']=='moving':result['stage_started_at']=job.get('move_requested_at')
             if row.get('state')=='moving':
                 from move_progress import estimate
                 result.update(estimate(job))
@@ -168,6 +169,9 @@ def complete(api,ident,device):
         expected=next(f['fingerprint'] for f in job['files'] if f['name']==job['selected'])
         if library.fingerprint(job['source'])!=expected:raise ValueError('Bibliotekets kildefil er ændret.')
         before=library.fingerprint(output)
+        atomic(work/'status.json',json.dumps({'id':ident,'state':'encoded','stage':'server_verifying',
+            'stage_started_at':time.time(),'phase_progress':None,'progress':0,
+            'detail':'Serveren kontrollerer video, lyd, undertekster, HDR og kapitler'}),mode=0o644)
         from converter_worker import probe,validate
         validate(probe(job['source']),probe(output))
         if library.fingerprint(output)!=before:raise ValueError('Resultatet er ændret under kontrollen.')
@@ -195,5 +199,6 @@ def complete(api,ident,device):
         jobs[ident]=job;library.save(jobs)
         atomic(work/'result'/'.fjordseed-converted.json',json.dumps({'id':ident,'files':[job['output']]}),mode=0o644)
         atomic(work/'status.json',json.dumps({'id':ident,'state':'ready','progress':100,
+            'stage':'waiting_move','stage_started_at':time.time(),'phase_progress':None,
             'detail':'Resultatet er kontrolleret · afventer flytning af originaltorrent'}),mode=0o644)
         return command(job)

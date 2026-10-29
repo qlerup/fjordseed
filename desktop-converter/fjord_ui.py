@@ -2,6 +2,7 @@
 import json
 import os
 import queue
+import time
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -20,6 +21,26 @@ QUALITY_CHOICES = {20: '20 Mbps – spar plads', 30: '30 Mbps – balance (anbef
 def clock(seconds):
     seconds = max(0, int(seconds))
     return f'{seconds//3600}:{seconds//60%60:02}:{seconds%60:02}' if seconds >= 3600 else f'{seconds//60}:{seconds%60:02}'
+
+
+def show_phase(app, stage, progress=None, started_at=None):
+    changed=getattr(app,'progress_stage',None)!=stage
+    if changed:
+        app.bar.stop()
+        app.bar['value']=0
+        app.progress_stage=stage
+        app.phase_started=started_at or time.time()
+    elif started_at:
+        app.phase_started=started_at
+    measured=progress is not None
+    mode='determinate' if measured else 'indeterminate'
+    if str(app.bar['mode'])!=mode or changed:
+        app.bar.stop();app.bar['value']=0;app.bar['mode']=mode
+        if not measured:app.bar.start(25)
+    if measured:
+        app.bar['value']=max(0,min(100,float(progress)))
+        app.percent.set(f'{float(app.bar["value"]):.0f} %')
+    else:app.percent.set('Arbejder …')
 
 
 def read_settings(path):
@@ -163,7 +184,7 @@ class ConverterUI(tk.Tk):
                     self.selected_path.set(value['path'])
                     self.job_detail.set(str(value['bitrate'])+' Mbps · direkte fra netværksmappen')
                     self.status.set('Starter konvertering på NVIDIA-GPU …')
-                    self.bar['value']=0;self.percent.set('0 %')
+                    show_phase(self,'starting')
                     if self.notice:self.notice.started(Path(value['path']).name,detail=str(value['bitrate'])+' Mbps · NVIDIA-GPU · HEVC/MKV')
                 elif state == 'job_status':
                     self.status.set(value)
@@ -171,31 +192,32 @@ class ConverterUI(tk.Tk):
                 elif state == 'job_phase':
                     self.status.set(value['detail'])
                     progress=value.get('phase_progress')
-                    label='af indholdskontrollen' if value.get('stage')=='source_verifying' else 'af flytningen'
-                    self.percent.set(f'{progress:.1f} % {label}' if progress is not None else 'Arbejder …')
-                    self.bar['value']=progress if progress is not None else 0
-                    self.job_detail.set('FjordSeed svarer · status kontrolleres løbende' if value.get('stage')!='reconnecting' else 'Venter på forbindelse · originaler og resultat bevares')
+                    show_phase(self,value.get('stage') or value.get('state','waiting'),progress,value.get('stage_started_at'))
                     if self.notice:
                         self.notice.phase(value['detail'])
                 elif state == 'job_progress':
                     percent,fps,remaining=value
-                    self.bar['value']=percent;self.percent.set(f'{percent:.0f} %')
+                    show_phase(self,'encoding',percent)
                     self.job_detail.set(f'{fps:.1f} billeder/s · cirka {clock(remaining)} tilbage')
                     if self.notice:self.notice.progress(remaining,percent)
                 elif state == 'job_done':
-                    self.bar['value']=100;self.percent.set('100 %')
+                    show_phase(self,'completed',100)
                     self.status.set('Færdig · filmen er i Bibliotek, og originaltorrenten er i Seeder.')
                     self.job_detail.set('Alle originalfiler og torrentens mappestruktur er bevaret.')
                     if self.notice:self.notice.finish('Filmen er klar i Bibliotek.')
                 elif state == 'job_error':
                     self.status.set(value)
-                    self.percent.set(f"Stoppet ved {float(self.bar['value']):.0f} %")
+                    show_phase(self,'error',0);self.percent.set('Stoppet')
                     self.job_detail.set('Originalfilerne er bevaret.')
                     if self.notice:self.notice.finish(value,failed=True)
                 else:
                     self.folder_status.set(value)
         except queue.Empty:
             pass
+        stage=getattr(self,'progress_stage',None)
+        if stage and stage not in ('encoding','completed','error'):
+            elapsed=clock(time.time()-self.phase_started)
+            self.job_detail.set(('Venter på forbindelse' if stage=='reconnecting' else 'Tid på dette trin')+' · '+elapsed)
         runner=self.workspace_sync.runner
         stoppable=runner and ((runner.busy and runner.can_cancel) or (not runner.busy and runner.receipt and runner.receipt.get('state')=='error' and runner.command))
         self.cancel_button['state']='normal' if stoppable else 'disabled'

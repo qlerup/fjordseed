@@ -116,24 +116,28 @@ class SharedRunner:
                 continue
 
     def run(self,command,folder):
-        work=None;self.can_cancel=True;last_write=0
+        work=None;self.can_cancel=True;last_write=0;phase=None;phase_started=None
         ident=command['id']
         def notify(kind,value):
-            nonlocal last_write
+            nonlocal last_write,phase,phase_started
             if kind=='status':self.messages.put(('job_status',value))
             if kind=='phase':
                 stamp=time.time()
+                if phase!=value['stage']:phase,phase_started=value['stage'],stamp
                 self.receipt={'id':ident,'state':'converting','progress':0,'detail':value['detail'],
-                              'stage':value['stage'],'stage_started_at':stamp,'at':stamp}
+                              'stage':phase,'stage_started_at':phase_started,'at':stamp,
+                              'phase_progress':value.get('phase_progress')}
                 self.messages.put(('job_phase',self.receipt.copy()))
                 if work:atomic(work/'status.json',{**self.receipt,'state':value['stage']})
                 self.changed.set()
             if kind=='progress':
                 percent,fps,remaining=value
-                self.receipt={'id':ident,'state':'converting','progress':round(percent,1),'detail':'Konverterer på pc’ens NVIDIA-GPU'}
+                if phase!='encoding':phase,phase_started='encoding',time.time()
+                self.receipt={'id':ident,'state':'converting','progress':round(percent,1),'detail':'Konverterer på pc’ens NVIDIA-GPU',
+                              'stage':phase,'stage_started_at':phase_started,'at':time.time(),'phase_progress':round(percent,1)}
                 self.messages.put(('job_progress',value))
                 if work and time.monotonic()-last_write>1:
-                    atomic(work/'status.json',{'id':ident,'state':'encoding','progress':round(percent,1),'detail':self.receipt['detail']})
+                    atomic(work/'status.json',{**self.receipt,'state':'encoding'})
                     last_write=time.monotonic()
         try:
             while not self.stop.is_set():
@@ -165,7 +169,7 @@ class SharedRunner:
                 if self.stop.is_set():raise self.cancelled()
                 atomic(work/'status.json',{'id':ident,'state':'encoded','progress':100,'detail':'Pc-konvertering kontrolleret · afventer FjordSeed'})
             self.can_cancel=False
-            self.messages.put(('job_phase',{'stage':'server_verifying','detail':'FjordSeed kontrollerer resultatet før originalen flyttes · ingen ny kodning'}))
+            notify('phase',{'stage':'server_verifying','detail':'FjordSeed kontrollerer resultatet før originalen flyttes · ingen ny kodning'})
             while not self.stop.is_set():
                 try:
                     result=self.request(command,'POST','complete')

@@ -59,6 +59,7 @@ def convert(source, folder, bitrate, notify, stop, target_name=None):
             expected = float(original['format']['duration']) * float(Fraction(core.video(original)['avg_frame_rate']))
             log.write(json.dumps(args, ensure_ascii=False) + '\n')
             notify('status', 'Konverterer med NVIDIA NVDEC og NVENC …' if reader=='avhw' else 'Konverterer på NVIDIA-GPU …')
+            notify('phase', {'stage':'encoding','detail':'Konverterer på NVIDIA-GPU …','phase_progress':0})
             process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                        text=True, encoding='utf-8', errors='replace',
                                        creationflags=subprocess.CREATE_NO_WINDOW)

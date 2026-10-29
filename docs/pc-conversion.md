@@ -121,6 +121,10 @@ Pc-programmet og weboversigten viser særskilt metadataarbejde, resultatkontrol,
 flytning og indholdskontrol. Billeder/s og resterende kodetid vises kun under
 selve kodningen. En serverfejl under flytning vises som fejl, også når jobbets
 seneste fase fortsat hedder `moving`.
+Den samme bjælke nulstilles ved et nyt trin. Kodning, målelig flytning og
+indholdskontrol har en procent for det aktuelle trin; metadata og kontroller
+uden målelig procent vises med en bevægelig bjælke. Begge visninger viser tiden
+brugt på det aktuelle trin. Ved afslutning står bjælken på 100 %.
 
 For nye downloads/RSS med konvertering valgt kontrolleres hver videos samlede
 bitrate. Kun værdier over den valgte videobitrate plus 5 % konverteres;

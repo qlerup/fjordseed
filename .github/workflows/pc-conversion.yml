@@ -24,4 +24,4 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install -r requirements.txt pytest
-      - run: python -m pytest -q tests/test_remote_conversion.py tests/test_remote_upload_transport.py tests/test_remote_helper.py tests/test_conversion.py tests/test_bitrate_gate.py tests/test_library_conversion.py tests/test_moved_content.py tests/test_worker.py tests/test_shared_library.py tests/test_benefits_lock_order.py desktop-converter/test_parity.py desktop-converter/test_shared_runner.py desktop-converter/test_remote_agent.py desktop-converter/test_drive_ui.py desktop-converter/test_installer.py
+      - run: python -m pytest -q tests/test_remote_conversion.py tests/test_remote_upload_transport.py tests/test_remote_helper.py tests/test_conversion.py tests/test_conversion_phases.py tests/test_bitrate_gate.py tests/test_library_conversion.py tests/test_moved_content.py tests/test_worker.py tests/test_shared_library.py tests/test_benefits_lock_order.py desktop-converter/test_parity.py desktop-converter/test_shared_runner.py desktop-converter/test_remote_agent.py desktop-converter/test_drive_ui.py desktop-converter/test_installer.py

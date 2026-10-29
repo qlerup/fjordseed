@@ -297,9 +297,11 @@ class RemoteConversion:
                         elif receipt and receipt['id']==selection['id']:
                             selection.update(state=receipt['state'],detail=receipt.get('detail',''),progress=receipt.get('progress',0))
                             stage=receipt.get('stage')
-                            if stage in ('probing','metadata','verifying'):
+                            if stage in ('probing','encoding','metadata','verifying','server_verifying'):
                                 if selection.get('stage')!=stage:selection['stage_started_at']=time.time()
                                 selection.update(stage=stage,at=time.time())
+                                value=receipt.get('phase_progress')
+                                selection['phase_progress']=value if type(value) in (int,float) and 0<=value<=100 else None
                             elif receipt['state']=='converting':selection['stage']='encoding'
                         if selection.get('action')=='convert' and selection['state']=='error':
                             self.runtime.rpc('library-shared-error',{'id':selection['id'],'device':d['id'],'detail':selection.get('detail','')})

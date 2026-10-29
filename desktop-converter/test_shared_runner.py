@@ -28,6 +28,11 @@ def test_runner_encodes_on_share_then_sends_only_completion_metadata(tmp_path):
         (folder/target_name).write_bytes(b'converted')
         (folder/target_name).with_suffix('.json').write_text(json.dumps({'verified':True,'video_mbps_target':30}))
         notify('progress',(75,40,2))
+        assert json.loads((work/'status.json').read_text())['phase_progress']==75
+        notify('phase',{'stage':'metadata','detail':'Bevarer metadata'})
+        status=json.loads((work/'status.json').read_text())
+        assert status['stage']=='metadata' and status['phase_progress'] is None
+        notify('phase',{'stage':'verifying','detail':'Kontrollerer filmen'})
     messages=queue.SimpleQueue()
     runner=SharedRunner(tmp_path/'connection.json',prefs,convert,Cancelled,messages,threading.Event())
     runner.request=Mock(side_effect=[command,{**command,'state':'completed'}])

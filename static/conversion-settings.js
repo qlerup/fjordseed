@@ -4,6 +4,13 @@
  const views=new Map(),bitrateCache=new Map(),bitrateBusy=new Set();
  const scope=d=>d.id+'\0'+d.media_folder;
  const fmt=n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(n/1000000)+' Mbps';
+ function updatePhaseTimes(){
+  document.querySelectorAll('[data-phase-start]').forEach(el=>{
+   const seconds=Math.max(0,Math.floor(Date.now()/1000-Number(el.dataset.phaseStart)));
+   const minutes=Math.floor(seconds/60),hours=Math.floor(minutes/60);
+   el.textContent='Tid på dette trin · '+(hours?hours+':'+String(minutes%60).padStart(2,'0'):minutes)+':'+String(seconds%60).padStart(2,'0');
+  });
+ }
  const seriesNames=new Map();
  function icon(kind){
   const paths={pc:'M4 4h16v12H4z M8 21h8 M12 16v5',folder:'M3 7V5h6l2 2h10v13H3z',file:'M6 3h8l4 4v14H6z M14 3v5h4',chevron:'M9 5l7 7-7 7'};
@@ -50,7 +57,15 @@
    const filename=node('strong','workspace-job-name',selected.name.split('/').at(-1));filename.title=selected.name;
    copy.append(filename,node('p','small muted',selected.detail||'FjordSeed kontrollerer resultatet, før filmen lægges i biblioteket.'));
    job.append(copy);
-   if(active){const encoding=['encoding','converting'].includes(selected.state)&&(!selected.stage||selected.stage==='encoding');const measured=selected.phase_progress??(encoding?selected.progress:null);const progress=node('progress','workspace-job-progress');progress.max=100;if(measured!=null){const percent=Math.max(0,Math.min(100,Number(measured)||0));job.append(node('strong','workspace-job-percent',Math.round(percent)+' %'));progress.value=percent;}else job.append(node('strong','workspace-job-percent','Arbejder …'));progress.setAttribute('aria-label','Fremdrift i det aktuelle trin');job.append(progress);}
+   if(active||selected.state==='completed'){
+    const encoding=['encoding','converting'].includes(selected.state)&&(!selected.stage||selected.stage==='encoding');
+    const measured=selected.state==='completed'?100:(selected.phase_progress??(encoding?selected.progress:null));
+    const progress=node('progress','workspace-job-progress');progress.max=100;
+    if(measured!=null){const percent=Math.max(0,Math.min(100,Number(measured)||0));job.append(node('strong','workspace-job-percent',Math.round(percent)+' %'));progress.value=percent;}
+    else {job.append(node('strong','workspace-job-percent','Arbejder …'));progress.classList.add('is-indeterminate');}
+    progress.setAttribute('aria-label','Fremdrift i det aktuelle trin');job.append(progress);
+    if(active&&selected.stage_started_at){const elapsed=node('p','workspace-phase-time muted small');elapsed.dataset.phaseStart=String(selected.stage_started_at);job.append(elapsed);}
+   }
    container.append(job);
   }
   const rules=device.skip_rules||[],key=scope(device),cached=bitrateCache.get(key);
@@ -178,7 +193,7 @@
   last=data;seriesNames.clear();
   for(const d of data.devices)for(const f of d.files||[])if(f.series_key)seriesNames.set(f.name.toLocaleLowerCase('da'),f.series_key);
   const signature=JSON.stringify([data.devices,[...bitrateCache].map(([key,c])=>[key,c.error,[...c.files]])]);
-  if(signature===renderedSignature){workerStatus();return;}
+  if(signature===renderedSignature){workerStatus();updatePhaseTimes();return;}
   renderedSignature=signature;
   const scrolls=new Map([...document.querySelectorAll('.workspace-files')].map(el=>[el.dataset.workspaceScope,{top:el.scrollTop,left:el.scrollLeft}]));
   const pageScroll={top:window.scrollY,left:window.scrollX};
@@ -227,5 +242,5 @@
   try{const data=await api('/api/conversion/devices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:$('#conversion-device-name').value})});$('#conversion-token-secret').value='fsp1_'+btoa(JSON.stringify({server:location.origin,token:data.token})).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');$('#conversion-token-result').hidden=false;await load(false);$('#conversion-token-secret').focus();$('#conversion-token-secret').select();}
   catch(e){error('#conversion-settings-error',e);}finally{button.disabled=false;}
  };
- window.addEventListener('hashchange',()=>load());setInterval(()=>load(false),5000);load();
+ window.addEventListener('hashchange',()=>load());setInterval(()=>load(false),5000);setInterval(updatePhaseTimes,1000);load();
 })();

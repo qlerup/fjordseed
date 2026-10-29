@@ -325,7 +325,7 @@ def verify_moved_sources(api, job, seed, *, budget_seconds=1, budget_bytes=128*1
         now=time.time()
         if work and (now-last_report >= 1 or done or force):
             atomic(work/'status.json', json.dumps({'id':job['id'],'state':'ready','progress':100,
-                'stage':'publishing' if done else 'source_verifying','stage_started_at':started,'at':now,
+                'stage':'publishing' if done else 'source_verifying','stage_started_at':now if done else started,'at':now,
                 'phase_progress':100 if done else (100*read_bytes/total if total else 0),
                 'detail':'Indhold kontrolleret · lægger filmen i biblioteket' if done else
                     'Flytning færdig · kontrollerer originalens indhold mod torrentens kontrolsummer'}), mode=0o644)
