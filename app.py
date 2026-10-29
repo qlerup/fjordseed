@@ -683,7 +683,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         checked=0
         history_checked=None
         while not stop.is_set():
-            runtime.tick()
+            runtime.sync_conversion()
             try:
                 manager=app.extensions.get('remote_conversion')
                 if manager:manager.tick()
@@ -717,7 +717,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             stop.wait(3)
 
     if not testing:
-        threading.Thread(target=worker, daemon=True).start()
+        threading.Thread(target=runtime.run, args=(stop,), name='vpn-reconcile', daemon=True).start()
+        threading.Thread(target=worker, name='seed-maintenance', daemon=True).start()
         threading.Thread(target=notifier.run, args=(stop,), daemon=True).start()
         threading.Thread(target=trackers.run, args=(stop,), daemon=True).start()
         threading.Thread(target=trackers.benefits.run, args=(stop,), daemon=True).start()

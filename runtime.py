@@ -235,12 +235,21 @@ class Runtime:
                 except Exception:
                     pass
                 self.error = str(exc) if isinstance(exc, ValueError) else 'VPN eller Docker er ikke tilgængelig. qBittorrent er blokeret.'
-            try:
-                from converter_runtime import sync
-                sync(self)
-                self.conversion_error=''
-            except Exception:
-                self.conversion_error='GPU-workeren kunne ikke klargøres. Kontrollér GPU-installation og bufferens rettigheder.'
+
+    def run(self, stop):
+        """Refresh the VPN report independently of tracker and conversion work."""
+        while not stop.is_set():
+            self.tick()
+            stop.wait(3)
+
+    def sync_conversion(self):
+        # Container creation/probes may block; never hold up VPN heartbeats.
+        try:
+            from converter_runtime import sync
+            sync(self)
+            self.conversion_error=''
+        except Exception:
+            self.conversion_error='GPU-workeren kunne ikke klargøres. Kontrollér GPU-installation og bufferens rettigheder.'
 
     def status(self):
         settings = self.state.get()

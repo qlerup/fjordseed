@@ -90,3 +90,53 @@ def test_foreign_seedbox_and_tcp_relay_are_rejected(runtime):
     runtime.client.containers.create.assert_not_called()
     runtime.discover.return_value[1][0]['relay_enabled']=True
     with pytest.raises(ValueError):runtime.configure({'profile_id':'a'*32,'enabled':True})
+
+
+def test_vpn_heartbeat_continues_while_conversion_maintenance_is_blocked(runtime, monkeypatch):
+    import threading
+    entered, release = threading.Event(), threading.Event()
+    first_tick, second_tick = threading.Event(), threading.Event()
+    advance, stopped = threading.Event(), threading.Event()
+
+    def slow_conversion(_runtime):
+        entered.set()
+        assert release.wait(5), 'test did not release conversion work'
+
+    monkeypatch.setattr('converter_runtime.sync', slow_conversion)
+    runtime.reconcile = Mock(side_effect=lambda: (second_tick if runtime.reconcile.call_count >= 2 else first_tick).set())
+
+    class ControlledStop:
+        def is_set(self):
+            return stopped.is_set()
+        def wait(self, interval):
+            assert interval == 3
+            advance.wait(5)
+            advance.clear()
+            return stopped.is_set()
+
+    maintenance = threading.Thread(target=runtime.sync_conversion)
+    heartbeat = threading.Thread(target=runtime.run, args=(ControlledStop(),))
+    try:
+        maintenance.start()
+        assert entered.wait(2)
+        heartbeat.start()
+        assert first_tick.wait(2), 'slow maintenance blocked the VPN heartbeat'
+        advance.set()
+        assert second_tick.wait(2), 'VPN heartbeat did not refresh again'
+        assert not release.is_set()
+        assert maintenance.is_alive()
+        assert runtime.error == ''
+    finally:
+        stopped.set(); advance.set(); release.set()
+        if heartbeat.ident is not None: heartbeat.join(2)
+        maintenance.join(2)
+    assert not heartbeat.is_alive()
+    assert not maintenance.is_alive()
+
+
+def test_conversion_failure_does_not_stop_seedbox(runtime, monkeypatch):
+    monkeypatch.setattr('converter_runtime.sync', Mock(side_effect=RuntimeError('GPU unavailable')))
+    runtime.stop = Mock()
+    runtime.sync_conversion()
+    runtime.stop.assert_not_called()
+    assert runtime.conversion_error
