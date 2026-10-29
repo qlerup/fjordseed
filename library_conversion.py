@@ -420,9 +420,23 @@ def reconcile(api, rows):
     return errors
 
 
+def resume_original(api, rows, jobs, job):
+    if not job.get('resume_pending'):return
+    row=next((r for r in rows if r['hash']==job['hash']),None)
+    if not row or row.get('save_path','').rstrip('/')!=job['seed'] or row.get('progress')!=1:
+        raise ValueError('Originalens placering skal bekræftes før automatisk seeding.')
+    if row.get('state') in ('stoppedUP','pausedUP'):
+        api('torrents/start',{'hashes':job['hash']})
+    elif row.get('state') not in ('uploading','stalledUP','forcedUP','queuedUP'):
+        return
+    job.pop('resume_pending',None)
+    save(jobs)
+
+
 def advance(api, rows, entries, jobs, job):
     stage = checked(job['stage'])
     if job['phase'] in ('published', 'cancelled'):
+        if job['phase']=='published':resume_original(api,rows,jobs,job)
         for entry in job['files']+job.get('extras',[]):
             name = job['output'] if entry['name'] == job['selected'] else entry['name']
             scratch(job, Path(job['original']) / name).unlink(missing_ok=True)
@@ -455,6 +469,7 @@ def advance(api, rows, entries, jobs, job):
             if other['hash']!=row['hash'] and storage.managed_directory(other.get('save_path','')):
                 if any(str(Path(other['save_path'])/f['name'])==source_path for f in selected_files(api,other)):
                     raise ValueError('En anden torrent bruger bibliotekets originalkopi.')
+        job.setdefault('resume_after_move',row.get('state') in ('uploading','stalledUP','forcedUP','queuedUP'))
         job['phase']='moving';save(jobs)
     if current == str(original):
         verify_sources(job, original)
@@ -481,6 +496,9 @@ def advance(api, rows, entries, jobs, job):
                     else:shutil.copy2(source,target)
                 if fingerprint(target)!=entry['fingerprint']:raise ValueError('En ledsagefil kunne ikke bevares.')
         seed.mkdir(parents=True, exist_ok=True)
+        # Capture intent before the asynchronous move can change native state.
+        # A torrent explicitly paused by the user must remain paused.
+        job.setdefault('resume_after_move',row.get('state') in ('uploading','stalledUP','forcedUP','queuedUP'))
         job['phase'] = 'moving'
         # Persist before asynchronous qBittorrent setLocation; a restart can retry.
         if time.time() - job.get('move_requested_at', 0) > 30:
@@ -548,7 +566,9 @@ def advance(api, rows, entries, jobs, job):
     # allow the normal retained-file migration to move originals back again.
     atomic(storage.CONFIG / 'download-storage.json', json.dumps(entries))
     job['phase'] = 'published'
+    if job.get('resume_after_move'):job['resume_pending']=True
     save(jobs)
+    resume_original(api,rows,jobs,job)
 
 
 def retry(ident):

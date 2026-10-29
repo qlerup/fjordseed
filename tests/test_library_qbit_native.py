@@ -122,8 +122,19 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
                 (work / 'result' / '.fjordseed-converted.json').write_text(json.dumps({'id': job['id'], 'files': [video_name]}))
                 (work / 'status.json').write_text(json.dumps({'id': job['id'], 'state': 'ready'}))
             saw_checkpoint=False
+            stopped_after_move=False
             for _ in range(100):
-                errors = library.reconcile(api, api('torrents/info').json())
+                rows=api('torrents/info').json()
+                if cross_disk and not stopped_after_move and rows[0]['save_path'].rstrip('/')==job['seed'] and rows[0]['state'] in library.STABLE:
+                    # Reproduce the affected native stoppedUP state after copying.
+                    api('torrents/stop',{'hashes':ident})
+                    for _ in range(200):
+                        rows=api('torrents/info').json()
+                        if rows[0]['state']=='stoppedUP':break
+                        time.sleep(.05)
+                    assert rows[0]['state']=='stoppedUP'
+                    stopped_after_move=True
+                errors = library.reconcile(api, rows)
                 assert not errors, errors
                 saw_checkpoint |= bool(storage.read(library.ledger(),{})[job['id']].get('seed_check'))
                 if not library.pending(ident):
@@ -137,6 +148,7 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
                 saved=storage.read(library.ledger(),{})[job['id']]
                 assert saved.get('verified_seed'), 'The real cross-volume copy must pass content validation'
                 assert saw_checkpoint, 'Content validation must yield between pieces of a real torrent'
+                assert stopped_after_move and saved['resume_after_move'] and not saved.get('resume_pending')
             for name,content in companions.items():
                 assert (Path(job['seed'])/name).read_bytes()==content
                 assert (current/name).read_bytes()==content

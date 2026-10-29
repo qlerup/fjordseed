@@ -118,6 +118,43 @@ def test_changed_original_blocks_move_and_publication(film):
     assert not (current / 'film.mkv').exists()
 
 
+@pytest.mark.parametrize('initial_state,resume',[('uploading',True),('stalledUP',True),('stoppedUP',False),('pausedUP',False)])
+def test_restore_seeding_after_move_preserves_user_pause(film,initial_state,resume):
+    root,current,row,rows,files,api=film
+    row['state']=initial_state
+    job=enqueue(film);ready(job)
+    assert library.reconcile(api,rows)==[]
+    move_by_qbit(film,job);row['state']='stoppedUP'
+    assert library.reconcile(api,rows)==[]
+    starts=[c for c in api.call_args_list if c.args[0]=='torrents/start']
+    assert len(starts)==int(resume)
+    if resume:assert starts[0].args==('torrents/start',{'hashes':row['hash']})
+    assert (current/'film.mkv').read_bytes()==b'converted'
+    # A later manual stop must not be undone on the next reconciliation.
+    api.reset_mock();assert library.reconcile(api,rows)==[]
+    assert not any(c.args[0]=='torrents/start' for c in api.call_args_list)
+
+
+def test_resume_failure_is_retried_after_restart_without_republication(film):
+    root,current,row,rows,files,api=film
+    job=enqueue(film);ready(job)
+    assert library.reconcile(api,rows)==[]
+    move_by_qbit(film,job);row['state']='stoppedUP'
+    normal=api.side_effect
+    def fail_start(path,data=None):
+        if path=='torrents/start':raise OSError('temporarily unavailable')
+        return normal(path,data)
+    api.side_effect=fail_start
+    assert library.reconcile(api,rows)
+    saved=storage.read(library.ledger(),{})[job['id']]
+    assert saved['phase']=='published' and saved['resume_pending']
+    assert (current/'film.mkv').read_bytes()==b'converted'
+    api.side_effect=normal;api.reset_mock()
+    assert library.reconcile(api,rows)==[]
+    assert any(c.args==('torrents/start',{'hashes':row['hash']}) for c in api.call_args_list)
+    assert not storage.read(library.ledger(),{})[job['id']].get('resume_pending')
+
+
 def test_collision_after_native_move_is_preserved_and_recovers(film):
     root, current, row, rows, files, api = film
     job = enqueue(film)

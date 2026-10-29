@@ -112,6 +112,10 @@ Indholdskontrollen afslutter ét kort stykke arbejde ad gangen og gemmer et
 kontrolpunkt ved en verificeret stykkegrænse. Mellem bidderne opdateres status,
 og VPN-forbindelsen kontrolleres. En genstart genoptager kontrollen fra seneste
 kontrolpunkt, så længe originalernes fingeraftryk er uændrede.
+Seedede torrenten før flytningen, genoptages den automatisk efter godkendt
+publicering, hvis qBittorrent har efterladt den stoppet. Et fejlet startkald kan
+gentages efter genstart uden ny konvertering. En bevidst pause før flytningen
+eller et senere manuelt stop ophæves ikke af efterfølgende oprydning.
 
 Pc-programmet og weboversigten viser særskilt metadataarbejde, resultatkontrol,
 flytning og indholdskontrol. Billeder/s og resterende kodetid vises kun under
