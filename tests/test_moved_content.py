@@ -92,3 +92,39 @@ def test_moving_error_is_returned_to_pc_instead_of_hidden(film):
     result=shared.command(job)
     assert result['state']=='error' and result['stage']=='error'
     assert result['detail']==job['error']
+
+
+def checkpoint_job(tmp_path):
+    seed=tmp_path/'seed';seed.mkdir()
+    source=seed/'film.mkv';content=b'0123456789'*100
+    source.write_bytes(content)
+    info={b'name':b'film.mkv',b'length':len(content),b'piece length':64,
+          b'pieces':b''.join(hashlib.sha1(content[i:i+64]).digest() for i in range(0,len(content),64))}
+    job={'phase':'moving','hash':hashlib.sha1(encode(info)).hexdigest(),'files':[{'name':source.name,
+         'size':len(content),'fingerprint':library.fingerprint(source)}]}
+    os.utime(source,ns=(source.stat().st_atime_ns,source.stat().st_mtime_ns+1000000000))
+    return seed,source,job,Mock(return_value=Mock(content=encode({b'info':info})))
+
+
+def test_large_check_yields_and_resumes_from_durable_piece_boundary(tmp_path):
+    seed,source,job,api=checkpoint_job(tmp_path)
+    assert library.verify_moved_sources(api,job,seed,budget_bytes=128) is False
+    assert job['seed_check']['pieces']==2 and not job.get('verified_seed')
+    # Simulate a worker restart: no in-memory digest/thread survives.
+    job=__import__('json').loads(__import__('json').dumps(job))
+    previous=2
+    for _ in range(20):
+        if library.verify_moved_sources(api,job,seed,budget_bytes=128):break
+        assert job['seed_check']['pieces']>previous
+        previous=job['seed_check']['pieces']
+    else:pytest.fail('Content verification did not finish')
+    assert job['verified_seed'] and 'seed_check' not in job
+
+
+def test_changed_already_checked_prefix_invalidates_checkpoint(tmp_path):
+    seed,source,job,api=checkpoint_job(tmp_path)
+    assert library.verify_moved_sources(api,job,seed,budget_bytes=128) is False
+    with source.open('r+b') as f:f.write(b'corrupted')
+    with pytest.raises(ValueError,match='kontrolsummer'):
+        library.verify_moved_sources(api,job,seed,budget_bytes=128)
+    assert not job.get('verified_seed')

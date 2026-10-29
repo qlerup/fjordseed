@@ -108,6 +108,7 @@ def run():
         signal.signal(sig, lambda *_: STOP.set())
     try:
         while not STOP.is_set():
+            checking_originals=False
             status = {'ready':False, 'checked_at':time.time(), 'message':'Venter på beskyttet VPN-forbindelse.'}
             stage='vpn_status'
             context={}
@@ -177,7 +178,9 @@ def run():
                         call('app/setPreferences', {'json':json.dumps({'listen_port':private,'random_port':False,'upnp':False})})
                         if call('app/preferences').json().get('listen_port') != private:
                             raise ValueError('Port synchronization failed')
-                    if time.monotonic()-share_last>10:
+                    from library_conversion import verification_pending
+                    checking_originals=verification_pending()
+                    if checking_originals or time.monotonic()-share_last>10:
                         try:
                             storage_errors=sync_share_limits()
                             seeding_error=' '.join(dict.fromkeys(storage_errors)) or None
@@ -186,6 +189,7 @@ def run():
                             # VPN failures still reach the outer kill switch.
                             seeding_error='Seedingkontrol fejlede; automatisk stop afventer næste kontrol.'
                         share_last=time.monotonic()
+                        checking_originals=verification_pending()
                     if seeding_error:
                         status['seeding_error']=seeding_error
                     try:
@@ -228,7 +232,9 @@ def run():
             if last_failure:
                 status['last_failure']=last_failure
             atomic('/config/worker-status.json', json.dumps(status), mode=0o644)
-            STOP.wait(2)
+            # Continue bounded verification chunks promptly, while still passing
+            # VPN health checks and publishing a fresh heartbeat between chunks.
+            STOP.wait(.05 if checking_originals else 2)
     finally:
         stop_process(process, graceful=True)
         lease.close()

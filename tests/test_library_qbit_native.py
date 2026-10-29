@@ -43,22 +43,26 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
     root = tmp_path / 'library'
     current = root / 'Movie'
     current.mkdir(parents=True)
-    original = b'original torrent payload' * 100
+    original = b'original torrent payload' * 2000
     video_name='Release/film.mkv' if shared_mode else 'film.mkv'
     (current/video_name).parent.mkdir(exist_ok=True)
     (current / video_name).write_bytes(original)
     info = {b'name': b'film.mkv', b'length': len(original), b'piece length': 16384,
-            b'pieces': hashlib.sha1(original).digest()}
+            b'pieces': b''.join(hashlib.sha1(original[i:i+16384]).digest() for i in range(0,len(original),16384))}
     companions={'Release/Subs/film.en.srt':b'original english subtitle','Release/film.nfo':b'original release information'} if shared_mode else {}
     if shared_mode:
         payload=original+b''.join(companions.values())
-        info={b'name':b'Release',b'piece length':16384,b'pieces':hashlib.sha1(payload).digest(),
+        info={b'name':b'Release',b'piece length':16384,
+              b'pieces':b''.join(hashlib.sha1(payload[i:i+16384]).digest() for i in range(0,len(payload),16384)),
               b'files':[{b'length':len(content),b'path':[p.encode() for p in Path(name).parts[1:]]}
                         for name,content in [(video_name,original),*companions.items()]]}
         for name,content in companions.items():
             path=current/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(content)
         (current/'Release/film.da.srt').write_bytes(b'loose Danish subtitle')
     ident = hashlib.sha1(bencode(info)).hexdigest()
+    if cross_disk:
+        verify=library.verify_moved_sources
+        monkeypatch.setattr(library,'verify_moved_sources',lambda api,job,seed:verify(api,job,seed,budget_bytes=16384))
     torrent = bencode({b'announce': b'http://127.0.0.1:9/announce', b'info': info})
     session = requests.Session()
     seed_root=Path(tempfile.mkdtemp(prefix='fjordseed-native-test-',dir='/dev/shm')) if cross_disk else tmp_path/'Seeder'
@@ -117,9 +121,11 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
             else:
                 (work / 'result' / '.fjordseed-converted.json').write_text(json.dumps({'id': job['id'], 'files': [video_name]}))
                 (work / 'status.json').write_text(json.dumps({'id': job['id'], 'state': 'ready'}))
+            saw_checkpoint=False
             for _ in range(100):
                 errors = library.reconcile(api, api('torrents/info').json())
                 assert not errors, errors
+                saw_checkpoint |= bool(storage.read(library.ledger(),{})[job['id']].get('seed_check'))
                 if not library.pending(ident):
                     break
                 time.sleep(.1)
@@ -130,6 +136,7 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
             if cross_disk:
                 saved=storage.read(library.ledger(),{})[job['id']]
                 assert saved.get('verified_seed'), 'The real cross-volume copy must pass content validation'
+                assert saw_checkpoint, 'Content validation must yield between pieces of a real torrent'
             for name,content in companions.items():
                 assert (Path(job['seed'])/name).read_bytes()==content
                 assert (current/name).read_bytes()==content

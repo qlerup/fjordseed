@@ -108,6 +108,10 @@ kontrolsummer, før resultatet publiceres. Samme størrelse alene godkendes ikke
 Kontrollen kræver en komplet, uomdøbt filliste og understøttede kontrolsummer;
 ellers bevares filerne med en tydelig fejl. Et allerede konverteret job kan
 fortsætte fra flytningen efter opdatering uden at kode filmen igen.
+Indholdskontrollen afslutter ét kort stykke arbejde ad gangen og gemmer et
+kontrolpunkt ved en verificeret stykkegrænse. Mellem bidderne opdateres status,
+og VPN-forbindelsen kontrolleres. En genstart genoptager kontrollen fra seneste
+kontrolpunkt, så længe originalernes fingeraftryk er uændrede.
 
 Pc-programmet og weboversigten viser særskilt metadataarbejde, resultatkontrol,
 flytning og indholdskontrol. Billeder/s og resterende kodetid vises kun under

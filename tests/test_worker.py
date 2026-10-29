@@ -112,6 +112,37 @@ def test_policy_failure_keeps_healthy_seeders_running(monkeypatch):
                for call in qbit_worker.call.call_args_list)
 
 
+def test_verification_chunks_keep_heartbeat_and_vpn_checks_running(monkeypatch):
+    stop=Mock();stop.is_set.side_effect=[False,False,False,True]
+    monkeypatch.setattr(qbit_worker,'STOP',stop)
+    monkeypatch.setattr(qbit_worker.signal,'signal',Mock())
+    monkeypatch.setattr(qbit_worker,'vpn_status',Mock(return_value={}))
+    monkeypatch.setattr(qbit_worker,'ready',Mock(side_effect=[
+        (40001,'203.0.113.1','France'),(40001,'203.0.113.1','France'),ValueError('VPN lost')]))
+    monkeypatch.setattr(qbit_worker,'configure',Mock())
+    monkeypatch.setattr(qbit_worker,'sync_download_queue',Mock())
+    checks=Mock(return_value=[]);monkeypatch.setattr(qbit_worker,'sync_share_limits',checks)
+    monkeypatch.setattr('library_conversion.verification_pending',Mock(return_value=True))
+    writes=Mock();monkeypatch.setattr(qbit_worker,'atomic',writes)
+    monkeypatch.setattr(qbit_worker,'call',Mock(return_value=Mock(json=lambda:{
+        'current_network_interface':'tun0','upnp':False,'listen_port':40001})))
+    health=Mock();health.__enter__=Mock(return_value=health);health.__exit__=Mock(return_value=False)
+    health.get.return_value.status_code=200
+    monkeypatch.setattr('requests.Session',Mock(return_value=health))
+    process=Mock();process.poll.return_value=None
+    monkeypatch.setattr(qbit_worker.subprocess,'Popen',Mock(return_value=process))
+    qbit_worker.run()
+    # Both healthy passes advance the bounded check, without waiting ten seconds.
+    assert checks.call_count==2 and health.get.call_count==2
+    statuses=[json.loads(c.args[1]) for c in writes.call_args_list]
+    assert statuses[0]['ready'] and statuses[1]['ready'] and not statuses[2]['ready']
+    assert statuses[1]['checked_at']>=statuses[0]['checked_at']
+    assert [c.args[0] for c in stop.wait.call_args_list][:2]==[.05,.05]
+    # Verification must never prevent the independent VPN kill switch.
+    process.terminate.assert_called_once()
+    process.wait.assert_called_once_with(10)
+
+
 def test_failure_diagnostics_survive_recovery_without_private_error_text(monkeypatch,caplog):
     stop=Mock();stop.is_set.side_effect=[False,False,True]
     monkeypatch.setattr(qbit_worker,'STOP',stop)
