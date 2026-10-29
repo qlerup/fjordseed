@@ -226,7 +226,7 @@ def suspend(path, dv):
             z.writestr('manifest.json',json.dumps(m))
         # Archive committed before the HDR file; an interruption cannot lose DV.
         if digest(path)!=original_hash:raise ValueError('Videoen blev ændret under arbejdet.')
-        with backup.open('rb') as saved:os.fsync(saved.fileno())
+        with backup.open('r+b') as saved:os.fsync(saved.fileno())
         os.replace(backup,archive)
         shutil.copymode(path,temporary)
         os.replace(temporary,path)
