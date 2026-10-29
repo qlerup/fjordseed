@@ -54,6 +54,11 @@ class Notice:
     def update_status(self,message):
         if self.window and self.window.winfo_exists():self.status.set(str(message)[:160])
 
+    def phase(self,message):
+        if self.window and self.window.winfo_exists():
+            self.update_status(message)
+            self.eta.set('')
+
     def progress(self,seconds,percent=None):
         if not self.window or not self.window.winfo_exists():return
         seconds=max(0,int(seconds))

@@ -74,3 +74,18 @@ def test_client_and_server_source_signature_protocol_agree(tmp_path):
     first=source_signature(source)
     with source.open('r+b') as handle:handle.seek(source.stat().st_size//2);handle.write(b'changed')
     assert source_signature(source)!=first
+
+
+def test_move_error_reaches_ui_without_encoding_again(tmp_path):
+    source,command,work,prefs=fixture(tmp_path)
+    messages=queue.SimpleQueue();convert=Mock()
+    runner=SharedRunner(tmp_path/'connection.json',prefs,convert,Cancelled,messages,threading.Event())
+    runner.request=Mock(side_effect=[{**command,'state':'moving','phase':'moving'},
+                                    {**command,'state':'error','detail':'Originalfilerne er ændret.'}])
+    runner.stop.wait=Mock(return_value=False)
+    runner.run(command,str(tmp_path))
+    convert.assert_not_called()
+    events=[]
+    while not messages.empty():events.append(messages.get_nowait())
+    assert ('job_error','Originalfilerne er ændret.') in events
+    assert any(kind=='job_phase' for kind,_ in events)

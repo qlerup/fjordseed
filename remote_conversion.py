@@ -296,11 +296,16 @@ class RemoteConversion:
                             selection.update(state='error',detail='Filen er ændret eller findes ikke længere i den valgte mappe.')
                         elif receipt and receipt['id']==selection['id']:
                             selection.update(state=receipt['state'],detail=receipt.get('detail',''),progress=receipt.get('progress',0))
+                            stage=receipt.get('stage')
+                            if stage in ('probing','metadata','verifying'):
+                                if selection.get('stage')!=stage:selection['stage_started_at']=time.time()
+                                selection.update(stage=stage,at=time.time())
+                            elif receipt['state']=='converting':selection['stage']='encoding'
                         if selection.get('action')=='convert' and selection['state']=='error':
                             self.runtime.rpc('library-shared-error',{'id':selection['id'],'device':d['id'],'detail':selection.get('detail','')})
                     if selection and selection.get('action')=='convert' and selection['state']=='error':
                         latest=self.runtime.rpc('library-shared-status',{'id':selection['id'],'device':d['id']})
-                        if isinstance(latest,dict) and (latest.get('attempt')!=selection.get('attempt') or latest.get('phase')=='cancelled'):
+                        if isinstance(latest,dict) and (latest.get('attempt')!=selection.get('attempt') or latest.get('phase') in ('cancelled','published')):
                             selection=d['selection']=latest
                     self.start_next(d,'pc')
                     selection=d.get('selection')

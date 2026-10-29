@@ -24,7 +24,7 @@ def magnet_meta(magnet):
     return {'hashes':list(dict.fromkeys(hashes)), 'name':params.get('dn',[''])[0][:200]}
 
 
-def torrent_meta(raw):
+def torrent_meta(raw, *, include_info=False):
     if not raw or len(raw)>4*1024*1024:
         raise ValueError('Torrentfilen er ugyldig eller for stor.')
     pos=0
@@ -107,4 +107,7 @@ def torrent_meta(raw):
         total=sum(lengths)
         if total<=2**63-1:
             size=total
-    return {'hashes':hashes,'name':name.decode('utf-8',errors='replace')[:200],'size':size}
+    result = {'hashes':hashes,'name':name.decode('utf-8',errors='replace')[:200],'size':size}
+    if include_info:
+        result['info'] = info
+    return result

@@ -30,6 +30,7 @@
 !download_storage.py
 !storage.py
 !storage_release.py
+!move_progress.py
 !streaming.py
 !storage_browser.py
 

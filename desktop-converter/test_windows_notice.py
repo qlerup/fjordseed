@@ -24,6 +24,24 @@ def test_workspace_events_show_one_notice_and_update_it():
     app.notice.finish.assert_called_with('Konvertering afbrudt',failed=True)
 
 
+def test_post_encode_phase_clears_stale_fps_and_eta():
+    messages=queue.Queue()
+    messages.put(('job_progress',(99,49.3,0)))
+    messages.put(('job_phase',{'stage':'source_verifying','detail':'Kontrollerer indholdet','phase_progress':42}))
+    app=SimpleNamespace(workspace_sync=SimpleNamespace(messages=messages,runner=None),notice=Mock(),
+        status=Mock(),selected_path=Mock(),job_detail=Mock(),percent=Mock(),folder_status=Mock(),
+        bar={'value':0},cancel_button={},after=Mock(),poll_workspace=Mock())
+    ConverterUI.poll_workspace(app)
+    app.notice.phase.assert_called_once_with('Kontrollerer indholdet')
+    assert 'billeder/s' not in app.job_detail.set.call_args.args[0]
+    assert app.bar['value']==42
+
+
+def test_phase_without_visible_popup_is_safe():
+    from windows_background import Notice
+    Notice(Mock()).phase('Kontrollerer indholdet')
+
+
 @pytest.mark.skipif(os.name!='nt',reason='Native Windows popup and focus behavior')
 def test_popup_slides_above_taskbar_without_stealing_focus(tmp_path):
     import ctypes

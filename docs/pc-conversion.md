@@ -102,6 +102,24 @@ administrator-login og CSRF-token.
 
 ## Verifikation og tilbageførsel
 
+En flytning mellem filsystemer kan ændre originalernes tidsstempler. Hvis det
+sker, kontrollerer FjordSeed alle v1-torrentens stykker mod de originale
+kontrolsummer, før resultatet publiceres. Samme størrelse alene godkendes ikke.
+Kontrollen kræver en komplet, uomdøbt filliste og understøttede kontrolsummer;
+ellers bevares filerne med en tydelig fejl. Et allerede konverteret job kan
+fortsætte fra flytningen efter opdatering uden at kode filmen igen.
+
+Pc-programmet og weboversigten viser særskilt metadataarbejde, resultatkontrol,
+flytning og indholdskontrol. Billeder/s og resterende kodetid vises kun under
+selve kodningen. En serverfejl under flytning vises som fejl, også når jobbets
+seneste fase fortsat hedder `moving`.
+
+For nye downloads/RSS med konvertering valgt kontrolleres hver videos samlede
+bitrate. Kun værdier over den valgte videobitrate plus 5 % konverteres;
+ved 30 Mbps er grænsen 31,5 Mbps. Filer under grænsen bevares uændret.
+Reglen aktiverer ikke konvertering og scanner ikke det eksisterende bibliotek.
+Manuelt valgte biblioteksjobs beholder deres udtrykkelige konverteringsvalg.
+
 Regressionstests ligger i `tests/test_remote_*.py`, desktop-tests i
 `desktop-converter/test_*.py`, og browserforløbet i `tests/browser_conversion.py`.
 Et isoleret server/RTX 4090-forløb er testet med en 4K Dolby Vision-prøve,

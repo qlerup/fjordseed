@@ -45,11 +45,12 @@
    const machine=selected.executor==='server'?'server':'pc';
    const states={queued:'Afventer '+machine,selected:'Valgt på pc',converting:'Konverterer på '+machine,encoding:'Konverterer på '+machine,encoded:'Afventer resultatkontrol',ready:'Resultatet er kontrolleret',moving:'Originaltorrenten flyttes til Seeder',completed:'Færdig · film i Bibliotek og originaltorrent i Seeder',error:'Jobbet kunne ikke fuldføres',cancelled:'Konvertering afbrudt'};
    const job=node('div','workspace-job'+(active?' is-active':'')),copy=node('div','workspace-job-copy');
-   copy.append(node('span','workspace-job-state',states[selected.state]||'Konvertering'));
+   const phases={probing:'Undersøger originalfilen',metadata:'Bevarer HDR og sporoplysninger',verifying:'Kontrollerer den færdige fil',server_verifying:'Serveren kontrollerer resultatet',source_verifying:'Kontrollerer originalen efter flytningen',publishing:'Lægger filmen i biblioteket'};
+   copy.append(node('span','workspace-job-state',selected.state==='error'?states.error:(phases[selected.stage]||states[selected.state]||'Konvertering')));
    const filename=node('strong','workspace-job-name',selected.name.split('/').at(-1));filename.title=selected.name;
    copy.append(filename,node('p','small muted',selected.detail||'FjordSeed kontrollerer resultatet, før filmen lægges i biblioteket.'));
    job.append(copy);
-   if(active){const percent=Math.max(0,Math.min(100,Number(selected.progress)||0));job.append(node('strong','workspace-job-percent',Math.round(percent)+' %'));const progress=node('progress','workspace-job-progress');progress.max=100;progress.value=percent;progress.setAttribute('aria-label','Konverteringens fremdrift');job.append(progress);}
+   if(active){const encoding=['encoding','converting'].includes(selected.state)&&(!selected.stage||selected.stage==='encoding');const measured=selected.phase_progress??(encoding?selected.progress:null);const progress=node('progress','workspace-job-progress');progress.max=100;if(measured!=null){const percent=Math.max(0,Math.min(100,Number(measured)||0));job.append(node('strong','workspace-job-percent',Math.round(percent)+' %'));progress.value=percent;}else job.append(node('strong','workspace-job-percent','Arbejder …'));progress.setAttribute('aria-label','Fremdrift i det aktuelle trin');job.append(progress);}
    container.append(job);
   }
   const rules=device.skip_rules||[],key=scope(device),cached=bitrateCache.get(key);

@@ -74,7 +74,7 @@ def manifest(work, request):
         source = checked(work.parent / name)
         if type(entry['size']) is not int or entry['size'] < 0 or not source.is_file() or source.stat().st_size != entry['size']:
             raise ValueError('Originalfilen mangler eller er ændret.')
-        video = source.suffix.lower() in VIDEO
+        video = source.suffix.lower() in VIDEO and entry.get('convert',True)
         result.append(dict(index=index, name=name, size=entry['size'], video=video,
                            output=str(Path(name).with_suffix('.mkv')) if video else name))
     if not any(f['video'] for f in result):

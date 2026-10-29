@@ -108,10 +108,12 @@ class SharedRunner:
             if result.get('state')=='completed':
                 self.receipt=None;self.messages.put(('job_done',result));self.changed.set();return
             if result.get('state')=='error':raise ValueError(result.get('detail','FjordSeed kunne ikke færdiggøre jobbet.'))
-            self.messages.put(('job_status',result.get('detail') or 'Afventer flytning af originaltorrent og publicering …'))
+            self.messages.put(('job_phase',{**result,'detail':result.get('detail') or 'Afventer flytning af originaltorrent og publicering …'}))
             if self.stop.wait(3):return
             try:result=self.request(command)
-            except (OSError,ValueError):continue
+            except (OSError,ValueError):
+                self.messages.put(('job_phase',{'stage':'reconnecting','detail':'Forbindelsen til FjordSeed er afbrudt · prøver igen. Jobbet genstartes ikke.'}))
+                continue
 
     def run(self,command,folder):
         work=None;self.can_cancel=True;last_write=0
@@ -119,6 +121,13 @@ class SharedRunner:
         def notify(kind,value):
             nonlocal last_write
             if kind=='status':self.messages.put(('job_status',value))
+            if kind=='phase':
+                stamp=time.time()
+                self.receipt={'id':ident,'state':'converting','progress':0,'detail':value['detail'],
+                              'stage':value['stage'],'stage_started_at':stamp,'at':stamp}
+                self.messages.put(('job_phase',self.receipt.copy()))
+                if work:atomic(work/'status.json',{**self.receipt,'state':value['stage']})
+                self.changed.set()
             if kind=='progress':
                 percent,fps,remaining=value
                 self.receipt={'id':ident,'state':'converting','progress':round(percent,1),'detail':'Konverterer på pc’ens NVIDIA-GPU'}
@@ -156,7 +165,7 @@ class SharedRunner:
                 if self.stop.is_set():raise self.cancelled()
                 atomic(work/'status.json',{'id':ident,'state':'encoded','progress':100,'detail':'Pc-konvertering kontrolleret · afventer FjordSeed'})
             self.can_cancel=False
-            self.messages.put(('job_status','FjordSeed kontrollerer resultatet og flytter hele originaltorrenten til Seeder …'))
+            self.messages.put(('job_phase',{'stage':'server_verifying','detail':'FjordSeed kontrollerer resultatet før originalen flyttes · ingen ny kodning'}))
             while not self.stop.is_set():
                 try:
                     result=self.request(command,'POST','complete')

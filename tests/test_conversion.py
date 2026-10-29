@@ -14,6 +14,7 @@ HASH='a'*40
 
 @pytest.fixture
 def job(tmp_path,monkeypatch):
+    monkeypatch.setattr('conversion.bitrate_decisions',lambda files,stage,bitrate:[dict(f,convert=True,input_total_bps=100_000_000) for f in files])
     root=tmp_path/'downloads';root.mkdir()
     settings=tmp_path/'settings.json';settings.write_text(json.dumps({'conversion_enabled':True,'conversion_bitrate':20,'streaming_enabled':False}))
     monkeypatch.setattr(storage,'SETTINGS',settings)

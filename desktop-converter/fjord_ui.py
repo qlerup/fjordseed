@@ -168,6 +168,15 @@ class ConverterUI(tk.Tk):
                 elif state == 'job_status':
                     self.status.set(value)
                     if self.notice:self.notice.update_status(value)
+                elif state == 'job_phase':
+                    self.status.set(value['detail'])
+                    progress=value.get('phase_progress')
+                    label='af indholdskontrollen' if value.get('stage')=='source_verifying' else 'af flytningen'
+                    self.percent.set(f'{progress:.1f} % {label}' if progress is not None else 'Arbejder …')
+                    self.bar['value']=progress if progress is not None else 0
+                    self.job_detail.set('FjordSeed svarer · status kontrolleres løbende' if value.get('stage')!='reconnecting' else 'Venter på forbindelse · originaler og resultat bevares')
+                    if self.notice:
+                        self.notice.phase(value['detail'])
                 elif state == 'job_progress':
                     percent,fps,remaining=value
                     self.bar['value']=percent;self.percent.set(f'{percent:.0f} %')

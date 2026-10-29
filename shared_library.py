@@ -30,7 +30,28 @@ def command(job):
             'output':job['output']}
     result['source_signature']=shared['source_signature']
     if job['phase']=='published':result.update(state='completed',progress=100,detail='Konverteret film i Bibliotek · originaltorrent i Seeder')
-    elif job['phase']=='moving':result.update(state='moving',detail='qBittorrent flytter hele originaltorrenten til Seeder')
+    elif job['phase']=='moving' and not job.get('error'):result.update(state='moving',detail='qBittorrent flytter hele originaltorrenten til Seeder')
+    if job['phase']=='moving' and result.get('stage') in ('source_verifying','publishing') and not job.get('error'):
+        result['detail']=library.public_job(job)['detail']
+    result['stage']=result.get('stage') or {'completed':'completed','moving':'moving','ready':'waiting_move',
+        'encoded':'server_verifying','verifying':'verifying','encoding':'encoding','queued':'queued','error':'error'}.get(result['state'],result['state'])
+    if job['phase']=='published':result['stage']='completed'
+    if job['phase']=='moving' and not job.get('error') and result.get('stage') not in ('source_verifying','publishing'):result['stage']='moving'
+    if job.get('error'):result.update(state='error',stage='error',detail=job['error'])
+    return result
+
+
+def live_status(api,job):
+    result=command(job)
+    if job['phase']=='moving' and not job.get('error'):
+        row=next((r for r in api('torrents/info').json() if r['hash']==job['hash']),None)
+        if row:
+            result.update(checked_at=time.time(),stage_started_at=job.get('move_requested_at'),qbit_state=row.get('state'))
+            if row.get('state')=='moving':
+                from move_progress import estimate
+                result.update(estimate(job))
+            elif row.get('save_path','').rstrip('/')==job['seed'] and result.get('stage')!='source_verifying':
+                result.update(stage='publishing',phase_progress=None,detail='Originalen er i Seeder · publicerer den kontrollerede film i biblioteket')
     return result
 
 
@@ -81,14 +102,18 @@ def queue(api,data):
 
 def status(api,ident,device,claim=False):
     # The normal qBittorrent reconciliation performs moves and publication.
+    job=owned(ident,device)
+    if claim and (job['phase']!='queued' or job['shared'].get('claimed_at')):
+        if job['shared'].get('executor','pc')!='pc':raise ValueError('Jobbet behandles af serverens GPU.')
+        return live_status(api,job)  # Read-only polling must not wait on a large content check.
     if claim:
         with storage.transaction():
             jobs=storage.read(library.ledger(),{});job=owned(ident,device)
             if job['shared'].get('executor','pc')!='pc':raise ValueError('Jobbet behandles af serverens GPU.')
             if job['phase']=='queued' and not job['shared'].get('claimed_at'):
                 job['shared']['claimed_at']=time.time();jobs[ident]=job;library.save(jobs)
-            return command(job)
-    return command(owned(ident,device))
+            return live_status(api,job)
+    return live_status(api,owned(ident,device))
 
 
 def fallback(api,ident,device):

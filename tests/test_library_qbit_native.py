@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 import time
 
 import pytest
@@ -30,7 +31,8 @@ def bencode(value):
 
 
 @pytest.mark.parametrize('shared_mode',[False,True])
-def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp_path, monkeypatch,shared_mode):
+@pytest.mark.parametrize('cross_disk',[False,True])
+def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp_path, monkeypatch,shared_mode,cross_disk):
     binary = shutil.which('qbittorrent-nox')
     assert binary, 'This test must use a real qBittorrent binary'
     config = tmp_path / 'profile' / 'qBittorrent' / 'config'
@@ -59,6 +61,8 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
     ident = hashlib.sha1(bencode(info)).hexdigest()
     torrent = bencode({b'announce': b'http://127.0.0.1:9/announce', b'info': info})
     session = requests.Session()
+    seed_root=Path(tempfile.mkdtemp(prefix='fjordseed-native-test-',dir='/dev/shm')) if cross_disk else tmp_path/'Seeder'
+    if cross_disk:assert seed_root.stat().st_dev != current.stat().st_dev
     session.trust_env = False
     base = 'http://127.0.0.1:18080/api/v2/'
     def api(path, data=None):
@@ -89,7 +93,7 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
             else:
                 pytest.fail('Synthetic torrent did not become complete')
             monkeypatch.setattr(storage, 'download_root', lambda: root)
-            monkeypatch.setattr(storage, 'seeding_root', lambda: tmp_path/'Seeder')
+            monkeypatch.setattr(storage, 'seeding_root', lambda: seed_root)
             monkeypatch.setattr(storage, 'managed_directory', lambda value: bool(value) and Path(value).is_relative_to(root))
             settings = tmp_path / 'settings.json'
             settings.write_text(json.dumps({'conversion_enabled': True}))
@@ -123,6 +127,9 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
                 pytest.fail('Native relocation/publication did not finish')
             assert (current / video_name).read_bytes() == b'verified converted result'
             assert (Path(job['seed']) / video_name).read_bytes() == original
+            if cross_disk:
+                saved=storage.read(library.ledger(),{})[job['id']]
+                assert saved.get('verified_seed'), 'The real cross-volume copy must pass content validation'
             for name,content in companions.items():
                 assert (Path(job['seed'])/name).read_bytes()==content
                 assert (current/name).read_bytes()==content
@@ -144,3 +151,4 @@ def test_native_move_continues_seeding_original_and_publishes_converted_copy(tmp
             process.terminate()
             process.wait(timeout=20)
             session.close()
+            if cross_disk:shutil.rmtree(seed_root)

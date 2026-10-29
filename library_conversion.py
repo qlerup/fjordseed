@@ -177,7 +177,8 @@ def public_job(job):
     return {'id': job['id'], 'bitrate': job['bitrate'], 'phase': job['phase'],
             'state': 'error' if job.get('error') else result.get('state', job['phase']),
             'detail': job.get('error') or result.get('detail', ''),
-            'progress': result.get('progress', 0)}
+            'progress': result.get('progress', 0),
+            **{k:result[k] for k in ('stage','stage_started_at','at','phase_progress') if k in result}}
 
 
 def listing(api):
@@ -293,6 +294,85 @@ def verify_sources(job, base):
             raise ValueError('Originalfilerne er ændret. Biblioteket erstattes ikke.')
 
 
+def verify_moved_sources(api, job, seed):
+    """A native cross-volume copy changes mtime; verify torrent bytes instead.
+
+    Never accept equal size alone. Verify every v1 piece (including boundaries
+    between files) against the torrent's authenticated info hash. Cache only the
+    fingerprints actually verified, so a later modification requires rechecking.
+    Unsupported/renamed/incomplete torrents fail closed.
+    """
+    expected = job.get('verified_seed', {})
+    actual = {f['name']: fingerprint(checked(seed/f['name'])) for f in job['files']}
+    if all(actual[f['name']] == expected.get(f['name'], f['fingerprint']) for f in job['files']):
+        return
+    work = checked(Path(job['stage'])/DIRECTORY) if job.get('stage') else None
+    started = time.time()
+    last_report = 0
+    read_bytes = 0
+    def report(total, done=False):
+        nonlocal last_report
+        now=time.time()
+        if work and (now-last_report >= 1 or done):
+            atomic(work/'status.json', json.dumps({'id':job['id'],'state':'ready','progress':100,
+                'stage':'publishing' if done else 'source_verifying','stage_started_at':started,'at':now,
+                'phase_progress':100 if done else (100*read_bytes/total if total else 0),
+                'detail':'Indhold kontrolleret · lægger filmen i biblioteket' if done else
+                    'Flytning færdig · kontrollerer originalens indhold mod torrentens kontrolsummer'}), mode=0o644)
+            last_report=now
+    report(sum(f['size'] for f in job['files']))
+    from torrent_meta import torrent_meta
+    raw = api('torrents/export?hash='+job['hash']).content
+    meta = torrent_meta(raw, include_info=True)
+    if job['hash'].lower() not in meta['hashes']:
+        raise ValueError('Torrentens kontrolsummer matcher ikke jobbet.')
+    info = meta['info']
+    piece_size, pieces = info.get(b'piece length'), info.get(b'pieces')
+    if type(piece_size) is not int or not 0 < piece_size <= 64*1024*1024 or not isinstance(pieces, bytes):
+        raise ValueError('Den flyttede torrent kræver en understøttet indholdskontrol. Originalerne er bevaret.')
+    def text(value):
+        if not isinstance(value, bytes):raise ValueError('Ugyldig filsti i torrentens kontroloplysninger.')
+        return value.decode('utf-8')
+    name = str(safe_relative(text(info.get(b'name.utf-8', info.get(b'name')))))
+    if b'files' in info:
+        files = []
+        for item in info[b'files']:
+            parts = item.get(b'path.utf-8', item.get(b'path'))
+            if not isinstance(parts, list):raise ValueError('Ugyldig filliste i torrenten.')
+            relative = str(safe_relative('/'.join(text(p) for p in parts)))
+            files.append((str(safe_relative(name+'/'+relative)), item.get(b'length')))
+    else:
+        files = [(name, info.get(b'length'))]
+    if any(type(size) is not int or size < 0 for _, size in files):
+        raise ValueError('Ugyldig filstørrelse i torrenten.')
+    if {n:s for n,s in files} != {f['name']:f['size'] for f in job['files']}:
+        raise ValueError('Torrentens fulde filliste skal matche før indholdet kan kontrolleres.')
+    total = sum(size for _, size in files)
+    if len(pieces) != ((total+piece_size-1)//piece_size)*20:
+        raise ValueError('Torrentens kontrolsummer er ufuldstændige.')
+    digest, filled, index = hashlib.sha1(), 0, 0
+    for relative, size in files:
+        path = checked(seed/relative)
+        if actual[relative][0] != size:raise ValueError('Den flyttede originalfil har forkert størrelse.')
+        with path.open('rb') as handle:
+            remaining = size
+            while remaining:
+                block = handle.read(min(1024*1024, piece_size-filled, remaining))
+                if not block:raise ValueError('Den flyttede originalfil er ufuldstændig.')
+                digest.update(block);filled += len(block);remaining -= len(block)
+                read_bytes += len(block);report(total)
+                if filled == piece_size:
+                    if digest.digest() != pieces[index:index+20]:
+                        raise ValueError('Den flyttede original matcher ikke torrentens kontrolsummer. Biblioteket erstattes ikke.')
+                    index += 20;digest, filled = hashlib.sha1(), 0
+    if filled and digest.digest() != pieces[index:index+20]:
+        raise ValueError('Den flyttede original matcher ikke torrentens kontrolsummer. Biblioteket erstattes ikke.')
+    if any(fingerprint(checked(seed/n)) != stamp for n, stamp in actual.items()):
+        raise ValueError('Originalfilerne ændrede sig under indholdskontrollen.')
+    job['verified_seed'] = actual
+    report(total, done=True)
+
+
 def reconcile(api, rows):
     if not ledger().exists():
         return []
@@ -382,7 +462,8 @@ def advance(api, rows, entries, jobs, job):
         return
     if job['phase'] != 'moving' or current != str(seed):
         raise ValueError('Torrentens placering er ændret. Ingen biblioteksfiler overskrives.')
-    verify_sources(job, seed)
+    verify_moved_sources(api, job, seed)
+    save(jobs)
     # Only after qBittorrent confirms its new location may the library be filled.
     for entry in job['files']:
         name = job['output'] if entry['name'] == job['selected'] else entry['name']

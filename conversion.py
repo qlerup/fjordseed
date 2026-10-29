@@ -1,5 +1,8 @@
 """Durable filesystem hand-off to the GPU worker; torrents retain their originals."""
 import json
+import math
+import os
+import subprocess
 from pathlib import Path, PurePosixPath
 import time
 import uuid
@@ -52,15 +55,33 @@ def checked(path):
 
 def status(record):
     if record.get('published'):
-        return {'state':'published', 'progress':100, 'detail':'Konverteret fil i biblioteket · originalen seeder i bufferen'}
+        return {'state':'published', 'progress':100, 'detail':'Beholdt uændret · bitrate under grænsen' if record.get('bitrate_skipped') else 'Konverteret fil i biblioteket · originalen seeder i bufferen'}
     try:
         data = json.loads(checked(Path(record['stage'])/DIRECTORY/'status.json').read_text())
         if data.get('id') != record.get('conversion_id'):
             raise ValueError()
-        return {key:data[key] for key in ('state','progress','detail') if key in data}
+        return {key:data[key] for key in ('state','progress','detail','stage','stage_started_at','at') if key in data}
     except (OSError, ValueError, TypeError):
         return {'state':'queued' if record.get('conversion_id') else 'downloading', 'progress':0,
                 'detail':'Venter på GPU-konvertering' if record.get('conversion_id') else 'Downloader originalen til bufferen'}
+
+
+def bitrate_decisions(files,stage,bitrate):
+    """Only automatic opt-in downloads use the source's total bitrate + 5%."""
+    from media_bitrates import probe
+    from converter_worker import VIDEO
+    result=[]
+    for entry in files:
+        entry=dict(entry)
+        if Path(entry['name']).suffix.lower() in VIDEO:
+            try:total=probe(checked(Path(stage)/entry['name'])).get('total_bps')
+            except (OSError,subprocess.SubprocessError) as exc:
+                raise ValueError('Samlet bitrate kunne ikke måles. Automatisk konvertering afventer.') from exc
+            if type(total) not in (int,float) or not math.isfinite(total) or total<=0:
+                raise ValueError('Samlet bitrate kunne ikke måles. Automatisk konvertering afventer.')
+            entry.update(input_total_bps=total,convert=total>bitrate*1_050_000)
+        result.append(entry)
+    return result
 
 
 def reconcile(api, row, record):
@@ -92,13 +113,27 @@ def reconcile(api, row, record):
         request_path=checked(work/'request.json')
         if request_path.exists():
             request=json.loads(request_path.read_text())
-            if request.get('files')!=names or request.get('bitrate')!=record['conversion_bitrate']:
+            if [{k:f[k] for k in ('name','size')} for f in request.get('files',[])]!=names or request.get('bitrate')!=record['conversion_bitrate']:
                 raise ValueError('Konverteringsjobbet matcher ikke længere torrenten.')
         else:
+            if record.get('conversion_bitrate_margin')==5:
+                names=bitrate_decisions(names,stage,record['conversion_bitrate'])
             request={'version':1,'id':uuid.uuid4().hex,'files':names,'bitrate':record['conversion_bitrate'],
                      'executor':record.get('conversion_target','server')}
-            atomic(request_path,json.dumps(request),mode=0o644)
+            if any(f.get('convert') is not False and Path(f['name']).suffix.lower() in {'.mkv','.mp4','.m4v','.avi','.mov','.ts','.m2ts','.webm'} for f in names):
+                atomic(request_path,json.dumps(request),mode=0o644)
         record['conversion_id']=request['id']
+        if names and all(entry.get('convert') is False or Path(entry['name']).suffix.lower() not in {'.mkv','.mp4','.m4v','.avi','.mov','.ts','.m2ts','.webm'} for entry in request['files']):
+            # No GPU is required when every video already satisfies the limit.
+            result=checked(work/'result');result.mkdir(exist_ok=True)
+            for entry in request['files']:
+                source=checked(stage/entry['name']);target=checked(result/entry['name'])
+                target.parent.mkdir(parents=True,exist_ok=True)
+                if not target.exists():os.link(source,target)
+                elif not os.path.samefile(source,target):raise ValueError('En anden fil findes på bibliotekets arbejdsplads.')
+            atomic(result/'.fjordseed-converted.json',json.dumps({'id':request['id'],'files':[e['name'] for e in request['files']],'bitrate_skipped':True}),mode=0o644)
+            atomic(work/'status.json',json.dumps({'id':request['id'],'state':'ready','progress':100,'detail':'Beholdt uden konvertering · samlet bitrate er højst valgt bitrate + 5 %'}),mode=0o644)
+            record['bitrate_skipped']=True
     result=status(record)
     if result.get('state')!='ready':
         return

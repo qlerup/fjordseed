@@ -45,6 +45,7 @@ def convert(source, folder, bitrate, notify, stop, target_name=None):
     started = time.monotonic()
     notify('log', str(logfile))
     notify('status', 'Undersøger video, HDR, lyd og undertekster …')
+    notify('phase', {'stage':'probing','detail':'Undersøger video, HDR, lyd og undertekster …'})
     with logfile.open('x', encoding='utf-8') as log:
         try:
             original = core.probe(source)
@@ -93,7 +94,9 @@ def convert(source, folder, bitrate, notify, stop, target_name=None):
                 detail='crashede' if code & 0xffffffff==0xc0000005 else 'stoppede med en fejl'
                 raise RuntimeError(f'NVEncC {detail} (0x{code & 0xffffffff:08X}). Originalerne er bevaret. Se jobbets log.')
             notify('status', 'Kontrollerer Dolby Vision/HDR, alle spor og kapitler …')
+            notify('phase', {'stage':'metadata','detail':'Bevarer Dolby Vision/HDR og skriver sporoplysninger · dette kan tage flere minutter'})
             core.restore_flags(original, partial)
+            notify('phase', {'stage':'verifying','detail':'Kontrollerer den færdige fil, alle spor og kapitler · kodningen er færdig'})
             result = core.probe(partial)
             core.validate(original, result)
             if stop.is_set():

@@ -146,7 +146,7 @@ def run_job(work):
         if not isinstance(files,list) or not 1<=len(files)<=10000:raise ValueError('Ugyldig filliste.')
         names=[str(safe_relative(f['name'])) for f in files]
         if len(set(n.casefold() for n in names))!=len(names):raise ValueError('Filnavne kolliderer.')
-        outputs=[str(Path(n).with_suffix('.mkv')) if Path(n).suffix.lower() in VIDEO else n for n in names]
+        outputs=[str(Path(n).with_suffix('.mkv')) if Path(n).suffix.lower() in VIDEO and f.get('convert',True) else n for n,f in zip(names,files)]
         if len(set(n.casefold() for n in outputs))!=len(outputs):raise ValueError('Konverterede filnavne kolliderer.')
         if not any(Path(n).suffix.lower() in VIDEO for n in names):raise ValueError('Torrenten indeholder ingen understøttede videofiler.')
         total=0
@@ -164,7 +164,7 @@ def run_job(work):
             source=checked(work.parent/entry['name']);target=checked(result/name)
             target.parent.mkdir(parents=True,exist_ok=True)
             # On restart re-validate completed files, never assume length means success.
-            if source.suffix.lower() in VIDEO:
+            if source.suffix.lower() in VIDEO and entry.get('convert',True):
                 original=probe(source)
                 if target.exists():
                     validate(original,probe(target));continue
