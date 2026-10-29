@@ -93,15 +93,13 @@ def convert(source, folder, bitrate, notify, stop, target_name=None):
             if code:
                 detail='crashede' if code & 0xffffffff==0xc0000005 else 'stoppede med en fejl'
                 raise RuntimeError(f'NVEncC {detail} (0x{code & 0xffffffff:08X}). Originalerne er bevaret. Se jobbets log.')
-            notify('status', 'Kontrollerer Dolby Vision/HDR, alle spor og kapitler …')
-            notify('phase', {'stage':'metadata','detail':'Bevarer Dolby Vision/HDR og skriver sporoplysninger · dette kan tage flere minutter'})
-            core.restore_flags(original, partial)
+            notify('status', 'Gemmer Dolby Vision og kontrollerer HDR10, lyd og kapitler …')
+            notify('phase', {'stage':'metadata','detail':'Gemmer Dolby Vision separat og bevarer HDR10 og lyd · dette kan tage flere minutter'})
+            result = core.prepare_output(original, partial)
             notify('phase', {'stage':'verifying','detail':'Kontrollerer den færdige fil, alle spor og kapitler · kodningen er færdig'})
-            result = core.probe(partial)
-            core.validate(original, result)
             if stop.is_set():
                 raise Cancelled()
-            partial.rename(target)
+            core.publish_output(partial,target)
             seconds = time.monotonic() - started
             report = {'source': str(source), 'output': str(target), 'seconds': round(seconds, 2),
                       'video_mbps_target': bitrate, 'gpu_encoder': 'NVEncC 9.39 HEVC quality',

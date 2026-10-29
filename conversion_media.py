@@ -111,3 +111,56 @@ def restore_flags(original,target, run=None):
     args+=['--add-track-statistics-tags']
     result=run(args,capture_output=True,text=True,timeout=1800,env={**os.environ,'LC_ALL':'C.UTF-8'})
     if result.returncode not in (0,1):raise ValueError('MKV-metadata kunne ikke bevares; originalen beholdes.')
+
+
+def validate_file(original, path, run=None):
+    """Verify HDR output and its reversible DV archive before publication."""
+    from copy import deepcopy
+    from dolby_backup import verify
+    result = probe(path, run=run)
+    if dovi(original) and not dovi(result):
+        manifest=verify(path)
+        if result.get('_rpu_frames'):
+            raise ValueError('Kontrol fejlede: Dolby Vision RPU er stadig aktivt.')
+        reference = deepcopy(original)
+        video(reference)['side_data_list'] = [s for s in video(reference).get('side_data_list',[])
+                                              if s.get('side_data_type') != 'DOVI configuration record']
+        validate(reference,result)
+        restored=deepcopy(result)
+        video(restored).setdefault('side_data_list',[]).append(manifest['dolby_vision'])
+        restored['_rpu_frames']=manifest['rpu_frames']
+        validate(original,restored)
+    else:
+        if dovi(original):raise ValueError('Dolby Vision skal gemmes separat før publicering.')
+        validate(original,result)
+    return result
+
+
+def prepare_output(original, path, run=None):
+    """Same policy on Windows and server: encode DV, archive, publish HDR10."""
+    from dolby_backup import suspend, sidecar
+    if sidecar(path).exists() and not dovi(probe(path,run=run)):
+        return validate_file(original,path,run=run)
+    restore_flags(original,path,run=run)
+    result = probe(path,run=run)
+    validate(original,result)
+    if dovi(original):
+        suspend(path,dovi(result))
+        result = validate_file(original,path,run=run)
+    return result
+
+
+def publish_output(partial, target):
+    from dolby_backup import sidecar, verify
+    if target.exists():raise ValueError('Resultatfilen findes allerede. Ingen filer overskrives.')
+    if sidecar(target).exists():
+        # Resume a crash after archive publication but before media publication.
+        verify(partial,sidecar(target))
+    elif sidecar(partial).exists():
+        if os.name=='nt':sidecar(partial).rename(sidecar(target))
+        else:os.link(sidecar(partial),sidecar(target))
+    if os.name=='nt':
+        partial.rename(target)  # Windows rename is exclusive and supports SMB.
+    else:os.link(partial,target)  # exclusive publication, including on Windows
+    partial.unlink(missing_ok=True)
+    sidecar(partial).unlink(missing_ok=True)

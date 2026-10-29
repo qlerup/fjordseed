@@ -29,3 +29,9 @@ def probe(path):
 
 def restore_flags(original,target):
     return _restore_flags(original,target, run=subprocess.run)
+
+from conversion_media import publish_output
+from conversion_media import prepare_output as _prepare_output
+
+def prepare_output(original,target):
+    return _prepare_output(original,target,run=subprocess.run)

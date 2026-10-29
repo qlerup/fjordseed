@@ -33,3 +33,11 @@ def test_windows_metadata_restoration_uses_shared_policy(monkeypatch):
     call=Mock();monkeypatch.setattr(desktop,'_restore_flags',call)
     desktop.restore_flags({'streams':[]},Path('film.mkv'))
     call.assert_called_once_with({'streams':[]},Path('film.mkv'),run=desktop.subprocess.run)
+
+
+def test_windows_finalization_uses_shared_policy(monkeypatch):
+    call=Mock(return_value={'streams':[]})
+    monkeypatch.setattr(desktop,'_prepare_output',call)
+    assert desktop.prepare_output({'streams':[]},Path('film.mkv'))=={'streams':[]}
+    call.assert_called_once_with({'streams':[]},Path('film.mkv'),run=desktop.subprocess.run)
+    assert desktop.publish_output is shared.publish_output

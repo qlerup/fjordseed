@@ -197,8 +197,8 @@ def dispatch(data):
             source = checked(work.parent / entry['name'])
             if entry['video']:
                 original = probe(source)
-                restore_flags(original, target)
-                validate(original, probe(target))
+                from conversion_media import prepare_output
+                prepare_output(original, target)
             elif target.stat().st_size != entry['size'] or digest(source) != digest(target):
                 raise ValueError('En ledsagefil blev ændret.')
             with locked(work):
@@ -247,7 +247,8 @@ def dispatch(data):
                     if source.exists() or target.stat().st_size != lease['done'][str(f['index'])]:
                         raise ValueError('Resultatfilen findes allerede.')
                 else:
-                    source.rename(target)
+                    from conversion_media import publish_output
+                    publish_output(source,target)
             atomic(result / '.fjordseed-converted.json',json.dumps({'id':request['id'],'files':[f['output'] for f in files], 'bitrate':request['bitrate'],'converted_at':time.time()}),mode=0o644)
             report(work,request['id'],'ready','Pc-konvertering kontrolleret · klar til biblioteket',100)
             return {'complete':True}

@@ -20,7 +20,7 @@ from fractions import Fraction
 
 from conversion import DIRECTORY, HEARTBEAT, checked, safe_relative
 from state import atomic
-from conversion_media import probe, video, dovi, command, validate, restore_flags
+from conversion_media import probe, video, dovi, command, validate, restore_flags, prepare_output, validate_file, publish_output
 from conversion_decoder import select as select_decoder
 
 LOG=logging.getLogger(__name__)
@@ -75,10 +75,13 @@ def run_job(work):
                 report(work,ident,'probing','Undersøger video, HDR, lyd og undertekster: '+entry['name'])
                 original=probe(source)
                 if target.exists():
-                    validate(original,probe(target));continue
+                    if dovi(original) and dovi(probe(target)):prepare_output(original,target)
+                    validate_file(original,target);continue
                 scratch=checked(work/'scratch');scratch.mkdir(exist_ok=True)
                 partial=checked(scratch/(str(index)+'.mkv'))
                 partial.unlink(missing_ok=True)
+                from dolby_backup import sidecar
+                sidecar(partial).unlink(missing_ok=True)
                 report(work,ident,'encoding','GPU-konvertering: '+entry['name'],0)
                 expected=max(1,float(original['format']['duration'])*float(Fraction(video(original)['avg_frame_rate'])))
                 with log.open('a',encoding='utf-8') as handle:
@@ -102,11 +105,11 @@ def run_job(work):
                 if STOP.is_set():return
                 if code:raise ValueError('GPU-konverteringen fejlede (kode '+str(code)+'). Se encoder.log; originalen beholdes.')
                 report(work,ident,'metadata','Bevarer HDR og skriver sporoplysninger · dette kan tage flere minutter')
-                restore_flags(original,partial)
+                prepare_output(original,partial)
                 report(work,ident,'verifying','Kontrollerer den færdige video, lyd, undertekster, HDR og kapitler')
-                validate(original,probe(partial))
+                validate_file(original,partial)
                 if source.stat().st_size!=entry['size']:raise ValueError('Originalfilen ændrede sig under konverteringen.')
-                partial.rename(target)
+                publish_output(partial,target)
             elif not target.exists():
                 # Sidecar subtitles/NFO/artwork remain bit-for-bit intact.
                 scratch=checked(work/'scratch');scratch.mkdir(exist_ok=True)

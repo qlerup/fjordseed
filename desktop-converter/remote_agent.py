@@ -203,6 +203,9 @@ class Agent:
                                 self.notify('progress',self.progress)
                                 self.notify('metrics',value)
                         target=self.convert(source,filedir,job['bitrate'],progress,self.job_stop)
+                        # Legacy HTTP transports one media file; archive on the server.
+                        from dolby_backup import sidecar, restore
+                        if sidecar(target).exists():restore(target)
                     else:target=source
                     state['outputs'][str(index)]={'path':str(target),'size':target.stat().st_size,'sha256':sha(target)}
                     atomic(state_path,state)

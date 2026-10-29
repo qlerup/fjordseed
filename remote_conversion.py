@@ -508,6 +508,16 @@ def register(app, state, runtime):
             return jsonify(**result,devices=manager.public())
         except ValueError as exc:return jsonify(error=str(exc)),400
 
+    @app.get('/api/conversion/dolby-vision')
+    def dolby_vision_files():
+        try:return jsonify(runtime.rpc('library-dolby-list',{}))
+        except ValueError as exc:return jsonify(error=str(exc)),409
+
+    @app.post('/api/conversion/dolby-vision/<ident>/restore')
+    def restore_dolby_vision(ident):
+        try:return jsonify(runtime.rpc('library-dolby-restore',{'id':ident})),202
+        except ValueError as exc:return jsonify(error=str(exc)),409
+
     @app.get('/api/conversion/library')
     def library_files():
         try:return jsonify(runtime.rpc('library-list',{}))

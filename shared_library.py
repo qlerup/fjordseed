@@ -172,8 +172,13 @@ def complete(api,ident,device):
         atomic(work/'status.json',json.dumps({'id':ident,'state':'encoded','stage':'server_verifying',
             'stage_started_at':time.time(),'phase_progress':None,'progress':0,
             'detail':'Serveren kontrollerer video, lyd, undertekster, HDR og kapitler'}),mode=0o644)
-        from converter_worker import probe,validate
-        validate(probe(job['source']),probe(output))
+        from conversion_media import probe,validate_file,prepare_output,dovi
+        original=probe(job['source'])
+        if dovi(original) and dovi(probe(output)):
+            # Older Windows clients return DV; apply the same policy here.
+            prepare_output(original,output)
+            before=library.fingerprint(output)
+        validate_file(original,output)
         if library.fingerprint(output)!=before:raise ValueError('Resultatet er ændret under kontrollen.')
         # Preserve loose companions even when not listed in the torrent.
         # Restrict discovery to torrent-owned subdirectories, never the whole library.

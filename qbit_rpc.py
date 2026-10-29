@@ -261,6 +261,9 @@ def execute(action, data):
                 'download_queue':download_queue_summary(rows),
                 'transfer':call('transfer/info').json(), 'port':prefs['listen_port'],
                 'interface':prefs['current_network_interface'], 'version':call('app/version').text}
+    if action in ('library-dolby-list','library-dolby-restore'):
+        import dolby_jobs
+        return dolby_jobs.listing() if action=='library-dolby-list' else dolby_jobs.queue(data.get('id'))
     if action=='library-shared-capacity':
         from conversion import available
         from download_storage import download_root

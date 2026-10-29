@@ -41,5 +41,15 @@
   </div>
   <div class="conversion-connected-heading"><h3>Tilsluttede pc’er</h3><p class="muted small">Pc først · serveren som fallback</p></div><div id="conversion-devices" aria-live="polite"></div>
  </div>
+ <div class="connection" id="dolby-vision-panel">
+  <h2>Gemte Dolby Vision-konverteringer</h2>
+  <p class="muted">Nye konverteringer med Dolby Vision 7/8.1 afspilles som HDR10. 4K og de originale lydspor bevares. Dolby Vision 8.1 kan gendannes her uden ny billedkomprimering, når din afspiller understøtter det.</p>
+  <p class="muted small">Gendannelse kræver midlertidigt plads til en ekstra kopi af filmen. Gamle konverteringer uden gemte Dolby Vision-data vises ikke.</p>
+  <label>Søg efter film eller episode<input id="dolby-vision-search" type="search" placeholder="Filnavn eller serie"></label>
+  <button type="button" class="secondary" id="dolby-vision-refresh">Opdater liste</button>
+  <p id="dolby-vision-status" class="muted small" role="status"></p>
+  <div id="dolby-vision-list"></div>
+  <p id="dolby-vision-error" class="error" role="alert" hidden></p>
+ </div>
  <p id="conversion-settings-error" class="error" role="alert" hidden></p>
 </section>

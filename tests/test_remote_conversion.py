@@ -236,3 +236,15 @@ def test_download_chunk_negotiation_preserves_old_client_size_and_checks_bound(s
         assert manager.rpc.call_args.args[2]['size']==expected
     for size in ['0','-1','many',str(32*1024**2+1)]:
         assert worker.get(url+'&size='+size,headers=auth).status_code==409
+
+
+def test_dolby_restoration_requires_browser_auth_and_csrf(setup):
+    app,manager,client,h=setup
+    runtime=app.extensions['runtime'];runtime.rpc=Mock(return_value={'items':[]})
+    url='/api/conversion/dolby-vision'
+    assert app.test_client().get(url).status_code==401
+    assert client.get(url).json=={'items':[]}
+    runtime.rpc.assert_called_with('library-dolby-list',{})
+    assert client.post(url+'/abc/restore',json={}).status_code==403
+    assert client.post(url+'/abc/restore',json={},headers=h).status_code==202
+    runtime.rpc.assert_called_with('library-dolby-restore',{'id':'abc'})

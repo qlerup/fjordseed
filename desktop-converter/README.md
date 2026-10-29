@@ -121,7 +121,8 @@ bruger fortsat `--background`, hvis brugeren har slået det til.
   softwareafkodning. Encoding foregår fortsat på GPU'en; der skiftes ikke
   automatisk tilbage til softwareafkodning efter et crash midt i jobbet.
 - Lyd, undertekster, vedhæftninger, metadata og kapitler kopieres.
-- HDR10-metadata bevares. Dolby Vision 7 eller 8.1 bliver til **8.1** med RPU.
+- HDR10-metadata bevares. Dolby Vision 7 eller 8.1 bliver først til **8.1** med RPU,
+  hvorefter Dolby Vision gemmes separat i `.fjord-dv.zip` og filmen publiceres som HDR10.
   Profil 7's ekstra billedlag følger ikke med. Andre DV-profiler afvises.
 - Sporflag rettes med MKVToolNix, og bitrate-statistik genberegnes.
 - Video, HDR/DV-data, varighed, lyd, undertekster og kapitler kontrolleres.
@@ -184,3 +185,14 @@ NVEncC 9.39 skriver et fast Dolby Vision-level 10 ved eksplicit `8.1`.
 profil 7 til 8.1. Slutkontrollen kræver uændret level, BL+RPU uden EL samt HDR10-
 kompatibel profil 8.1. Dette er en metadatarettelse, ikke en garanti for enhver
 Plex-klient; praktisk afspilning kontrolleres separat.
+
+## Gem og gendan Dolby Vision
+
+`dolby_backup.py` deles af Windows og serveren. Det erstatter RPU-NAL-enheder med
+HEVC filler og DV-containerkonfigurationen med EBML Void, uden at flytte bytes,
+ændre billeddata, lyd eller tidsstempler. De originale bytes og CRC-felter gemmes
+komprimeret sammen med fulde SHA-256-kontrolsummer. Gendannelse sker på en kopi,
+som skal matche den oprindelige DV-fil byte for byte før atomisk udskiftning.
+Kun understøttet, ukrypteret HEVC/MKV 8.1 behandles; ukendte formater afvises.
+Arkivet skal følge filmen. FjordSeeds liste viser arkiver i tilsluttede biblioteker,
+og kan genstarte afbrudte gendannelser. Original profil 7 EL kan ikke genskabes.

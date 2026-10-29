@@ -24,8 +24,8 @@ def encoded(command,film,monkeypatch):
     output.parent.mkdir(parents=True,exist_ok=True)
     output.write_bytes(b'converted-'+Path(job['selected']).name.encode())
     output.with_suffix('.json').write_text(json.dumps({'verified':True,'video_mbps_target':30,'gpu_encoder':'NVEncC 9.39'}))
-    monkeypatch.setattr('converter_worker.probe',Mock(return_value={}))
-    monkeypatch.setattr('converter_worker.validate',Mock())
+    monkeypatch.setattr('conversion_media.probe',Mock(return_value={'streams':[{'codec_type':'video'}]}))
+    monkeypatch.setattr('conversion_media.validate_file',Mock())
     shared.complete(film[-1],job['id'],'pc')
     return shared.owned(job['id'],'pc')
 
@@ -41,6 +41,8 @@ def test_shared_queue_never_snapshots_input_and_validates_before_native_move(fil
     assert library.reconcile(api,rows)==[]
     assert not any(c.args[0]=='torrents/setLocation' for c in api.call_args_list)
     job=encoded(command,film,monkeypatch)
+    from dolby_backup import sidecar
+    sidecar(Path(job['stage'])/DIRECTORY/'result'/job['output']).write_bytes(b'dv backup')
     assert library.reconcile(api,rows)==[]
     assert api.call_args.args==('torrents/setLocation',{'hashes':row['hash'],'location':job['seed']})
     move_by_qbit(film,job)
@@ -48,6 +50,9 @@ def test_shared_queue_never_snapshots_input_and_validates_before_native_move(fil
     assert (Path(job['seed'])/'film.mp4').read_bytes()==b'original video'
     assert (Path(job['seed'])/'film.srt').read_bytes()==b'subtitles'
     assert (current/'film.mkv').read_bytes()==b'converted-film.mp4'
+    assert sidecar(current/'film.mkv').read_bytes()==b'dv backup'
+    assert library.reconcile(api,rows)==[]
+    assert sidecar(current/'film.mkv').exists()
     assert (current/'film.da.srt').read_bytes()==b'loose subtitle'
     assert not os.path.samefile(current/'film.srt',Path(job['seed'])/'film.srt')
     (current/'film.srt').write_bytes(b'edited library subtitle')
@@ -61,8 +66,8 @@ def test_invalid_result_leaves_entire_torrent_untouched(film,monkeypatch):
     job=shared.owned(command['id'],'pc');work=Path(job['stage'])/DIRECTORY
     output=work/'result'/job['output'];output.write_bytes(b'bad video')
     output.with_suffix('.json').write_text(json.dumps({'verified':True,'video_mbps_target':30,'gpu_encoder':'NVEncC 9.39'}))
-    monkeypatch.setattr('converter_worker.probe',Mock(return_value={}))
-    monkeypatch.setattr('converter_worker.validate',Mock(side_effect=ValueError('Missing subtitles')))
+    monkeypatch.setattr('conversion_media.probe',Mock(return_value={'streams':[{'codec_type':'video'}]}))
+    monkeypatch.setattr('conversion_media.validate_file',Mock(side_effect=ValueError('Missing subtitles')))
     with pytest.raises(ValueError):shared.complete(film[-1],job['id'],'pc')
     assert library.reconcile(film[-1],film[3])==[]
     assert (film[1]/'film.mp4').read_bytes()==b'original video'

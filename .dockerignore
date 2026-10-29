@@ -51,3 +51,6 @@
 
 !conversion_media.py
 !conversion_decoder.py
+
+!dolby_backup.py
+!dolby_jobs.py

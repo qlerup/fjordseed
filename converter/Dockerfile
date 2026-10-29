@@ -8,6 +8,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && apt-get install -y --no-install-recommends /tmp/nvencc.deb \
     && rm -rf /var/lib/apt/lists/* /tmp/nvencc.deb
 WORKDIR /app
-COPY conversion_media.py conversion_decoder.py converter_worker.py conversion.py state.py ./
+COPY dolby_backup.py dolby_jobs.py conversion_media.py conversion_decoder.py converter_worker.py conversion.py state.py ./
 # Idle toolchain service is the GPU-tested template for a scoped queue worker.
 CMD ["sleep", "infinity"]

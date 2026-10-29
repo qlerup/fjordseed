@@ -550,6 +550,9 @@ def advance(api, rows, entries, jobs, job):
             target.parent.mkdir(parents=True,exist_ok=True)
             publish_file(job,source,target)
     output = checked(original / job['output'])
+    from dolby_backup import sidecar
+    backup=checked(sidecar(result/job['output']))
+    if backup.exists():publish_file(job,backup,checked(sidecar(output)))
     flag = {'version': 1, 'id': job['id'], 'bitrate': job['bitrate'], 'converted_at': time.time(),
             'original_size': next(f['size'] for f in job['files'] if f['name'] == job['selected']),
             'output_size': output.stat().st_size}
