@@ -2,6 +2,18 @@ let rssFeeds=[],rssRoot='',rssBusy=false,rssLoading=false,rssTrackerGeneration=0
 let rssRefreshPromise;
 let rssHistoryGeneration=0;
 let rssExclusion=null,rssExclusionBusy=false;
+function updateRssExclusionButton(group,button){
+ button.textContent=group.excluded?'Tillad igen':'Udeluk';
+ button.title=group.excluded?'Fjern udelukkelsen, så feedet igen kan hente denne titel.':'Udeluk titlen fra fremtidige downloads.';
+}
+async function removeRssExclusion(feed,group,button){
+ button.disabled=true;button.textContent='Tillader…';
+ try{
+  await api('/api/rss/'+feed.id+'/history/exclude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group:group.key,excluded:false})});
+  group.excluded=false;toast('Udelukkelse fjernet: '+group.title);refreshRss();
+ }catch(error){toast(error.message);}
+ finally{updateRssExclusionButton(group,button);button.disabled=false;}
+}
 function openRssExclusion(feed,group,button){
  rssExclusion={feed,group,button};
  $('#rss-exclude-title').textContent=group.title;
@@ -16,7 +28,7 @@ $('#rss-exclude-form').onsubmit=async event=>{
  controls.forEach(control=>control.disabled=true);button.disabled=true;confirm.textContent='Udelukker…';$('#rss-exclude-error').hidden=true;
  try{
   await api('/api/rss/'+feed.id+'/history/exclude',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({group:group.key})});
-  group.excluded=true;button.textContent='Udelukket';dialog.close();toast('Udeluk-filter tilføjet: '+group.exclude_title);refreshRss();
+  group.excluded=true;updateRssExclusionButton(group,button);button.disabled=false;dialog.close();toast('Udeluk-filter tilføjet: '+group.exclude_title);refreshRss();
  }catch(error){button.disabled=false;$('#rss-exclude-error').textContent=error.message;$('#rss-exclude-error').hidden=false;}
  finally{rssExclusionBusy=false;controls.forEach(control=>control.disabled=false);confirm.textContent='Ja, udeluk titlen';}
 };
@@ -140,9 +152,8 @@ async function openRssHistory(feed){
     function appendFiles(){for(const item of group.downloads.slice(shown,shown+40))files.append(rssHistoryFile(item));shown+=40;moreFiles.hidden=shown>=group.downloads.length;}
     details.addEventListener('toggle',()=>{if(details.open&&!shown)appendFiles();});moreFiles.onclick=appendFiles;
     details.append(files,moreFiles);moreFiles.hidden=true;
-    const exclude=node('button','secondary rss-history-exclude',group.excluded?'Udelukket':'Udeluk');exclude.type='button';exclude.disabled=group.excluded;
-    exclude.title='Føj “'+group.exclude_title+'” fra torrentnavnet til feedets udeluk-filter. Eksisterende downloads bevares.';
-    exclude.onclick=()=>openRssExclusion(feed,group,exclude);
+    const exclude=node('button','secondary rss-history-exclude');exclude.type='button';updateRssExclusionButton(group,exclude);
+    exclude.onclick=()=>group.excluded?removeRssExclusion(feed,group,exclude):openRssExclusion(feed,group,exclude);
     head.append(details,exclude);card.append(head);list.append(card);
    }
    next.hidden=visible>=groups.length;

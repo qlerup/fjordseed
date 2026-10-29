@@ -469,17 +469,23 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     @app.post('/api/rss/<ident>/history/exclude')
     def rss_history_exclude(ident):
         from rss_history import grouped
+        from rss import title_key
         data=request.get_json(silent=True)
         if not isinstance(data,dict) or not isinstance(data.get('group'),str):
             return jsonify(error='Vælg en serie fra historikken.'),400
+        excluded=data.get('excluded',True)
+        if type(excluded) is not bool:
+            return jsonify(error='Vælg om titlen skal udelukkes eller tillades.'),400
         with state.lock,rss.lock:
             try:
                 feed=next((e for e in rss.entries() if e['id']==ident),None)
                 if not feed:raise ValueError('Feedet findes ikke længere.')
                 group=next((g for g in grouped(rss.download_history(ident),feed.get('title_exclude',[])) if g['key']==data['group']),None)
                 if not group:raise ValueError('Serien findes ikke i feedets historik.')
-                if group['excluded']:return jsonify(ok=True,excluded_title=group['exclude_title'])
-                result=save_rss_data({'id':ident,'title_exclude':[*feed.get('title_exclude',[]),group['exclude_title']]})
+                if group['excluded']==excluded:return jsonify(ok=True,excluded=excluded)
+                titles=feed.get('title_exclude',[])
+                titles=[*titles,group['exclude_title']] if excluded else [title for title in titles if title_key(title)!=group['key']]
+                result=save_rss_data({'id':ident,'title_exclude':titles})
                 return result
             except (OSError,json.JSONDecodeError):
                 return jsonify(error='Historikken kunne ikke læses. Prøv igen.'),503

@@ -80,10 +80,21 @@ with tempfile.TemporaryDirectory() as folder:
                     page.unroute('**/api/rss/*/history/exclude')
                     confirmation.get_by_role('button',name='Ja, udeluk titlen',exact=True).click()
                     expect(confirmation).not_to_be_visible()
-                    expect(group.get_by_role('button',name='Udelukket')).to_be_disabled()
+                    expect(group.get_by_role('button',name='Tillad igen',exact=True)).to_be_enabled()
                     assert next(f for f in store.entries() if f['id']==ident)['title_exclude']==['Politijagt']
                     page.locator('#rss-history-search').fill('Politijagt')
-                    expect(group.get_by_role('button',name='Udelukket')).to_be_disabled()
+                    expect(group.get_by_role('button',name='Tillad igen',exact=True)).to_be_enabled()
+                    page.route('**/api/rss/*/history/exclude',lambda route:route.fulfill(status=503,json={'error':'Kunne ikke tillade titlen'}))
+                    group.get_by_role('button',name='Tillad igen',exact=True).click()
+                    expect(page.locator('#toast')).to_have_text('Kunne ikke tillade titlen')
+                    expect(group.get_by_role('button',name='Tillad igen',exact=True)).to_be_enabled()
+                    assert next(f for f in store.entries() if f['id']==ident)['title_exclude']==['Politijagt']
+                    page.unroute('**/api/rss/*/history/exclude')
+                    group.get_by_role('button',name='Tillad igen',exact=True).click()
+                    expect(group.get_by_role('button',name='Udeluk',exact=True)).to_be_enabled()
+                    assert next(f for f in store.entries() if f['id']==ident)['title_exclude']==[]
+                    page.locator('#rss-history-search').fill('')
+                    expect(group.get_by_role('button',name='Udeluk',exact=True)).to_be_enabled()
                 dialog.get_by_role('button',name='Luk',exact=True).click()
             # Mixed known/missing credit must not turn unknown measurements into zero.
             fixture={'count':3,'groups':[{'key':'mixed','title':'Blandet historik','exclude_title':'Blandet historik','excluded':False,'downloads':[

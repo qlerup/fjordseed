@@ -89,6 +89,29 @@ def test_exclusion_is_idempotent_scoped_and_uses_torrent_stem(tmp_path,monkeypat
     assert app.test_client().get('/api/rss/'+ident+'/history/groups').status_code==401
 
 
+def test_remove_exclusion_preserves_other_titles_and_feeds(tmp_path,monkeypatch):
+    app,c,h,feed=setup(tmp_path,monkeypatch)
+    ident=feed('TV');other=feed('Andet feed')
+    store=app.extensions['rss']
+    for key in (ident,other):
+        current=next(f for f in store.entries() if f['id']==key)
+        store.save({**current,'title_exclude':['THE Real Show','En anden serie']})
+    with CreditLedger().transaction() as ledger:
+        ledger.record_rss_title(ident,'a'*40,'The.Real.Show.S01E01.1080p')
+    route='/api/rss/'+ident+'/history/exclude'
+    assert c.post(route,json={'group':'the real show','excluded':False}).status_code==403
+    assert c.post(route,headers=h,json={'group':'fake','excluded':False}).status_code==400
+    assert c.post(route,headers=h,json={'group':'the real show','excluded':'false'}).status_code==400
+    for _ in range(2):
+        assert c.post(route,headers=h,json={'group':'the real show','excluded':False}).status_code==200
+    assert next(f for f in store.entries() if f['id']==ident)['title_exclude']==['En anden serie']
+    assert next(f for f in store.entries() if f['id']==other)['title_exclude']==['THE Real Show','En anden serie']
+    group=c.get('/api/rss/'+ident+'/history/groups').json['groups'][0]
+    assert not group['excluded'] and len(group['downloads'])==1
+    assert c.post(route,headers=h,json={'group':'the real show'}).status_code==200
+    assert c.get('/api/rss/'+ident+'/history/groups').json['groups'][0]['excluded']
+
+
 def test_planned_danish_feed_imports_only_explicit_ids(tmp_path,monkeypatch):
     app,c,h,feed=setup(tmp_path,monkeypatch)
     old=feed('Politijagt');alt=feed('Alt TV')
