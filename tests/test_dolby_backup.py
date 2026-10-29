@@ -119,3 +119,13 @@ def test_publication_recovers_archive_already_moved(path,tmp_path):
     b.suspend(path,DV);target=tmp_path/'published.mkv'
     b.sidecar(path).rename(b.sidecar(target))
     publish_output(path,target);b.verify(target)
+
+
+def test_interrupted_archive_work_copy_is_cleaned_only_for_same_output(path):
+    import hashlib
+    prefix='.fjord-dv-'+hashlib.sha256(str(path).encode()).hexdigest()[:16]+'-'
+    stale=path.parent/(prefix+'interrupted.mkv');stale.write_bytes(b'incomplete')
+    unrelated=path.parent/'.fjord-dv-another-output.mkv';unrelated.write_bytes(b'keep')
+    b.suspend(path,DV)
+    assert not stale.exists() and unrelated.read_bytes()==b'keep'
+    b.restore(path);assert path.read_bytes()==movie()

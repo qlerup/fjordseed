@@ -105,10 +105,14 @@ def suspend(path, dv):
     if not (dv.get('dv_profile') == 8 and dv.get('dv_bl_signal_compatibility_id') == 1
             and dv.get('bl_present_flag') == 1 and dv.get('el_present_flag') == 0):
         raise ValueError('Kun HDR10-kompatibel Dolby Vision 8.1 kan gemmes separat.')
+    # Caller owns the conversion job lock. Clean only this output's leftovers.
+    prefix='.fjord-dv-'+hashlib.sha256(str(path).encode()).hexdigest()[:16]+'-'
+    for leftover in path.parent.glob(prefix+'*'):
+        if leftover.name.endswith(('.mkv','.mkv.zip')):checked(leftover).unlink()
     size = path.stat().st_size
     if shutil.disk_usage(path.parent).free < size + 1024**3:
         raise ValueError('Der mangler plads til sikker Dolby Vision-opbevaring.')
-    fd, name = tempfile.mkstemp(prefix='.fjord-dv-', suffix='.mkv', dir=path.parent)
+    fd, name = tempfile.mkstemp(prefix=prefix, suffix='.mkv', dir=path.parent)
     os.close(fd)
     temporary = Path(name)
     backup = Path(name+'.zip')
