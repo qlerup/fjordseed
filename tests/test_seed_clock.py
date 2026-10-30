@@ -30,7 +30,7 @@ def test_move_time_frozen_across_pollers_restart_and_completion(action,monkeypat
     assert sample(15,'stalledUP')['seeding_time']==130
 
 
-def test_native_move_time_cannot_trigger_49_hour_deletion():
+def test_native_move_time_cannot_trigger_50_hour_deletion():
     row={'state':'stalledUP','seeding_time':SEEDING_SECONDS+100,
          'share_limit_action':'RemoveWithContent','num_leechs':0,'upspeed':0}
     credit={'seeding_time':SEEDING_SECONDS-1,'ratio':0,'ratio_limit':1}
@@ -192,7 +192,7 @@ def test_unverified_initial_sample_does_not_import_offline_native_time(sample_cl
     assert sample_clock(3710)==10
 
 
-def test_outage_cannot_push_torrent_over_49_hour_deletion_goal(sample_clock):
+def test_outage_cannot_push_torrent_over_50_hour_deletion_goal(sample_clock):
     assert sample_clock(SEEDING_SECONDS-5)==SEEDING_SECONDS-5
     credit={'seeding_time':sample_clock(SEEDING_SECONDS+1000,vpn=False),
             'ratio':0,'ratio_limit':1}

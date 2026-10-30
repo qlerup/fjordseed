@@ -59,7 +59,7 @@ def test_buffer_publish_original_unchanged_and_delete_only_after_both_requiremen
 def test_time_limit_original_paused_and_output_placement_guard(job):
     root,stage,api,row=job
     storage.publish_complete(api,[row]);ready(stage);storage.publish_complete(api,[row])
-    credit={'ratio':0,'ratio_limit':10,'seeding_time':49*3600,'stop_on_complete':True}
+    credit={'ratio':0,'ratio_limit':10,'seeding_time':50*3600,'stop_on_complete':True}
     assert finish_seeding(api,{**row,'state':'stoppedUP'},credit)
     api.reset_mock()
     assert not finish_seeding(api,{**row,'save_path':str(root/'Movie')},credit)

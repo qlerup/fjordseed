@@ -23,8 +23,11 @@ def test_ratio_only_ignores_elapsed_time_but_respects_ratio_and_active_downloade
     api.assert_called_once_with('torrents/delete',{'hashes':HASH,'deleteFiles':'true'})
 
 
-def test_default_timed_deletion_still_finishes_after_49_hours():
+def test_default_timed_deletion_still_finishes_after_50_hours():
+    assert SEEDING_SECONDS==50*3600
     row={'state':'stalledUP','share_limit_action':'RemoveWithContent','num_leechs':0,'upspeed':0}
+    for seconds in (49*3600,50*3600-1):
+        assert not seeding_completion(row,{'ratio_limit':2,'ratio':0,'seeding_time':seconds})['seeding_goal_reached']
     credit={'ratio_limit':2,'ratio':0,'seeding_time':SEEDING_SECONDS}
     assert seeding_completion(row,credit)['seeding_goal_reached']
     assert not seeding_completion({**row,'share_limit_action':'Stop'},credit)['seeding_goal_reached']

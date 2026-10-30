@@ -56,7 +56,7 @@ def test_missing_torrent_cannot_change_another(monkeypatch):
 def test_file_action_can_change_without_changing_ratio_or_resuming(monkeypatch,old,selected,expected):
     calls=[]
     row={'hash':'a'*40,'ratio_limit':2,'share_limit_action':old,'state':'stoppedUP',
-         'seeding_time_limit':2940,'inactive_seeding_time_limit':-1}
+         'seeding_time_limit':3000,'inactive_seeding_time_limit':-1}
     def api(path,data=None):
         calls.append((path,data))
         return Mock(json=lambda:{'current_network_interface':'tun0','upnp':False} if path=='app/preferences' else [row])

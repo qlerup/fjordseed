@@ -77,7 +77,7 @@ def test_status_explains_waiting_and_keeps_displayed_goal(monkeypatch):
     monkeypatch.setattr('qbit_rpc.call',api)
     result=execute('status',{})['torrents'][0]
     assert result['waiting_for_downloaders'] and result['seeding_goal_reached']
-    assert result['ratio_limit']==3 and result['seeding_time_limit']==2940
+    assert result['ratio_limit']==3 and result['seeding_time_limit']==3000
 
 
 def test_persistence_failure_cannot_disable_existing_limits(monkeypatch):

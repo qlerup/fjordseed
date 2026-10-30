@@ -9,7 +9,7 @@ code="const current={ready:true}; const $=s=>document.querySelector(s); function
 code+=source[source.index('function size(n)'):source.index('function benefitView(')]
 torrents=[{'hash':str(i)*40,'name':('Very.long.torrent.name.'*8 if i==1 else 'Linux ISO '+str(i)),
            'state':'uploading','upspeed':1024,'progress':1,'size':1024**3,'uploaded':1024**2,
-           'ratio':.25,'ratio_limit':1,'seeding_time':3600,'seeding_time_limit':2940,
+           'ratio':.25,'ratio_limit':1,'seeding_time':3600,'seeding_time_limit':3000,
            'green_active':True,'green_until':1791633600,'green_uploaded':1024**2,
            'credited_uploaded':512*1024,'credited_ratio':.125,
            'rss_feed':'Feed' if i==3 else None,'added_on':i} for i in [1,2,3]]

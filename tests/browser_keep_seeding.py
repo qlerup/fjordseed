@@ -68,7 +68,7 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
                 page.locator('#'+prefix+'-action').select_option('automatic')
                 expect(page.locator('#'+prefix+'-keep-info')).to_contain_text('ekstra uploadpotentiale')
                 expect(page.locator('#'+prefix+'-keep-info')).to_contain_text('Tiden kan derfor udløse oprydning')
-                expect(page.locator('#'+prefix+'-keep-info')).to_contain_text('49 timers')
+                expect(page.locator('#'+prefix+'-keep-info')).to_contain_text('50 timers')
                 expect(page.locator('#'+prefix+'-ratio-label')).to_have_text('Målratio (reel upload/download)')
                 for width in (390,1440):
                     page.set_viewport_size({'width':width,'height':1000})
@@ -135,7 +135,7 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             assert app.extensions['runtime'].rpc.call_args.args[1]['confirm_early_stop'] is True
             page.evaluate("""()=>{const bar=torrentProgress({state:'stalledUP',progress:1,
                 ratio_only:true,credited_ratio:.5,ratio:1,ratio_limit:2,
-                seeding_time:3600*1000,seeding_time_limit:2940});bar.id='ratio-only-test';
+                seeding_time:3600*1000,seeding_time_limit:3000});bar.id='ratio-only-test';
                 document.body.append(bar);}""")
             assert page.locator('#ratio-only-test .seed-progress').evaluate('e=>e.value')==.5
             assert '50 %' in page.locator('#ratio-only-test').inner_text()

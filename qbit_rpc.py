@@ -12,7 +12,7 @@ from green_credit import CreditLedger, initial_ratio_limit, real_ratio
 
 BASE = 'http://127.0.0.1:8080/api/v2/'
 SEEDING_BASE_HOURS = 48
-SEEDING_BUFFER_HOURS = 1
+SEEDING_BUFFER_HOURS = 2
 SEEDING_MINUTES = (SEEDING_BASE_HOURS + SEEDING_BUFFER_HOURS) * 60
 SEEDING_SECONDS = SEEDING_MINUTES * 60
 MAX_ACTIVE_DOWNLOADS = 8
@@ -91,7 +91,7 @@ def stop_requirement(row):
     time_done=type(seconds) in (int,float) and math.isfinite(seconds) and seconds>=SEEDING_SECONDS
     allowed=bool(ratio_done or time_done)
     return {'seeding_requirement_met':allowed,'required_seeding_seconds':SEEDING_SECONDS,
-            'stop_reason':'' if allowed else 'Torrenten har endnu ikke opfyldt kravet om ratio 1:1 eller 49 timers seeding. Hvis du stopper eller fjerner den nu, kan trackeren registrere det som hit-and-run.'}
+            'stop_reason':'' if allowed else 'Torrenten har endnu ikke opfyldt kravet om ratio 1:1 eller 50 timers seeding. Hvis du stopper eller fjerner den nu, kan trackeren registrere det som hit-and-run.'}
 
 
 def sync_share_limits(api=None):
@@ -326,7 +326,7 @@ def execute(action, data):
             raise ValueError('Invalid hash')
         from download_storage import read,CONFIG
         if read(CONFIG/'download-storage.json',{}).get(ident.lower(),{}).get('convert'):
-            raise ValueError('Konverterede downloads bruger ratio 1:1 eller 49 timers seeding.')
+            raise ValueError('Konverterede downloads bruger ratio 1:1 eller 50 timers seeding.')
         policy=share_policy(data)
         ratio=policy['ratio_limit']
         extra=extra_seed_hours(data['extra_seed_hours']) if 'extra_seed_hours' in data else None

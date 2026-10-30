@@ -38,10 +38,10 @@ def test_failed_delete_does_not_notify(tmp_path):
     assert not list(directory().glob('*.json'))
 
 
-@pytest.mark.parametrize('converted,hours,target',[(False,53,2),(True,49,1)])
+@pytest.mark.parametrize('converted,hours,target',[(False,54,2),(True,50,1)])
 def test_time_reason_and_conversion_goal(converted,hours,target):
     row={'hash':'c'*40,'name':'Show.S01E01','added_on':200}
-    credit={'ratio':.5,'ratio_limit':2,'extra_seed_hours':4,'seeding_time':53*3600}
+    credit={'ratio':.5,'ratio_limit':2,'extra_seed_hours':4,'seeding_time':54*3600}
     delete_completed(Mock(),row,credit,converted=converted)
     event=json.loads(next(directory().glob('*.json')).read_text())['event']
     assert event['reason']=='time' and event['seed_hours']==hours and event['ratio_limit']==target

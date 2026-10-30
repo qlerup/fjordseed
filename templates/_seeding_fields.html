@@ -1,9 +1,9 @@
 {% macro seeding_options() -%}
 <option value="keep" data-description="Ingen automatisk stop eller sletning. Du stopper selv seeding; torrenten og filerne beholdes.">Behold filer · seed indtil du stopper</option>
-<option value="stop_keep" data-description="Stopper, så snart download er færdig. Torrenten og filerne beholdes. Venter ikke på ratio 1 eller 49 timers seeding.">Behold filer · stop efter download</option>
-<option value="delete" data-description="Sletter torrent og filer ved målratioen eller seedtiden (som standard 49 timer) — det, der sker først. Venter på tilsluttede downloadere.">Slet ved målratio eller seedtid</option>
-<option value="automatic" data-description="Bruger målratio eller seedtid (som standard 49 timer), men seeder videre ved forventet ekstra upload. Sletter derefter torrent og filer.">Optimér upload · slet bagefter</option>
-<option value="delete_ratio" data-description="Sletter først torrent og filer, når målratioen er nået. 49 timer udløser ikke sletning. Venter på tilsluttede downloadere.">Slet kun ved målratio · ingen tidsgrænse</option>
+<option value="stop_keep" data-description="Stopper, så snart download er færdig. Torrenten og filerne beholdes. Venter ikke på ratio 1 eller 50 timers seeding.">Behold filer · stop efter download</option>
+<option value="delete" data-description="Sletter torrent og filer ved målratioen eller seedtiden (som standard 50 timer) — det, der sker først. Venter på tilsluttede downloadere.">Slet ved målratio eller seedtid</option>
+<option value="automatic" data-description="Bruger målratio eller seedtid (som standard 50 timer), men seeder videre ved forventet ekstra upload. Sletter derefter torrent og filer.">Optimér upload · slet bagefter</option>
+<option value="delete_ratio" data-description="Sletter først torrent og filer, når målratioen er nået. 50 timer udløser ikke sletning. Venter på tilsluttede downloadere.">Slet kun ved målratio · ingen tidsgrænse</option>
 {%- endmacro %}
 
 {% macro seeding_fields(prefix) -%}
@@ -13,7 +13,7 @@
 <label><span id="{{ prefix }}-ratio-label">Målratio (reel upload/download)</span><input type="number" id="{{ prefix }}-{{ 'limit' if prefix == 'ratio' else 'ratio' }}" min="1" max="10000" step="any" value="1" required inputmode="decimal" aria-describedby="{{ prefix }}-help"></label>
 <details class="seeding-help"><summary>Sådan beregnes ratio og seedtid</summary>
 <p class="muted small" id="{{ prefix }}-help">Målratio 1 betyder, at du reelt har uploadet lige så meget, som du har downloadet på torrenten. Green og andre kreditfordele påvirker kun trackerens kontotal. De ændrer ikke torrentens ratio eller seedingmål.</p>
-<p class="muted small">Seedtiden tæller aktiv seeding efter download. Pauser og flytning tæller ikke med. 49 timer er 48 timer plus én times buffer. Ved “Slet kun ved målratio” bruges seedtiden ikke som stopmål.</p>
+<p class="muted small">Seedtiden tæller aktiv seeding efter download. Pauser og flytning tæller ikke med. 50 timer er 48 timer plus to timers buffer. Ved “Slet kun ved målratio” bruges seedtiden ikke som stopmål.</p>
 <p class="muted small">Ved automatisk sletning venter FjordSeed, til ingen tilsluttede downloadere mangler data, og upload er nul. Ukendt peer-status udsætter sletningen. Samme regler gælder for manuelle downloads og RSS.</p>
 <p class="muted small">Ukendt Green-dato gør kontoens uploadkredit til et estimat. Hverken Green eller Freeleech ændrer torrentens reelle ratio eller seedmål.</p>
 </details>

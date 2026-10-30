@@ -56,7 +56,8 @@ def releasable_bytes(content):
 def delete_completed(api, row, credit, *, converted=False):
     from green_credit import real_ratio
     target = 1 if converted else credit['ratio_limit']
-    hours = 49 if converted else 49 + credit.get('extra_seed_hours', 0)
+    from qbit_rpc import SEEDING_MINUTES
+    hours = SEEDING_MINUTES // 60 + (0 if converted else credit.get('extra_seed_hours', 0))
     identity = str(row['hash']) + ':' + str(row.get('added_on', 0))
     event_id = 'deleted-' + hashlib.sha256(identity.encode()).hexdigest()
     path = directory() / (event_id + '.json')

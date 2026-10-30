@@ -7,15 +7,15 @@ from storage_release import forecast, schedule
 
 def torrent(**changes):
     return dict(hash='rss',name='A film',progress=1,state='stalledUP',share_limit_action='RemoveWithContent',
-                seeding_time_limit=2940,seeding_time=48*3600,ratio_limit=1,seeding_goal_reached=False,
-                required_seeding_seconds=49*3600,**changes)
+                seeding_time_limit=3000,seeding_time=48*3600,ratio_limit=1,seeding_goal_reached=False,
+                required_seeding_seconds=50*3600,**changes)
 
 
 def test_time_forecast_uses_remaining_seed_time_not_download_age():
     row=torrent();row['added_on']=1
-    assert forecast(row,{},100)['release_at']==3700
+    assert forecast(row,{},100)['release_at']==7300
     row['seeding_time_limit']+=120
-    assert forecast(row,{},100)['release_at']==10900
+    assert forecast(row,{},100)['release_at']==14500
 
 
 @pytest.mark.parametrize('changes,state',[

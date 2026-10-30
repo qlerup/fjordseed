@@ -76,9 +76,9 @@ def test_qbit_52_json_add_response(monkeypatch,result,accepted):
             execute('add',{'magnet':'magnet:?xt=urn:btih:'+'a'*40})
 
 
-@pytest.mark.parametrize('ratio,seconds,met',[(.99,172800,False),(.99,176399,False),(1,0,True),(.1,176400,True),
-    (1,176400,True),(None,None,False),(.5,-1,False),(float('nan'),0,False)])
-def test_manual_warning_uses_one_to_one_or_49_hours_independent_of_selected_ratio(ratio,seconds,met):
+@pytest.mark.parametrize('ratio,seconds,met',[(.99,172800,False),(.99,179999,False),(1,0,True),(.1,180000,True),
+    (1,180000,True),(None,None,False),(.5,-1,False),(float('nan'),0,False)])
+def test_manual_warning_uses_one_to_one_or_50_hours_independent_of_selected_ratio(ratio,seconds,met):
     from qbit_rpc import stop_requirement
     assert stop_requirement({'ratio':ratio,'seeding_time':seconds,'ratio_limit':5})['seeding_requirement_met'] is met
 
@@ -102,14 +102,14 @@ def test_early_manual_action_requires_explicit_ack_but_is_allowed(monkeypatch,ac
     assert calls[-1][0]=='torrents/'+action
 
 
-def test_existing_limits_gain_49_hours_preserve_actions_and_higher_ratio():
+def test_existing_limits_gain_50_hours_preserve_actions_and_higher_ratio():
     from qbit_rpc import sync_share_limits
     calls=[]
     def api(path,data=None):
         calls.append((path,data));return Mock(json=lambda:[
             {'hash':'a'*40,'ratio_limit':0,'seeding_time_limit':-1,'share_limit_action':'Stop'},
             {'hash':'b'*40,'ratio_limit':3,'seeding_time_limit':-1,'share_limit_action':'RemoveWithContent'},
-            {'hash':'c'*40,'ratio_limit':2,'seeding_time_limit':2940,'inactive_seeding_time_limit':-1}])
+            {'hash':'c'*40,'ratio_limit':2,'seeding_time_limit':3000,'inactive_seeding_time_limit':-1}])
     sync_share_limits(api)
     updates=[d for p,d in calls if p=='torrents/setShareLimits']
     assert len(updates)==3 and all(d['ratioLimit']==-1 for d in updates)

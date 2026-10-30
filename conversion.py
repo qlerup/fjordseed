@@ -158,7 +158,7 @@ def reconcile(api, row, record):
 
 
 def finish(api,row,credit,record):
-    """Exactly 1:1 OR 49 seed hours, but only after a verified library copy."""
+    """Exactly 1:1 OR 50 seed hours, but only after a verified library copy."""
     if not record.get('published') or row.get('progress')!=1:
         return False
     if str(row.get('save_path','')).rstrip('/') != record['stage']:

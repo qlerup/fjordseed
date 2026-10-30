@@ -32,7 +32,7 @@ their policies. GPU installation alone never enables conversion on existing feed
 The pipeline is download to `.incomplete`, convert to a separate MKV, validate,
 then atomically publish only the converted directory to the captured destination.
 The qBittorrent original never moves. Its automatic removal requires **both** a
-published conversion **and** real 1:1 upload/download ratio **or** 49 hours of
+published conversion **and** real 1:1 upload/download ratio **or** 50 hours of
 active seeding. This conversion policy replaces the ordinary retention policy
 for selected downloads; unlike ordinary cleanup, it does not wait for peers
 after the threshold. Errors or insufficient space retain the source. The UI shows
@@ -179,8 +179,8 @@ New location choices affect future torrents. Older paths remain mounted for exis
 
 The explicit **Automatisk: optimer ratio og slet** choice adds an adaptive upload
 forecast to manual downloads, RSS feeds and existing torrent edits. Standard
-ratio/49-hour deletion, ratio-only deletion and existing torrents keep their
-previous behavior; the adaptive policy is opt-in and uses ratio/49-hour goals.
+ratio/50-hour deletion, ratio-only deletion and existing torrents keep their
+previous behavior; the adaptive policy is opt-in and uses ratio/50-hour goals.
 Its minimum ratio defaults to 1:1 and can be raised. It retains
 the user's original goals and extra-time preference. After a goal
 is reached, the worker keeps seeding while the forecast is worthwhile, in addition
@@ -208,7 +208,7 @@ When potential falls, normal deletion resumes once no connected downloader or
 upload needs protection. The UI labels automatic extensions and shows estimated
 extra physical upload and ratio gain. These are forecasts, not guaranteed upload.
 
-Adding a magnet/file opens source selection followed by Seeding and files. File action comes first. **Keep files** means unlimited seeding until manual stop; automatic ratio/time deletion is inactive. **Delete files** requires explicit selection and uses a minimum physical upload/download target ratio of 1 or 49 hours of active seeding (48 hours plus a one-hour safety buffer).
+Adding a magnet/file opens source selection followed by Seeding and files. File action comes first. **Keep files** means unlimited seeding until manual stop; automatic ratio/time deletion is inactive. **Delete files** requires explicit selection and uses a minimum physical upload/download target ratio of 1 or 50 hours of active seeding (48 hours plus a two-hour safety buffer).
 
 Before automatic removal, the worker waits until no connected downloaders need data and upload is zero. Unknown peer status delays the action. This uses connected qBittorrent `num_leechs`, not tracker-wide swarm totals. Native qBittorrent stop limits are disabled so they do not cut downloaders off between checks. Worker checks run roughly every ten seconds without an open browser and survive restarts. Control errors retain seeding; VPN protection remains active.
 
@@ -216,7 +216,7 @@ Pause/start is a combined control, and paused time does not advance Seed's activ
 
 The seeding clock requires fresh, healthy VPN status and a current qBittorrent supervisor heartbeat. Supervisor/client restarts, VPN or RPC failures, stale health data, file moves, checking, queued torrents and manual pauses break the counted interval. Recovery establishes a new baseline and never catches up for the outage, including short interruptions with no offline torrent sample. Native counter growth is capped by monotonic elapsed time; a sampling gap over 30 seconds is discarded conservatively. Previously accumulated totals are preserved. A healthy first import retains qBittorrent's historical total; pre-existing inaccurate history cannot be reconstructed. Waiting for downloaders still counts while the torrent is available to seed. Update via Hub to load the clock changes into both the app and its qBittorrent worker.
 
-Manual stop/removal remains available with confirmation. If physical torrent ratio is below 1 and active seeding is below 49 hours, an early-stop warning shows current figures regardless of a custom automatic target. The server rechecks on execution.
+Manual stop/removal remains available with confirmation. If physical torrent ratio is below 1 and active seeding is below 50 hours, an early-stop warning shows current figures regardless of a custom automatic target. The server rechecks on execution.
 
 Physical upload/download totals are accumulated in the durable ledger. If qBittorrent restores an older resume checkpoint after a restart, recorded traffic remains in the ratio and future counter growth is added once. Legacy Green byte buckets can recover previously observed upload; tracker account credit is never used to invent physical traffic. Re-adding a torrent with a new addition date starts a new transfer lifetime. Adaptive forecasts reset at a counter rollback so recovered history cannot appear as a burst of new upload. qBittorrent's own resume-save interval is set to one minute when supported.
 
@@ -454,7 +454,7 @@ Ask “Hvor meget midlertidig plads bruger RSS?” to read allocated RSS buffer 
 
 ### Automatic deletion notifications
 
-The Matrix bot announces confirmed automatic torrent/file deletions with the readable title and the actual reason: ratio target reached or seed-time target reached (normally 49 hours, including configured extensions). Converted downloads also state that the library copy was retained. Worker receipts are persisted before removal and confirmed on a subsequent successful torrent snapshot after original content disappears. Delivery retries survive restarts and use stable event IDs for Hub deduplication. Manual removals and reaching a goal without deletion do not emit this event. Update Hub before Seed so `download_deleted` events are accepted.
+The Matrix bot announces confirmed automatic torrent/file deletions with the readable title and the actual reason: ratio target reached or seed-time target reached (normally 50 hours, including configured extensions). Converted downloads also state that the library copy was retained. Worker receipts are persisted before removal and confirmed on a subsequent successful torrent snapshot after original content disappears. Delivery retries survive restarts and use stable event IDs for Hub deduplication. Manual removals and reaching a goal without deletion do not emit this event. Update Hub before Seed so `download_deleted` events are accepted.
 
 Deletion notifications include estimated freed space in decimal GB/MB, measured from allocated file blocks before deletion. Hardlinks outside the deleted content are excluded, internal hardlinks count once, and sparse-file holes are not counted. Snapshots, reflinks or open files may retain blocks, so this is an estimate. Missing measurements and receipts from older versions display unknown.
 

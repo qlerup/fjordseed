@@ -17,7 +17,7 @@ def policy(until=END,known=True):
 def row(uploaded=0,ratio_limit=1,**extra):
     return {'hash':HASH,'uploaded':uploaded,'downloaded':1000,'ratio':uploaded/1000,
             'ratio_limit':ratio_limit,'added_on':CREATED+60,'state':'stalledUP',
-            'seeding_time_limit':2940,'inactive_seeding_time_limit':-1,**extra}
+            'seeding_time_limit':3000,'inactive_seeding_time_limit':-1,**extra}
 
 
 def update(value,now,target=None):
@@ -140,7 +140,7 @@ def test_api_ratio_edit_preserves_credit_action_and_paused_state(monkeypatch):
     assert update(row(1000,10),CREATED+130)['ratio_limit']==5
 
 
-def test_worker_adjusts_after_expiry_and_keeps_49_hour_alternative(monkeypatch):
+def test_worker_adjusts_after_expiry_and_keeps_50_hour_alternative(monkeypatch):
     policy()
     update(row(1000),END-1)
     monkeypatch.setattr(credit.time,'time',lambda:END+10)
@@ -154,8 +154,8 @@ def test_worker_adjusts_after_expiry_and_keeps_49_hour_alternative(monkeypatch):
     assert calls[-1][1]['shareLimitAction']=='RemoveWithContent'
     effective=update(row(1000,1.5),END+10)
     assert stop_requirement({**row(1000),**effective})['seeding_requirement_met']
-    effective=update(row(1000,seeding_time=49*3600),END+20)
-    assert stop_requirement({**row(1000,seeding_time=49*3600),**effective})['seeding_requirement_met']
+    effective=update(row(1000,seeding_time=50*3600),END+20)
+    assert stop_requirement({**row(1000,seeding_time=50*3600),**effective})['seeding_requirement_met']
 
 
 def test_policy_uses_verified_created_at_and_uploader_exception():

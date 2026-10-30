@@ -9,8 +9,9 @@ from test_app import FakeRuntime
 
 row = {'hash':'a'*40,'name':'Running Linux release','state':'stalledUP','progress':1,
        'upspeed':1024,'size':1073741824,'ratio':1,'ratio_limit':2,'seeding_time':7200,
-       'seeding_time_limit':2940,'share_limit_action':'RemoveWithContent'}
+       'seeding_time_limit':3000,'share_limit_action':'RemoveWithContent'}
 class Demo(FakeRuntime):
+    host_downloads=Path('/downloads')
     def status(self):
         return {**super().status(), 'ready':True, 'torrents':[dict(row)]}
 
@@ -33,6 +34,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('[name=username]').fill('admin')
             page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
             page.get_by_role('button',name='Log ind').click()
+            page.locator('.nav[href="#torrents"]').click()
             for width,target,action in [(1440,5,'keep'),(390,2.5,'delete')]:
                 page.set_viewport_size({'width':width,'height':960})
                 page.get_by_role('button',name='Ratio Running Linux release',exact=True).click()
@@ -63,9 +65,9 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#edit-ratio-warning')).to_be_visible()
             page.evaluate('editingRatio.seeding_time=48*3600;updateRatioEditWarning()')
             expect(page.locator('#edit-ratio-warning')).to_be_visible()
-            page.evaluate('editingRatio.seeding_time=49*3600-1;updateRatioEditWarning()')
+            page.evaluate('editingRatio.seeding_time=50*3600-1;updateRatioEditWarning()')
             expect(page.locator('#edit-ratio-warning')).to_be_visible()
-            page.evaluate('editingRatio.seeding_time=49*3600;updateRatioEditWarning()')
+            page.evaluate('editingRatio.seeding_time=50*3600;updateRatioEditWarning()')
             expect(page.locator('#edit-ratio-warning')).to_be_visible()
             page.locator('#edit-ratio-dialog .close').last.click()
             assert not errors,errors

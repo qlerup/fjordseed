@@ -198,7 +198,7 @@ def test_status_exposes_forecast_and_extension_without_changing_goal(monkeypatch
     assert result['seeding_auto_extended'] is True
     assert result['seeding_predicted_upload']>64*MIB
     assert result['seeding_predicted_ratio_gain']>=.05
-    assert result['ratio_limit']==1 and result['seeding_time_limit']==2940
+    assert result['ratio_limit']==1 and result['seeding_time_limit']==3000
     assert result['num_incomplete']==10 and result['num_complete']==1
 
 

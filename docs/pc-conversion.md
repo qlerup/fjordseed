@@ -56,7 +56,7 @@ maskine, når det globale valg ændres.
   konverteringskvittering, og den færdige mappe publiceres atomisk til den
   biblioteksplacering, der blev gemt for downloadet.
 - Originalen slettes fortsat først efter **både** godkendt/publiceret konvertering
-  **og** reel ratio mindst 1:1 **eller** 49 timers aktiv seeding.
+  **og** reel ratio mindst 1:1 **eller** 50 timers aktiv seeding.
 - Efter serverens kvittering rydder pc’en sin egen midlertidige UUID-jobmappe.
   Ved fejl beholdes cache og originale serverfiler til genoptagelse/undersøgelse.
 
