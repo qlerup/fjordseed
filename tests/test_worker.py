@@ -5,6 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 from qbit_worker import configure, ready
+import green_credit
 import qbit_rpc
 import qbit_worker
 
@@ -73,6 +74,9 @@ def test_supervisor_terminates_running_client_when_vpn_fails(monkeypatch,caplog)
     session.get.return_value.status_code=200
     monkeypatch.setattr('requests.Session',Mock(return_value=session))
     process=Mock();process.poll.return_value=None
+    def assert_clock_paused_before_termination():
+        assert json.loads(green_credit.SEED_HEALTH.read_text())['ready'] is False
+    process.terminate.side_effect=assert_clock_paused_before_termination
     monkeypatch.setattr(qbit_worker.subprocess,'Popen',Mock(return_value=process))
     qbit_worker.run()
     process.terminate.assert_called_once()

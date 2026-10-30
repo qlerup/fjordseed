@@ -41,7 +41,8 @@ def test_old_credit_forecast_is_retrained_without_changing_goal_or_seed_clock():
     with CreditLedger().transaction() as ledger:
         result=ledger.update(row,now=1010)
         assert ledger.entries[HASH]['upload_potential']['basis']=='physical-upload-v2'
-    assert result['ratio_limit']==3 and result['seeding_time']==100
+    # Upgrading a legacy clock preserves its total and takes a fresh baseline.
+    assert result['ratio_limit']==3 and result['seeding_time']==90
     assert not result['seeding_upload_potential']
 
 

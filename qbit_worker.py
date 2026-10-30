@@ -9,11 +9,13 @@ import socket
 import subprocess
 import threading
 import time
+import uuid
 
 from qbit_rpc import call, sync_share_limits, sync_download_queue, MAX_ACTIVE_DOWNLOADS
 from state import atomic
 from rss import sync_rss,rss_report,sync_snapshot
 from torrent_port import Lease,internal_port
+from green_credit import publish_seed_health
 
 STOP = threading.Event()
 LOG = logging.getLogger(__name__)
@@ -94,6 +96,8 @@ def sync_resume_interval(prefs, api=None):
 
 
 def run():
+    seed_session = uuid.uuid4().hex
+    publish_seed_health(False, seed_session)
     process = None
     started = 0
     rss_content=None
@@ -138,10 +142,13 @@ def run():
                 next_connection=(private,announce,address) if gateway else None
                 if process is not None and connection!=next_connection:
                     LOG.warning('qBittorrent restarting: VPN endpoint or torrent port changed')
+                    publish_seed_health(False, seed_session)
                     stop_process(process,graceful=True)
                     process=None
                 exit_code=process.poll() if process is not None else None
                 if process is None or exit_code is not None:
+                    seed_session = uuid.uuid4().hex
+                    publish_seed_health(False, seed_session)
                     if process is not None:
                         LOG.warning('qBittorrent exited unexpectedly: returncode=%s',exit_code)
                     stage='process_start'
@@ -156,6 +163,7 @@ def run():
                 try:
                     prefs = call('app/preferences').json()
                 except Exception:
+                    publish_seed_health(False, seed_session)
                     if time.monotonic() - started < 12:
                         status['message'] = 'Starter qBittorrent bag VPN…'
                     else:
@@ -178,6 +186,7 @@ def run():
                         call('app/setPreferences', {'json':json.dumps({'listen_port':private,'random_port':False,'upnp':False})})
                         if call('app/preferences').json().get('listen_port') != private:
                             raise ValueError('Port synchronization failed')
+                    publish_seed_health(True, seed_session)
                     from library_conversion import verification_pending
                     checking_originals=verification_pending()
                     if checking_originals or time.monotonic()-share_last>10:
@@ -225,7 +234,10 @@ def run():
                               'vpn_status_age':age,'vpn_healthy':context.get('healthy')}
                 LOG.warning('qBittorrent safety stop: %s',json.dumps(last_failure))
                 status['message']='qBittorrent afventer sikker forbindelse. Kontrol fejlede: '+stage+'.'
-                stop_process(process)
+                try:
+                    publish_seed_health(False, seed_session)
+                finally:
+                    stop_process(process)
                 process = None
                 connection=None
                 lease.close()
@@ -236,9 +248,12 @@ def run():
             # VPN health checks and publishing a fresh heartbeat between chunks.
             STOP.wait(.05 if checking_originals else 2)
     finally:
-        stop_process(process, graceful=True)
-        lease.close()
-        atomic('/config/worker-status.json', json.dumps({'ready':False, 'checked_at':time.time(), 'message':'Seedbox stoppet.'}), mode=0o644)
+        try:
+            publish_seed_health(False, seed_session)
+        finally:
+            stop_process(process, graceful=True)
+            lease.close()
+            atomic('/config/worker-status.json', json.dumps({'ready':False, 'checked_at':time.time(), 'message':'Seedbox stoppet.'}), mode=0o644)
 
 
 if __name__ == '__main__':

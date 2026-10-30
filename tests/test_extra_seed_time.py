@@ -19,6 +19,9 @@ def test_extra_time_survives_restart_and_delays_time_goal(monkeypatch):
     assert credit['extra_seed_hours']==1
     assert not seeding_completion(row,credit)['seeding_goal_reached']
     row['seeding_time']=50*3600
+    # Simulate an already verified hour, not an instantaneous native counter jump.
+    with CreditLedger().transaction() as ledger:
+        ledger.entries[row['hash']]['seed_clock']['seconds']+=3600
     with CreditLedger().transaction() as ledger:credit=ledger.update(row)
     assert seeding_completion(row,credit)['seeding_goal_reached']
     execute('ratio',{'hash':row['hash'],'ratio_limit':2})

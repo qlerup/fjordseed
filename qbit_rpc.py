@@ -212,13 +212,18 @@ def share_policy(data):
 
 
 def call(path, data=None, files=None):
-    with requests.Session() as client:
-        client.trust_env = False
-        response = client.request('POST' if data is not None or files else 'GET', BASE + path,
-            data=data, files=files, headers={'Referer':'http://127.0.0.1:8080/'}, timeout=5,
-            allow_redirects=False)
-        response.raise_for_status()
-        return response
+    try:
+        with requests.Session() as client:
+            client.trust_env = False
+            response = client.request('POST' if data is not None or files else 'GET', BASE + path,
+                data=data, files=files, headers={'Referer':'http://127.0.0.1:8080/'}, timeout=5,
+                allow_redirects=False)
+            response.raise_for_status()
+            return response
+    except requests.RequestException:
+        from green_credit import pause_seed_health
+        pause_seed_health()
+        raise
 
 
 def execute(action, data):

@@ -8,15 +8,83 @@ from pathlib import Path
 import re
 import threading
 import time
+import uuid
 
 from state import atomic
 from tracker_providers import PROVIDERS
 from seed_potential import upload_potential
 
 CONFIG = Path('/config')
+SEED_HEALTH = CONFIG/'seed-clock-status.json'
 POLICIES = Path('/rpc/green-policy.json')
 GREEN_SECONDS = 24 * 3600 + 30 * 60
 _lock = threading.RLock()
+VPN_STATUS = Path('/vpn/status.json')
+SEED_HEALTH_TTL = 15
+SEED_SAMPLE_GAP = 30
+try:
+    BOOT_ID = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+except OSError:
+    BOOT_ID = 'development'
+
+
+def publish_seed_health(ready, session):
+    """Supervisor evidence shared by the worker and short-lived RPC processes."""
+    SEED_HEALTH.parent.mkdir(parents=True, exist_ok=True)
+    with _lock, SEED_HEALTH.with_suffix('.lock').open('a+') as handle:
+        try:
+            import fcntl
+        except ImportError:
+            fcntl = None
+        if fcntl:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            _write_seed_health(ready, session)
+        finally:
+            if fcntl:
+                fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def _write_seed_health(ready, session):
+    path = SEED_HEALTH
+    tick = time.monotonic()
+    try:
+        previous = read(path, {})
+    except (OSError, ValueError):
+        previous = {}
+    if not isinstance(previous, dict):
+        previous = {}
+    stamp = previous.get('monotonic')
+    continuous = (ready and previous.get('ready') is True and previous.get('session') == session
+                  and previous.get('boot') == BOOT_ID and type(stamp) in (int, float)
+                  and math.isfinite(stamp) and 0 <= tick-stamp < SEED_HEALTH_TTL)
+    epoch = previous.get('epoch') if continuous else None
+    atomic(path, json.dumps({
+        'ready': bool(ready), 'session': session, 'boot': BOOT_ID,
+        'epoch': epoch or uuid.uuid4().hex, 'monotonic': tick}), mode=0o644)
+
+
+def pause_seed_health():
+    try:
+        health = read(SEED_HEALTH, {})
+        session = health.get('session', '') if isinstance(health, dict) else ''
+    except (OSError, ValueError):
+        session = ''
+    publish_seed_health(False, session)
+
+
+def seed_health():
+    try:
+        health = read(SEED_HEALTH, {})
+        vpn = read(VPN_STATUS, {})
+        stamp = vpn.get('checked_at')
+        vpn_ready = (vpn.get('healthy') is True and type(stamp) in (int, float)
+                     and math.isfinite(stamp) and 0 <= time.time()-stamp < SEED_HEALTH_TTL
+                     and (vpn.get('relay_enabled') is False or vpn.get('gateway_enabled') is True))
+        return health if vpn_ready and isinstance(health, dict) else {}
+    except (OSError, ValueError, TypeError, AttributeError):
+        # Missing or unreadable evidence never earns elapsed seeding time.
+        return {}
 
 
 def created_timestamp(value):
@@ -101,19 +169,40 @@ def physical_traffic(entry, row):
     return totals,delta,reset or not valid_upload
 
 
-def seed_time(entry, row):
-    """Exclude native counter growth during moves and pauses, including transitions."""
+def seed_time(entry, row, health=None):
+    """Count only consecutive, verified active samples in the same client session."""
+    health = health or {}
+    tick = time.monotonic()
+    stamp = health.get('monotonic')
+    available = (health.get('ready') is True and health.get('boot') == BOOT_ID
+                 and isinstance(health.get('epoch'), str) and bool(health['epoch'])
+                 and type(stamp) in (int, float) and math.isfinite(stamp)
+                 and 0 <= tick-stamp < SEED_HEALTH_TTL)
+    active = available and row.get('state') in ('uploading', 'stalledUP', 'forcedUP')
+    budget = 0
     raw = row.get('seeding_time')
-    if type(raw) not in (int, float) or not math.isfinite(raw) or raw < 0:
-        return entry.get('seed_clock', {}).get('seconds', 0)
-    moving = row.get('state') == 'moving'
-    paused = row.get('state') in ('pausedUP', 'pausedDL', 'stoppedUP', 'stoppedDL')
     clock = entry.get('seed_clock')
+    if type(raw) not in (int, float) or not math.isfinite(raw) or raw < 0:
+        if clock is not None:
+            clock['active'] = False
+        return (clock or {}).get('seconds', 0)
     if clock is None:
-        clock = {'seconds': raw}
-    elif not moving and not paused and not clock['moving'] and not clock.get('paused', False):
-        clock['seconds'] += max(0, raw - clock['raw'])
-    clock.update(raw=raw, moving=moving, paused=paused)
+        # Preserve the client's existing historical total on a healthy import.
+        # Existing managed clocks keep their already accumulated seconds below.
+        clock = {'seconds': raw if active else 0}
+    elif (active and clock.get('active') is True and clock.get('session') == health.get('epoch')
+          and clock.get('boot') == BOOT_ID and type(clock.get('tick')) in (int, float)):
+        elapsed = tick-clock['tick']
+        if 0 <= elapsed <= SEED_SAMPLE_GAP:
+            delta = raw-clock['raw']
+            if delta >= 0:
+                # RPC and maintenance samples can interleave before the native
+                # integer counter ticks. Keep only verified, unconsumed time.
+                budget = min(SEED_SAMPLE_GAP, clock.get('budget', 0)+elapsed)
+                credited = min(delta, budget)
+                clock['seconds'] += credited
+                budget -= credited
+    clock.update(raw=raw, active=active, session=health.get('epoch'), boot=BOOT_ID, tick=tick, budget=budget)
     entry['seed_clock'] = clock
     return clock['seconds']
 
@@ -136,6 +225,7 @@ class CreditLedger:
                 self.policies = read(POLICIES, {})
                 self.tracker_policies=read(POLICIES.with_name('tracker-credit.json'),{})
                 self.feeds = read(CONFIG / 'fjord-rss.json', [])
+                self.seed_health = seed_health()
                 self.reconcile_tracker_archives()
                 yield self
                 self.save()
@@ -229,7 +319,7 @@ class CreditLedger:
         display_until=tracker_rules.get('green_until',until)
         display_until=display_until if type(display_until) in (int,float) else until
         raw_ratio = number(row.get('ratio'))
-        return {'seeding_time': seed_time(entry, row), 'extra_seed_hours': entry.get('extra_seed_hours', 0),
+        return {'seeding_time': seed_time(entry, row, self.seed_health), 'extra_seed_hours': entry.get('extra_seed_hours', 0),
                 'ratio_only': entry.get('ratio_only', False),
                 'adaptive_seeding': entry.get('adaptive_seeding', False),
                 'stop_on_complete': entry.get('stop_on_complete', False),

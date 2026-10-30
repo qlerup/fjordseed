@@ -78,7 +78,11 @@ def test_worker_rechecks_without_browser_then_deletes_when_demand_disappears(mon
         sync_share_limits(api)
     row.update(upspeed=0,num_leechs=0,state='stalledUP')
     if trigger=='ratio':row['uploaded']=row['downloaded']
-    else:row['seeding_time']=SEEDING_SECONDS
+    else:
+        row['seeding_time']=SEEDING_SECONDS
+        # Simulate an already earned total, rather than inventing 49h in one tick.
+        with CreditLedger().transaction() as ledger:
+            ledger.entries[HASH]['seed_clock']['seconds']=SEEDING_SECONDS
     sync_share_limits(api)
     assert not any(call.args[0]=='torrents/delete' for call in api.call_args_list)
     with CreditLedger().transaction() as ledger:
