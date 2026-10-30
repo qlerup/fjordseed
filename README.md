@@ -388,6 +388,8 @@ traffic remains unknown; today's badges never rewrite the saved legacy total.
 
 Manual and RSS download lists each show five torrents per page, with independent Previous/Next controls. Counts and transfer rates cover the entire list. The selected page survives status refreshes and clamps when torrents are removed.
 
+The shared download search works in All, Manual and RSS views. It filters the full title list before pagination, ignores case and treats dots, hyphens and underscores as spaces. Matching inactive torrents expand automatically; clearing the search restores the previous collapsed state. Search text survives tab switches and status refreshes, while transfer totals continue to cover the selected view.
+
 The FjordHub Matrix bot can read a dedicated live torrent summary using the existing app key at `GET /api/hub/bot/seeding`. Browser login alone does not grant this access. Only titles, transfer state, progress and seeding goal metrics are exposed; tracker URLs, paths and credentials are excluded. Both applications and the bot must be updated.
 
 Temporary storage accounting: the feed manager shows allocated bytes across all known download buffers, including manual downloads and temporary seeding. Storage and Streaming highlight the RSS subset in blue within used space, restricted to the selected filesystem. RSS membership comes from the persisted credit history and captured torrent stage paths. Both `.incomplete` and legacy `.fjordseed-buffer` are scanned read-only, without following symbolic links; hardlinked files are counted once and sparse files use allocated blocks. Measurements are cached for 30 seconds, and unavailable classification is shown as unknown rather than zero.

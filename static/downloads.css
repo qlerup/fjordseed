@@ -6,6 +6,12 @@
 .settings-tabs[hidden]{display:none}
 @media(max-width:600px){.settings-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.settings-tabs a{padding:10px 8px;text-align:center;font-size:12px}}
 .download-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:8px 0 24px}
+.download-search{flex:1;min-width:0;max-width:640px}
+.download-search label{display:block;margin:0 0 6px;font-size:12px;font-weight:600;color:#bdcbe2}
+.download-search-input{display:flex;gap:8px;align-items:center}
+.download-search input{width:100%;min-width:0;margin:0}
+.download-search button{flex-shrink:0;white-space:nowrap}
+.download-search p{margin:6px 0 0}
 .download-filters{display:flex;gap:4px;padding:5px;border:1px solid #52688b80;border-radius:12px;background:#111c3599}
 .download-filters button{background:transparent;border:1px solid transparent;color:#bdcbe2;border-radius:8px;padding:10px 22px;font-weight:600;cursor:pointer}
 .download-filters button[aria-pressed=true]{background:#8ebcfa24;border-color:#8ebcfa66;color:#e8f3ff;box-shadow:inset 0 1px #ffffff12}
@@ -30,6 +36,8 @@
 .download-toolbar [hidden],.unified-add [hidden]{display:none!important}
 @media(max-width:600px){
  .download-toolbar{align-items:stretch;flex-direction:column;gap:12px}
+ .download-search{max-width:none;width:100%}
+ .download-search-input{flex-wrap:wrap}
  .download-filters button{flex:1;padding:10px 12px}
  .downloads-page #downloads-view,.downloads-page #rss-view{padding:16px}
  .unified-add>.add-method{padding:16px 16px 0;gap:6px}

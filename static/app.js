@@ -189,6 +189,10 @@ function card(t){const row=node('article','torrent'),head=node('div','torrent-he
  row.append(panel);updateExpanded();return row;}
 function eta(seconds){if(!Number.isFinite(Number(seconds))||Number(seconds)<0||Number(seconds)>=8640000)return 'Ukendt tid tilbage';seconds=Math.round(seconds);if(seconds<60)return seconds+' sek. tilbage';if(seconds<3600)return Math.ceil(seconds/60)+' min. tilbage';return Math.floor(seconds/3600)+' t. '+Math.ceil((seconds%3600)/60)+' min. tilbage';}
 function renderDownloadLists(data,filter='manual'){
+ const normalize=value=>String(value||'').toLocaleLowerCase('da-DK').replace(/[._-]+/g,' ').replace(/\s+/g,' ').trim();
+ const query=normalize($('#download-search')?.value);
+ const terms=query.split(' ').filter(Boolean);
+ const matches=t=>terms.every(term=>normalize(t.name).includes(term));
  const context=JSON.stringify([data.id||'',data.profile_id||'']);
  let activity=renderDownloadLists.activity;
  if(!activity||activity.context!==context)activity=renderDownloadLists.activity={context,rows:new Map()};
@@ -259,6 +263,13 @@ function renderDownloadLists(data,filter='manual'){
   $('#'+key+'-active-empty').hidden=!items.length||active.length>0;
   $('#'+key+'-inactive-summary').textContent='Inaktive torrents ('+waiting.length+')';
   inactive.hidden=!waiting.length;
+  const searchOpen=renderDownloadLists.searchOpen??=new Map();
+  if(query){
+   if(!searchOpen.has(key))searchOpen.set(key,inactive.open);
+   if(waiting.length)inactive.open=true;
+  }else if(searchOpen.has(key)){
+   inactive.open=searchOpen.get(key);searchOpen.delete(key);
+  }
   renderPage(active,key,listId);
   renderPage(waiting,key+'-inactive',key+'-inactive-list');
  }
@@ -274,9 +285,17 @@ function renderDownloadLists(data,filter='manual'){
  const focusedControl=typeof document!=='undefined'?document.activeElement?.dataset?.torrentToggleControl:undefined;
  const newestFirst=data.torrents.slice().sort((a,b)=>(Number(b.added_on)||0)-(Number(a.added_on)||0));
  const manual=newestFirst.filter(t=>!t.rss_feed),rss=newestFirst.filter(t=>t.rss_feed);
- const combined=filter==='all'?newestFirst:manual;
- renderGroup(combined,'manual','torrent-list');$('#empty').hidden=combined.length>0;
- renderGroup(rss,'rss','rss-torrent-list');$('#rss-empty').hidden=rss.length>0;$('#rss-count').textContent=rss.length;
+ const combined=(filter==='all'?newestFirst:manual).filter(matches),rssMatches=rss.filter(matches);
+ renderGroup(combined,'manual','torrent-list');$('#empty').hidden=combined.length>0||!!query;
+ renderGroup(rssMatches,'rss','rss-torrent-list');$('#rss-empty').hidden=rssMatches.length>0||!!query;$('#rss-count').textContent=rss.length;
+ const searchStatus=$('#download-search-status'),clearSearch=$('#download-search-clear');
+ if(searchStatus){
+  const total=filter==='all'?newestFirst.length:filter==='rss'?rss.length:manual.length;
+  const found=filter==='rss'?rssMatches.length:combined.length;
+  searchStatus.hidden=!query;
+  searchStatus.textContent=found?found+' af '+total+' torrents matcher din s\u00f8gning.':'Ingen downloads matcher din s\u00f8gning.';
+ }
+ if(clearSearch)clearSearch.hidden=!query;
  if(focusedToggle)for(const button of document.querySelectorAll('[data-torrent-toggle]'))if(button.dataset.torrentToggle===focusedToggle&&button.dataset.torrentToggleControl===focusedControl){button.focus({preventScroll:true});break;}
  for(const [items,prefix] of [[manual,''],[rss,'rss-']])for(const [field,id] of [['dlspeed','dl'],['upspeed','ul']])$('#'+prefix+id).textContent=size(items.reduce((sum,t)=>sum+(Number(t[field])||0),0))+'/s';
  if(data.torrents_available===false){
@@ -471,6 +490,12 @@ function renderDownloadSummary(data){
  $('#count').textContent=data.torrents_available===false&&!items.length?'—':items.length;
 }
 document.querySelectorAll('[data-download-filter]').forEach(button=>button.onclick=()=>{downloadFilter=button.dataset.downloadFilter;renderDownloadLists.pages={manual:1,rss:1,'manual-inactive':1,'rss-inactive':1};if(location.hash==='#rss')history.replaceState(null,'','#torrents');showView();});
+function updateDownloadSearch(){
+ renderDownloadLists.pages={manual:1,rss:1,'manual-inactive':1,'rss-inactive':1};
+ if(current)renderDownloadLists(current,downloadFilter);
+}
+$('#download-search').addEventListener('input',updateDownloadSearch);
+$('#download-search-clear').onclick=()=>{$('#download-search').value='';updateDownloadSearch();$('#download-search').focus();};
 $('#downloads-manage-feeds').onclick=()=>$('#rss-manage').click();
 window.addEventListener('hashchange',()=>showView(true));
 showView();refresh();setInterval(refresh,1000);
