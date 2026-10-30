@@ -191,6 +191,7 @@ function eta(seconds){if(!Number.isFinite(Number(seconds))||Number(seconds)<0||N
 function renderDownloadLists(data,filter='manual'){
  const normalize=value=>String(value||'').toLocaleLowerCase('da-DK').replace(/[._-]+/g,' ').replace(/\s+/g,' ').trim();
  const query=normalize($('#download-search')?.value);
+ const exactQuery=String($('#download-search')?.value||'').trim().toLocaleLowerCase('da-DK');
  const terms=query.split(' ').filter(Boolean);
  const matches=t=>terms.every(term=>normalize(t.name).includes(term));
  const context=JSON.stringify([data.id||'',data.profile_id||'']);
@@ -225,7 +226,15 @@ function renderDownloadLists(data,filter='manual'){
   const pageCount=Math.max(1,Math.ceil(items.length/5));
   pages[key]=Math.max(1,Math.min(pages[key]??1,pageCount));
   const start=(pages[key]-1)*5,list=$('#'+listId);
-  list.replaceChildren(...items.slice(start,start+5).map(card));
+  list.replaceChildren(...items.slice(start,start+5).map(t=>{
+   const row=card(t);
+   if(exactQuery&&String(t.name||'').trim().toLocaleLowerCase('da-DK')===exactQuery){
+    row.classList.add('torrent-exact-match');
+    const heading=row.querySelector('.torrent-head h3')||row;
+    heading.prepend(node('span','torrent-exact-badge','Pr\u00e6cist match'));
+   }
+   return row;
+  }));
   if(typeof document==='undefined')return;
   let pager=$('#'+key+'-pagination');
   if(!pager&&pageCount<=1)return;

@@ -390,7 +390,7 @@ traffic remains unknown; today's badges never rewrite the saved legacy total.
 
 Manual and RSS download lists each show five torrents per page, with independent Previous/Next controls. Counts and transfer rates cover the entire list. The selected page survives status refreshes and clamps when torrents are removed.
 
-The shared download search works in All, Manual and RSS views. It filters the full title list before pagination, ignores case and treats dots, hyphens and underscores as spaces. Matching inactive torrents expand automatically; clearing the search restores the previous collapsed state. Search text survives tab switches and status refreshes, while transfer totals continue to cover the selected view.
+The shared download search works in All, Manual and RSS views. It filters the full title list before pagination, ignores case and treats dots, hyphens and underscores as spaces. An exact full-name match (ignoring case) is highlighted with a green border and a Præcist match badge while broader results remain visible. Matching inactive torrents expand automatically; clearing the search restores the previous collapsed state. Search text survives tab switches and status refreshes, while transfer totals continue to cover the selected view.
 
 The FjordHub Matrix bot can read a dedicated live torrent summary using the existing app key at `GET /api/hub/bot/seeding`. Browser login alone does not grant this access. Only titles, transfer state, progress and seeding goal metrics are exposed; tracker URLs, paths and credentials are excluded. Both applications and the bot must be updated.
 

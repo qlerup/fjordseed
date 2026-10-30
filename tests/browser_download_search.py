@@ -19,7 +19,9 @@ class Demo(FakeRuntime):
         for kind in ('manual', 'rss'):
             for i in range(12):
                 name = 'Big.Brother.2013' if i == 0 else 'Nobody.2025' if i == 1 else f'Download {kind} {i}'
-                torrents.append(dict(hash=f'{kind}-{i}', name=f'{name}.{kind}',
+                if i in (3, 5):
+                    name = 'Transplant.S04.NORDiC.' + ('REPACK.' if i == 5 else '') + '1080p.ALNT.WEB-DL.H.264-NORViNE'
+                torrents.append(dict(hash=f'{kind}-{i}', name=name if i in (3, 5) else f'{name}.{kind}',
                     added_on=i, state='uploading' if i % 2 == 0 else 'stoppedUP',
                     progress=1, size=1024, dlspeed=0, upspeed=100 if i % 2 == 0 else 0,
                     tags='FjordSeed-RSS-test' if kind == 'rss' else ''))
@@ -60,6 +62,23 @@ with tempfile.TemporaryDirectory() as folder:
                 expect(search).to_have_value('Nobody 2025')
             page.evaluate('refresh()')
             expect(page.locator('#manual-inactive-list .torrent')).to_have_count(2)
+            # Broad results stay visible; only the full name gets an exact badge.
+            release = 'Transplant.S04.NORDiC.1080p.ALNT.WEB-DL.H.264-NORViNE'
+            search.fill(release.swapcase())
+            for tab, prefix in [('all', 'manual'), ('rss', 'rss'), ('manual', 'manual')]:
+                page.locator(f'[data-download-filter={tab}]').click()
+                exact = 2 if tab == 'all' else 1
+                expect(page.locator(f'#{prefix}-inactive-list .torrent')).to_have_count(exact * 2)
+                expect(page.locator(f'#{prefix}-inactive-list .torrent-exact-match')).to_have_count(exact)
+                expect(page.locator(f'#{prefix}-inactive-list .torrent-exact-badge')).to_have_text(['Pr\u00e6cist match'] * exact)
+                for match in page.locator(f'#{prefix}-inactive-list .torrent-exact-match').all():
+                    expect(match).not_to_contain_text('REPACK')
+                expect(page.locator(f'#{prefix}-inactive-list')).to_contain_text('REPACK')
+            page.locator('[data-download-filter=all]').click()
+            search.fill('Transplant')
+            expect(page.locator('#manual-inactive-list .torrent')).to_have_count(4)
+            expect(page.locator('.torrent-exact-match')).to_have_count(0)
+            search.fill(release)
             for width in (1440, 390, 320):
                 page.set_viewport_size({'width': width, 'height': 1000})
                 search.focus()
@@ -72,6 +91,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#download-search-clear').click()
             expect(search).to_be_focused()
             expect(search).to_have_value('')
+            expect(page.locator('.torrent-exact-match')).to_have_count(0)
             expect(page.locator('#download-search-status')).to_be_hidden()
             expect(page.locator('#torrent-list .torrent')).to_have_count(5)
             expect(page.locator('#manual-inactive')).not_to_have_attribute('open', '')
