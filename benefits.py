@@ -210,7 +210,9 @@ class Benefits:
             atomic(directory/'tracker-credit.json',json.dumps({'_version':1,**policies}),mode=0o644)
 
     def accounting_poll(self,meta):
-        result=self.request(meta,priority=0,max_age=300)
+        # Periodic credit refreshes must not compete with the add-download dialog
+        # (priority 0) or RSS admission (priority 1).
+        result=self.request(meta,priority=2,max_age=300)
         if result.get('status')=='matched':self.remember_accounting(self.hashes(meta),result)
 
     def needs_date(self,result):
@@ -449,5 +451,5 @@ class Benefits:
                 self.remember({'hashes':hashes},result,lookup_finished=True)
             if still_current:self.remember_accounting(hashes,result)
             self.jobs.task_done()
-            # Keep automatic torrent lookups at most one job per second.
-            stop.wait(1)
+            # lookup() already spaces actual HTTP requests one second apart.
+            # A second job-level delay would also hold up interactive requests.

@@ -382,6 +382,7 @@ function prepareBenefits(){
 }
 async function loadPreviewBenefits(){
  clearTimeout(previewTimer);const generation=++previewGeneration;
+ let pendingChecks=0;
  $('#preview-benefits').replaceChildren(benefitView({status:'pending',message:'Slår trackerfordele op...'}));
  renderRatioPreview({status:'pending'});
  async function check(){
@@ -391,7 +392,7 @@ async function loadPreviewBenefits(){
    if(generation!==previewGeneration||!$('#ratio-dialog').open)return;
    $('#preview-benefits').replaceChildren(benefitView(result));
    renderRatioPreview(result);
-   if(result.status==='pending'||result.ratio_estimates?.some(e=>e.status==='pending'))previewTimer=setTimeout(check,2000);
+   if(result.status==='pending'||result.ratio_estimates?.some(e=>e.status==='pending'))previewTimer=setTimeout(check,++pendingChecks<=12?500:1500);
   }catch(e){if(generation===previewGeneration){$('#preview-benefits').replaceChildren(benefitView({status:'unknown',message:'Trackerfordele ukendte — '+e.message}));renderRatioPreview({status:'unknown'});}}
  }
  await check();

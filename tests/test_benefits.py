@@ -124,6 +124,50 @@ def test_modal_lookup_takes_priority_and_worker_caches_result(tmp_path):
     benefits.lookup.assert_called_once()
 
 
+def test_preview_overtakes_periodic_accounting_backlog(tmp_path):
+    trackers=Trackers(tmp_path)
+    trackers.save(CONFIG)
+    benefits=trackers.benefits
+    for i in range(170):
+        benefits.accounting_poll({'hashes':[f'{i:040x}'],'name':f'Background {i}'})
+    # Background work leaves capacity available for interactive requests.
+    assert benefits.jobs.qsize()==150
+    meta={'hashes':['f'*40],'name':'New manual download'}
+    assert benefits.request(meta)['status']=='pending'
+    stop=threading.Event()
+    def lookup(hashes,name,entries):
+        assert name==meta['name']
+        stop.set()
+        return {'status':'matched','matches':[]}
+    benefits.lookup=Mock(side_effect=lookup)
+    benefits.run(stop)
+    benefits.lookup.assert_called_once()
+    assert benefits.request(meta)['status']=='matched'
+
+
+def test_worker_keeps_http_spacing_without_extra_job_delay(tmp_path,monkeypatch):
+    trackers=Trackers(tmp_path);trackers.save(CONFIG)
+    benefits=trackers.benefits
+    clock=[100.0];starts=[]
+    class Stop:
+        stopped=False
+        def is_set(self):return self.stopped
+        def wait(self,seconds):
+            clock[0]+=seconds
+            return self.stopped
+    stop=Stop()
+    monkeypatch.setattr('benefits.time.monotonic',lambda:clock[0])
+    def read(entry,url,params):
+        starts.append(clock[0]);clock[0]+=.2
+        if len(starts)==2:stop.stopped=True
+        return {'data':[row(HASH if params['name']=='First' else 'b'*40)]}
+    trackers.read_json=read
+    benefits.request({'hashes':[HASH],'name':'First'})
+    benefits.request({'hashes':['b'*40],'name':'Second'})
+    benefits.run(stop)
+    assert starts==[100.0,101.0]
+
+
 def test_rss_leechers_can_refresh_before_normal_benefits_cache_expires(tmp_path):
     import time
     trackers=Trackers(tmp_path);trackers.save(CONFIG)

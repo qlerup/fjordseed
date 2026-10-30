@@ -293,6 +293,8 @@ Feed cards show **Total credited upload** as an estimate of tracker account cred
 
 Existing visible torrents register on the next accounting pass. Already deleted entries without saved titles/counters cannot be recovered. Unknown Green history is marked conservatively. These figures are app calculations, not a verified tracker statement; Awaiting upload figures appears until the ledger is readable.
 
+Periodic credit lookups run below interactive download previews and RSS admission in the lookup queue, leaving reserved capacity for new downloads. Actual tracker HTTP requests remain spaced one second apart, without an additional delay between completed jobs. The add-download dialog checks cached results every 500 ms for the first twelve pending responses, then backs off to 1.5 seconds; polling does not create duplicate tracker requests.
+
 ## Green upload accounting
 
 An exact NordicBytes or Sagmire match uses the timezone-aware tracker `created_at`, not the local addition date. The conservative Green period is 24 hours plus 30 minutes. Upload during it receives half credit, later upload full credit: `credited upload = total uploaded − Green upload / 2`. Torrent seeding goals always use actual upload/download: a target of 1 needs physical ratio 1, including during Green. Expiry never retroactively doubles old credit. Verified own uploads are exempt; anonymous ownership stays conservative.
