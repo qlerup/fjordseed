@@ -121,3 +121,15 @@ body.viking-full-view>.ambient-scene,body.viking-full-view>.viking-battle{visibi
 @keyframes player-chop{0%{transform:rotate(-80deg);opacity:0}20%{opacity:1}65%{transform:rotate(40deg);opacity:1}100%{transform:rotate(55deg);opacity:0}}
 @media(max-width:800px){html[data-theme=viking] body aside{background:#122126f2}html[data-theme=viking] .heading h1{font-size:29px}}
 @media(prefers-reduced-motion:reduce){.viking-battle *{animation:none!important}.theme-option{transition:none}}
+
+.village-fields{position:absolute;inset:0;pointer-events:none;z-index:1}
+.village-fields svg{width:100%;height:100%}
+.viking-settlement-house[data-variant="1"] svg>path:nth-of-type(2){fill:#998455}
+.viking-settlement-house[data-variant="1"] svg>path:first-of-type{fill:#8b745a}
+.viking-settlement-house[data-variant="2"] svg>path:nth-of-type(2){fill:#534d47}
+.viking-settlement-house[data-variant="2"] svg>path:first-of-type{fill:#bdb49c}
+.viking-settlement-house.is-being-raided svg{animation:village-rummage .24s ease-in-out infinite alternate}
+.viking-settlement-house.is-being-raided::after{content:"";position:absolute;left:36%;bottom:3%;width:35%;height:15%;border-radius:50%;background:#baa68166;filter:blur(5px);animation:village-dust .7s infinite alternate}
+@keyframes village-rummage{to{translate:1.5px 0;rotate:.5deg}}
+@keyframes village-dust{to{translate:8px -8px;opacity:.3}}
+@media(prefers-reduced-motion:reduce){.viking-settlement-house.is-being-raided svg,.viking-settlement-house.is-being-raided::after{animation:none}}

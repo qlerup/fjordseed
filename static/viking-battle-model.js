@@ -7,12 +7,13 @@
   static RETREAT=270;
   static CLEAR=296;
   static LAND=.66;
-  constructor(count=64,random=Math.random){this.count=count;this.random=random;this.round=0;this.reset();}
+  constructor(count=64,random=Math.random,village=false){this.village=village;this.count=count;this.random=random;this.round=0;this.reset();}
   range(a,b){return a+(b-a)*this.random();}
   reset(){
    this.time=0;this.round++;this.effects=[];this.effectId=0;this.arrows=[];this.arrowId=0;
    this.exitStart=null;this.raidStart=null;this.winner=null;this.trails=[];this.trailId=0;this.rocks=[];this.rockId=0;
    this.settlement=[{id:0,x:.12,y:.72,church:true},{id:1,x:.075,y:.86},{id:2,x:.23,y:.80},{id:3,x:.23,y:.95}];
+   if(this.village)this.settlement=[{id:0,x:.12,y:.73,church:true},...[[.06,.85],[.20,.83],[.34,.76],[.34,.91],[.09,.97],[.23,.98],[.48,.81],[.49,.97]].map(([x,y],i)=>({id:i+1,x,y,variant:i%3}))];
    const strategies=['shieldwall','wedge','flank'];
    this.strategies=[0,1].map(()=>strategies[Math.floor(this.random()*strategies.length)]);
    this.formations=this.strategies.map(()=>{
@@ -36,17 +37,18 @@
     return {id,team,x:team?1.2:dock,y:.76+(id%2)*.17,dock,enterAt:team?this.arrivalEnd+this.range(4,12):0,
      nextShot:this.arrivalEnd+this.range(8,16),shotAt:-10,exitX:null};
    });
+   if(this.village)this.catapults=[];
    this.units=Array.from({length:this.count},(_,id)=>{
     const team=id%2,lane=Math.floor(id/2)%4,entryX=team?1.12+id*.006:-.12-id*.006;
     const boat=team===1?Math.floor(id/2)%fleetSize:null;
-    const rank=Math.floor(id/2),squad=Math.floor(rank/8),slot=rank%8,archer=id%8<2;
+    const rank=Math.floor(id/2),squad=Math.floor(rank/8),slot=rank%8,archer=(!this.village||team===1)&&id%8<2;
     const strategy=this.formations[team][squad];
     const centerX=.17+(squad%2)*.19,centerY=.685+Math.floor(squad/2)*.14;
     const column=Math.floor(slot/4),front=strategy==='wedge'?-.018*Math.abs(lane-1.5):strategy==='flank'?.012*lane:0;
     const targetX=centerX+front-column*.03-(archer?.035:0)+this.range(-.004,.004);
     const targetY=centerY+lane*.032;
     const seats=boat===null?0:Math.ceil((this.count/2-boat)/fleetSize),seat=Math.floor(rank/fleetSize);
-    return {id,team,lane,squad,boat,seatOffset:(seat-(seats-1)/2)*26,archer,spearman:!archer&&rank%3===1,strategy,
+    return {id,team,lane,squad,boat,seatOffset:(seat-(seats-1)/2)*26,archer,spearman:(!this.village||team===1)&&!archer&&rank%3===1,strategy,civilian:this.village&&team===0,female:rank%2===0,fleeDelay:this.range(0,7),
      x:team?this.boats[boat].x:targetX+.16,y:team?.35:targetY,entryX,
      targetX:team?1-targetX:targetX+.16,targetY,bend:this.range(-.015,.015),
      speed:this.range(32,57),decisionAt:0,side:0,enemyId:null,
@@ -54,6 +56,11 @@
      jumpAt:-10,nextJump:this.range(4,12),jumpHeight:this.range(12,25),
      attackAt:-10,attackStyle:'overhead',attackDuration:.8,impactDelay:.34,nextAttack:this.range(15,19),struck:true,hp:3+Math.floor(this.random()*3),hitAt:-10};
    });
+   if(this.village)for(const u of this.units.filter(u=>u.civilian)){
+    const house=this.settlement[1+Math.floor(u.id/2)%(this.settlement.length-1)];
+    u.x=u.targetX=clamp(house.x+this.range(-.025,.04),.035,.55);
+    u.y=u.targetY=clamp(house.y+this.range(.005,.025),Battle.LAND,.98);
+   }
   }
   get phase(){
    if(this.raidStart!==null&&this.time<this.exitStart)return 'raid';
@@ -70,11 +77,11 @@
    const pool=this.units.filter(u=>u.team===1&&u.deadAt===null&&!u.withdrawing),raiders=new Set();
    while(pool.length&&raiders.size<6){const index=Math.floor(this.random()*pool.length);raiders.add(pool.splice(index,1)[0].id);}
    for(const u of this.units){
-    if(u.deadAt!==null)continue;
+    if(u.deadAt!==null||u.civilian)continue;
     u.exitX=u.x;u.enemyId=null;u.attackAt=-10;u.shotAt=-10;u.jumpAt=-10;u.nextJump=Infinity;
     u.facing=u.team?1:-1;u.state='running';u.flag=u===leader;
     if(this.winner===1&&raiders.has(u.id)){
-     u.raidFromX=u.x;u.raidFromY=u.y;u.raidHouse=this.settlement[1+(Math.floor(u.id/2)%3)].id;
+     u.raidFromX=u.x;u.raidFromY=u.y;u.raidHouse=this.settlement[1+(Math.floor(u.id/2)%(this.settlement.length-1))].id;
      u.raidDelay=this.range(0,2);u.raidDuration=this.range(7,10);u.loot=false;
     }
    }
@@ -188,6 +195,12 @@
    if(this.phase==='clear'){for(const u of this.units){u.state=u.deadAt===null?'offscreen':'fallen';u.x=u.team?1.25:-.25;}return;}
    for(const u of this.units){
     if(u.deadAt!==null)continue;
+    if(u.civilian){
+     const alarm=this.arrivalEnd-8+u.fleeDelay;
+     if(this.time<alarm){u.x=u.targetX+Math.sin(this.time*.3+u.id)*.008;u.state='guarding';}
+     else {const p=clamp((this.time-alarm)/(12+u.fleeDelay),0,1);u.x=u.targetX+(-.15-u.targetX)*p;u.y=clamp(u.targetY+Math.sin(p*Math.PI)*.018,Battle.LAND,.98);u.facing=-1;u.state=p===1?'offscreen':'running';}
+     continue;
+    }
     if(this.phase==='arrival'){
      const boat=u.boat===null?null:this.boats[u.boat];
      const disembarkAt=boat?boat.landAt+Math.floor(Math.floor(u.id/2)/this.boats.length)*.18:0;
@@ -233,7 +246,7 @@
      this.bleed(u);
      continue;
     }else{
-     const enemies=this.units.filter(e=>e.team!==u.team&&e.deadAt===null&&!e.withdrawing&&e.state!=='offscreen');
+     const enemies=this.units.filter(e=>!e.civilian&&e.team!==u.team&&e.deadAt===null&&!e.withdrawing&&e.state!=='offscreen');
      let enemy=this.units[u.enemyId];
      const nearest=enemies.reduce((best,e)=>!best||Math.hypot((e.x-u.x)*width,(e.y-u.y)*height)<Math.hypot((best.x-u.x)*width,(best.y-u.y)*height)?e:best,null);
      if(nearest&&Math.hypot((nearest.x-u.x)*width,(nearest.y-u.y)*height)<75){

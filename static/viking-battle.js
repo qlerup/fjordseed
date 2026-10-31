@@ -22,7 +22,7 @@
  fullButton?.addEventListener('click',()=>fullView(true));
  controls.querySelector('button').addEventListener('click',()=>fullView(false));
  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!controls.hidden){event.preventDefault();fullView(false);}});
- const battle=new window.FjordBattleModel(innerWidth<700?40:64);
+ const battle=new window.FjordBattleModel(innerWidth<700?40:64,Math.random,true);
  let raf=0,last=0,renderedRound=0,actors=[],boats=[],carts=[],houses=[],splashes=new Map(),arrows=new Map(),trails=new Map(),rocks=new Map();
  const axe='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 65 85"><path d="M17 80L42 9" stroke="#211d17" stroke-width="9"/><path d="M17 80L42 9" stroke="#b69a69" stroke-width="5"/><path d="M37 13L53 5Q49 18 62 31L41 30L35 25Z" fill="#b9c9c5" stroke="#445959" stroke-width="2"/><path d="M53 5Q49 18 62 31" stroke="#edf0d9" stroke-width="3"/></svg>';
  layer.style.setProperty('--axe-cursor',`url("data:image/svg+xml,${encodeURIComponent(axe)}") 18 20, crosshair`);
@@ -33,8 +33,13 @@
  }
  function build(){
   layer.replaceChildren();splashes.clear();arrows.clear();trails.clear();rocks.clear();renderedRound=battle.round;
+  if(battle.village){
+   const fields=document.createElement('div');fields.className='village-fields';fields.setAttribute('aria-hidden','true');
+   fields.innerHTML='<svg viewBox="0 0 1000 1000" preserveAspectRatio="none"><g fill="#55553c" stroke="#8a7950" stroke-width="3"><path d="M550 780L750 795 720 880 540 860Z"/><path d="M555 902L805 917 780 983 550 970Z"/></g><g stroke="#a69b63" stroke-width="3" opacity=".75">'+Array.from({length:9},(_,i)=>`<path d="M${565+i*19} 795l-10 64M${565+i*24} 918l-7 48"/>`).join('')+'</g><g stroke="#76694d" stroke-width="4"><path d="M545 877l193 20m-190-28v19m39-15v19m39-15v19m39-15v19m39-15v19m33-15v19"/></g></svg>';
+   layer.append(fields);
+  }
   houses=battle.settlement.map(house=>{
-   const el=document.createElement('div');el.className='viking-settlement-house'+(house.church?' is-church':'');el.setAttribute('aria-hidden','true');
+   const el=document.createElement('div');el.className='viking-settlement-house'+(house.church?' is-church':'');el.setAttribute('aria-hidden','true');el.dataset.variant=String(house.variant??0);
    el.innerHTML=`<svg viewBox="0 0 150 150"><ellipse cx="75" cy="142" rx="72" ry="7" fill="#0c171b" opacity=".3"/><path d="M18 75h114v65H18Z" fill="${house.church?'#b2af91':'#b99c73'}" stroke="#514b3e" stroke-width="3"/><path d="M8 77L75 26l67 51Z" fill="#65513e" stroke="#9b8260" stroke-width="3"/><path d="M20 72l55-39 54 39M26 68h99M41 57h69" fill="none" stroke="#aa8d64" stroke-width="2" opacity=".6"/><path d="M22 80v58m106-58v58M20 103h110" stroke="#67533b" stroke-width="5"/><path d="M60 140v-34q15-18 30 0v34Z" fill="#182326" stroke="#7e6444" stroke-width="4"/><path d="M33 88h14v18H33Zm70 0h14v18h-14Z" fill="#403e32" stroke="#d1bc90" stroke-width="2"/>${house.church?'<path d="M58 74V32h34v42" fill="#b6b196" stroke="#5e5e50" stroke-width="3"/><path d="M52 34L75 12l23 22Z" fill="#605347"/><path d="M75 0v19M67 7h16" stroke="#d9c99c" stroke-width="4"/><path d="M69 48q6-10 12 0v15H69Z" fill="#39433d"/>':'<path d="M108 50V26h12v34" fill="#766c56" stroke="#b2a17a" stroke-width="2"/>'}</svg>`;
    layer.append(el);return el;
   });
@@ -54,7 +59,7 @@
    el.setAttribute('aria-label',`${u.team?'Viking':'Bosættelsens forsvarer'} ${u.id+1}: slå med øksen`);
    el.style.setProperty('--swing-delay',`${-(u.id%5)*.23}s`);
    el.addEventListener('click',()=>{
-    if(root.dataset.theme!=='viking'||document.querySelector('dialog[open]')||!battle.kill(u.id))return;
+    if(u.civilian||root.dataset.theme!=='viking'||document.querySelector('dialog[open]')||!battle.kill(u.id))return;
     if(!reduced.matches){const effect=document.createElement('div');effect.className='viking-player-axe';effect.innerHTML=axe;effect.setAttribute('aria-hidden','true');effect.style.left=`${u.x*innerWidth+12}px`;effect.style.top=`${u.y*innerHeight-69}px`;layer.append(effect);setTimeout(()=>effect.remove(),500);}
     render();
    });
@@ -66,6 +71,15 @@
     el.querySelector('.viking-shield').innerHTML='<path d="M5 39Q23 33 41 39L38 63Q34 78 23 87Q12 78 8 63Z" fill="#8a7554" stroke="#ddcba2" stroke-width="3"/><path d="M23 42v33M13 53h20" stroke="#eee3c9" stroke-width="5"/>';
     el.weapon.innerHTML='<path d="M47 44L58 53 69 38" fill="none" stroke="#bca080" stroke-width="8" stroke-linecap="round"/><path d="M64 50L80 8 84 3 85 10 70 52Z" fill="#c3ceca" stroke="#5b6d69" stroke-width="1.5"/><path d="M61 44l14 5M63 49l-4 12" stroke="#c7a570" stroke-width="4"/>';
     const beard=el.querySelector('.viking-head path:nth-child(2)');beard.setAttribute('d','M27 31L34 36 47 32 45 42 37 46 29 40Z');
+   }
+   if(u.civilian){
+    el.classList.add('village-resident');el.classList.toggle('is-woman',u.female);
+    el.querySelector('.viking-shield').innerHTML='';el.weapon.innerHTML='';
+    el.body.querySelectorAll(':scope > path').forEach(path=>path.remove());
+    const cloth=['#92775e','#6c8470','#956b62','#78848c'][Math.floor(u.id/2)%4];
+    el.body.insertAdjacentHTML('afterbegin',`<path d="${u.female?'M27 38L47 38 61 94 18 94Z':'M26 38L49 38 55 77 23 77Z'}" fill="${cloth}" stroke="#3b433c" stroke-width="2"/><path d="M25 43L18 64m31-21 9 22" stroke="#c5a584" stroke-width="7" stroke-linecap="round"/><path d="M25 64h29" stroke="#66513c" stroke-width="3"/>`);
+    el.querySelector('.viking-head').innerHTML=`<path d="M25 22Q25 9 39 10Q53 10 51 25L47 39 35 43 26 34Z" fill="#cbaa85"/><path d="${u.female?'M24 27Q19 7 38 6Q58 8 53 33L48 43 47 20 28 20 27 42Z':'M24 25Q21 8 39 8Q55 9 52 25L45 20 29 20Z'}" fill="${u.female?'#d1c3a2':'#6e5946'}"/><path d="M31 27h3m9 0h3" stroke="#313d37" stroke-width="2"/>`;
+    el.setAttribute('aria-label',u.female?'Beboer: kvinde':'Beboer: mand');
    }
    el.querySelector('svg').insertAdjacentHTML('beforeend','<g class="viking-loot"><path d="M52 60q17-7 23 10l-2 18q-13 8-25-2l-1-16Z" fill="#b59554" stroke="#51462d" stroke-width="2"/><path d="M50 65l21 1m-11-2-4-8 10 1-3 7" fill="none" stroke="#e0c48c" stroke-width="2"/></g>');
    if(u.spearman){
@@ -84,12 +98,13 @@
   if(renderedRound!==battle.round)build();
   layer.dataset.phase=battle.phase;layer.dataset.round=String(battle.round);
   const strategyNames={shieldwall:'Skjoldmur',wedge:'Kile',flank:'Flankeangreb'};
-  controls.querySelector('span').textContent=battle.phase==='raid'?'Vikingerne plyndrer husene':battle.exitStart!==null?(battle.winner===null?'Begge hold trækker sig tilbage':battle.winner?'Vikingerne drager af sted med byttet':'Bosættelsen er forsvaret'):`Vikingelandgang · ${battle.formations[0].length} grupper pr. side`;
+  controls.querySelector('span').textContent=battle.phase==='raid'?'Vikingerne plyndrer husene':battle.exitStart!==null?(battle.winner===null?'Begge hold trækker sig tilbage':battle.winner?'Vikingerne drager af sted med byttet':'Bosættelsen er forsvaret'):(battle.village?'Vikingelandgang ved landsbyen':`Vikingelandgang · ${battle.formations[0].length} grupper pr. side`);
   const motion=root.dataset.animation!=='false'&&!reduced.matches;
   battle.settlement.forEach((house,i)=>{
-   const el=houses[i],scale=innerWidth<700?.63:1;
+   const el=houses[i],scale=(innerWidth<700?.42:.85)*(house.variant===1?1.15:house.variant===2?.8:1);
    el.style.transform=`translate(${house.x*innerWidth}px,${house.y*innerHeight}px) scale(${scale}) translate(-75px,-140px)`;
    el.style.zIndex=String(Math.round(house.y*1000)-2);
+   el.classList.toggle('is-being-raided',battle.units.some(u=>u.raidHouse===house.id&&u.state==='inside'));
    el.classList.toggle('is-raided',battle.units.some(u=>u.raidHouse===house.id&&u.loot));
   });
   battle.boats.forEach((b,i)=>{
@@ -125,7 +140,7 @@
    el.style.opacity=dead?String(motion?Math.max(0,1-Math.max(0,age-1.8)/2):0):'1';
    el.style.setProperty('--facing',u.facing);
    el.classList.toggle('is-fallen',dead);el.classList.toggle('is-running',!dead&&u.state==='running');el.classList.toggle('is-fighting',!dead&&u.state==='fighting');
-   el.disabled=dead;el.tabIndex=dead||u.x<0||u.x>1?-1:0;
+   el.disabled=dead||u.civilian;el.tabIndex=dead||u.civilian||u.x<0||u.x>1?-1:0;
    el.hidden=dead&&(!motion||age>4)||u.state==='offscreen'||u.state==='inside'||(boat&&!boat.visible);
   });
   battle.catapults.forEach((cart,i)=>{
