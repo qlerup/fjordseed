@@ -27,10 +27,11 @@ for(const width of [390,1440]){
    assert(['hearts','skulls'].includes(house.symbolType)&&house.symbolUntil>b.time,'Every house entry must show a symbol throughout the visit');
   }
  };
- let hiding=false,visiting=false;const symbols=new Set();
+ let hiding=false,visiting=false;const symbols=new Set(),inbound=b.boats.map(()=>[]);
  while(b.time<150&&b.phase!=='raid'){
   b.advance(.05,width,950);
   assertHouseSignals();
+  if(b.phase==='arrival')for(const boat of b.boats)inbound[boat.id].push({progress:boat.progress,x:boat.x,y:boat.y,scale:boat.scale});
   hiding ||= b.units.some(u=>u.civilian&&u.state==='hiding');
   visiting ||= b.units.some(u=>u.visitingHouse!=null&&u.state==='inside');
   b.settlement.forEach(h=>{if(h.symbolType)symbols.add(h.symbolType);});
@@ -77,13 +78,20 @@ for(const width of [390,1440]){
  assert.equal(b.phase,'departure');
  for(let i=0;i<160;i++){
   const previous=b.boats.map(boat=>({y:boat.y,scale:boat.scale}));b.advance(.05,width,950);
-  b.boats.forEach((boat,i)=>{assert(boat.y<=previous[i].y);assert(boat.scale<=previous[i].scale);});
+  b.boats.forEach((boat,i)=>{
+   assert(boat.y<=previous[i].y);assert(boat.scale<=previous[i].scale);
+   assert(boat.y>=.35&&boat.y<=boat.dockY,'Departing ships must remain on the water');
+   const match=inbound[i].reduce((a,p)=>Math.abs(p.progress-boat.progress)<Math.abs(a.progress-boat.progress)?p:a);
+   assert(Math.hypot(boat.x-match.x,boat.y-match.y)<.005,'Departure follows the same route as arrival');
+   assert(Math.abs(boat.scale-match.scale)<.003);
+  });
   for(const u of crew){const boat=b.boats[u.boat];assert(Math.abs(u.x-boat.x-u.seatOffset*boat.scale/width)<1e-9);assert(u.y<Battle.LAND);}
  }
  assert(b.boats.every(boat=>boat.y<boat.dockY&&boat.scale<.63));
  assert(captives.every(u=>u.state==='aboard'&&u.deadAt===null),'Captured residents leave alive with their escort');
  while(b.phase!=='clear')b.advance(.05,width,950);
  assert(b.boats.every(boat=>!boat.visible));
+ assert(b.boats.every(boat=>Math.abs(boat.x-boat.entryX)<1e-9&&boat.y===.35&&boat.scale===.15),'Ships disappear at their original entrance');
  while(b.round===round)b.advance(.05,width,950);
  assert.equal(b.returnStart,null);assert.equal(b.sailStart,null);assert.equal(b.departureEnd,null);
  b.reset();assert(b.units.every(u=>u.deadAt===null&&u.enemyId===null&&!u.sheltered&&u.visitingHouse==null&&u.capturedBy==null&&u.captiveId==null));

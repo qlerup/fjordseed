@@ -285,6 +285,9 @@
     let progress=arrival*arrival*(3-2*arrival);
     const ahead=this.boats[boat.id-2];
     if(ahead&&ahead.progress<.9)progress=Math.min(progress,Math.max(0,ahead.progress-.10));
+    const departure=this.sailStart===null?null:clamp((this.time-this.sailStart-boat.id*.5)/18,0,1);
+    // Retrace the inbound water route, ending at the original fjord entrance.
+    if(departure!==null)progress=1-departure*departure*(3-2*departure);
     boat.progress=progress;
     const entry=boat.entryX;
     const envelope=Math.sin(Math.PI*progress);
@@ -292,13 +295,8 @@
     const channel=boat.id%2?.67:.40;
     boat.x=entry+(channel-entry)*progress+(boat.dock-channel)*fan+(boat.id%2?-.024:.024)*envelope+boat.bend*Math.sin(progress*Math.PI*2)*envelope;
     boat.y=.35+(boat.dockY-.35)*progress;boat.scale=.15+.48*progress;
-    boat.heading=Math.sin(progress*Math.PI*2)*(boat.id%2?-3:3);
-    boat.visible=this.phase!=='clear'&&this.time>=boat.delay;
-    if(this.sailStart!==null){
-     const away=clamp((this.time-this.sailStart-boat.id*.5)/18,0,1),p=away*away*(3-2*away);
-     boat.x=boat.dock+(boat.entryX-boat.dock)*p;boat.y=boat.dockY+(-.12-boat.dockY)*p;
-     boat.scale=.63+(.10-.63)*p;boat.heading=Math.sin(p*Math.PI)*(boat.entryX<boat.dock?-8:8);boat.visible=away<1;
-    }
+    boat.heading=Math.sin(progress*Math.PI*2)*(boat.id%2?-3:3)*(departure===null?1:-1);
+    boat.visible=this.phase!=='clear'&&(departure===null?this.time>=boat.delay:departure<1);
    }
    if(this.phase==='clear'){for(const u of this.units){u.state=u.deadAt===null?'offscreen':'fallen';u.x=u.team?1.25:-.25;}return;}
    for(const u of this.units){

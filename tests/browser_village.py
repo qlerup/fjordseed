@@ -21,6 +21,7 @@ with sync_playwright() as p:
   assert page.locator('main').evaluate('e=>e.inert')
   def advance(seconds):
    page.evaluate('seconds=>{for(let i=0;i<seconds*20;i++)testBattle.advance(.05,innerWidth,innerHeight);dispatchEvent(new Event("resize"));}',seconds)
+   assert page.evaluate('testBattle.boats.every(b=>b.y>=.35&&b.y<=b.dockY)')
    assert page.evaluate('''()=>testBattle.units.filter(u=>u.team===1&&u.state==='inside').every(u=>{const id=u.visitingHouse??u.raidHouse;const symbols=document.querySelector('.house-symbols.is-active[data-house="'+id+'"]');if(!symbols)return false;const badge=symbols.querySelector('.house-symbol-badge');return getComputedStyle(symbols).display!=='none'&&getComputedStyle(badge).opacity==='1'&&badge.getBoundingClientRect().width>=36;})''')
   expect(page.locator('.viking-settlement-house')).to_have_count(9)
   expect(page.locator('.viking-longship')).to_have_count(3)
