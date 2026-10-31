@@ -25,7 +25,7 @@ for(const width of [390,1440]){
   hiding ||= b.units.some(u=>u.civilian&&u.state==='hiding');
   visiting ||= b.units.some(u=>u.visitingHouse!=null&&u.state==='inside');
   b.settlement.forEach(h=>{if(h.symbolType)symbols.add(h.symbolType);});
-  for(const u of b.units.filter(u=>u.civilian)){
+  for(const u of b.units.filter(u=>u.civilian&&u.capturedBy==null)){
    assert(u.x>=.025&&u.x<=.64&&u.y>=Battle.LAND&&u.y<=.95,'Frightened residents stay in the picture');
    assert.notEqual(u.state,'offscreen');
   }
@@ -36,11 +36,23 @@ for(const width of [390,1440]){
  assert(residents.some(u=>u.sheltered&&u.deadAt===null),'Hearts spare residents inside houses');
  assert(residents.some(u=>u.diedInside),'Skulls resolve a fatal house encounter');
  assert(hiding&&visiting);assert.deepEqual([...symbols].sort(),['hearts','skulls']);
- assert(residents.every(u=>u.deadAt!==null||u.sheltered));
+ assert(residents.every(u=>u.deadAt!==null||u.sheltered||u.capturedBy!=null));
+ assert.equal(b.boats.length,3);
+ const captives=residents.filter(u=>u.capturedBy!=null);assert(captives.length>0&&captives.length<=3);
  assert(residents.every(u=>u.attackAt===-10),'Residents flee without fighting');
  const fallen=residents.find(u=>u.deadAt!==null),position=[fallen.x,fallen.y];
  b.advance(.1,width,950);assert.deepEqual([fallen.x,fallen.y],position);
- while(b.time<b.exitStart-.1)b.advance(.05,width,950);
+ let earlyReturn=false,lootReturn=false;
+ while(b.time<b.exitStart-.1){
+  const previous=b.units.map(u=>({x:u.x,y:u.y,state:u.state}));b.advance(.05,width,950);
+  for(const u of b.units.filter(u=>u.team===1&&u.deadAt===null&&!u.withdrawing)){
+   earlyReturn ||= u.returnAt!==undefined;
+   lootReturn ||= u.loot&&u.returnAt!==undefined;
+   if(u.state==='running'&&previous[u.id].state==='running'&&u.returnAt!==b.time)assert(Math.hypot(u.x-previous[u.id].x,u.y-previous[u.id].y)>0,'Finished raiders must not run in place');
+   if(!['landing','boarding'].includes(u.state))assert(b.time-u.jumpAt>.65,'No idle or random jumps after combat');
+  }
+ }
+ assert(earlyReturn&&lootReturn,'Finished raiders immediately carry their loot back to the boats');
  const crew=b.units.filter(u=>u.team===1&&u.deadAt===null&&!u.withdrawing),round=b.round;
  assert(crew.some(u=>u.loot),'Raiders carry loot bags back');
  let jumping=false;
@@ -60,11 +72,12 @@ for(const width of [390,1440]){
   for(const u of crew){const boat=b.boats[u.boat];assert(Math.abs(u.x-boat.x-u.seatOffset*boat.scale/width)<1e-9);assert(u.y<Battle.LAND);}
  }
  assert(b.boats.every(boat=>boat.y<boat.dockY&&boat.scale<.63));
+ assert(captives.every(u=>u.state==='aboard'&&u.deadAt===null),'Captured residents leave alive with their escort');
  while(b.phase!=='clear')b.advance(.05,width,950);
  assert(b.boats.every(boat=>!boat.visible));
  while(b.round===round)b.advance(.05,width,950);
  assert.equal(b.returnStart,null);assert.equal(b.sailStart,null);assert.equal(b.departureEnd,null);
- b.reset();assert(b.units.every(u=>u.deadAt===null&&u.enemyId===null&&!u.sheltered&&u.visitingHouse==null));
+ b.reset();assert(b.units.every(u=>u.deadAt===null&&u.enemyId===null&&!u.sheltered&&u.visitingHouse==null&&u.capturedBy==null&&u.captiveId==null));
  assert(b.settlement.every(h=>!h.encounter&&!h.symbolType));
 }
 {
@@ -81,6 +94,24 @@ for(const width of [390,1440]){
  assert([...directions.values()].some(d=>d.has(-1)&&d.has(1)),'Panicked residents change direction');
 }
 console.log('PASS direct pursuit, bounded panic, hiding, both house outcomes and clean restart on mobile/desktop');
+{
+ const b=new Battle(4,()=>.5,true);b.time=b.arrivalEnd+1;
+ const captive=b.units[0],escort=b.units[1];captive.state='running';
+ assert(b.capture(escort,captive));assert(!b.capture(b.units[3],captive),'A resident cannot have two escorts');
+ assert.equal(captive.capturedBy,escort.id);
+ b.kill(escort.id);assert.equal(captive.capturedBy,null);assert.equal(escort.captiveId,null);
+ assert.equal(captive.state,'running','Prisoners can escape if their escort is defeated on shore');
+ assert.equal(b.winner,null,'A freed resident still counts as a survivor');
+}
+{
+ const b=new Battle(4,()=>.5,true);b.time=b.arrivalEnd+1;
+ for(const resident of b.units.filter(u=>u.civilian)){resident.houseId=1;resident.state='hiding';resident.sheltered=true;}
+ b.checkVictory();
+ const raider=b.units[1];raider.raidHouse=1;raider.raidDuration=1;raider.raidDelay=0;raider.raidFromX=raider.x;raider.raidFromY=raider.y;
+ b.advance(1.1);
+ assert.equal(raider.state,'inside');assert.equal(b.settlement[1].symbolType,'hearts');
+ assert(b.settlement[1].symbolUntil>b.time,'Occupied houses also show symbols during post-battle looting');
+}
 {
  const b=new Battle(4,()=>.5,true),resident=b.units[0];
  resident.houseId=1;resident.state='hiding';resident.x=b.settlement[1].x;resident.y=b.settlement[1].y;

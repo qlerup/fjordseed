@@ -133,12 +133,16 @@ body.viking-full-view>.ambient-scene,body.viking-full-view>.viking-battle{visibi
 @keyframes village-rummage{to{translate:1.5px 0;rotate:.5deg}}
 @keyframes village-dust{to{translate:8px -8px;opacity:.3}}
 @media(prefers-reduced-motion:reduce){.viking-settlement-house.is-being-raided svg,.viking-settlement-house.is-being-raided::after{animation:none}}
-.house-symbols{display:none;position:absolute;inset:0;pointer-events:none}
-.has-hearts .house-hearts,.has-skulls .house-skulls{display:block}
-.viking-settlement-house .house-symbols svg{position:absolute;left:calc(23px + var(--i)*20px);top:20px;width:28px;height:28px;opacity:0;animation:house-symbol-rise 2.8s calc(var(--i)*-.56s) ease-out infinite;filter:drop-shadow(0 2px 2px #14242a99)}
+.house-symbols{display:none;position:absolute;width:120px;height:32px;z-index:2000;pointer-events:none}
+.captive-cuffs{display:none}.is-captive .captive-cuffs{display:block}
+.captive-chain{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;fill:none}
+.captive-chain .chain-shadow{stroke:#172225;stroke-width:4;stroke-linecap:round}
+.captive-chain .chain-links{stroke:#c0cbc8;stroke-width:2;stroke-dasharray:4 2;stroke-linecap:round}
+.house-symbols.is-active{display:block}
+.house-symbols svg{position:absolute;left:calc(var(--i)*23px);top:0;width:32px;height:32px;opacity:0;animation:house-symbol-rise 2.8s calc(var(--i)*-.56s) ease-out infinite;filter:drop-shadow(0 2px 2px #14242a99)}
 .viking-settlement-house.has-hearts>svg{animation:house-peace 1.8s ease-in-out infinite alternate}
 .viking-settlement-house.has-skulls>svg{animation:village-rummage .16s ease-in-out infinite alternate}
 .has-hidden-residents:not(.has-skulls):not(.has-hearts)>svg{filter:drop-shadow(0 0 4px #e3bd7444)}
-@keyframes house-symbol-rise{0%{opacity:0;transform:translate(0,0) scale(.6)}18%{opacity:1}75%{opacity:.9}100%{opacity:0;transform:translate(calc((var(--i) - 2)*9px),-90px) rotate(calc((var(--i) - 2)*9deg)) scale(1.1)}}
+@keyframes house-symbol-rise{0%{opacity:0;transform:translate(0,0) scale(.85)}18%{opacity:1}75%{opacity:.9}100%{opacity:0;transform:translate(calc((var(--i) - 2)*9px),-90px) rotate(calc((var(--i) - 2)*9deg)) scale(1.1)}}
 @keyframes house-peace{to{filter:drop-shadow(0 0 9px #e8a5ae88)}}
-@media(prefers-reduced-motion:reduce){.viking-settlement-house .house-symbols svg{animation:none;opacity:1;top:-15px}.viking-settlement-house.has-hearts>svg,.viking-settlement-house.has-skulls>svg{animation:none}}
+@media(prefers-reduced-motion:reduce){.house-symbols svg{animation:none;opacity:1}.viking-settlement-house.has-hearts>svg,.viking-settlement-house.has-skulls>svg{animation:none}}

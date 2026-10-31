@@ -24,7 +24,7 @@
     }
     return selected;
    });
-   const fleetSize=5+Math.floor(this.random()*4);
+   const fleetSize=this.village?3:5+Math.floor(this.random()*4);
    this.boats=Array.from({length:fleetSize},(_,id)=>{
     const delay=Math.floor(id/2)*3.8+(id%2)*1.2,duration=this.range(24,28);
     return {id,team:1,entryX:id%2?.76:.28,x:id%2?.76:.28,y:.35,scale:.15,
@@ -48,7 +48,7 @@
     const targetX=centerX+front-column*.03-(archer?.035:0)+this.range(-.004,.004);
     const targetY=centerY+lane*.032;
     const seats=boat===null?0:Math.ceil((this.count/2-boat)/fleetSize),seat=Math.floor(rank/fleetSize);
-    return {id,team,lane,squad,boat,seatOffset:(seat-(seats-1)/2)*26,archer,spearman:(!this.village||team===1)&&!archer&&rank%3===1,strategy,civilian:this.village&&team===0,female:rank%2===0,fleeDelay:this.range(0,7),
+    return {id,team,lane,squad,boat,seatOffset:(seat-(seats-1)/2)*Math.min(26,150/Math.max(1,seats-1)),archer,spearman:(!this.village||team===1)&&!archer&&rank%3===1,strategy,civilian:this.village&&team===0,female:rank%2===0,fleeDelay:this.range(0,7),
      x:team?this.boats[boat].x:targetX+.16,y:team?.35:targetY,entryX,
      targetX:team?1-targetX:targetX+.16,targetY,bend:this.range(-.015,.015),
      speed:this.range(32,57),decisionAt:0,side:0,enemyId:null,
@@ -72,12 +72,12 @@
   }
   checkVictory(){
    if(this.phase!=='battle'||this.settlement.some(h=>h.encounter))return;
-   const teams=new Set(this.units.filter(u=>u.deadAt===null&&!u.withdrawing&&!u.sheltered&&u.state!=='offscreen').map(u=>u.team));
+   const teams=new Set(this.units.filter(u=>u.deadAt===null&&!u.withdrawing&&!u.sheltered&&u.capturedBy==null&&u.state!=='offscreen').map(u=>u.team));
    if(teams.size>1)return;
    this.winner=teams.size?[...teams][0]:null;this.raidStart=this.winner===1?this.time:null;
    this.exitStart=this.time+(this.winner===1?18:0);this.arrows=[];this.rocks=[];
    const leader=this.units.find(u=>u.deadAt===null&&!u.withdrawing&&u.team===this.winner);
-   const pool=this.units.filter(u=>u.team===1&&u.deadAt===null&&!u.withdrawing),raiders=new Set();
+   const pool=this.units.filter(u=>u.team===1&&u.deadAt===null&&!u.withdrawing&&u.captiveId==null),raiders=new Set();
    while(pool.length&&raiders.size<6){const index=Math.floor(this.random()*pool.length);raiders.add(pool.splice(index,1)[0].id);}
    for(const u of this.units){
     if(u.deadAt!==null||u.civilian)continue;
@@ -112,19 +112,20 @@
    if(u.hp<=0)this.kill(u.id);
    else if(limb&&!u.withdrawing&&!u.civilian){
     u.withdrawing=true;u.withdrawAt=this.time;u.withdrawX=u.x;u.enemyId=null;u.attackAt=-10;u.shotAt=-10;u.nextJump=Infinity;u.state='running';u.facing=u.team?1:-1;
+    this.releaseCaptive(u);
    }
    this.checkVictory();
   }
   kill(id){
    const u=this.units[id];if(!u||u.deadAt!==null||this.phase==='clear')return false;
-   u.diedInside=u.state==='hiding';u.deadAt=this.time;u.state='fallen';u.jumpAt=-10;if(!u.diedInside)this.blood(u,u.facing);this.checkVictory();return true;
+   u.diedInside=u.state==='hiding';u.deadAt=this.time;u.state='fallen';u.jumpAt=-10;this.releaseCaptive(u);if(!u.diedInside)this.blood(u,u.facing);this.checkVictory();return true;
   }
   move(u,dx,dy,dt,width,height,speed=u.speed){
    const gait=u.lostLeg?.24+.22*Math.max(0,Math.sin(this.time*5+u.id)):1;
    const distance=Math.hypot(dx,dy)||1,step=Math.min(distance,dt*speed*gait);
    let nx=clamp(u.x+dx/distance*step/width,.025,.975),ny=clamp(u.y+dy/distance*step/height,Battle.LAND,.95);
    for(const other of this.units){
-    if(other.id===u.id||other.deadAt!==null||other.withdrawing||['sailing','hiding','inside'].includes(other.state)||other.sheltered)continue;
+    if(other.id===u.id||other.deadAt!==null||other.withdrawing||other.capturedBy!=null||['sailing','hiding','inside'].includes(other.state)||other.sheltered)continue;
     const ox=(nx-other.x)*width,oy=(ny-other.y)*height;
     const contact=width<700?21:27;
     if(other.team!==u.team&&Math.abs(oy)<18&&Math.abs(ox)<contact){
@@ -201,6 +202,34 @@
    if(leap<1){u.jumpAt=u.returnAt+u.returnDuration;u.jumpHeight=36;}
    else{u.jumpAt=-10;u.facing=boat.entryX<boat.dock?-1:1;}
   }
+  capture(raider,resident){
+   if(!this.village||raider.team!==1||raider.deadAt!==null||raider.captiveId!=null||!resident.civilian||resident.deadAt!==null||resident.capturedBy!=null||resident.sheltered||resident.state==='hiding')return false;
+   raider.captiveId=resident.id;raider.enemyId=null;raider.attackAt=-10;raider.shotAt=-10;raider.jumpAt=-10;
+   resident.capturedBy=raider.id;resident.boat=raider.boat;resident.seatOffset=raider.seatOffset+12;resident.state='captive';resident.jumpAt=-10;delete resident.houseId;
+   this.checkVictory();return true;
+  }
+  releaseCaptive(escort){
+   const captive=this.units[escort.captiveId];
+   if(!captive||captive.capturedBy!==escort.id||captive.state==='aboard')return;
+   captive.capturedBy=null;escort.captiveId=null;captive.state='running';captive.panicAt=0;
+  }
+  updateCaptives(dt,width,height){
+   for(const captive of this.units.filter(u=>u.capturedBy!=null&&u.deadAt===null)){
+    const escort=this.units[captive.capturedBy],boat=this.boats[captive.boat];
+    if((escort.deadAt!==null||escort.withdrawing)&&captive.state!=='aboard'){
+     this.releaseCaptive(escort);continue;
+    }
+    if(escort.state==='aboard'||captive.state==='aboard'){
+     captive.state='aboard';captive.x=boat.x+captive.seatOffset*boat.scale/width;captive.y=boat.y-18*boat.scale/height;
+    }else{
+     const tx=clamp(escort.x-escort.facing*52/width,.035,.975),ty=Math.max(Battle.LAND,escort.y+.006);
+     const dx=(tx-captive.x)*width,dy=(ty-captive.y)*height,distance=Math.hypot(dx,dy),step=Math.min(distance,dt*90);
+     if(distance){captive.x+=dx/distance*step/width;captive.y+=dy/distance*step/height;}
+     captive.state=distance>2?'captive':'captive-waiting';
+    }
+    captive.facing=escort.facing;
+   }
+  }
   advance(dt,width=1600,height=1000){
    if(!Number.isFinite(dt)||dt<=0)return;
    this.time+=dt;
@@ -214,7 +243,7 @@
    for(const arrow of this.arrows){
     if(!arrow.landed&&this.time-arrow.at>=arrow.duration){
      arrow.landed=true;const target=this.units[arrow.target];
-     if((this.phase==='battle'||this.village&&this.phase==='arrival')&&target.deadAt===null&&!target.sheltered&&!['offscreen','hiding'].includes(target.state)&&Math.hypot((target.x-arrow.tx)*width,(target.y-arrow.ty)*height)<26&&this.random()<.55){
+     if((this.phase==='battle'||this.village&&this.phase==='arrival')&&target.deadAt===null&&target.capturedBy==null&&!target.sheltered&&!['offscreen','hiding'].includes(target.state)&&Math.hypot((target.x-arrow.tx)*width,(target.y-arrow.ty)*height)<26&&this.random()<.55){
       this.wound(target,arrow.direction);
      }
     }
@@ -267,11 +296,12 @@
    if(this.phase==='clear'){for(const u of this.units){u.state=u.deadAt===null?'offscreen':'fallen';u.x=u.team?1.25:-.25;}return;}
    for(const u of this.units){
     if(u.deadAt!==null)continue;
+    if(u.capturedBy!=null)continue;
     if(u.civilian){
      this.panic(u,dt,width,height);
      continue;
     }
-    if(this.returnStart!==null&&u.team===1&&!u.withdrawing){this.returnToBoat(u,width,height);continue;}
+    if((this.returnStart!==null||u.captiveId!=null)&&u.team===1&&!u.withdrawing){this.returnToBoat(u,width,height);continue;}
     if(u.visitingHouse!==undefined&&u.visitingHouse!==null)continue;
     const landingBoat=u.boat===null?null:this.boats[u.boat];
     const landingEnd=landingBoat?landingBoat.landAt+Math.floor(Math.floor(u.id/2)/this.boats.length)*.18+1.2:0;
@@ -298,14 +328,23 @@
      u.state=progress===1?'guarding':'running';
      if(boat&&this.time-start<dt)u.jumpAt=this.time;
     }else if(this.phase==='raid'&&u.team===1&&!u.withdrawing){
-     if(u.raidHouse===undefined){u.state='guarding';continue;}
+     if(u.raidHouse===undefined){if(this.village)this.returnToBoat(u,width,height);else u.state='guarding';continue;}
      const house=this.settlement[u.raidHouse],age=this.time-this.raidStart-u.raidDelay;
      if(age<0){u.state='guarding';continue;}
      if(age<u.raidDuration){
       const p=clamp(age/u.raidDuration,0,1);u.x=u.raidFromX+(house.x-u.raidFromX)*p;u.y=u.raidFromY+(house.y-u.raidFromY)*p;
       u.facing=house.x<u.raidFromX?-1:1;u.state='running';
-     }else if(age<u.raidDuration+2.2){u.x=house.x;u.y=house.y;u.state='inside';}
-     else{u.loot=true;u.state='running';u.facing=1;const p=clamp((age-u.raidDuration-2.2)/2,0,1);u.x=house.x+.04*p;u.y=house.y+.012*p;}
+     }else if(age<u.raidDuration+2.2){
+      u.x=house.x;u.y=house.y;u.state='inside';
+      if(this.village&&!u.raidSignaled&&this.units.some(resident=>resident.civilian&&resident.deadAt===null&&resident.houseId===house.id&&resident.state==='hiding')){
+       house.symbolType='hearts';house.symbolUntil=this.time+5.5;u.raidSignaled=true;
+      }
+     }
+     else{
+      u.loot=true;
+      if(this.village){this.returnToBoat(u,width,height);continue;}
+      const p=clamp((age-u.raidDuration-2.2)/2,0,1);u.state=p<1?'running':'guarding';u.facing=1;u.x=house.x+.04*p;u.y=house.y+.012*p;
+     }
      u.exitX=u.x;continue;
     }else if(this.phase==='retreat'){
      if(u.exitX===null)u.exitX=u.x;
@@ -321,7 +360,7 @@
      this.bleed(u);
      continue;
     }else{
-     const enemies=this.units.filter(e=>e.team!==u.team&&e.deadAt===null&&!e.withdrawing&&!e.sheltered&&e.state!=='offscreen'&&!(e.state==='hiding'&&this.settlement[e.houseId].encounter));
+     const enemies=this.units.filter(e=>e.team!==u.team&&e.deadAt===null&&!e.withdrawing&&!e.sheltered&&e.capturedBy==null&&e.state!=='offscreen'&&!(e.state==='hiding'&&this.settlement[e.houseId].encounter));
      let enemy=this.units[u.enemyId];
      const nearest=enemies.reduce((best,e)=>!best||Math.hypot((e.x-u.x)*width,(e.y-u.y)*height)<Math.hypot((best.x-u.x)*width,(best.y-u.y)*height)?e:best,null);
      if(nearest&&Math.hypot((nearest.x-u.x)*width,(nearest.y-u.y)*height)<75){
@@ -336,7 +375,7 @@
       // Sometimes assist a nearby ally; otherwise look for a separate duel.
       enemy=teamed.length&&this.random()<.35?teamed[0]:ranked[Math.min(ranked.length-1,this.random()<.18?1:0)];
       u.enemyId=enemy?.id;u.side=this.range(-16,16);u.decisionAt=this.time+this.range(1.3,3.8);
-      if(!enemy?.civilian&&this.random()<.22){u.evadeUntil=this.time+this.range(.6,1.2);u.evadeSide=this.random()<.5?-1:1;if(this.random()<.3)u.jumpAt=this.time;}
+      if(enemy&&!enemy.civilian&&this.random()<.22){u.evadeUntil=this.time+this.range(.6,1.2);u.evadeSide=this.random()<.5?-1:1;if(this.random()<.3)u.jumpAt=this.time;}
      }
      if(!enemy){
       u.state='guarding';
@@ -390,16 +429,18 @@
        u.struck=true;
        // Resolve hits at axe impact rather than killing on a scripted timer.
        if(close&&this.random()<.32){
-        this.wound(enemy,u.facing,u.team===1&&!u.spearman);
+        if(this.village&&enemy.civilian&&u.captiveId==null&&this.units.filter(unit=>unit.capturedBy!=null).length<this.boats.length&&this.random()<.25)this.capture(u,enemy);
+        else this.wound(enemy,u.facing,u.team===1&&!u.spearman);
        }
       }
      }
     }
-    if(this.time>=u.nextJump){
+    if(!this.village&&this.time>=u.nextJump){
      if(u.state==='running')u.jumpAt=this.time;
      u.nextJump=this.time+this.range(5,15);
     }
    }
+   this.updateCaptives(dt,width,height);
    if(this.returnStart!==null&&this.sailStart===null&&this.units.filter(u=>u.team===1&&u.deadAt===null&&!u.withdrawing).every(u=>u.state==='aboard')){
     this.sailStart=this.time;this.departureEnd=this.time+18+(this.boats.length-1)*.5+1;
    }
