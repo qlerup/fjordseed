@@ -21,10 +21,13 @@ with sync_playwright() as p:
   def advance(seconds):
    page.evaluate('seconds=>{for(let i=0;i<seconds*20;i++)testBattle.advance(.05,innerWidth,innerHeight);dispatchEvent(new Event("resize"));}',seconds)
   advance(5)
-  expect(page.locator('.viking-longship:not([hidden])')).to_have_count(2)
+  assert 5<=page.locator('.viking-longship:not([hidden])').count()<=8
   assert page.evaluate('testBattle.units.some(u=>u.state==="sailing")')
   page.screenshot(path=str(root/f'test-results/viking-boats-{width}.png'))
-  advance(27)
+  advance(3.5)
+  assert page.evaluate('testBattle.units.some(u=>u.state==="landing")')
+  page.screenshot(path=str(root/f'test-results/viking-landing-{width}.png'))
+  advance(23.5)
   expect(page.locator('.viking-warrior.is-archer').first).to_be_visible()
   for _ in range(30):
    if page.locator('.viking-arrow').count():break
@@ -39,6 +42,13 @@ with sync_playwright() as p:
   advance(2)
   assert page.locator('.viking-blood').count()<=40
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+  round_before=page.evaluate('testBattle.round')
+  page.evaluate('()=>{for(const u of testBattle.units)if(u.team===1)testBattle.kill(u.id);dispatchEvent(new Event("resize"));}')
+  expect(page.locator('.has-victory-flag .viking-victory-flag')).to_be_visible()
+  page.screenshot(path=str(root/f'test-results/viking-victory-{width}.png'))
+  advance(13.2)
+  assert page.evaluate('testBattle.round')==round_before+1
+  assert page.locator('.has-victory-flag').count()==0
   assert not errors,errors
   page.keyboard.press('Escape')
   expect(page.locator('#battle-full-view')).to_be_visible()

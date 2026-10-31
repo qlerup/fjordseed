@@ -32,6 +32,7 @@ with tempfile.TemporaryDirectory() as folder:
    page.locator('#battle-full-view').click()
    expect(page.locator('body')).to_have_class('viking-full-view')
    expect(page.locator('.viking-view-controls')).to_be_visible()
+   expect(page.locator('.theme-option:has(input:checked) .theme-selected')).to_be_hidden()
    page.keyboard.press('Escape')
    expect(page.locator('#battle-full-view')).to_be_focused()
    page.evaluate('window.scrollTo(0,0)')
@@ -49,7 +50,7 @@ with tempfile.TemporaryDirectory() as folder:
    # Pause at arrival and use a visible actor in the free bottom margin.
    page.reload()
    expect(page.locator('html')).to_have_attribute('data-theme','viking')
-   expect(page.locator('.viking-warrior:not([hidden])')).to_have_count(24)
+   expect(page.locator('.viking-warrior:not([hidden])')).to_have_count(64)
    page.screenshot(path=str(root/'test-results/theme-viking-desktop.png'),full_page=True)
    # The settings form covers most of the background; test pointer targeting
    # in the empty downloads area, without relying on random spawn positions.

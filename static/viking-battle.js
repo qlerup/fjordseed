@@ -22,7 +22,7 @@
  fullButton?.addEventListener('click',()=>fullView(true));
  controls.querySelector('button').addEventListener('click',()=>fullView(false));
  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!controls.hidden){event.preventDefault();fullView(false);}});
- const battle=new window.FjordBattleModel(innerWidth<700?16:24);
+ const battle=new window.FjordBattleModel(innerWidth<700?40:64);
  let raf=0,last=0,renderedRound=0,actors=[],boats=[],splashes=new Map(),arrows=new Map();
  const axe='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 65 85"><path d="M17 80L42 9" stroke="#211d17" stroke-width="9"/><path d="M17 80L42 9" stroke="#b69a69" stroke-width="5"/><path d="M37 13L53 5Q49 18 62 31L41 30L35 25Z" fill="#b9c9c5" stroke="#445959" stroke-width="2"/><path d="M53 5Q49 18 62 31" stroke="#edf0d9" stroke-width="3"/></svg>';
  layer.style.setProperty('--axe-cursor',`url("data:image/svg+xml,${encodeURIComponent(axe)}") 18 20, crosshair`);
@@ -49,7 +49,13 @@
     render();
    });
    el.weapon=el.querySelector('.viking-weapon');el.body=el.querySelector('.viking-body');
+   el.querySelector('svg').insertAdjacentHTML('beforeend',`<g class="viking-victory-flag"><path d="M15 68V-45" stroke="#b89760" stroke-width="3"/><path class="flag-cloth" d="M17-43Q34-48 54-39L48-22Q32-30 17-23Z" fill="${u.team?'#507c84':'#964f43'}" stroke="#e2c58b" stroke-width="2"/><path d="M25-36l9 8m0-11-9 14" stroke="#eed8aa" stroke-width="2"/></g>`);
    el.body.lastElementChild.classList.add('viking-shield');
+   if(u.spearman){
+    el.classList.add('is-spearman');
+    el.weapon.insertAdjacentHTML('afterend','<g class="viking-spear"><path d="M44 47L60 52" stroke="#c4a17b" stroke-width="7" stroke-linecap="round"/><path d="M27 51L113 45" stroke="#bda16c" stroke-width="3"/><path d="M111 41L127 44 112 49Z" fill="#c3d0ca" stroke="#536b6b"/></g>');
+    el.spear=el.querySelector('.viking-spear');
+   }
    if(u.archer){
     el.classList.add('is-archer');
     el.weapon.insertAdjacentHTML('afterend','<g class="viking-bow"><path d="M45 46L67 47" stroke="#c4a17b" stroke-width="7" stroke-linecap="round"/><path d="M65 20Q91 47 65 76" fill="none" stroke="#bd955e" stroke-width="4"/><path class="bow-string" d="M65 20L54 47 65 76" fill="none" stroke="#d9cdb1" stroke-width="1.2"/><path d="M50 47h36m-5-3 5 3-5 3" stroke="#c9c3a6" fill="none" stroke-width="1.5"/></g>');
@@ -61,7 +67,7 @@
   if(renderedRound!==battle.round)build();
   layer.dataset.phase=battle.phase;layer.dataset.round=String(battle.round);
   const strategyNames={shieldwall:'Skjoldmur',wedge:'Kile',flank:'Flankeangreb'};
-  controls.querySelector('span').textContent=`${strategyNames[battle.strategies[0]]} mod ${strategyNames[battle.strategies[1]]}`;
+  controls.querySelector('span').textContent=battle.exitStart!==null?(battle.winner===null?'Begge hold trækker sig tilbage':`${battle.winner?'Blåt':'Rødt'} hold har vundet`):`${strategyNames[battle.strategies[0]]} mod ${strategyNames[battle.strategies[1]]}`;
   const motion=root.dataset.animation!=='false'&&!reduced.matches;
   battle.boats.forEach((b,i)=>{
    const el=boats[i],scale=b.scale*(innerWidth<700?.65:1);
@@ -72,8 +78,8 @@
   battle.units.forEach((u,i)=>{
    const el=actors[i],dead=u.deadAt!==null,age=dead?battle.time-u.deadAt:0;
    const boat=u.state==='sailing'?battle.boats[u.boat]:null;
-   const scale=boat?boat.scale*(innerWidth<700?.65:1)*.68:(innerWidth<700?.7:.86)+(u.y-.7)*.65;
-   const jumpDuration=u.state==='landing'?.8:.65;
+   const scale=boat?boat.scale*(innerWidth<700?.65:1)*.95:(innerWidth<700?.7:.86)+(u.y-.7)*.65;
+   const jumpDuration=u.state==='landing'?1.2:.65;
    const jumpAge=battle.time-u.jumpAt,jump=motion&&jumpAge>=0&&jumpAge<jumpDuration?Math.sin(jumpAge/jumpDuration*Math.PI)*u.jumpHeight:0;
    const attackAge=battle.time-u.attackAt;
    const impact=u.impactDelay,windup=impact*.72,duration=u.attackDuration;
@@ -81,8 +87,10 @@
    const swing=attackAge<windup?8+(pose.back-8)*attackAge/windup:attackAge<impact?pose.back+(pose.hit-pose.back)*(attackAge-windup)/(impact-windup):attackAge<duration?pose.hit+(8-pose.hit)*(attackAge-impact)/(duration-impact):8;
    const lunge=attackAge>=0&&attackAge<duration?Math.sin(Math.min(1,attackAge/impact)*Math.PI/2)*Math.max(0,1-Math.max(0,attackAge-impact)/(duration-impact)):0;
    el.weapon.style.transform=`translateX(${!dead&&u.attackStyle==='jab'?lunge*13:0}px) rotate(${dead?30:swing}deg)`;
+   if(el.spear)el.spear.style.transform=`translateX(${dead?0:lunge*15}px) rotate(${u.attackStyle==='spear-low'?8:0}deg)`;
    el.classList.toggle('is-ranged',u.archer&&u.state!=='fighting');
    el.classList.toggle('lost-arm',!!u.lostArm);el.classList.toggle('lost-leg',!!u.lostLeg);
+   el.classList.toggle('has-victory-flag',!!u.flag);
    el.classList.toggle('is-shooting',u.archer&&battle.time-u.shotAt<.25);
    el.body.style.transform=`translateX(${dead?0:lunge*3}px) rotate(${!dead&&battle.time-u.hitAt<.22?-10:dead?0:lunge*(u.attackStyle==='sweep'?9:4)}deg)`;
    el.style.zIndex=String(Math.round(u.y*1000));
