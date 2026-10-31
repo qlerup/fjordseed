@@ -106,27 +106,44 @@ with tempfile.TemporaryDirectory() as folder:
             assert glow.evaluate('e=>getComputedStyle(e).animationName') == 'none'
             assert page.locator('aside').evaluate('e=>getComputedStyle(e).animationName') == 'none'
             page.emulate_media(reduced_motion='no-preference')
+            # The second sign is the original navigation, with keyboard and
+            # toggle behavior; it does not duplicate links or change routes.
+            trigger=page.locator('.nav[href="#settings"]')
+            expect(trigger).to_have_attribute('aria-expanded','true')
+            trigger.click(force=True)
+            expect(page.locator('#settings-tabs')).to_be_hidden()
+            expect(page.locator('#appearance-view')).to_be_visible()
+            expect(trigger).to_have_attribute('aria-expanded','false')
+            trigger.click(force=True)
+            expect(page.locator('#settings-tabs')).to_be_visible()
+            trigger.press('Escape')
+            expect(page.locator('#settings-tabs')).to_be_hidden()
+            expect(trigger).to_be_focused()
+            trigger.click(force=True)
+            page.locator('#settings-tabs a[href="#connection"]').click(force=True)
+            expect(page.locator('#connection')).to_be_visible()
             for width in (1920,1440,900,390,320):
                 page.set_viewport_size({'width':width,'height':1000})
                 page.goto(base+'/#overview')
                 expect(page.locator('#tracker-insights')).to_be_visible()
                 expect(page.locator('.insights-current svg')).to_be_visible()
-                nav=page.locator('aside')
-                assert nav.evaluate('e=>getComputedStyle(e).animationName') == ('nordic-sign-sway' if width>1100 else 'none')
-                if width>1100:
+                nav=page.locator('.navigation-signs')
+                assert nav.evaluate('e=>getComputedStyle(e).animationName') == ('nordic-sign-sway' if width>800 else 'none')
+                if width>800:
                     # The sign intentionally keeps moving while hovered.
                     box=nav.bounding_box()
                     assert box['width'] < 950
-                    assert abs(box['x']+box['width']/2-width/2) < 4
+                    assert abs(box['x']+box['width']/2-width/2) < 8
                     page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2)
                     assert nav.evaluate('e=>getComputedStyle(e).animationPlayState') == 'running'
                     traffic=page.locator('#traffic-flow').bounding_box()
                     assert traffic['y']+traffic['height'] <= page.locator('#tracker-overview').bounding_box()['y']
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('overview',width)
-                page.screenshot(path=str(root/f'test-results/nordic-overview-{width}.png'),full_page=True,animations='disabled')
+                page.screenshot(path=str(root/f'test-results/nordic-overview-{width}.png'),full_page=True,animations='allow')
                 page.goto(base+'/#appearance')
                 expect(page.locator('#appearance-view')).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('appearance',width)
+                page.locator('.settings-sign-hanger').evaluate('async e=>Promise.all(e.getAnimations().map(a=>a.finished.catch(()=>{})))')
                 page.evaluate('scrollTo(0,0)')
                 page.screenshot(path=str(root/f'test-results/nordic-appearance-{width}.png'),full_page=True)
                 # Skip Playwright's stationary-element wait for the swaying sign.
@@ -139,7 +156,7 @@ with tempfile.TemporaryDirectory() as folder:
                     worklist=page.locator('#downloads-view').bounding_box()
                     assert 0 <= worklist['y']-(toolbar['y']+toolbar['height']) <= 24
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('downloads',width)
-                page.screenshot(path=str(root/f'test-results/nordic-downloads-{width}.png'),full_page=True,animations='disabled')
+                page.screenshot(path=str(root/f'test-results/nordic-downloads-{width}.png'),full_page=True,animations='allow')
                 page.locator('[data-download-filter=manual]').click()
                 expect(page.locator('#torrent-list')).not_to_contain_text('The quiet coast')
                 page.locator('[data-download-filter=all]').click()
@@ -155,23 +172,26 @@ with tempfile.TemporaryDirectory() as folder:
                 page.locator('#add-dialog>.dialog-heading .close').click()
                 page.locator('[data-torrent-toggle-control=details]').first.click()
                 expect(page.locator('.torrent-extra').first).to_be_visible()
-                page.screenshot(path=str(root/f'test-results/nordic-details-{width}.png'),full_page=True,animations='disabled')
+                page.screenshot(path=str(root/f'test-results/nordic-details-{width}.png'),full_page=True,animations='allow')
                 page.locator('[data-torrent-toggle-control=details]').first.click()
                 page.get_by_role('button',name='Ratio Northern landscapes',exact=False).click()
                 expect(page.locator('#edit-ratio-dialog')).to_be_visible()
-                page.screenshot(path=str(root/f'test-results/nordic-ratio-{width}.png'),animations='disabled')
+                page.screenshot(path=str(root/f'test-results/nordic-ratio-{width}.png'),animations='allow')
                 page.locator('#edit-ratio-dialog .close').first.click()
                 # View every settings tab, including long-form converter controls.
                 for tab,view in [('connection','#connection'),('storage','#storage-view'),
                                  ('trackers','#trackers-view'),('conversion','#conversion-view'),('streaming','#streaming-view')]:
                     page.goto(base+'/#'+tab)
                     expect(page.locator(view)).to_be_visible()
-                    if width>1100:
-                        menu=page.locator('#settings-tabs').bounding_box()
-                        assert menu['x']+menu['width'] <= page.locator(view).bounding_box()['x']-16
+                    menu=page.locator('#settings-tabs').bounding_box()
+                    sign=page.locator('aside').bounding_box()
+                    assert menu['y'] >= sign['y']+sign['height']-12
+                    assert menu['y']+menu['height'] <= page.locator(view).bounding_box()['y']
+                    assert page.locator('#settings-tabs').evaluate('e=>e.parentElement.className') == 'settings-sign-hanger'
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), (tab,width)
                     if width in (1440,390):
-                        page.screenshot(path=str(root/f'test-results/nordic-{tab}-{width}.png'),full_page=True,animations='disabled')
+                        page.locator('.settings-sign-hanger').evaluate('async e=>Promise.all(e.getAnimations().map(a=>a.finished.catch(()=>{})))')
+                        page.screenshot(path=str(root/f'test-results/nordic-{tab}-{width}.png'),full_page=True,animations='allow')
             page.set_viewport_size({'width':1440,'height':1000})
             page.goto(base+'/#overview')
             expect(page.locator('.insights-current svg')).to_be_visible()
@@ -189,6 +209,11 @@ with tempfile.TemporaryDirectory() as folder:
                 return first!==next && idle===idleNext && JSON.stringify(scene.rates)===before;
             }""")
             assert 'nordic-saga-fjord-clear.png' in page.locator('.ambient-scene').evaluate('e=>getComputedStyle(e).backgroundImage')
+            # The VPN landmark has no inherited breathing animation, halo or
+            # arrival pulse, even while both streams are active.
+            assert page.locator('.flow-core-shell').evaluate("e=>e.getAnimations({subtree:true}).length") == 0
+            assert page.locator('.flow-core-shell').evaluate("e=>getComputedStyle(e,'::before').animationName") == 'none'
+            assert page.locator('.flow-equalizer').first.evaluate('e=>getComputedStyle(e).display') == 'none'
             page.goto(base+'/#torrents')
             expect(page.locator('#torrent-list .nordic-voyage')).to_have_count(2)
             expect(page.locator('#torrent-list .nordic-voyage-lane[data-moving=true]')).to_have_count(3)
@@ -217,6 +242,9 @@ with tempfile.TemporaryDirectory() as folder:
             page.unroute('**/api/appearance')
             page.locator('#appearance-save').click()
             expect(page.locator('html')).to_have_attribute('data-theme','fjord')
+            assert page.locator('#settings-tabs').evaluate('e=>e.parentElement.tagName') == 'MAIN'
+            assert page.locator('#settings-tabs').count() == 1
+            expect(page.locator('.nav[href="#settings"]')).not_to_have_attribute('aria-expanded','true')
             expect(page.locator('.goat-mountain')).to_be_visible()
             assert page.locator('aside').evaluate('e=>getComputedStyle(e).position') == 'fixed'
             page.locator('[name=theme][value=viking]').check()

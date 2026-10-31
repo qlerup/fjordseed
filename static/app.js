@@ -358,7 +358,7 @@ function renderFlow(data){
  }
  if(!transferFlow&&window.FjordTransferFlow)transferFlow=new window.FjordTransferFlow(flow);
  transferFlow?.update({ready:data.ready,download:rates[0],upload:rates[1]});
- $('#flow-note').textContent=!data.ready?'Afventer bekræftet forbindelse og trafikstatus.':rates.some(rate=>rate===null)?'Forbindelsen er klar. Afventer trafikdata.':rates.every(rate=>rate===0)?'Forbindelsen er klar. Ingen download eller upload lige nu.':'Samlet trafik fra dine manuelle downloads og RSS · mere lys, mere fart.';
+ $('#flow-note').textContent=!data.ready?'Afventer bekræftet forbindelse og trafikstatus.':rates.some(rate=>rate===null)?'Forbindelsen er klar. Afventer trafikdata.':rates.every(rate=>rate===0)?'Forbindelsen er klar. Ingen download eller upload lige nu.':'Samlet download og upload fra dine manuelle downloads og RSS.';
  $('#flow-status').textContent=data.ready?'VPN aktiv':!data.enabled?'Seedbox stoppet':data.torrents_available===false?'Afventer status':'Forbindelse blokeret';
  const code=data.ready?countryCode(data.country):null;
  $('#flow-country').textContent=data.ready?(countryName(data.country)||'Ukendt land'):'Afventer forbindelse';

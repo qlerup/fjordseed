@@ -75,7 +75,7 @@
    this.frame=null;
    const delta=Math.min((now-this.last)/1000,.1);this.last=now;
    this.energy=this.energy.map((level,i)=>level+((this.target?.[i]||0)-level)*Math.min(1,delta*4));
-   this.advance(delta);
+   if(document.documentElement.dataset.theme!=='nordic')this.advance(delta);
    this.draw(now/1000);
 
    this.frame=requestAnimationFrame(this.tick);
@@ -168,40 +168,26 @@
     c.lineWidth=1;c.beginPath();c.arc(p.x,p.y,34+phase*22,0,TAU);c.stroke();
    }
   }
-  // Bronze filaments sit behind a raised, illustrated VPN shield.
+  // Calm directional currents. The shield is a fixed landmark, never a pulse.
   drawNordic(time){
    const c=this.ctx;
-   const moving=this.ready&&this.rates.some(rate=>rate>0);
-   if(this.motion.matches||!moving||document.documentElement.dataset.animation==='false')time=0;
+   if(this.motion.matches||!this.ready||document.documentElement.dataset.animation==='false')time=0;
    c.lineCap='round';
    for(const path of this.paths){
     if(path.strand!==1)continue;
-    const color=path.direction?'143,207,255':'121,239,194';
-    this.stroke(path,0,1,'#b38a4744',1.1);
-    if(!this.ready)continue;
-    this.stroke(path,0,1,`rgba(${color},${.14+this.energy[path.direction]*.13})`,1);
-    for(const packet of this.packets){
-     if(packet.direction!==path.direction||packet.strand!==1||Math.floor(packet.progress)!==path.link)continue;
-     const t=packet.progress-path.link,p=this.point(path,t);
-     this.stroke(path,clamp(t-.13,0,1),t,`rgba(${color},.12)`,7);
-     this.stroke(path,clamp(t-.07,0,1),t,`rgba(${color},.8)`,1.6);
-     c.save();c.translate(p.x,p.y);c.rotate(Math.PI/4);
-     c.fillStyle=`rgba(${color},.95)`;c.shadowColor=`rgb(${color})`;c.shadowBlur=8;
-     c.fillRect(-2,-2,4,4);c.restore();
-    }
-   }
-   const center=this.points[1];
-   if(center&&this.ready){
-    const radius=Math.min(58,this.height*.24),pulse=moving?(.5+.5*Math.sin(time*2)):.25;
-    const glow=c.createRadialGradient(center.x,center.y,radius*.65,center.x,center.y,radius*1.65);
-    glow.addColorStop(0,'#71f4c100');glow.addColorStop(.5,`rgba(113,244,193,${.07+pulse*.08})`);glow.addColorStop(1,'#71f4c100');
-    c.fillStyle=glow;c.fillRect(center.x-radius*2,center.y-radius*2,radius*4,radius*4);
-    c.strokeStyle=`rgba(194,159,99,${.25+pulse*.2})`;c.lineWidth=1;
-    c.beginPath();c.arc(center.x,center.y,radius,0,TAU);c.stroke();
-    if(moving){
-     const angle=time*.6;c.fillStyle='#e5c086';
-     for(const offset of [0,Math.PI]){c.beginPath();c.arc(center.x+Math.cos(angle+offset)*radius,center.y+Math.sin(angle+offset)*radius,2,0,TAU);c.fill();}
-    }
+    const active=this.ready&&this.rates[path.direction]>0;
+    const color=path.direction?'#8bbbd4':'#82bea8';
+    this.stroke(path,0,1,this.ready?'#8c806044':'#6f777233',1.2);
+    if(!active)continue;
+    // One continuous stream per route, ordered from sender to receiver.
+    // The absolute clock keeps its pace through status/rate updates.
+    c.save();c.setLineDash([8,20]);c.lineDashOffset=-time*24;
+    this.stroke(path,0,1,color,1.6);c.restore();
+    // A quiet arrow makes the direction readable even with motion disabled.
+    const at=.65,p=this.point(path,at),next=this.point(path,at+.01);
+    c.save();c.translate(p.x,p.y);c.rotate(Math.atan2(next.y-p.y,next.x-p.x));
+    c.strokeStyle=color;c.lineWidth=1.5;c.beginPath();
+    c.moveTo(-5,-3);c.lineTo(0,0);c.lineTo(-5,3);c.stroke();c.restore();
    }
   }
  }
