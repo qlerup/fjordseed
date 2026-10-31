@@ -1,7 +1,10 @@
 # Nordisk surfaces and continuous voyages
 
-The Nordisk panels use an opaque charcoal surface instead of the repeating
-stone noise texture. Their backgrounds extend beneath the bronze fittings,
+The Nordisk panels use dark blue-green stained timber instead of the repeating
+stone noise texture. Download controls and summary panels have a warmer oak
+finish; torrent cards use a richer petrol finish so the surfaces have distinct
+roles. All finishes reuse the oak image under opaque tinted layers. Their
+backgrounds extend beneath the bronze fittings,
 with no border-image outset, so there is no transparent seam around the panel.
 Nested theme fieldsets use a divider rather than a second ornamental frame.
 The landscape has a dark overlay so its detail stays behind the controls.
