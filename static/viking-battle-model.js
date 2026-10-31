@@ -19,7 +19,7 @@
      speed:this.range(32,57),decisionAt:0,side:0,enemyId:null,
      facing:team?-1:1,state:'running',deadAt:null,exitX:null,
      jumpAt:-10,nextJump:this.range(4,12),jumpHeight:this.range(12,25),
-     attackAt:-10,nextAttack:this.range(15,19),struck:true,hp:4,hitAt:-10};
+     attackAt:-10,attackStyle:'overhead',attackDuration:.8,impactDelay:.34,nextAttack:this.range(15,19),struck:true,hp:4,hitAt:-10};
    });
   }
   get phase(){return this.time<15?'arrival':this.time<Battle.RETREAT?'battle':this.time<Battle.CLEAR?'retreat':'clear';}
@@ -65,9 +65,13 @@
      const enemies=this.units.filter(e=>e.team!==u.team&&e.deadAt===null);
      let enemy=this.units[u.enemyId];
      if(this.time>=u.decisionAt||!enemy||enemy.deadAt!==null){
-      const score=e=>Math.hypot((e.x-u.x)*width,(e.y-u.y)*height)+this.units.filter(ally=>ally.id!==u.id&&ally.deadAt===null&&ally.enemyId===e.id).length*45;
-      const ranked=enemies.sort((a,b)=>score(a)-score(b));
-      enemy=ranked[Math.min(ranked.length-1,this.random()<.22?1:0)];
+      const partners=e=>this.units.filter(ally=>ally.team===u.team&&ally.id!==u.id&&ally.deadAt===null&&ally.enemyId===e.id).length;
+      const distance=e=>Math.hypot((e.x-u.x)*width,(e.y-u.y)*height);
+      const available=enemies.filter(e=>partners(e)<2);
+      const ranked=(available.length?available:enemies).sort((a,b)=>distance(a)+partners(a)*30-distance(b)-partners(b)*30);
+      const teamed=ranked.filter(e=>partners(e)===1&&distance(e)<180);
+      // Sometimes assist a nearby ally; otherwise look for a separate duel.
+      enemy=teamed.length&&this.random()<.35?teamed[0]:ranked[Math.min(ranked.length-1,this.random()<.18?1:0)];
       u.enemyId=enemy?.id;u.side=this.range(-16,16);u.decisionAt=this.time+this.range(1.3,3.8);
       if(this.random()<.22){u.evadeUntil=this.time+this.range(.6,1.2);u.evadeSide=this.random()<.5?-1:1;if(this.random()<.3)u.jumpAt=this.time;}
      }
@@ -81,7 +85,7 @@
      u.facing=dx<0?-1:1;
      const scale=(width<700?.7:.86)+(u.y-.7)*.65;
      const reach=32*scale,close=Math.abs(dx)<=reach+3&&Math.abs(dy)<13;
-     const attacking=this.time-u.attackAt<.8;
+     const attacking=this.time-u.attackAt<u.attackDuration;
      if(this.time<u.evadeUntil&&!attacking){
       u.x=clamp(u.x-u.facing*dt*17/width,.04,.96);u.y=clamp(u.y+u.evadeSide*dt*20/height,.70,.95);u.state='running';continue;
      }
@@ -92,8 +96,16 @@
       u.state='running';
      }else{
       u.state=close?'fighting':'guarding';
-      if(close&&this.time>=u.nextAttack){u.attackAt=this.time;u.struck=false;u.nextAttack=this.time+this.range(1.2,2.8);}
-      if(!u.struck&&this.time-u.attackAt>=.34){
+      if(close&&this.time>=u.nextAttack){
+       const styles=['overhead','sweep','jab'];
+       // Avoid repeating the same gesture twice in succession.
+       const choices=styles.filter(style=>style!==u.attackStyle);
+       u.attackStyle=choices[Math.floor(this.random()*choices.length)];
+       u.attackDuration=this.range(.62,1.05);
+       u.impactDelay=u.attackDuration*(u.attackStyle==='jab'?.35:.44);
+       u.attackAt=this.time;u.struck=false;u.nextAttack=this.time+u.attackDuration+this.range(.3,1.8);
+      }
+      if(!u.struck&&this.time-u.attackAt>=u.impactDelay){
        u.struck=true;
        // Resolve hits at axe impact rather than killing on a scripted timer.
        if(close&&this.random()<.32){

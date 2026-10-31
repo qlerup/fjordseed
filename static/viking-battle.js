@@ -50,9 +50,12 @@
    const scale=(innerWidth<700?.7:.86)+(u.y-.7)*.65;
    const jumpAge=battle.time-u.jumpAt,jump=motion&&jumpAge>=0&&jumpAge<.65?Math.sin(jumpAge/.65*Math.PI)*u.jumpHeight:0;
    const attackAge=battle.time-u.attackAt;
-   const swing=attackAge<.26?8-93*attackAge/.26:attackAge<.38?-85+133*(attackAge-.26)/.12:attackAge<.8?48-40*(attackAge-.38)/.42:8;
-   el.weapon.style.transform=`rotate(${dead?30:swing}deg)`;
-   el.body.style.transform=`rotate(${!dead&&battle.time-u.hitAt<.22?-u.facing*10:0}deg)`;
+   const impact=u.impactDelay,windup=impact*.72,duration=u.attackDuration;
+   const pose=u.attackStyle==='sweep'?{back:-35,hit:78}:u.attackStyle==='jab'?{back:20,hit:-12}:{back:-85,hit:48};
+   const swing=attackAge<windup?8+(pose.back-8)*attackAge/windup:attackAge<impact?pose.back+(pose.hit-pose.back)*(attackAge-windup)/(impact-windup):attackAge<duration?pose.hit+(8-pose.hit)*(attackAge-impact)/(duration-impact):8;
+   const lunge=attackAge>=0&&attackAge<duration?Math.sin(Math.min(1,attackAge/impact)*Math.PI/2)*Math.max(0,1-Math.max(0,attackAge-impact)/(duration-impact)):0;
+   el.weapon.style.transform=`translateX(${!dead&&u.attackStyle==='jab'?lunge*13:0}px) rotate(${dead?30:swing}deg)`;
+   el.body.style.transform=`translateX(${dead?0:lunge*3}px) rotate(${!dead&&battle.time-u.hitAt<.22?-10:dead?0:lunge*(u.attackStyle==='sweep'?9:4)}deg)`;
    el.style.zIndex=String(Math.round(u.y*1000));
    el.style.transform=`translate(${u.x*innerWidth-38}px,${u.y*innerHeight-90-jump}px) scale(${scale}) rotate(${dead?(motion?Math.min(1,age/.45):1)*u.facing*85:0}deg)`;
    el.style.opacity=dead?String(motion?Math.max(0,1-Math.max(0,age-1.8)/2):0):'1';

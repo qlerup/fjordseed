@@ -24,16 +24,19 @@ console.log('PASS arrival, combat, click defeat, survivors leave, empty frame an
 for(const width of [390,1440]){
  let seed=84;
  const b=new Battle(24,()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;});
- let sailing=false,jumping=false,contact=false,blood=false;
+ let sailing=false,jumping=false,contact=false,blood=false,twoAgainstOne=false;
+ const styles=new Set();
  const initialTargets=b.units.map(u=>u.targetX);
  for(let i=0;i<2400;i++){
   b.advance(.05,width,950);
   sailing ||= b.units.some(u=>u.state==='sailing');
   jumping ||= b.units.some(u=>b.time-u.jumpAt>=0&&b.time-u.jumpAt<.65);
   blood ||= b.effects.length>0;
+  twoAgainstOne ||= b.units.some(target=>target.deadAt===null&&b.units.filter(u=>u.deadAt===null&&u.enemyId===target.id&&u.state==='fighting').length===2);
   for(const u of b.units){
    assert(Number.isFinite(u.x)&&Number.isFinite(u.y));
    if(u.state==='fighting'&&u.deadAt===null){
+    if(u.attackAt>0)styles.add(u.attackStyle);
     const enemy=b.units[u.enemyId];
     assert(Math.abs(u.x-enemy.x)*width<39,'Axe swings must happen within contact range');
     assert(Math.abs(u.y-enemy.y)*950<16,'Opponents must share a ground plane');
@@ -43,6 +46,8 @@ for(const width of [390,1440]){
   assert(b.effects.length<=40,'Effect storage must remain bounded');
  }
  assert(sailing&&jumping&&contact&&blood);
+ assert(twoAgainstOne,'Some close-range fights should have two attackers against one');
+ assert.deepEqual([...styles].sort(),['jab','overhead','sweep']);
  assert(b.boats.every(boat=>boat.x<0||boat.x>1));
  b.reset();assert.notDeepEqual(b.units.map(u=>u.targetX),initialTargets);
  assert.equal(b.effects.length,0);
