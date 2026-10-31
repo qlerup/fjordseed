@@ -97,9 +97,19 @@ for(const winner of [0,1]){
  for(let i=0;i<Math.ceil(b.arrivalEnd*10);i++)b.advance(.1);
  b.time=b.arrivalEnd+5;
  for(const u of b.units)if(u.team!==winner)b.kill(u.id);
- assert.equal(b.phase,'retreat');assert.equal(b.winner,winner);
+ assert.equal(b.phase,winner===1?'raid':'retreat');assert.equal(b.winner,winner);
  assert.equal(b.units.filter(u=>u.flag).length,1);
  assert.equal(b.arrows.length,0);
+ if(winner===1){
+  let entered=false;
+  while(b.time<b.exitStart){
+   b.advance(.05);
+   entered ||= b.units.some(u=>u.state==='inside');
+   assert(b.units.filter(u=>u.state==='inside'||u.loot).every(u=>u.team===1));
+   assert.equal(b.arrows.length,0);assert.equal(b.rocks.length,0);
+  }
+  assert(entered);assert(b.units.some(u=>u.loot));
+ }
  const survivors=b.units.filter(u=>u.deadAt===null),ys=survivors.map(u=>u.y);
  for(let i=0;i<120;i++){
   const xs=survivors.map(u=>u.x);b.advance(.1);
@@ -108,7 +118,7 @@ for(const winner of [0,1]){
  assert(survivors.every(u=>u.x<0||u.x>1));
  for(let i=0;i<12;i++)b.advance(.1);
  assert.equal(b.round,2);assert.equal(b.winner,null);assert.equal(b.exitStart,null);
- assert(b.units.every(u=>!u.flag&&!u.withdrawing));
+ assert(b.units.every(u=>!u.flag&&!u.withdrawing&&!u.loot&&u.raidHouse===undefined));
 }
 {
  const b=new Battle(8,()=>.1);for(let i=0;i<Math.ceil(b.arrivalEnd*10);i++)b.advance(.1);b.time=b.arrivalEnd+5;

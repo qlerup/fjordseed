@@ -27,10 +27,10 @@ with sync_playwright() as p:
   advance(page.evaluate('testBattle.boats[1].landAt+.6-testBattle.time'))
   assert page.evaluate('testBattle.units.some(u=>u.state==="landing")')
   page.screenshot(path=str(root/f'test-results/viking-landing-{width}.png'))
-  advance(page.evaluate('testBattle.arrivalEnd+17-testBattle.time'))
+  advance(page.evaluate('testBattle.arrivalEnd+6-testBattle.time'))
   expect(page.locator('.viking-warrior.is-archer').first).to_be_visible()
-  for _ in range(30):
-   if page.locator('.viking-arrow').count():break
+  for _ in range(200):
+   if page.locator('.viking-arrow').count() and page.evaluate('testBattle.units.some(u=>u.state==="fighting")'):break
    advance(.1)
   expect(page.locator('.viking-arrow').first).to_be_visible()
   assert page.evaluate('testBattle.units.some(u=>u.state==="fighting")')
@@ -60,6 +60,23 @@ with sync_playwright() as p:
   advance(13.2)
   assert page.evaluate('testBattle.round')==round_before+1
   assert page.locator('.has-victory-flag').count()==0
+  expect(page.locator('.viking-settlement-house')).to_have_count(4)
+  expect(page.locator('.viking-settlement-house.is-church')).to_have_count(1)
+  assert page.locator('.settlement-defender').count()==(20 if width<700 else 32)
+  advance(page.evaluate('testBattle.arrivalEnd+1-testBattle.time'))
+  page.evaluate('()=>{for(const u of testBattle.units)if(u.team===0)testBattle.kill(u.id);dispatchEvent(new Event("resize"));}')
+  assert page.evaluate('testBattle.phase')=='raid'
+  advance(7)
+  for _ in range(70):
+   if page.evaluate('testBattle.units.some(u=>u.state==="inside")'):break
+   advance(.1)
+  assert page.evaluate('testBattle.units.some(u=>u.state==="inside")')
+  assert page.evaluate('testBattle.units.filter(u=>u.state==="inside").every(u=>u.team===1)')
+  page.screenshot(path=str(root/f'test-results/viking-settlement-raid-{width}.png'))
+  advance(page.evaluate('testBattle.exitStart-testBattle.time-.1'))
+  expect(page.locator('.has-loot .viking-loot').first).to_be_visible()
+  assert page.locator('.settlement-defender.has-loot').count()==0
+  page.screenshot(path=str(root/f'test-results/viking-settlement-loot-{width}.png'))
   assert not errors,errors
   page.keyboard.press('Escape')
   expect(page.locator('#battle-full-view')).to_be_visible()

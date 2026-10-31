@@ -23,16 +23,21 @@
  controls.querySelector('button').addEventListener('click',()=>fullView(false));
  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!controls.hidden){event.preventDefault();fullView(false);}});
  const battle=new window.FjordBattleModel(innerWidth<700?40:64);
- let raf=0,last=0,renderedRound=0,actors=[],boats=[],carts=[],splashes=new Map(),arrows=new Map(),trails=new Map(),rocks=new Map();
+ let raf=0,last=0,renderedRound=0,actors=[],boats=[],carts=[],houses=[],splashes=new Map(),arrows=new Map(),trails=new Map(),rocks=new Map();
  const axe='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 65 85"><path d="M17 80L42 9" stroke="#211d17" stroke-width="9"/><path d="M17 80L42 9" stroke="#b69a69" stroke-width="5"/><path d="M37 13L53 5Q49 18 62 31L41 30L35 25Z" fill="#b9c9c5" stroke="#445959" stroke-width="2"/><path d="M53 5Q49 18 62 31" stroke="#edf0d9" stroke-width="3"/></svg>';
  layer.style.setProperty('--axe-cursor',`url("data:image/svg+xml,${encodeURIComponent(axe)}") 18 20, crosshair`);
  function art(u){
-  const cloth=u.team?'#507c84':'#964f43',edge=u.team?'#9fc3c1':'#d5a07c';
+  const cloth=u.team?'#507c84':'#827457',edge=u.team?'#9fc3c1':'#e2d3ad';
   const beard=['#c4a16c','#77503b','#d0b68c','#51443b'][u.id%4];
   return `<svg viewBox="0 0 90 110" aria-hidden="true"><ellipse cx="42" cy="103" rx="29" ry="4" fill="#061115" opacity=".3"/><g class="viking-leg-left" stroke="#302e29" stroke-width="9" stroke-linecap="round"><path d="M33 68L30 94l-6 5"/></g><g class="viking-leg-right" stroke="#39352d" stroke-width="9" stroke-linecap="round"><path d="M46 68L50 94l6 5"/></g><g class="viking-body" stroke="#263237" stroke-width="1.7" stroke-linejoin="round"><path d="M23 39Q13 52 13 81L36 76 60 85 57 46Z" fill="${cloth}"/><path d="M29 38L48 37 56 70 26 73Z" fill="#68706a"/><path d="M28 47h24M27 53h27M27 59h28" stroke="#a5aaa0" stroke-dasharray="2 3" opacity=".5"/><path d="M24 66L56 63 58 76 25 78Z" fill="${cloth}"/><path d="M26 64l29-3" stroke="#ad8b58" stroke-width="4"/><path d="M23 41l-6 15 13 9" stroke="#baa07b" stroke-width="8" fill="none"/><g class="viking-head"><path d="M27 20Q39 9 50 24L47 42 35 47 25 34Z" fill="#d1b08b"/><path d="M27 31L34 36 47 32 46 49 37 57 28 44Z" fill="${beard}"/><path d="M34 28h3m7 0h3" stroke="#1a2629" stroke-width="2.4"/><path d="M23 25Q22 7 37 6Q53 7 52 25L41 22 40 34 36 34 34 22Z" fill="#86978f"/><path d="M37 6v16M24 22h27" stroke="#ceccae" stroke-width="2"/></g><g class="viking-weapon"><path d="M47 44L58 53 69 38" fill="none" stroke="#bca080" stroke-width="8" stroke-linecap="round"/><path d="M62 58L76 9" stroke="#2a2e2b" stroke-width="7"/><path d="M62 58L76 9" stroke="#ad8759" stroke-width="4"/><path d="M72 14L84 8Q80 18 89 27L74 26 69 23Z" fill="#aebdb3"/><path d="M84 8Q80 18 89 27" stroke="#dddcc5" stroke-width="2"/></g><g><circle cx="23" cy="59" r="21" fill="${cloth}" stroke="#c4b28b" stroke-width="3"/><path d="M23 39v40M3 59h40" stroke="${edge}" stroke-width="7" opacity=".6"/><circle cx="23" cy="59" r="7" fill="#7e8d85" stroke="#d2c6a5" stroke-width="2"/><path d="M9 45l3 3M34 45l-3 3M8 73l4-4M36 73l-4-4" stroke="#e1cfa4"/></g></g><path class="viking-spark" d="M77 36l5-8m-3 11 10-2m-11 6 8 5" stroke="#f5d79b" stroke-width="2"/></svg>`;
  }
  function build(){
   layer.replaceChildren();splashes.clear();arrows.clear();trails.clear();rocks.clear();renderedRound=battle.round;
+  houses=battle.settlement.map(house=>{
+   const el=document.createElement('div');el.className='viking-settlement-house'+(house.church?' is-church':'');el.setAttribute('aria-hidden','true');
+   el.innerHTML=`<svg viewBox="0 0 150 150"><ellipse cx="75" cy="142" rx="72" ry="7" fill="#0c171b" opacity=".3"/><path d="M18 75h114v65H18Z" fill="${house.church?'#b2af91':'#b99c73'}" stroke="#514b3e" stroke-width="3"/><path d="M8 77L75 26l67 51Z" fill="#65513e" stroke="#9b8260" stroke-width="3"/><path d="M20 72l55-39 54 39M26 68h99M41 57h69" fill="none" stroke="#aa8d64" stroke-width="2" opacity=".6"/><path d="M22 80v58m106-58v58M20 103h110" stroke="#67533b" stroke-width="5"/><path d="M60 140v-34q15-18 30 0v34Z" fill="#182326" stroke="#7e6444" stroke-width="4"/><path d="M33 88h14v18H33Zm70 0h14v18h-14Z" fill="#403e32" stroke="#d1bc90" stroke-width="2"/>${house.church?'<path d="M58 74V32h34v42" fill="#b6b196" stroke="#5e5e50" stroke-width="3"/><path d="M52 34L75 12l23 22Z" fill="#605347"/><path d="M75 0v19M67 7h16" stroke="#d9c99c" stroke-width="4"/><path d="M69 48q6-10 12 0v15H69Z" fill="#39433d"/>':'<path d="M108 50V26h12v34" fill="#766c56" stroke="#b2a17a" stroke-width="2"/>'}</svg>`;
+   layer.append(el);return el;
+  });
   boats=battle.boats.map(b=>{
    const el=document.createElement('div');el.className='viking-longship';el.setAttribute('aria-hidden','true');
    const cloth=b.team?'#688e91':'#a66b55';
@@ -46,7 +51,7 @@
   });
   actors=battle.units.map(u=>{
    const el=document.createElement('button');el.type='button';el.className='viking-warrior';el.innerHTML=art(u);
-   el.setAttribute('aria-label',`${u.team?'Blå':'Rød'} viking ${u.id+1}: slå med øksen`);
+   el.setAttribute('aria-label',`${u.team?'Viking':'Bosættelsens forsvarer'} ${u.id+1}: slå med øksen`);
    el.style.setProperty('--swing-delay',`${-(u.id%5)*.23}s`);
    el.addEventListener('click',()=>{
     if(root.dataset.theme!=='viking'||document.querySelector('dialog[open]')||!battle.kill(u.id))return;
@@ -56,6 +61,13 @@
    el.weapon=el.querySelector('.viking-weapon');el.body=el.querySelector('.viking-body');
    el.querySelector('svg').insertAdjacentHTML('beforeend',`<g class="viking-victory-flag"><path d="M15 68V-45" stroke="#b89760" stroke-width="3"/><path class="flag-cloth" d="M17-43Q34-48 54-39L48-22Q32-30 17-23Z" fill="${u.team?'#507c84':'#964f43'}" stroke="#e2c58b" stroke-width="2"/><path d="M25-36l9 8m0-11-9 14" stroke="#eed8aa" stroke-width="2"/></g>`);
    el.body.lastElementChild.classList.add('viking-shield');
+   if(!u.team){
+    el.classList.add('settlement-defender');
+    el.querySelector('.viking-shield').innerHTML='<path d="M5 39Q23 33 41 39L38 63Q34 78 23 87Q12 78 8 63Z" fill="#8a7554" stroke="#ddcba2" stroke-width="3"/><path d="M23 42v33M13 53h20" stroke="#eee3c9" stroke-width="5"/>';
+    el.weapon.innerHTML='<path d="M47 44L58 53 69 38" fill="none" stroke="#bca080" stroke-width="8" stroke-linecap="round"/><path d="M64 50L80 8 84 3 85 10 70 52Z" fill="#c3ceca" stroke="#5b6d69" stroke-width="1.5"/><path d="M61 44l14 5M63 49l-4 12" stroke="#c7a570" stroke-width="4"/>';
+    const beard=el.querySelector('.viking-head path:nth-child(2)');beard.setAttribute('d','M27 31L34 36 47 32 45 42 37 46 29 40Z');
+   }
+   el.querySelector('svg').insertAdjacentHTML('beforeend','<g class="viking-loot"><path d="M52 60q17-7 23 10l-2 18q-13 8-25-2l-1-16Z" fill="#b59554" stroke="#51462d" stroke-width="2"/><path d="M50 65l21 1m-11-2-4-8 10 1-3 7" fill="none" stroke="#e0c48c" stroke-width="2"/></g>');
    if(u.spearman){
     el.classList.add('is-spearman');
     el.weapon.insertAdjacentHTML('afterend','<g class="viking-spear"><path d="M44 47L60 52" stroke="#c4a17b" stroke-width="7" stroke-linecap="round"/><path d="M27 51L113 45" stroke="#bda16c" stroke-width="3"/><path d="M111 41L127 44 112 49Z" fill="#c3d0ca" stroke="#536b6b"/></g>');
@@ -72,8 +84,14 @@
   if(renderedRound!==battle.round)build();
   layer.dataset.phase=battle.phase;layer.dataset.round=String(battle.round);
   const strategyNames={shieldwall:'Skjoldmur',wedge:'Kile',flank:'Flankeangreb'};
-  controls.querySelector('span').textContent=battle.exitStart!==null?(battle.winner===null?'Begge hold trækker sig tilbage':`${battle.winner?'Blåt':'Rødt'} hold har vundet`):`${battle.formations[0].length} grupper pr. hold · skjoldmur, kile og flanker`;
+  controls.querySelector('span').textContent=battle.phase==='raid'?'Vikingerne plyndrer husene':battle.exitStart!==null?(battle.winner===null?'Begge hold trækker sig tilbage':battle.winner?'Vikingerne drager af sted med byttet':'Bosættelsen er forsvaret'):`Vikingelandgang · ${battle.formations[0].length} grupper pr. side`;
   const motion=root.dataset.animation!=='false'&&!reduced.matches;
+  battle.settlement.forEach((house,i)=>{
+   const el=houses[i],scale=innerWidth<700?.63:1;
+   el.style.transform=`translate(${house.x*innerWidth}px,${house.y*innerHeight}px) scale(${scale}) translate(-75px,-140px)`;
+   el.style.zIndex=String(Math.round(house.y*1000)-2);
+   el.classList.toggle('is-raided',battle.units.some(u=>u.raidHouse===house.id&&u.loot));
+  });
   battle.boats.forEach((b,i)=>{
    const el=boats[i],scale=b.scale*(innerWidth<700?.65:1);
    el.hidden=!b.visible;
@@ -98,6 +116,7 @@
    el.classList.toggle('lost-head',!!u.lostHead);
    el.classList.toggle('is-crawling',!dead&&!!u.lostLeg);
    el.classList.toggle('has-victory-flag',!!u.flag);
+   el.classList.toggle('has-loot',!!u.loot);
    el.classList.toggle('is-shooting',u.archer&&battle.time-u.shotAt<.25);
    el.body.style.transform=`translateX(${dead?0:lunge*3}px) rotate(${!dead&&battle.time-u.hitAt<.22?-10:dead?0:lunge*(u.attackStyle==='sweep'?9:4)}deg)`;
    el.style.zIndex=String(Math.round(u.y*1000));
@@ -107,7 +126,7 @@
    el.style.setProperty('--facing',u.facing);
    el.classList.toggle('is-fallen',dead);el.classList.toggle('is-running',!dead&&u.state==='running');el.classList.toggle('is-fighting',!dead&&u.state==='fighting');
    el.disabled=dead;el.tabIndex=dead||u.x<0||u.x>1?-1:0;
-   el.hidden=dead&&(!motion||age>4)||u.state==='offscreen'||(boat&&!boat.visible);
+   el.hidden=dead&&(!motion||age>4)||u.state==='offscreen'||u.state==='inside'||(boat&&!boat.visible);
   });
   battle.catapults.forEach((cart,i)=>{
    const el=carts[i],age=battle.time-cart.shotAt,scale=innerWidth<700?.65:.9;

@@ -11,7 +11,8 @@
   range(a,b){return a+(b-a)*this.random();}
   reset(){
    this.time=0;this.round++;this.effects=[];this.effectId=0;this.arrows=[];this.arrowId=0;
-   this.exitStart=null;this.winner=null;this.trails=[];this.trailId=0;this.rocks=[];this.rockId=0;
+   this.exitStart=null;this.raidStart=null;this.winner=null;this.trails=[];this.trailId=0;this.rocks=[];this.rockId=0;
+   this.settlement=[{id:0,x:.12,y:.72,church:true},{id:1,x:.075,y:.86},{id:2,x:.23,y:.80},{id:3,x:.23,y:.95}];
    const strategies=['shieldwall','wedge','flank'];
    this.strategies=[0,1].map(()=>strategies[Math.floor(this.random()*strategies.length)]);
    this.formations=this.strategies.map(()=>{
@@ -46,8 +47,8 @@
     const targetY=centerY+lane*.032;
     const seats=boat===null?0:Math.ceil((this.count/2-boat)/fleetSize),seat=Math.floor(rank/fleetSize);
     return {id,team,lane,squad,boat,seatOffset:(seat-(seats-1)/2)*26,archer,spearman:!archer&&rank%3===1,strategy,
-     x:team?this.boats[boat].x:targetX,y:team?.35:targetY,entryX,
-     targetX:team?1-targetX:targetX,targetY,bend:this.range(-.015,.015),
+     x:team?this.boats[boat].x:targetX+.16,y:team?.35:targetY,entryX,
+     targetX:team?1-targetX:targetX+.16,targetY,bend:this.range(-.015,.015),
      speed:this.range(32,57),decisionAt:0,side:0,enemyId:null,
      facing:team?-1:1,state:team?'sailing':'guarding',deadAt:null,exitX:null,
      jumpAt:-10,nextJump:this.range(4,12),jumpHeight:this.range(12,25),
@@ -55,6 +56,7 @@
    });
   }
   get phase(){
+   if(this.raidStart!==null&&this.time<this.exitStart)return 'raid';
    if(this.exitStart!==null)return this.time<this.exitStart+12?'retreat':'clear';
    return this.time<this.arrivalEnd?'arrival':this.time<Battle.RETREAT?'battle':this.time<Battle.CLEAR?'retreat':'clear';
   }
@@ -62,12 +64,19 @@
    if(this.phase!=='battle')return;
    const teams=new Set(this.units.filter(u=>u.deadAt===null&&!u.withdrawing&&u.state!=='offscreen').map(u=>u.team));
    if(teams.size>1)return;
-   this.exitStart=this.time;this.winner=teams.size?[...teams][0]:null;this.arrows=[];this.rocks=[];
+   this.winner=teams.size?[...teams][0]:null;this.raidStart=this.winner===1?this.time:null;
+   this.exitStart=this.time+(this.winner===1?18:0);this.arrows=[];this.rocks=[];
    const leader=this.units.find(u=>u.deadAt===null&&!u.withdrawing&&u.team===this.winner);
+   const pool=this.units.filter(u=>u.team===1&&u.deadAt===null&&!u.withdrawing),raiders=new Set();
+   while(pool.length&&raiders.size<6){const index=Math.floor(this.random()*pool.length);raiders.add(pool.splice(index,1)[0].id);}
    for(const u of this.units){
     if(u.deadAt!==null)continue;
     u.exitX=u.x;u.enemyId=null;u.attackAt=-10;u.shotAt=-10;u.jumpAt=-10;u.nextJump=Infinity;
     u.facing=u.team?1:-1;u.state='running';u.flag=u===leader;
+    if(this.winner===1&&raiders.has(u.id)){
+     u.raidFromX=u.x;u.raidFromY=u.y;u.raidHouse=this.settlement[1+(Math.floor(u.id/2)%3)].id;
+     u.raidDelay=this.range(0,2);u.raidDuration=this.range(7,10);u.loot=false;
+    }
    }
   }
   blood(u,direction=1,limb=null){
@@ -200,6 +209,16 @@
      u.facing=u.targetX>(boat?boat.dock:u.entryX)?1:-1;
      u.state=progress===1?'guarding':'running';
      if(boat&&this.time-start<dt)u.jumpAt=this.time;
+    }else if(this.phase==='raid'&&u.team===1&&!u.withdrawing){
+     if(u.raidHouse===undefined){u.state='guarding';continue;}
+     const house=this.settlement[u.raidHouse],age=this.time-this.raidStart-u.raidDelay;
+     if(age<0){u.state='guarding';continue;}
+     if(age<u.raidDuration){
+      const p=clamp(age/u.raidDuration,0,1);u.x=u.raidFromX+(house.x-u.raidFromX)*p;u.y=u.raidFromY+(house.y-u.raidFromY)*p;
+      u.facing=house.x<u.raidFromX?-1:1;u.state='running';
+     }else if(age<u.raidDuration+2.2){u.x=house.x;u.y=house.y;u.state='inside';}
+     else{u.loot=true;u.state='running';u.facing=1;const p=clamp((age-u.raidDuration-2.2)/2,0,1);u.x=house.x+.04*p;u.y=house.y+.012*p;}
+     u.exitX=u.x;continue;
     }else if(this.phase==='retreat'){
      if(u.exitX===null)u.exitX=u.x;
      const p=clamp((this.time-(this.exitStart??Battle.RETREAT))/(this.exitStart===null?23:12),0,1);
@@ -281,7 +300,7 @@
        u.struck=true;
        // Resolve hits at axe impact rather than killing on a scripted timer.
        if(close&&this.random()<.32){
-        this.wound(enemy,u.facing,!u.spearman);
+        this.wound(enemy,u.facing,u.team===1&&!u.spearman);
        }
       }
      }
