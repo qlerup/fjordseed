@@ -159,7 +159,17 @@ function torrentProgress(t) {
   if(t.seed_minutes)overlay.setAttribute('aria-valuetext',`${Math.floor(seed.fraction*100)} % af ${t.seed_minutes} minutters aktiv seeding.`);
   track.append(overlay);
  }
- wrap.append(track);return wrap;
+ wrap.append(track);
+ const voyage=node('div','nordic-voyage');voyage.setAttribute('aria-hidden','true');
+ for(const [direction,rate,label] of [['download',t.dlspeed,'HENTER'],['upload',t.upspeed,'DELER']]){
+  const lane=node('div','nordic-voyage-lane');lane.dataset.direction=direction;
+  const moving=current?.ready&&Number(rate)>0&&!/^(paused|stopped|checking|moving)/.test(t.state||'');
+  lane.dataset.moving=String(moving);
+  lane.style.setProperty('--voyage-duration',(9-Math.min(4,Math.log2(1+Math.max(0,Number(rate)||0)/65536)))+'s');
+  const water=node('span','nordic-voyage-water'),ship=node('i','nordic-voyage-ship');
+  water.append(ship);lane.append(node('span','nordic-voyage-label',label),water);voyage.append(lane);
+ }
+ wrap.append(voyage);return wrap;
 }
 const expandedTorrents = new Set();
 function card(t){const row=node('article','torrent'),head=node('div','torrent-head');
@@ -338,6 +348,7 @@ function renderFlow(data){
   const rate=rates[index];
   $('#flow-'+direction+'-rate').textContent=data.ready&&rate!==null?size(rate)+'/s':'—';
   flow.dataset[direction]=data.ready&&rate>0?'moving':'idle';
+  const summary=$('#download-summary');if(summary)summary.dataset[direction]=flow.dataset[direction];
  }
  if(!transferFlow&&window.FjordTransferFlow)transferFlow=new window.FjordTransferFlow(flow);
  transferFlow?.update({ready:data.ready,download:rates[0],upload:rates[1]});

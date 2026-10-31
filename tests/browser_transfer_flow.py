@@ -3,6 +3,8 @@ from pathlib import Path
 import sys
 import tempfile
 import threading
+import logging
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from playwright.sync_api import sync_playwright, expect
@@ -20,6 +22,7 @@ output=root/'test-results'
 output.mkdir(exist_ok=True)
 with tempfile.TemporaryDirectory() as folder:
     app=create_app(folder,testing=True,runtime_factory=Demo)
+    app.extensions['runtime'].host_downloads=Path('/downloads')
     server=make_server('127.0.0.1',0,app,threaded=True)
     threading.Thread(target=server.serve_forever,daemon=True).start()
     try:
@@ -37,7 +40,10 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#downloads-view')).to_be_hidden()
             expect(page.locator('#download-queue')).to_be_hidden()
             for route in ('torrents','connection','storage','streaming','trackers'):
-                page.locator(f'.nav[href="#{route}"]').click()
+                if route=='torrents':page.locator('.nav[href="#torrents"]').click()
+                else:
+                    page.locator('.nav[href="#settings"]').click()
+                    page.locator(f'#settings-tabs a[href="#{route}"]').click()
                 expect(page.locator('#overview-view')).to_be_hidden()
                 expect(flow).to_be_hidden()
                 expect(page.locator('#new-torrent')).to_be_visible() if route=='torrents' else expect(page.locator('#new-torrent')).to_be_hidden()
@@ -148,7 +154,8 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#flow-note')).to_contain_text('Ingen download eller upload')
             page.set_viewport_size({'width':1440,'height':1000})
             flow.screenshot(path=str(output/'transfer-flow-idle.png'))
-            page.locator('.nav[href="#trackers"]').click()
+            page.locator('.nav[href="#settings"]').click()
+            page.locator('#settings-tabs a[href="#trackers"]').click()
             expect(flow).not_to_be_visible()
             page.wait_for_function('() => transferFlow.frame === null')
             page.locator('.nav[href="#overview"]').click()

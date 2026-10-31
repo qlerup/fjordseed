@@ -71,3 +71,24 @@ both disable the sway. nordic-sign.svg is original vector artwork, not a photogr
 The desktop sign is content-sized and centered, with no empty full-width extension.
 Braided rope frames (original nordic-rope.svg) edge the major panels and dialogs;
 small controls retain clear conventional borders. Mobile frames are thinner.
+
+Harbour edition, 31 October 2026
+The final direction is a modern illustrated Viking workshop, not a photographic
+banner. nordic-chart.svg is a lightweight original sea chart with coast contours,
+a decorative modern compass, route marks and abstract rune forms. This is modern
+UI artwork, not a historical map or an inscription with a claimed translation.
+Ink blue replaces the solid green background. Major surfaces use smoked oak,
+iron-grey interiors, bronze details and dark brown braided hemp frames.
+The compact hanging desktop sign stays. Its suspension ropes are now dark brown.
+
+The traffic canvas is an independent harbour scene: two longships carry download
+traffic inward and upload outward. Vessel motion follows positive measured rates;
+a stopped connection has no sailing motion. The old node diagram remains only in
+the other themes. Each torrent has separate inbound/outbound animated vessel
+lanes; Downloads totals also show live vessels. Existing measured progress bars,
+labels, percentages, seeding targets, buttons and APIs retain their behavior.
+Reduced motion and the saved animation preference freeze these decorative layers.
+nordic-vessel.svg, nordic-chart.svg and the updated preview are original vector art.
+A photographic background was explored with built-in imagegen but was not selected
+after the user's preference for a modern illustrated direction. No new generated
+raster is referenced or shipped by this edition.

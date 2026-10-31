@@ -1,19 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 240" fill="none">
- <path fill="#111916" d="M0 0h450v240H0z"/>
- <path d="M111 0v15M339 0v15" stroke="#aa9060" stroke-width="3"/>
- <rect x="91" y="14" width="268" height="29" rx="3" fill="#303327" stroke="#94764a"/>
+ <defs><g id="ship"><path d="M-20 0Q0 18 23-3L16 10Q0 18-15 10Z" fill="#775034" stroke="#bf995d"/><path d="M0-28V3" stroke="#c5ac76"/><path d="M-13-24h27l-2 19h-26Z" fill="#d1bf94"/><path d="M-7-24v19M4-24v19" stroke="#79513b" stroke-width="4"/></g></defs>
+ <path fill="#101c22" d="M0 0h450v240H0z"/>
+ <path d="M0 0h78l-19 40 14 35-73 47Zm450 86-41 16-13 54-49 16 25 68h78Z" fill="#29332f" stroke="#796645" stroke-opacity=".4"/>
+ <path d="M111 0v16M339 0v16" stroke="#67432d" stroke-width="3"/>
+ <rect x="91" y="14" width="268" height="29" rx="3" fill="#303025" stroke="#94764a"/>
  <text x="103" y="33" fill="#eee6d1" font-family="Segoe UI,Arial,sans-serif" font-size="10" font-weight="600">FjordSeed</text>
  <rect x="188" y="20" width="44" height="17" rx="2" fill="#76623a"/><path d="M196 28h27m21 0h33m17 0h42" stroke="#d3ccb5" stroke-width="3"/>
- <path d="M18 60h140" stroke="#e5e5d5" stroke-width="5"/>
- <g stroke="#9b8558"><rect x="18" y="75" width="86" height="149" rx="2" fill="#17211b"/><rect x="115" y="75" width="317" height="149" rx="2" fill="#1c2621"/></g>
- <rect x="26" y="88" width="70" height="30" fill="#293721"/><rect x="26" y="123" width="70" height="30" fill="#233635"/>
- <path d="M33 98h31m-31 12h48" stroke="#b6cda1" stroke-width="3"/><path d="M33 133h27m-27 12h43" stroke="#a3bec7" stroke-width="3"/>
- <path d="M61 164v17m0 11-23 17m23-17 23 17" stroke="#8f9f73"/>
- <g fill="#39472f" stroke="#7f8e62"><rect x="55" y="158" width="12" height="10" rx="1"/><path d="m61 178 9 4v9l-9 6-9-6v-9Z"/><rect x="32" y="207" width="12" height="10" rx="1"/><rect x="78" y="207" width="12" height="10" rx="1"/></g>
- <path d="M126 89h92" stroke="#dddcc8" stroke-width="4"/><path d="M126 101h61" stroke="#75866e" stroke-width="2"/>
- <path d="M115 111h317m-317 36h317m-66 0v77" stroke="#3c4840"/>
- <path d="M128 126h49m25 0h49m25 0h49m25 0h49" stroke="#b6cda1" stroke-width="4"/>
- <path d="M130 202h218m-218-17h218m-218-17h218" stroke="#3c4840" stroke-dasharray="2 3"/>
- <path d="M130 197c30-3 25-22 56-20s42 18 67 9 46-24 95-14" stroke="#b6cda1" stroke-width="2"/>
- <g stroke="#aab997" stroke-width="3"><path d="M376 160h43m-43 13h35m-35 13h41m-41 13h32m-32 13h40"/></g>
+ <path d="M18 59h140" stroke="#e5d4b2" stroke-width="5"/>
+ <g fill="#25221e" stroke="#66442d" stroke-width="2"><rect x="18" y="73" width="414" height="87" rx="2"/><rect x="18" y="173" width="414" height="53" rx="2"/></g>
+ <rect x="27" y="81" width="307" height="70" rx="2" fill="#122d35"/>
+ <path d="M30 108h300m-300 28h300" stroke="#9cb9bb" stroke-opacity=".25" stroke-dasharray="3 5"/>
+ <use href="#ship" transform="translate(138 108) scale(.65)"/><use href="#ship" transform="translate(225 136) scale(.65)"/>
+ <rect x="344" y="82" width="78" height="30" fill="#443a2c"/><rect x="344" y="120" width="78" height="30" fill="#263d44"/>
+ <path d="M353 96h50" stroke="#cfb278" stroke-width="5"/><path d="M353 135h44" stroke="#a6c5cb" stroke-width="5"/>
+ <path d="M30 188h75m28 0h75m28 0h75m28 0h75" stroke="#bda476" stroke-width="4"/>
+ <path d="M30 214c40-3 40-18 81-15s40 17 82 10 80-15 120-6 68 2 102-6" stroke="#b6cda1" stroke-width="2"/>
 </svg>

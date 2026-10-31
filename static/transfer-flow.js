@@ -61,7 +61,8 @@
    this.draw(performance.now()/1000);this.sync();
   }
   sync(){
-   const animate=this.ctx&&this.ready&&this.visible&&!document.hidden&&!this.motion.matches;
+   const animate=this.ctx&&this.ready&&this.visible&&!document.hidden&&!this.motion.matches
+    &&!(document.documentElement.dataset.theme==='nordic'&&document.documentElement.dataset.animation==='false');
    this.root.classList.toggle('flow-paused',!animate);
    if(animate&&this.frame===null){this.last=performance.now();this.frame=requestAnimationFrame(this.tick);}
    if(!animate){
@@ -128,7 +129,7 @@
   draw(time){
    const c=this.ctx,w=this.width,h=this.height;if(!c||!w||!h)return;
    c.clearRect(0,0,w,h);
-   if(document.documentElement.dataset.theme==='nordic'){this.drawNordic();return;}
+   if(document.documentElement.dataset.theme==='nordic'){this.drawNordic(time);return;}
    const active=this.ready,still=this.motion.matches||!active;
    if(still)time=0;
    // Quiet constellation and an illuminated tunnel behind the gateway.
@@ -167,22 +168,58 @@
     c.lineWidth=1;c.beginPath();c.arc(p.x,p.y,34+phase*22,0,TAU);c.stroke();
    }
   }
-  // The same measured traffic becomes quiet, single-strand routes in Nordisk.
-  // No synthetic traffic, starfield, neon trails or changes to rates/status.
-  drawNordic(){
-   const c=this.ctx;c.lineCap='round';
-   for(const path of this.paths){
-    if(path.strand!==1)continue;
-    const color=path.direction?'#a3bec7':'#b6cda1';
-    this.stroke(path,0,1,this.ready?'#596b52':'#3f4d3b',1.2);
-    if(!this.ready)continue;
-    for(const packet of this.packets){
-     if(packet.direction!==path.direction||packet.strand!==1||Math.floor(packet.progress)!==path.link)continue;
-     const t=packet.progress-path.link,p=this.point(path,t);
-     this.stroke(path,clamp(t-.045,0,1),t,color,2);
-     c.fillStyle=color;c.beginPath();c.arc(p.x,p.y,2.5,0,TAU);c.fill();
+  // A harbour, not the shared network diagram. Direction and motion use real rates.
+  drawNordic(time){
+   const c=this.ctx,w=this.width,h=this.height;
+   if(!this.vessel){
+    this.vessel=new Image();this.vessel.onload=()=>this.draw(performance.now()/1000);
+    this.vessel.src='/static/nordic-vessel.svg';
+   }
+   if(this.motion.matches||!this.ready||document.documentElement.dataset.animation==='false')time=0;
+   const water=c.createLinearGradient(0,0,0,h);
+   water.addColorStop(0,'#162e36');water.addColorStop(.55,'#10262e');water.addColorStop(1,'#0b1d24');
+   c.fillStyle=water;c.fillRect(0,0,w,h);
+   // Coast contours and measured water ripples keep the scene graphic and quiet.
+   c.strokeStyle='#78949422';c.lineWidth=1;
+   for(let row=0;row<12;row++){
+    c.beginPath();const y=22+row*(h-35)/12;
+    for(let x=0;x<=w;x+=8){const yy=y+Math.sin(x/44+row+time*.45)*2;x?c.lineTo(x,yy):c.moveTo(x,yy);}
+    c.stroke();
+   }
+   const pier=(x,y,flip)=>{
+    c.save();c.translate(x,y);c.scale(flip,1);
+    c.fillStyle='#32271f';c.fillRect(0,-23,41,46);
+    c.strokeStyle='#82603d';c.lineWidth=1;
+    for(let i=0;i<5;i++){c.strokeRect(0,-22+i*9,40,8);}
+    for(const py of [-25,25]){c.fillStyle='#151b1c';c.fillRect(34,py-4,8,8);c.strokeStyle='#9e8152';c.strokeRect(34,py-4,8,8);}
+    c.restore();
+   };
+   c.font='600 10px Segoe UI, sans-serif';c.textBaseline='middle';
+   c.fillStyle='#b7a47e';c.textAlign='left';c.fillText('DIN HAVN',16,20);
+   c.textAlign='right';c.fillText('FJORDEN',w-16,20);
+   for(let direction=0;direction<2;direction++){
+    const y=h*(direction?.73:.34),moving=this.ready&&this.rates[direction]>0;
+    const duration=9-this.energy[direction]*3;
+    const phase=moving&&time?(time/duration+direction*.37)%1:0;
+    const left=65,right=Math.max(left,w-65);
+    const x=moving?(direction?left+(right-left)*phase:right-(right-left)*phase):left;
+    pier(0,y,1);pier(w,y,-1);
+    c.setLineDash([3,9]);c.strokeStyle=direction?'#ac835b55':'#91b5b455';
+    c.beginPath();c.moveTo(49,y+8);c.lineTo(w-49,y+8);c.stroke();c.setLineDash([]);
+    c.textAlign='center';c.fillStyle=direction?'#c5a172':'#b5cece';
+    c.fillText(direction?'UPLOAD  /  LAST UD':'DOWNLOAD  /  LAST IND',w/2,y+45);
+    if(moving){
+     c.strokeStyle=direction?'#c5a17266':'#9cbfc366';c.lineWidth=1;
+     for(let i=0;i<3;i++){const tail=x+(direction?-1:1)*(36+i*10);c.beginPath();c.moveTo(tail,y+6-i*3);c.lineTo(tail+(direction?-15:15),y+6-i*3);c.stroke();}
+    }
+    if(this.vessel.complete&&this.vessel.naturalWidth){
+     c.save();c.translate(x,y+(moving?Math.sin(time*2+direction)*1.5:0));
+     c.scale(direction?1:-1,1);c.drawImage(this.vessel,-53,-53,106,67);c.restore();
     }
    }
+   c.fillStyle='#c5b28b';c.textAlign='center';c.font='10px Segoe UI, sans-serif';
+   const country=this.root.querySelector('#flow-country')?.textContent||'';
+   c.fillText(this.ready?'VPN-beskyttet farvand'+(country&&!country.startsWith('Afventer')?' ? '+country:''):'Havnen afventer VPN-forbindelse',w/2,h-15);
   }
  }
  window.FjordTransferFlow=TransferFlow;

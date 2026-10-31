@@ -88,7 +88,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('.ambient-particles')).to_be_hidden()
             # Ensure the real background loads, rather than a silent CSS fallback.
             assert page.evaluate('''async () => {
-                const image = new Image(); image.src='/static/nordic-fjord.png';
+                const image = new Image(); image.src='/static/nordic-chart.svg';
                 await image.decode(); return image.naturalWidth > 1000;
             }''')
             glow = page.locator('.ambient-glow').first
@@ -120,7 +120,8 @@ with tempfile.TemporaryDirectory() as folder:
                     assert abs(box['x']+box['width']/2-width/2) < 4
                     page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2)
                     assert nav.evaluate('e=>getComputedStyle(e).animationPlayState') == 'running'
-                    assert page.locator('#traffic-flow').bounding_box()['x'] < page.locator('#tracker-overview').bounding_box()['x']
+                    traffic=page.locator('#traffic-flow').bounding_box()
+                    assert traffic['y']+traffic['height'] <= page.locator('#tracker-overview').bounding_box()['y']
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('overview',width)
                 page.screenshot(path=str(root/f'test-results/nordic-overview-{width}.png'),full_page=True,animations='disabled')
                 page.goto(base+'/#appearance')
@@ -176,17 +177,30 @@ with tempfile.TemporaryDirectory() as folder:
             page.get_by_role('button',name='Reel upload',exact=True).click()
             expect(page.locator('.insights-stage')).to_have_class('insights-stage is-changing')
             expect(page.locator('#tracker-insights')).to_have_attribute('data-metric','real_uploaded')
-            # Four single-strand route sections; rendering must not alter rates.
-            assert page.evaluate('''() => {
-                const scene=transferFlow, original=scene.stroke, paths=[];
-                const before=JSON.stringify(scene.rates);
-                scene.stroke=(path,start,end)=>{if(start===0&&end===1)paths.push(path);};
-                try{scene.draw(performance.now()/1000);}
-                finally{scene.stroke=original;}
-                return paths.length===4 && paths.every(p=>p.strand===1)
-                    && JSON.stringify(scene.rates)===before;
-            }''')
-            assert page.locator('.ambient-scene').evaluate('e=>getComputedStyle(e).backgroundImage') == 'none'
+            # The new harbour is animated independently from the old node diagram.
+            page.wait_for_function('transferFlow.vessel?.complete && transferFlow.vessel.naturalWidth > 0')
+            assert page.evaluate("""() => {
+                const scene=transferFlow, before=JSON.stringify(scene.rates);
+                scene.draw(1);const first=scene.canvas.toDataURL();
+                scene.draw(4);const next=scene.canvas.toDataURL();
+                const ready=scene.ready;scene.ready=false;
+                scene.draw(1);const idle=scene.canvas.toDataURL();
+                scene.draw(4);const idleNext=scene.canvas.toDataURL();scene.ready=ready;
+                return first!==next && idle===idleNext && JSON.stringify(scene.rates)===before;
+            }""")
+            assert 'nordic-chart.svg' in page.locator('.ambient-scene').evaluate('e=>getComputedStyle(e).backgroundImage')
+            page.goto(base+'/#torrents')
+            expect(page.locator('#torrent-list .nordic-voyage')).to_have_count(2)
+            expect(page.locator('#torrent-list .nordic-voyage-lane[data-moving=true]')).to_have_count(3)
+            for direction in ('download','upload'):
+                ship=page.locator(f'#torrent-list .nordic-voyage-lane[data-direction={direction}][data-moving=true] .nordic-voyage-ship').first
+                assert ship.evaluate('e=>getComputedStyle(e).animationName') == ('nordic-cargo-in' if direction=='download' else 'nordic-cargo-out')
+            page.evaluate("document.documentElement.dataset.animation='false';document.dispatchEvent(new Event('fjordseed:appearance'))")
+            assert page.locator('.nordic-voyage-ship').first.evaluate('e=>getComputedStyle(e).animationName')=='none'
+            page.evaluate("document.documentElement.dataset.animation='true';document.dispatchEvent(new Event('fjordseed:appearance'))")
+            page.emulate_media(reduced_motion='reduce')
+            assert page.locator('.nordic-voyage-ship').first.evaluate('e=>getComputedStyle(e).animationName')=='none'
+            page.emulate_media(reduced_motion='no-preference')
             app.extensions['runtime'].empty = True
             page.goto(base+'/#torrents')
             page.reload()
