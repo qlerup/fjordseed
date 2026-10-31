@@ -116,10 +116,23 @@ with tempfile.TemporaryDirectory() as folder:
             expect(trigger).to_have_attribute('aria-expanded','false')
             trigger.click(force=True)
             expect(page.locator('#settings-tabs')).to_be_visible()
+            # Inspect the physical release, including its folded wooden back.
+            hanger=page.locator('.settings-sign-hanger')
+            assert hanger.evaluate('''e=>{
+                const a=e.getAnimations().find(a=>a.animationName==='nordic-sign-release');
+                if(!a)return false;a.pause();a.currentTime=0;
+                return new DOMMatrix(getComputedStyle(e).transform).m22<0
+                    && getComputedStyle(e).opacity==='1';
+            }''')
+            for at in (0,350,675,1350):
+                hanger.evaluate('(e,t)=>{e.getAnimations()[0].currentTime=t}',at)
+                page.screenshot(path=str(root/f'test-results/nordic-sign-release-{at}.png'),clip=page.locator('.navigation-signs').bounding_box())
+            hanger.evaluate('e=>e.getAnimations()[0].finish()')
             trigger.press('Escape')
             expect(page.locator('#settings-tabs')).to_be_hidden()
             expect(trigger).to_be_focused()
             trigger.click(force=True)
+            hanger.evaluate('async e=>Promise.all(e.getAnimations().map(a=>a.finished.catch(()=>{})))')
             page.locator('#settings-tabs a[href="#connection"]').click(force=True)
             expect(page.locator('#connection')).to_be_visible()
             for width in (1920,1440,900,390,320):
@@ -183,6 +196,7 @@ with tempfile.TemporaryDirectory() as folder:
                                  ('trackers','#trackers-view'),('conversion','#conversion-view'),('streaming','#streaming-view')]:
                     page.goto(base+'/#'+tab)
                     expect(page.locator(view)).to_be_visible()
+                    page.locator('.settings-sign-hanger').evaluate('async e=>Promise.all(e.getAnimations().map(a=>a.finished.catch(()=>{})))')
                     menu=page.locator('#settings-tabs').bounding_box()
                     sign=page.locator('aside').bounding_box()
                     assert menu['y'] >= sign['y']+sign['height']-12
@@ -190,7 +204,6 @@ with tempfile.TemporaryDirectory() as folder:
                     assert page.locator('#settings-tabs').evaluate('e=>e.parentElement.className') == 'settings-sign-hanger'
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), (tab,width)
                     if width in (1440,390):
-                        page.locator('.settings-sign-hanger').evaluate('async e=>Promise.all(e.getAnimations().map(a=>a.finished.catch(()=>{})))')
                         page.screenshot(path=str(root/f'test-results/nordic-{tab}-{width}.png'),full_page=True,animations='allow')
             page.set_viewport_size({'width':1440,'height':1000})
             page.goto(base+'/#overview')

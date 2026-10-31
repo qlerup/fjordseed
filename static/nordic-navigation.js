@@ -8,6 +8,8 @@
  const signs=document.createElement('div');signs.className='navigation-signs';
  aside.before(signs);signs.append(aside);
  const hanger=document.createElement('div');hanger.className='settings-sign-hanger';hanger.hidden=true;
+ const back=document.createElement('div');back.className='settings-sign-back';back.setAttribute('aria-hidden','true');
+ hanger.append(back);
  signs.append(hanger);
  const settingsRoutes=new Set(['settings','connection','streaming','storage','trackers','conversion','appearance']);
  const isSettings=()=>settingsRoutes.has(location.hash.slice(1));

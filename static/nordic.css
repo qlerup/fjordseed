@@ -25,15 +25,26 @@ html[data-theme=nordic] .nav:hover{background-color:#d6ac6222;color:white}
 html[data-theme=nordic] .aside-bottom{margin:0 0 0 16px;padding:0;border:0;white-space:nowrap}.nordic-runes{display:none}
 html[data-theme=nordic] .aside-bottom p{display:none}html[data-theme=nordic] .aside-bottom .quiet{color:#d7cdb8;font-size:11px}
 @keyframes nordic-sign-sway{0%,100%{transform:rotate(-.7deg)}50%{transform:rotate(.7deg)}}
-html[data-theme=nordic] .navigation-signs{display:block;position:relative;z-index:5;width:fit-content;max-width:calc(100% - 80px);margin:34px auto 18px;transform-origin:50% -34px;animation:nordic-sign-sway 8s ease-in-out infinite}
-html[data-theme=nordic] .navigation-signs aside{width:100%;max-width:none;margin:0;animation:none}
-html[data-theme=nordic] .settings-sign-hanger:not([hidden]){display:block;position:relative;width:calc(100% - 56px);margin:22px auto 0;animation:nordic-sign-unfold .35s ease-out both;transform-origin:50% 0}
+html[data-theme=nordic] .navigation-signs{display:block;position:relative;z-index:5;width:fit-content;max-width:calc(100% - 80px);margin:34px auto 18px;transform-origin:50% -34px;animation:nordic-sign-sway 8s ease-in-out infinite;perspective:900px;transform-style:preserve-3d}
+html[data-theme=nordic] .navigation-signs aside{width:100%;max-width:none;margin:0;animation:none;z-index:2}
+html[data-theme=nordic] .settings-sign-hanger:not([hidden]){display:block;position:relative;width:calc(100% - 56px);margin:22px auto 0;animation:nordic-sign-release 1.35s ease-in-out both;transform-origin:50% -22px;transform-style:preserve-3d}
+html[data-theme=nordic] .settings-sign-back{position:absolute;inset:0;border:8px solid transparent;border-image:url('/static/nordic-bronze-frame.svg') 36 / 11px / 0 stretch;border-radius:4px;background:linear-gradient(#21160e60,#130d0978),url('/static/nordic-sign-oak.png') center 65%/cover;transform:rotateX(180deg);backface-visibility:hidden;pointer-events:none}
+html[data-theme=nordic] .settings-sign-hanger #settings-tabs{position:relative;backface-visibility:hidden}
 html[data-theme=nordic] .settings-sign-hanger::before,html[data-theme=nordic] .settings-sign-hanger::after{content:'';position:absolute;bottom:calc(100% - 2px);width:6px;height:26px;background:repeating-linear-gradient(133deg,#302119 0 2px,#a27a49 2px 4px,#4d3123 4px 6px);border:1px solid #342015;box-shadow:1px 0 3px #0008}
 html[data-theme=nordic] .settings-sign-hanger::before{left:32px}html[data-theme=nordic] .settings-sign-hanger::after{right:32px}
 html[data-theme=nordic] body .settings-sign-hanger #settings-tabs{display:flex;justify-content:center;flex-wrap:wrap;gap:4px;width:100%;max-width:none;margin:0;padding:9px 10px;border:8px solid transparent;border-image:url('/static/nordic-bronze-frame.svg') 36 / 11px / 0 stretch;border-radius:4px;background:linear-gradient(#21160e60,#130d0978),url('/static/nordic-sign-oak.png') center 65%/cover;box-shadow:0 8px 18px #0006,inset 0 1px #e0b77d38}
 html[data-theme=nordic] body .settings-sign-hanger #settings-tabs a{flex:1 1 auto;width:auto;min-width:0;padding:9px 8px;text-align:center;font-size:11px;color:#f0dfc0;text-shadow:0 1px 2px #0a0605}
 html[data-theme=nordic] .settings-sign-hanger #settings-tabs a[aria-current=page]{background:#1b130dc7;border-color:#c6a16c;color:#fff0cc;box-shadow:inset 0 1px #efd6a426}
-@keyframes nordic-sign-unfold{from{opacity:0;transform:translateY(-12px) rotateX(-18deg)}to{opacity:1;transform:none}}
+/* The board starts folded against the back of the main sign. Its hinge is
+   at the rope attachments, so gravity swings the whole board down together. */
+@keyframes nordic-sign-release{
+ 0%,6%{transform:rotateX(-175deg);animation-timing-function:cubic-bezier(.55,.02,.8,.75)}
+ 50%{transform:rotateX(20deg)}
+ 70%{transform:rotateX(-11deg)}
+ 85%{transform:rotateX(5deg)}
+ 95%{transform:rotateX(-1.5deg)}
+ 100%{transform:none}
+}
 html[data-theme=nordic] main{width:calc(100% - 160px);max-width:1740px;margin:0 auto;padding:0}
 html[data-theme=nordic] body header{height:34px;border-color:#b1925b55;color:#d4d9d5;font-size:11px;text-shadow:0 1px 3px #000}
 html[data-theme=nordic] .heading{margin:0;min-height:120px;padding:16px 12px 20px;gap:24px;align-items:center}
@@ -209,7 +220,7 @@ html[data-theme=nordic] footer{margin:24px 0;padding:14px 6px;color:#b0c2c8;bord
 @media(max-width:800px){
  html[data-theme=nordic] .navigation-signs{width:100%;max-width:none;margin:0 0 12px;animation:none;transform:none}
  html[data-theme=nordic] .navigation-signs aside{background:linear-gradient(#1a100960,#160e0a80),url('/static/nordic-sign-oak.png') center/cover}
- html[data-theme=nordic] .settings-sign-hanger:not([hidden]){width:calc(100% - 36px);margin-top:18px}
+ html[data-theme=nordic] .settings-sign-hanger:not([hidden]){width:calc(100% - 36px);margin-top:18px;transform-origin:50% -18px}
  html[data-theme=nordic] body .settings-sign-hanger #settings-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:7px}
  html[data-theme=nordic] body .settings-sign-hanger #settings-tabs a{padding:9px 3px;font-size:10px}
  html[data-theme=nordic] body aside{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;max-width:none;margin:0;padding:12px 16px 10px;gap:8px 4px;border:0;border-bottom:1px solid #92734c;border-image:none;border-radius:0;background:linear-gradient(#15120edb,#15120ef0),url('/static/nordic-carved-oak.png') center 10%/100% auto;animation:none;transform:none}

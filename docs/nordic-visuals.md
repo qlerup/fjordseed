@@ -48,7 +48,11 @@ it; Escape closes it and returns focus to the link. Direct settings URLs open
 it automatically. Theme switching moves the same navigation back to its normal
 position for Fjord and Viking. Desktop signs sway together by 0.7 degrees in
 either direction over eight seconds. Mobile, reduced motion and the animation
-setting disable that sway. The submenu unfolds once when opened.
+setting disable that sway. The submenu starts folded against the back of the
+main sign and releases around the rope attachments over 1.35 seconds, followed
+by a damped forward/back swing. Its wooden reverse is rendered during the flip;
+there is no sliding translation or opacity fade. Reduced motion and the theme's
+animation switch also disable this release.
 
 Both signs use `static/nordic-sign-oak.png`, generated with the built-in imagegen
 tool. Final prompt:
