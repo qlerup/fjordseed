@@ -20,14 +20,14 @@ with sync_playwright() as p:
   assert page.locator('main').evaluate('e=>e.inert')
   def advance(seconds):
    page.evaluate('seconds=>{for(let i=0;i<seconds*20;i++)testBattle.advance(.05,innerWidth,innerHeight);dispatchEvent(new Event("resize"));}',seconds)
-  advance(5)
+  advance(12)
   assert 5<=page.locator('.viking-longship:not([hidden])').count()<=8
   assert page.evaluate('testBattle.units.some(u=>u.state==="sailing")')
   page.screenshot(path=str(root/f'test-results/viking-boats-{width}.png'))
-  advance(3.5)
+  advance(page.evaluate('testBattle.boats[1].landAt+.6-testBattle.time'))
   assert page.evaluate('testBattle.units.some(u=>u.state==="landing")')
   page.screenshot(path=str(root/f'test-results/viking-landing-{width}.png'))
-  advance(23.5)
+  advance(page.evaluate('testBattle.arrivalEnd+17-testBattle.time'))
   expect(page.locator('.viking-warrior.is-archer').first).to_be_visible()
   for _ in range(30):
    if page.locator('.viking-arrow').count():break
@@ -41,6 +41,12 @@ with sync_playwright() as p:
   page.screenshot(path=str(root/f'test-results/viking-combat-{width}.png'))
   advance(2)
   assert page.locator('.viking-blood').count()<=40
+  page.evaluate('''()=>{const u=testBattle.units.find(u=>u.deadAt===null&&!u.lostLeg&&!u.lostArm);u.hp=5;u.x=.5;u.y=.85;const random=testBattle.random;testBattle.random=()=>.1;testBattle.wound(u,1,true);testBattle.wound(u,1,true);testBattle.random=random;}''')
+  advance(1)
+  expect(page.locator('.is-crawling').first).to_be_visible()
+  expect(page.locator('.viking-blood-trail').first).to_be_visible()
+  expect(page.locator('.viking-catapult').first).to_be_visible()
+  page.screenshot(path=str(root/f'test-results/viking-crawling-{width}.png'))
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
   round_before=page.evaluate('testBattle.round')
   page.evaluate('()=>{for(const u of testBattle.units)if(u.team===1)testBattle.kill(u.id);dispatchEvent(new Event("resize"));}')

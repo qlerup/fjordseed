@@ -23,7 +23,7 @@
  controls.querySelector('button').addEventListener('click',()=>fullView(false));
  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!controls.hidden){event.preventDefault();fullView(false);}});
  const battle=new window.FjordBattleModel(innerWidth<700?40:64);
- let raf=0,last=0,renderedRound=0,actors=[],boats=[],splashes=new Map(),arrows=new Map();
+ let raf=0,last=0,renderedRound=0,actors=[],boats=[],carts=[],splashes=new Map(),arrows=new Map(),trails=new Map(),rocks=new Map();
  const axe='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 65 85"><path d="M17 80L42 9" stroke="#211d17" stroke-width="9"/><path d="M17 80L42 9" stroke="#b69a69" stroke-width="5"/><path d="M37 13L53 5Q49 18 62 31L41 30L35 25Z" fill="#b9c9c5" stroke="#445959" stroke-width="2"/><path d="M53 5Q49 18 62 31" stroke="#edf0d9" stroke-width="3"/></svg>';
  layer.style.setProperty('--axe-cursor',`url("data:image/svg+xml,${encodeURIComponent(axe)}") 18 20, crosshair`);
  function art(u){
@@ -32,12 +32,17 @@
   return `<svg viewBox="0 0 90 110" aria-hidden="true"><ellipse cx="42" cy="103" rx="29" ry="4" fill="#061115" opacity=".3"/><g class="viking-leg-left" stroke="#302e29" stroke-width="9" stroke-linecap="round"><path d="M33 68L30 94l-6 5"/></g><g class="viking-leg-right" stroke="#39352d" stroke-width="9" stroke-linecap="round"><path d="M46 68L50 94l6 5"/></g><g class="viking-body" stroke="#263237" stroke-width="1.7" stroke-linejoin="round"><path d="M23 39Q13 52 13 81L36 76 60 85 57 46Z" fill="${cloth}"/><path d="M29 38L48 37 56 70 26 73Z" fill="#68706a"/><path d="M28 47h24M27 53h27M27 59h28" stroke="#a5aaa0" stroke-dasharray="2 3" opacity=".5"/><path d="M24 66L56 63 58 76 25 78Z" fill="${cloth}"/><path d="M26 64l29-3" stroke="#ad8b58" stroke-width="4"/><path d="M23 41l-6 15 13 9" stroke="#baa07b" stroke-width="8" fill="none"/><path d="M27 20Q39 9 50 24L47 42 35 47 25 34Z" fill="#d1b08b"/><path d="M27 31L34 36 47 32 46 49 37 57 28 44Z" fill="${beard}"/><path d="M34 28h3m7 0h3" stroke="#1a2629" stroke-width="2.4"/><path d="M23 25Q22 7 37 6Q53 7 52 25L41 22 40 34 36 34 34 22Z" fill="#86978f"/><path d="M37 6v16M24 22h27" stroke="#ceccae" stroke-width="2"/><g class="viking-weapon"><path d="M47 44L58 53 69 38" fill="none" stroke="#bca080" stroke-width="8" stroke-linecap="round"/><path d="M62 58L76 9" stroke="#2a2e2b" stroke-width="7"/><path d="M62 58L76 9" stroke="#ad8759" stroke-width="4"/><path d="M72 14L84 8Q80 18 89 27L74 26 69 23Z" fill="#aebdb3"/><path d="M84 8Q80 18 89 27" stroke="#dddcc5" stroke-width="2"/></g><g><circle cx="23" cy="59" r="21" fill="${cloth}" stroke="#c4b28b" stroke-width="3"/><path d="M23 39v40M3 59h40" stroke="${edge}" stroke-width="7" opacity=".6"/><circle cx="23" cy="59" r="7" fill="#7e8d85" stroke="#d2c6a5" stroke-width="2"/><path d="M9 45l3 3M34 45l-3 3M8 73l4-4M36 73l-4-4" stroke="#e1cfa4"/></g></g><path class="viking-spark" d="M77 36l5-8m-3 11 10-2m-11 6 8 5" stroke="#f5d79b" stroke-width="2"/></svg>`;
  }
  function build(){
-  layer.replaceChildren();splashes.clear();arrows.clear();renderedRound=battle.round;
+  layer.replaceChildren();splashes.clear();arrows.clear();trails.clear();rocks.clear();renderedRound=battle.round;
   boats=battle.boats.map(b=>{
    const el=document.createElement('div');el.className='viking-longship';el.setAttribute('aria-hidden','true');
    const cloth=b.team?'#688e91':'#a66b55';
    el.innerHTML=`<svg viewBox="0 0 240 160"><ellipse class="ship-wake" cx="120" cy="146" rx="106" ry="9" fill="none" stroke="#afc9bb" stroke-width="2" opacity=".3"/><path d="M118 118V12" stroke="#8e714c" stroke-width="6"/><path d="M119 17Q166 26 190 88L121 79Z" fill="${cloth}" stroke="#d6c5a0" stroke-width="2"/><path d="M135 24l8 57m15-47 9 51" stroke="#d8cfb1" stroke-width="12" opacity=".6"/><path d="M21 111Q7 95 13 78L26 72 34 80 22 84 28 107M215 109Q230 85 221 77" fill="none" stroke="#9c784a" stroke-width="9"/><path d="M19 107Q119 127 222 106L203 133Q120 159 40 133Z" fill="#624b34" stroke="#ba955d" stroke-width="3"/><path d="M35 121Q120 143 208 120" fill="none" stroke="#b19163" stroke-width="2"/><g class="ship-oars" stroke="#c2a77b" stroke-width="4"><path d="M61 117l-27 26m61-22-22 26m58-25-16 26m52-28-9 25m39-30-2 22"/></g>${[58,87,116,145,174].map((x,i)=>`<circle cx="${x}" cy="119" r="12" fill="${i%2?'#b29a69':cloth}" stroke="#d1b98c" stroke-width="2"/><circle cx="${x}" cy="119" r="3" fill="#9aaba2"/>`).join('')}</svg>`;
    layer.append(el);return el;
+  });
+  carts=battle.catapults.map(cart=>{
+   const el=document.createElement('div');el.className='viking-catapult';el.setAttribute('aria-hidden','true');
+   el.innerHTML=`<svg viewBox="0 0 140 110"><path d="M17 82h101L94 72H34Z" fill="#665038" stroke="#b69664" stroke-width="3"/><path d="M38 79L65 37 94 79M65 37v42" fill="none" stroke="#a98754" stroke-width="7"/><path d="M32 69h69" stroke="#c7aa71" stroke-width="4"/><g class="catapult-arm"><path d="M65 58L103 12" stroke="#c4a16b" stroke-width="7"/><path d="M92 9q15 14 23 2" stroke="#59452e" stroke-width="6" fill="none"/></g><circle cx="35" cy="87" r="16" fill="#423d30" stroke="#a58a59" stroke-width="4"/><circle cx="105" cy="87" r="16" fill="#423d30" stroke="#a58a59" stroke-width="4"/><path d="M35 73v28m-14-14h28m56-14v28m-14-14h28" stroke="#967a50" stroke-width="3"/><path d="M48 70h33v13H48Z" fill="${cart.team?'#507c84':'#964f43'}"/></svg>`;
+   el.arm=el.querySelector('.catapult-arm');layer.append(el);return el;
   });
   actors=battle.units.map(u=>{
    const el=document.createElement('button');el.type='button';el.className='viking-warrior';el.innerHTML=art(u);
@@ -67,13 +72,13 @@
   if(renderedRound!==battle.round)build();
   layer.dataset.phase=battle.phase;layer.dataset.round=String(battle.round);
   const strategyNames={shieldwall:'Skjoldmur',wedge:'Kile',flank:'Flankeangreb'};
-  controls.querySelector('span').textContent=battle.exitStart!==null?(battle.winner===null?'Begge hold trækker sig tilbage':`${battle.winner?'Blåt':'Rødt'} hold har vundet`):`${strategyNames[battle.strategies[0]]} mod ${strategyNames[battle.strategies[1]]}`;
+  controls.querySelector('span').textContent=battle.exitStart!==null?(battle.winner===null?'Begge hold trækker sig tilbage':`${battle.winner?'Blåt':'Rødt'} hold har vundet`):`${battle.formations[0].length} grupper pr. hold · skjoldmur, kile og flanker`;
   const motion=root.dataset.animation!=='false'&&!reduced.matches;
   battle.boats.forEach((b,i)=>{
    const el=boats[i],scale=b.scale*(innerWidth<700?.65:1);
    el.hidden=!b.visible;
    el.style.zIndex=String(Math.round(b.y*1000)+1);
-   el.style.transform=`translate(${b.x*innerWidth}px,${b.y*innerHeight+(motion?Math.sin(battle.time*2+b.team)*scale:0)}px) scale(${scale}) translate(-120px,-146px)`;
+   el.style.transform=`translate(${b.x*innerWidth}px,${b.y*innerHeight+(motion?Math.sin(battle.time*1.1+b.id)*scale:0)}px) scale(${scale}) rotate(${b.heading||0}deg) translate(-120px,-146px)`;
   });
   battle.units.forEach((u,i)=>{
    const el=actors[i],dead=u.deadAt!==null,age=dead?battle.time-u.deadAt:0;
@@ -90,17 +95,43 @@
    if(el.spear)el.spear.style.transform=`translateX(${dead?0:lunge*15}px) rotate(${u.attackStyle==='spear-low'?8:0}deg)`;
    el.classList.toggle('is-ranged',u.archer&&u.state!=='fighting');
    el.classList.toggle('lost-arm',!!u.lostArm);el.classList.toggle('lost-leg',!!u.lostLeg);
+   el.classList.toggle('is-crawling',!dead&&!!u.lostLeg);
    el.classList.toggle('has-victory-flag',!!u.flag);
    el.classList.toggle('is-shooting',u.archer&&battle.time-u.shotAt<.25);
    el.body.style.transform=`translateX(${dead?0:lunge*3}px) rotate(${!dead&&battle.time-u.hitAt<.22?-10:dead?0:lunge*(u.attackStyle==='sweep'?9:4)}deg)`;
    el.style.zIndex=String(Math.round(u.y*1000));
-   el.style.transform=`translate(${u.x*innerWidth-38}px,${u.y*innerHeight-90-jump}px) scale(${scale}) rotate(${dead?(motion?Math.min(1,age/.45):1)*u.facing*85:0}deg)`;
+   const crawling=!dead&&u.lostLeg,crawl=motion&&crawling?Math.sin(battle.time*4+u.id):0;
+   el.style.transform=`translate(${u.x*innerWidth-38}px,${u.y*innerHeight-90-jump+(crawling?crawl:0)}px) scale(${scale}) rotate(${dead?(motion?Math.min(1,age/.45):1)*u.facing*85:crawling?u.facing*(78+crawl*3):0}deg)`;
    el.style.opacity=dead?String(motion?Math.max(0,1-Math.max(0,age-1.8)/2):0):'1';
    el.style.setProperty('--facing',u.facing);
    el.classList.toggle('is-fallen',dead);el.classList.toggle('is-running',!dead&&u.state==='running');el.classList.toggle('is-fighting',!dead&&u.state==='fighting');
    el.disabled=dead;el.tabIndex=dead||u.x<0||u.x>1?-1:0;
-   el.hidden=dead&&(!motion||age>4)||u.state==='offscreen';
+   el.hidden=dead&&(!motion||age>4)||u.state==='offscreen'||(boat&&!boat.visible);
   });
+  battle.catapults.forEach((cart,i)=>{
+   const el=carts[i],age=battle.time-cart.shotAt,scale=innerWidth<700?.65:.9;
+   el.style.transform=`translate(${cart.x*innerWidth-70}px,${cart.y*innerHeight-93}px) scale(${scale})`;
+   el.style.zIndex=String(Math.round(cart.y*1000));el.hidden=battle.phase==='clear';
+   el.arm.style.transform=`rotate(${age<.3?-80*age/.3:age<1.5?-80*(1-(age-.3)/1.2):0}deg)`;
+  });
+  const flyingRocks=new Set();
+  if(motion)for(const rock of battle.rocks){
+   flyingRocks.add(rock.id);let el=rocks.get(rock.id);
+   if(!el){el=document.createElement('div');el.className='viking-boulder';el.setAttribute('aria-hidden','true');layer.append(el);rocks.set(rock.id,el);}
+   const p=Math.min(1,(battle.time-rock.at)/rock.duration);
+   el.style.transform=`translate(${(rock.x+(rock.tx-rock.x)*p)*innerWidth}px,${(rock.y+(rock.ty-rock.y)*p)*innerHeight-45-Math.sin(p*Math.PI)*130}px) rotate(${p*350}deg)`;
+   el.style.zIndex='1100';el.style.opacity=String(rock.landed?Math.max(0,1-(battle.time-rock.at-rock.duration)/.5):1);
+  }
+  for(const [id,el] of rocks)if(!flyingRocks.has(id)){el.remove();rocks.delete(id);}
+  const ground=new Set();
+  for(const mark of battle.trails){
+   ground.add(mark.id);let el=trails.get(mark.id);
+   if(!el){el=document.createElement('div');el.className='viking-blood-trail';el.setAttribute('aria-hidden','true');layer.append(el);trails.set(mark.id,el);}
+   el.style.transform=`translate(${mark.x*innerWidth}px,${mark.y*innerHeight+2}px) rotate(${mark.seed*180}deg) scale(${.7+mark.seed*.8})`;
+   el.style.opacity=String(Math.min(.85,Math.max(0,(18-(battle.time-mark.at))/5)));
+   el.style.zIndex=String(Math.round(mark.y*1000)-1);
+  }
+  for(const [id,el] of trails)if(!ground.has(id)){el.remove();trails.delete(id);}
   const active=new Set();
   if(motion)for(const effect of battle.effects){
    active.add(effect.id);let el=splashes.get(effect.id);
@@ -150,7 +181,7 @@
   const run=allowed();layer.classList.toggle('is-paused',!run);
   if(!run){cancelAnimationFrame(raf);raf=0;last=0;}
   // Still artwork is visible when animation is disabled from the beginning.
-  if(active&&!run&&battle.time===0&&(reduced.matches||root.dataset.animation==='false')){for(let i=0;i<150;i++)battle.advance(.1,innerWidth,innerHeight);render();}
+  if(active&&!run&&battle.time===0&&(reduced.matches||root.dataset.animation==='false')){const steps=Math.ceil(battle.arrivalEnd*10);for(let i=0;i<steps;i++)battle.advance(.1,innerWidth,innerHeight);render();}
   if(run&&!raf){last=0;raf=requestAnimationFrame(frame);}
  }
  build();render();sync();
