@@ -5,7 +5,7 @@
  const text=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
  function releaseBuckets(points){
   if(!points.length)return [];
-  const steps=[3,6,12,24,48,168,720];
+  const steps=[1,2,3,6,12,24,48,168,720];
   function range(at,hours){
    const start=new Date(at*1000);start.setMinutes(0,0,0);
    if(hours<=24)start.setHours(Math.floor(start.getHours()/hours)*hours);
@@ -18,11 +18,9 @@
    if(hours<24)end.setHours(end.getHours()+hours);else end.setDate(end.getDate()+hours/24);
    return {start,end};
   }
-  let step=steps.find(hours=>{
-   const first=range(Math.min(...points.map(p=>p.at)),hours).start;
-   const last=range(Math.max(...points.map(p=>p.at)),hours).end;
-   return (last-first)/(hours*3600000)<=6.1;
-  })||Math.ceil((Math.max(...points.map(p=>p.at))-Math.min(...points.map(p=>p.at)))/(6*86400))*24;
+  // Count occupied windows so a distant release does not hide nearby detail.
+  const step=steps.find(hours=>new Set(points.map(point=>range(point.at,hours).start.getTime())).size<=24)
+   ||Math.ceil((Math.max(...points.map(p=>p.at))-Math.min(...points.map(p=>p.at)))/(24*86400))*24;
   const buckets=new Map();
   for(const point of points){const {start,end}=range(point.at,step),key=start.getTime();
    if(!buckets.has(key))buckets.set(key,{start,end,bytes:0});

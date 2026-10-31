@@ -6,7 +6,7 @@ root=Path(__file__).resolve().parents[1]
 markup=(root/'templates/storage_usage.html').read_text(encoding='utf-8')
 script=(root/'static/storage-usage.js').read_text(encoding='utf-8')
 gib=1024**3
-# Midnight on 29 October in Copenhagen. Span requires six-hour windows.
+# Midnight on 29 October in Copenhagen. Sparse releases retain hourly detail.
 base=1793228400
 points=[dict(at=base+hour*3600,bytes=gib) for hour in (0,1,2,3,4,5,18,18,18,18,18,18)]
 with sync_playwright() as p:
@@ -22,11 +22,11 @@ with sync_playwright() as p:
             window.setInterval=callback=>{window.poll=callback;};
         }""",dict(path='/mnt/media',current_rss_bytes=9*gib,release_schedule=dict(items=[],count=12,scheduled_bytes=12*gib,available=True,timeline=points,soon_bytes=0,unplaced_bytes=2*gib)))
         page.add_script_tag(content=script)
-        expect(page.locator('.storage-release-list li')).to_have_count(3)
-        expect(page.locator('.storage-release-amount').first).to_have_text('Ca. 6,00 GiB frigives')
-        expect(page.locator('.storage-release-name').first).to_have_text('29. okt. kl. 00\u201306')
-        expect(page.locator('.storage-release-name').nth(1)).to_have_text('29. okt. kl. 18\u201324')
-        expect(page.locator('.storage-release-amount').nth(1)).to_have_text('Ca. 6,00 GiB frigives')
+        expect(page.locator('.storage-release-list li')).to_have_count(8)
+        expect(page.locator('.storage-release-amount').first).to_have_text('Ca. 1,00 GiB frigives')
+        expect(page.locator('.storage-release-name').first).to_have_text('29. okt. kl. 00\u201301')
+        expect(page.locator('.storage-release-name').nth(6)).to_have_text('29. okt. kl. 18\u201319')
+        expect(page.locator('.storage-release-amount').nth(6)).to_have_text('Ca. 6,00 GiB frigives')
         expect(page.locator('.storage-release-name').last).to_have_text('Tidspunkt afventer')
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         page.evaluate("""()=>{window.changes=[];new MutationObserver(rows=>changes.push(...rows)).observe(document.querySelector('main'),{subtree:true,childList:true,attributes:true,characterData:true});poll();}""")
@@ -34,6 +34,17 @@ with sync_playwright() as p:
         assert page.evaluate('changes.length')==0
         Path('test-results').mkdir(exist_ok=True)
         page.screenshot(path=f'test-results/storage-release-{width}.png')
+        # A distant release must not merge the six nearby hourly releases.
+        page.evaluate('point=>{payload.release_schedule.timeline.push(point);poll()}',dict(at=base+1000*3600,bytes=gib))
+        expect(page.locator('.storage-release-list li')).to_have_count(9)
+        expect(page.locator('.storage-release-name').first).to_have_text('29. okt. kl. 00\u201301')
+        # A busy two-day schedule uses two-hour windows, preserving every byte.
+        page.evaluate('points=>{payload.release_schedule.timeline=points;poll()}',[dict(at=base+h*3600,bytes=gib) for h in range(48)])
+        expect(page.locator('.storage-release-list li')).to_have_count(25)
+        expect(page.locator('.storage-release-name').first).to_have_text('29. okt. kl. 00\u201302')
+        expect(page.locator('.storage-release-name').nth(23)).to_have_text('30. okt. kl. 22\u201324')
+        assert page.locator('.storage-release-amount').all_text_contents()[:-1]==['Ca. 2,00 GiB frigives']*24
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         page.evaluate('payload.release_schedule={items:[],count:0,scheduled_bytes:0,available:true};poll()')
         expect(page.locator('[data-usage-release-summary]')).to_contain_text('Ingen midlertidige RSS-filer')
         expect(page.locator('.storage-release-list li')).to_have_count(0)
