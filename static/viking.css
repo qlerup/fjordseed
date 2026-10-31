@@ -1,0 +1,74 @@
+/* All Viking overrides are scoped; Fjord keeps its original palette and artwork. */
+html[data-theme=viking]{--bg:#101b20;--panel:#1c2b2e;--border:#4c5750;--text:#f2ebdc;--muted:#b9c2b8;--green:#ddba75;--accent-blue:#8dc3c2;--accent-violet:#d8a580}
+html[data-theme=viking] ::selection{background:#795c35;color:#fff8e9}
+html[data-theme=viking] .ambient-scene{z-index:-2;background:#17272b url('/static/viking-fjord.svg') center / cover no-repeat}
+html[data-theme=viking] .ambient-scene::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#07121b40,#08171a24 50%,#07131645)}
+html[data-theme=viking] .ambient-glow{background:radial-gradient(ellipse at 60% 35%,#dbbf7924,transparent 55%);animation-duration:70s;mix-blend-mode:screen}
+html[data-theme=viking] .ambient-glow-secondary{background:radial-gradient(ellipse at 20% 70%,#9bc9c71c,transparent 55%)}
+html[data-theme=viking] .ambient-grid{display:none}
+html[data-theme=viking] .ambient-particles i{background:#f0cb82;box-shadow:0 0 9px #e8ad7055}
+html[data-theme=viking] body aside{background:#122126e8;border-color:#b0996438}
+html[data-theme=viking] .brand{color:#f1dfb5}
+html[data-theme=viking] .brand img{box-shadow:0 0 0 1px #c5a56b55;filter:sepia(.7) saturate(.7)}
+html[data-theme=viking] aside>.eyebrow,html[data-theme=viking] .heading .eyebrow,html[data-theme=viking] .insights-eyebrow{color:#d4b57e}
+html[data-theme=viking] .nav{color:#bcc5bd;border-radius:6px}
+html[data-theme=viking] .nav:hover{background:#b79a5820;color:#fff3d9}
+html[data-theme=viking] .nav.active{background:#a3834430;color:#f0d49c;border-color:#c4a16270;box-shadow:inset 3px 0 #ddba75}
+html[data-theme=viking] .nav.active svg{color:#ddba75}
+html[data-theme=viking] .aside-bottom,html[data-theme=viking] body header{border-color:#ab986744;color:var(--muted)}
+html[data-theme=viking] .heading h1,html[data-theme=viking] .appearance-panel h2,html[data-theme=viking] .battle-guide h2{font-family:Georgia,'Times New Roman',serif;letter-spacing:.2px;color:#f4e8d1}
+html[data-theme=viking] .heading h1{font-size:36px}
+html[data-theme=viking] .section-heading h2::before{background:#d3ae69;border-radius:0;transform:rotate(45deg);height:11px;width:6px;margin-right:2px}
+html[data-theme=viking] .primary{background:#ddba75;border-color:#eed3a0;color:#26251b;box-shadow:0 4px 16px #070f1526}
+html[data-theme=viking] .primary:hover:not(:disabled){background:#efd39b}
+html[data-theme=viking] .secondary{background:#2a3b3d;border-color:#657267;color:#efe7d8}
+html[data-theme=viking] .secondary:hover:not(:disabled){background:#3c4d49;border-color:#b4a77f}
+html[data-theme=viking] .quiet:hover{color:#fff0ce}
+html[data-theme=viking] body .connection,html[data-theme=viking] .tracker-card,html[data-theme=viking] .torrent,html[data-theme=viking] .stats>div,html[data-theme=viking] .insights{background:#19292dde;border-color:#8d926052;box-shadow:inset 0 1px #ddd5aa08,0 8px 24px #06121720}
+html[data-theme=viking] .stats span{color:#b8c5bd}
+html[data-theme=viking] .shared-download-queue{border-left-color:#ddba75}
+html[data-theme=viking] .shared-download-queue #shared-queue-count{color:#e7c48d}
+html[data-theme=viking] .traffic-flow{background:linear-gradient(115deg,#203e3ad9,#283b3dcc);border-color:#78836966}
+html[data-theme=viking] .flow-rate{background:#243c3d;border-color:#637b70}
+html[data-theme=viking] .flow-note,html[data-theme=viking] .flow-node p{color:#bdcec2}
+html[data-theme=viking] .empty,html[data-theme=viking] .insights-period,html[data-theme=viking] input:not([type=hidden]),html[data-theme=viking] select,html[data-theme=viking] textarea{background:#132429;border-color:#607368;color:var(--text)}
+html[data-theme=viking] .downloads-page #torrents,html[data-theme=viking] .downloads-page #rss-view{background:#17272c99;border-color:#84916b55}
+html[data-theme=viking] .downloads-page .torrent,html[data-theme=viking] .torrent-inactive{background:#23383acc;border-color:#7d886050}
+html[data-theme=viking] .download-filters,html[data-theme=viking] .settings-tabs{border-color:#6f806655}
+html[data-theme=viking] .settings-tabs{background:#172b2dcc}
+html[data-theme=viking] .download-filters button[aria-pressed=true],html[data-theme=viking] .settings-tabs a[aria-current=page],html[data-theme=viking] .insights-period button[aria-pressed=true]{background:#89703e38;border-color:#b49b63;color:#f1d8a1}
+html[data-theme=viking] dialog,html[data-theme=viking] #rss-history-dialog{background:#1b2c30;border-color:#8a9374}
+html[data-theme=viking] .dialog-heading,html[data-theme=viking] .dialog-footer,html[data-theme=viking] #rss-history-dialog .dialog-heading,html[data-theme=viking] #rss-history-dialog .dialog-footer{background:#25383a}
+html[data-theme=viking] dialog::backdrop{background:#071214d9}
+html[data-theme=viking] .tracker-select-trigger,html[data-theme=viking] .tracker-select-options,html[data-theme=viking] .benefit-panel,html[data-theme=viking] .ratio-estimate,html[data-theme=viking] .rss-history-file,html[data-theme=viking] .rss-history-metrics{background:#16292d;border-color:#657367;color:var(--text)}
+html[data-theme=viking] .tracker-select-option:hover,html[data-theme=viking] .tracker-select-option[aria-selected=true],html[data-theme=viking] .rss-history-group,html[data-theme=viking] .rss-history-overview{background:#2d423e}
+html[data-theme=viking] .unified-add .add-method button{background:#22373a;border-color:#627566;color:#c7d0c3}
+html[data-theme=viking] .unified-add .add-method button[aria-pressed=true]{background:#b28d4430;border-color:#d1b271;color:#f4ddb2}
+html[data-theme=viking] .unified-add .add-method button span{color:#c0c8bc}
+html[data-theme=viking] .theme-preview-viking{box-shadow:inset 0 -1px #bcb48b20}
+.viking-battle{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:-1;contain:layout style;--axe-cursor:crosshair}
+html:not([data-theme=viking]) .viking-battle{display:none}
+.viking-warrior{position:absolute;top:0;left:0;width:76px;height:100px;background:none;border:0;padding:0;pointer-events:auto;touch-action:manipulation;user-select:none;cursor:var(--axe-cursor);transform-origin:50% 92%;filter:drop-shadow(0 4px 3px #06111380)}
+.viking-warrior svg{width:100%;height:100%;overflow:visible;transform:scaleX(var(--facing,1))}
+.viking-warrior:focus-visible{outline:2px solid #edc77e;outline-offset:0;border-radius:30px}
+.viking-warrior .viking-body{transform-origin:40px 62px}
+.viking-warrior .viking-weapon{transform-origin:47px 48px}
+.viking-warrior .viking-leg-left{transform-origin:33px 69px}.viking-warrior .viking-leg-right{transform-origin:46px 69px}
+.viking-warrior.is-running .viking-leg-left{animation:viking-step .48s ease-in-out infinite alternate}
+.viking-warrior.is-running .viking-leg-right{animation:viking-step .48s ease-in-out -.48s infinite alternate-reverse}
+.viking-warrior.is-running .viking-body{animation:viking-bob .48s ease-in-out infinite alternate}
+.viking-warrior.is-fighting .viking-weapon{animation:viking-chop 1.3s ease-in-out var(--swing-delay,0s) infinite}
+.viking-warrior.is-fighting .viking-body{animation:viking-brace 1.3s ease-in-out var(--swing-delay,0s) infinite}
+.viking-warrior.is-fighting .viking-spark{animation:viking-spark 1.3s linear var(--swing-delay,0s) infinite}
+.viking-spark{opacity:0}
+.viking-warrior.is-fallen{pointer-events:none;cursor:default}
+.viking-player-axe{position:absolute;width:65px;height:85px;pointer-events:none;transform-origin:35% 90%;animation:player-chop .42s ease-out both;filter:drop-shadow(0 3px 2px #05121799)}
+.viking-battle.is-paused *{animation-play-state:paused!important}
+@keyframes viking-step{from{transform:rotate(-23deg)}to{transform:rotate(24deg)}}
+@keyframes viking-bob{to{transform:translateY(-2px) rotate(2deg)}}
+@keyframes viking-brace{0%,65%,100%{transform:rotate(0)}35%{transform:rotate(-8deg)}48%{transform:rotate(8deg)}}
+@keyframes viking-chop{0%,70%,100%{transform:rotate(8deg)}30%{transform:rotate(-85deg)}45%,52%{transform:rotate(48deg)}}
+@keyframes viking-spark{0%,40%,57%,100%{opacity:0}46%{opacity:1;transform:translate(1px,-2px)}}
+@keyframes player-chop{0%{transform:rotate(-80deg);opacity:0}20%{opacity:1}65%{transform:rotate(40deg);opacity:1}100%{transform:rotate(55deg);opacity:0}}
+@media(max-width:800px){html[data-theme=viking] body aside{background:#122126f2}html[data-theme=viking] .heading h1{font-size:29px}}
+@media(prefers-reduced-motion:reduce){.viking-battle *{animation:none!important}.theme-option{transition:none}}

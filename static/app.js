@@ -68,14 +68,14 @@ function seedingProgress(t) {
  const target = Number(t.ratio_limit) > 0 ? Number(t.ratio_limit) : 1;
  const seconds = Math.max(0, Number(t.seeding_time) || 0);
  const minutes = !t.ratio_only && Number(t.seeding_time_limit) > 0 ? Number(t.seeding_time_limit) : 0;
- const fraction = Math.min(1, Math.max(ratio / target, minutes ? seconds / (minutes * 60) : 0));
+ const fraction = Math.min(1, t.seed_minutes ? seconds/(Number(t.seed_minutes)*60) : Math.max(ratio / target, minutes ? seconds / (minutes * 60) : 0));
  return {ratio, target, seconds, minutes, fraction, active:['uploading','stalledUP','forcedUP'].includes(t.state)};
 }
 function torrentMetrics(t) {
  const seed=seedingProgress(t),values=node('dl','torrent-metrics');
  const number=n=>n.toLocaleString('da-DK',{maximumFractionDigits:2});
  const fields=[['Download',size(t.dlspeed)+'/s'],['Upload',size(t.upspeed)+'/s'],
-  ['Ratio',number(seed.ratio)+(t.seeding_unlimited?'':' / '+number(seed.target))],
+  ['Ratio',number(seed.ratio)+(t.seeding_unlimited||t.seed_minutes?'':' / '+number(seed.target))],
   ['Seedtid',number(seed.seconds/3600)+(!t.seeding_unlimited&&seed.minutes?' / '+number(seed.minutes/60):'')+' timer'],
   ['Uploadet i alt',typeof t.uploaded==='number'&&Number.isFinite(t.uploaded)&&t.uploaded>=0?size(t.uploaded,true):'—']];
  for(const [label,value] of fields){const item=node('div');item.append(node('dt','',label),node('dd','',value));values.append(item);}
@@ -96,6 +96,7 @@ function torrentDetails(t) {
  else if(t.green_pending)details.append(node('p','torrent-rule','Afventer trackerens oprettelsesdato til kontoens uploadkredit. Det ændrer ikke torrentens ratio eller seedingmål.'));
  if(t.green_history_estimated)details.append(node('p','torrent-rule','Tidligere upload kan ikke fordeles pr\u00e6cist. Ukendt uploadhistorik er forsigtigt regnet som halv kredit.'));
  if(t.conversion_enabled){details.append(node('p','torrent-rule','Kun den konverterede udgave gemmes i biblioteket. Originalen slettes efter godkendt konvertering og ratio 1:1 eller 50 timers aktiv seeding. Ved fejl beholdes originalen.'));return details;}
+ if(t.seed_minutes){details.append(node('p','torrent-rule',`Seed i ${Number(t.seed_minutes).toLocaleString('da-DK')} min. Torrenten og filerne slettes efter denne aktive seedtid, uanset ratio og aktive downloadere. Pauser og registrerede net-/VPN-udfald tæller ikke med.`));return details;}
  if(t.stop_on_complete)details.append(node('p','torrent-rule','Seeding stoppes efter download. Torrenten og filerne beholdes. Der kan uploades under download.'));
  else if(t.seeding_unlimited)details.append(node('p','torrent-rule','Filerne beholdes. Seeding fortsætter, indtil du stopper den manuelt.'));
  if(t.seeding_auto_extended)details.append(node('p','torrent-rule seed-extension',
@@ -155,6 +156,7 @@ function torrentProgress(t) {
   overlay.setAttribute('aria-label','Seeding af '+t.name);
   overlay.setAttribute('aria-valuetext',Math.floor(seed.fraction*100)+' % af seedingm\u00e5let. Ratio '+seed.ratio+' af '+seed.target+
    (seed.minutes?' eller '+seed.minutes/60+' timer.':''));
+  if(t.seed_minutes)overlay.setAttribute('aria-valuetext',`${Math.floor(seed.fraction*100)} % af ${t.seed_minutes} minutters aktiv seeding.`);
   track.append(overlay);
  }
  wrap.append(track);return wrap;
@@ -413,6 +415,7 @@ function seedingExplanation(action,hours=50){
  const wait=' Sletter først, når ingen tilsluttede downloadere mangler data, og upload er nul. Ukendt peer-status udsætter sletningen.';
  if(action==='keep')return 'Efter download fortsætter seeding uden tids- eller ratiogrænse. Du stopper selv. Torrenten og filerne beholdes.';
  if(action==='stop_keep')return 'Stopper seeding, så snart download er færdig. Torrenten og filerne beholdes. Der kan uploades under download. Dette valg venter ikke på ratio 1 eller 50 timers seeding.';
+ if(action==='delete_time')return 'Downloader færdig og seeder i det antal minutter, du vælger. Derefter slettes torrenten og filerne. Ratio forkorter ikke tiden, og aktive downloadere forlænger den ikke.';
  if(action==='delete_ratio')return 'Downloader og seeder, indtil din målratio er nået. Der er ingen tidsgrænse: 50 timer udløser ikke sletning. Derefter fjernes både torrenten og filerne.'+wait;
  const goal='Downloader og seeder indtil målratioen eller '+time+' — det, der sker først. Tiden kan derfor udløse oprydning, før målratioen er nået.';
  if(action==='automatic')return goal+' Seeder videre efter målet, så længe beregningen viser ekstra uploadpotentiale. Når potentialet falder, fjernes torrenten og filerne.'+wait;
@@ -420,19 +423,21 @@ function seedingExplanation(action,hours=50){
 }
 function updateSeedingFields(prefix){
  const action=$('#'+prefix+'-action').value;const deleting=!['keep','stop_keep'].includes(action);
+ const timed=prefix==='ratio'&&action==='delete_time';
+ if(prefix==='ratio'){$('#ratio-time-fields').hidden=!timed;$('#ratio-seed-minutes').disabled=!timed;$('#ratio-seed-minutes').required=timed;}
  $('#'+prefix+'-keep-info').textContent=seedingExplanation(action);
  $('#'+prefix+'-ratio-label').textContent='Målratio (reel upload/download)';
- $('#'+prefix+'-limits').hidden=!deleting;
+ $('#'+prefix+'-limits').hidden=!deleting||timed;
  $('#'+prefix+'-keep-info').hidden=false;
  $('#'+prefix+'-delete-notice').hidden=!deleting;
  const input=$('#'+prefix+(prefix==='ratio'?'-limit':'-ratio'));
- input.disabled=!deleting;input.required=deleting;if(!deleting&&!(Number(input.value)>=1))input.value=1;
+ input.disabled=!deleting||timed;input.required=deleting&&!timed;if((!deleting||timed)&&!(Number(input.value)>=1))input.value=1;
 }
 $('#ratio-action').onchange=()=>updateSeedingFields('ratio');
 updateSeedingFields('ratio');
 $('#ratio-dialog').addEventListener('cancel',e=>{if($('#ratio-save').disabled)e.preventDefault();});
 $('#ratio-back').onclick=()=>{$('#ratio-dialog').close();$('#add-dialog').showModal();};
-$('#ratio-form').onsubmit=async e=>{e.preventDefault();if(!pendingTorrent)return;$('#ratio-save').disabled=true;$('#ratio-back').disabled=true;$('#ratio-dialog .close').disabled=true;$('#ratio-error').hidden=true;try{pendingTorrent.set('convert',String($('#ratio-convert').checked));pendingTorrent.set('ratio_limit',$('#ratio-limit').value);pendingTorrent.set('ratio_action',$('#ratio-action').value);await api('/api/torrents',{method:'POST',body:pendingTorrent});pendingTorrent=null;$('#ratio-dialog').close();toast('Torrent tilføjet');await refresh();}catch(e){error('#ratio-error',e);}finally{$('#ratio-save').disabled=false;$('#ratio-back').disabled=false;$('#ratio-dialog .close').disabled=false;}};
+$('#ratio-form').onsubmit=async e=>{e.preventDefault();if(!pendingTorrent)return;$('#ratio-save').disabled=true;$('#ratio-back').disabled=true;$('#ratio-dialog .close').disabled=true;$('#ratio-error').hidden=true;try{pendingTorrent.set('convert',String($('#ratio-convert').checked));pendingTorrent.set('ratio_limit',$('#ratio-limit').value);pendingTorrent.set('ratio_action',$('#ratio-action').value);pendingTorrent.set('seed_minutes',$('#ratio-seed-minutes').value);await api('/api/torrents',{method:'POST',body:pendingTorrent});pendingTorrent=null;$('#ratio-dialog').close();toast('Torrent tilføjet');await refresh();}catch(e){error('#ratio-error',e);}finally{$('#ratio-save').disabled=false;$('#ratio-back').disabled=false;$('#ratio-dialog .close').disabled=false;}};
 function openDeleteEditor(t){
  deleting=t;$('#delete-form').reset();$('#delete-name').textContent=t.name;
  $('#delete-choice').hidden=false;
@@ -462,10 +467,11 @@ $('#delete-form').onsubmit=async e=>{
 let downloadFilter='all';
 function showView(focus=false){
  const requested=location.hash==='#settings'?'connection':location.hash.slice(1);
- const view=['overview','torrents','streaming','storage','connection','trackers','rss','conversion'].includes(requested)?requested:'overview';
+ const view=['overview','torrents','streaming','storage','connection','trackers','rss','conversion','appearance'].includes(requested)?requested:'overview';
  const downloads=view==='torrents'||view==='rss';
- const settings=['connection','streaming','storage','trackers','conversion'].includes(view);
+ const settings=['connection','streaming','storage','trackers','conversion','appearance'].includes(view);
  $('#settings-tabs').hidden=!settings;
+ $('#appearance-view').hidden=view!=='appearance';
  document.querySelectorAll('#settings-tabs a').forEach(link=>{
   if(link.hash==='#'+view)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
  });
@@ -487,7 +493,8 @@ function showView(focus=false){
  if(streaming){$('#breadcrumb').textContent='Seedbox / Streaming';$('#page-title').textContent='Streaming';$('#page-description').textContent='Vælg buffer og forbind dine færdige downloads til FjordFlix.';}
  if(overview){$('#breadcrumb').textContent='Seedbox / Oversigt';$('#page-title').textContent='Din seedbox i overblik';$('#page-description').textContent='Følg din VPN-forbindelse, dine trackerkonti og din udvikling over tid.';}
  document.querySelectorAll('.nav').forEach(link=>{const active=link.hash==='#'+(settings?'settings':downloads?'torrents':view);link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
- if(settings){$('#breadcrumb').textContent='Seedbox / Indstillinger / '+({connection:'VPN-forbindelse',streaming:'Streaming',storage:'Lager og mapper',trackers:'Trackere',conversion:'Konvertering'}[view]);$('#page-title').textContent='Indstillinger';}
+ if(settings){$('#breadcrumb').textContent='Seedbox / Indstillinger / '+({connection:'VPN-forbindelse',streaming:'Streaming',storage:'Lager og mapper',trackers:'Trackere',conversion:'Konvertering',appearance:'Tema'}[view]);$('#page-title').textContent='Indstillinger';}
+ if(view==='appearance')$('#page-description').textContent='Dit tema, din stemning. Vælg udseende og bevægelse.';
  if(view==='conversion')$('#page-description').textContent='Vælg GPU-konvertering på serveren eller en tilsluttet pc.';
  if(downloads){$('#breadcrumb').textContent='Seedbox / Downloads';$('#page-title').textContent='Dine downloads';$('#page-description').textContent='Manuelle downloads og automatiske feeds. Samlet ét sted, gennem din VPN.';}
  $('#torrents h2').textContent=downloadFilter==='all'?'Alle downloads':'Manuelle downloads';
@@ -519,12 +526,17 @@ function openRatioEditor(t) {
  $('#edit-ratio-name').textContent=t.name;
  $('#edit-ratio-limit').value=seedingProgress(t).target;
  $('#edit-extra-seed-hours').value=t.extra_seed_hours||0;
- $('#edit-ratio-action').value=t.stop_on_complete?'stop_keep':t.share_limit_action==='RemoveWithContent'?(t.adaptive_seeding?'automatic':t.ratio_only?'delete_ratio':'delete'):'keep';
+ const timedOption=$('#edit-ratio-action option[value="delete_time"]');
+ timedOption.hidden=!t.seed_minutes||!!t.rss_feed;timedOption.disabled=timedOption.hidden;
+ $('#edit-seed-minutes').value=t.seed_minutes||60;
+ $('#edit-ratio-action').value=t.seed_minutes?'delete_time':t.stop_on_complete?'stop_keep':t.share_limit_action==='RemoveWithContent'?(t.adaptive_seeding?'automatic':t.ratio_only?'delete_ratio':'delete'):'keep';
  $('#edit-ratio-error').hidden=true;
  updateRatioEditWarning();
  $('#edit-ratio-dialog').showModal();
 }
 function updateRatioEditWarning() {
+ const timed=$('#edit-ratio-action').value==='delete_time';
+ $('#edit-seed-minutes-field').hidden=!timed;$('#edit-seed-minutes').disabled=!timed;$('#edit-seed-minutes').required=timed;
  $('#edit-ratio-label').textContent='Målratio (reel upload/download)';
  const value=Number($('#edit-ratio-limit').value);
  const hours=50+Math.max(0,Number($('#edit-extra-seed-hours').value)||0);
@@ -535,18 +547,26 @@ function updateRatioEditWarning() {
  $('#edit-extra-seed-hours').closest('label').hidden=ratioOnly;$('#edit-extra-seed-info').hidden=ratioOnly;
  $('#edit-extra-seed-hours').disabled=!deleting||ratioOnly;$('#edit-ratio-limits').hidden=!deleting;$('#edit-ratio-limit').disabled=!deleting;$('#edit-ratio-limit').required=deleting;if(!deleting&&!(value>=1))$('#edit-ratio-limit').value=1;
  $('#edit-ratio-info').textContent=seedingExplanation($('#edit-ratio-action').value,hours);
+ if(timed){
+  $('#edit-ratio-limits').hidden=true;$('#edit-ratio-limit').disabled=true;$('#edit-ratio-limit').required=false;$('#edit-extra-seed-hours').disabled=true;
+  const minutes=Number($('#edit-seed-minutes').value);
+  $('#edit-ratio-warning').hidden=!(minutes>=1&&(Number(editingRatio?.seeding_time)||0)>=minutes*60);
+  $('#edit-ratio-warning').textContent='Den valgte seedtid er allerede nået. Torrenten og filerne slettes automatisk efter gem, også ved aktive downloadere.';
+  return;
+ }
  const warning=$('#edit-ratio-warning');
  warning.hidden=!deleting||!met||value<1;
  warning.textContent=deleting?'M\u00e5let er allerede n\u00e5et. Torrenten og filerne kan blive slettet automatisk efter gem, n\u00e5r aktive downloadere er f\u00e6rdige.':'M\u00e5let er allerede n\u00e5et. Seeding kan stoppe automatisk efter gem, n\u00e5r aktive downloadere er f\u00e6rdige.';
 }
 $('#edit-extra-seed-hours').oninput=updateRatioEditWarning;
+$('#edit-seed-minutes').oninput=updateRatioEditWarning;
 $('#edit-ratio-limit').oninput=updateRatioEditWarning;
 $('#edit-ratio-action').onchange=updateRatioEditWarning;
 $('#edit-ratio-form').onsubmit=async event=>{
  event.preventDefault();if(!editingRatio)return;
  const button=$('#edit-ratio-save');button.disabled=true;$('#edit-ratio-error').hidden=true;
  try{
-  await api(`/api/torrents/${editingRatio.hash}/ratio`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ratio_limit:Number($('#edit-ratio-limit').value),ratio_action:$('#edit-ratio-action').value,extra_seed_hours:Number($('#edit-extra-seed-hours').value)})});
+  await api(`/api/torrents/${editingRatio.hash}/ratio`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ratio_limit:Number($('#edit-ratio-limit').value),ratio_action:$('#edit-ratio-action').value,seed_minutes:Number($('#edit-seed-minutes').value),extra_seed_hours:Number($('#edit-extra-seed-hours').value)})});
   $('#edit-ratio-dialog').close();await refresh();toast('Seedingindstillingerne er opdateret.');
  }catch(e){error('#edit-ratio-error',e);}finally{button.disabled=false;}
 };

@@ -58,12 +58,15 @@ def delete_completed(api, row, credit, *, converted=False):
     target = 1 if converted else credit['ratio_limit']
     from qbit_rpc import SEEDING_MINUTES
     hours = SEEDING_MINUTES // 60 + (0 if converted else credit.get('extra_seed_hours', 0))
+    timed = credit.get('seed_minutes') if not converted else None
+    if timed:
+        hours = timed / 60
     identity = str(row['hash']) + ':' + str(row.get('added_on', 0))
     event_id = 'deleted-' + hashlib.sha256(identity.encode()).hexdigest()
     path = directory() / (event_id + '.json')
     event = {'type': 'download_deleted', 'event_id': event_id,
              'filename': str(row.get('name') or 'Ukendt fil')[:200],
-             'reason': 'ratio' if real_ratio(credit) >= target else 'time',
+             'reason': 'time' if timed else 'ratio' if real_ratio(credit) >= target else 'time',
              'ratio_limit': target, 'seed_hours': hours, 'library_retained': converted}
     content = row.get('content_path')
     event['freed_bytes'] = releasable_bytes(content)

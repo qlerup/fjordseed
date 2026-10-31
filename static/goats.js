@@ -52,8 +52,15 @@
     el.addEventListener('click',e=>{if(e.detail===0){g.air=true;g.vy=-300;}});
     return g;
   });
-  let last=0;
+  let last=0,raf=0;
+  const active=()=>document.documentElement.dataset.theme!=='viking'&&!document.hidden;
+  function sync(){
+    layer.hidden=!active();layer.inert=!active();
+    if(!active()){cancelAnimationFrame(raf);raf=0;last=0;}
+    else if(!raf){last=0;raf=requestAnimationFrame(frame);}
+  }
   function frame(t) {
+    raf=0;if(!active())return;
     const dt=Math.min((t-last)/1000 || 0,.035);last=t;
     if(!document.hidden) {
       if(!document.querySelector('dialog[open]')) for(const g of goats) {
@@ -62,14 +69,16 @@
             if(g.x<0 || g.x>innerWidth-55){g.x=Math.max(0,Math.min(innerWidth-55,g.x));g.vx*=-.6;}
             const floor=ground(g.x,g.lane);
             if(g.y>=floor && g.vy>0){g.y=floor;g.air=false;g.angle=0;g.vx=(g.vx<0?-1:1)*(8+Math.random()*15);}
-          } else if(!reduced.matches) {g.x+=g.vx*dt;if(g.x<0 || g.x>innerWidth-55)g.vx*=-1;g.x=Math.max(0,Math.min(innerWidth-55,g.x));g.y=ground(g.x,g.lane);}
+          } else if(!reduced.matches&&document.documentElement.dataset.animation!=='false') {g.x+=g.vx*dt;if(g.x<0 || g.x>innerWidth-55)g.vx*=-1;g.x=Math.max(0,Math.min(innerWidth-55,g.x));g.y=ground(g.x,g.lane);}
         }
         g.el.style.transform=`translate(${g.x}px,${g.y}px) rotate(${g.angle}deg) scale(${g.size})`;
         g.el.style.setProperty('--facing',g.vx<0?-1:1);
-        g.el.classList.toggle('is-walking',!g.air&&!g.drag&&!reduced.matches);
+        g.el.classList.toggle('is-walking',!g.air&&!g.drag&&!reduced.matches&&document.documentElement.dataset.animation!=='false');
       }
     }
-    requestAnimationFrame(frame);
+    raf=requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
+  document.addEventListener('visibilitychange',sync);
+  document.addEventListener('fjordseed:appearance',sync);
+  sync();
 })();

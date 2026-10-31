@@ -1,0 +1,26 @@
+<section id="appearance-view" hidden aria-labelledby="appearance-heading">
+ <div class="connection appearance-panel">
+  <div class="section-heading"><div><p class="eyebrow">DIT FJORDSEED</p><h2 id="appearance-heading">Vælg din verden</h2></div><span class="appearance-label">UDSEENDE</span></div>
+  <p class="muted appearance-intro">Den samme seedbox. En ny udsigt. Vælg temaet, der skal møde dig, når du åbner FjordSeed.</p>
+  <form id="appearance-form">
+   <fieldset class="theme-options"><legend class="theme-sr-only">Tema</legend>
+    <label class="theme-option">
+     <input type="radio" name="theme" value="fjord" {% if appearance.theme == 'fjord' %}checked{% endif %}>
+     <span class="theme-preview theme-preview-fjord" aria-hidden="true"><span>NORDLYS &amp; BJERGE</span></span>
+     <span class="theme-option-copy"><strong>Fjord <span class="theme-selected">Valgt</span></strong><span>Dit oprindelige tema med kølige blå toner, nordlys og bjerggeder.</span><span class="theme-swatches theme-swatches-fjord" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
+    </label>
+    <label class="theme-option">
+     <input type="radio" name="theme" value="viking" {% if appearance.theme == 'viking' %}checked{% endif %}>
+     <span class="theme-preview theme-preview-viking" aria-hidden="true"><span>VED FJORDENS BRED</span></span>
+     <span class="theme-option-copy"><strong>Viking <span class="theme-selected">Valgt</span></strong><span>Jern, bronze og en tåget fjord. To vikingehære mødes på slagmarken.</span><span class="theme-swatches theme-swatches-viking" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
+    </label>
+   </fieldset>
+   <div class="appearance-motion"><div><label class="check-label"><input type="checkbox" id="theme-animation" {% if appearance.animation %}checked{% endif %}> Levende baggrund</label><p class="muted small">Slå bevægelse til eller fra. Din enheds indstilling for reduceret bevægelse respekteres også.</p></div></div>
+   <div class="appearance-footer"><button type="submit" class="primary" id="appearance-save">Gem tema</button><p id="appearance-status" class="muted small" role="status">Temaet gemmes i FjordSeed og huskes efter genstart.</p></div>
+   <p id="appearance-error" class="error" role="alert" hidden></p>
+  </form>
+ </div>
+ <div class="connection battle-guide" id="battle-guide" {% if appearance.theme != 'viking' %}hidden{% endif %}>
+  <div><p class="eyebrow">SLAGET VED FJORDEN</p><h2>Fem minutter. To hære. Din økse.</h2><p class="muted">Krigerne stormer ind og kæmper i baggrunden. Klik på en synlig kriger for at fælde ham med din økse. Til sidst trækker de overlevende sig ud af billedet, og et nyt slag begynder.</p><p class="muted small">Kampen varer fem minutter pr. omgang. Den sættes på pause, når fanen er skjult, eller du åbner en dialog. Slå levende baggrund fra for at standse bevægelsen.</p></div>
+ </div>
+</section>

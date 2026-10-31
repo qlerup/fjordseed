@@ -1,14 +1,16 @@
-{% macro seeding_options() -%}
+{% macro seeding_options(manual=false) -%}
 <option value="keep" data-description="Ingen automatisk stop eller sletning. Du stopper selv seeding; torrenten og filerne beholdes.">Behold filer · seed indtil du stopper</option>
 <option value="stop_keep" data-description="Stopper, så snart download er færdig. Torrenten og filerne beholdes. Venter ikke på ratio 1 eller 50 timers seeding.">Behold filer · stop efter download</option>
 <option value="delete" data-description="Sletter torrent og filer ved målratioen eller seedtiden (som standard 50 timer) — det, der sker først. Venter på tilsluttede downloadere.">Slet ved målratio eller seedtid</option>
 <option value="automatic" data-description="Bruger målratio eller seedtid (som standard 50 timer), men seeder videre ved forventet ekstra upload. Sletter derefter torrent og filer.">Optimér upload · slet bagefter</option>
 <option value="delete_ratio" data-description="Sletter først torrent og filer, når målratioen er nået. 50 timer udløser ikke sletning. Venter på tilsluttede downloadere.">Slet kun ved målratio · ingen tidsgrænse</option>
+{% if manual %}<option value="delete_time" data-description="Vælg antal minutter med aktiv seeding efter download. Når tiden er gået, slettes torrent og filer, uanset ratio og aktive downloadere.">Seed i X min · slet bagefter</option>{% endif %}
 {%- endmacro %}
 
 {% macro seeding_fields(prefix) -%}
-<label>Seeding og oprydning<select id="{{ prefix }}-action" aria-describedby="{{ prefix }}-keep-info">{{ seeding_options() }}</select></label>
+<label>Seeding og oprydning<select id="{{ prefix }}-action" aria-describedby="{{ prefix }}-keep-info">{{ seeding_options(prefix == 'ratio') }}</select></label>
 <p class="seeding-choice-info small" id="{{ prefix }}-keep-info" aria-live="polite">Efter download fortsætter seeding uden tids- eller ratiogrænse. Du stopper selv. Torrenten og filerne beholdes.</p>
+{% if prefix == 'ratio' %}<div id="ratio-time-fields" hidden><label for="ratio-seed-minutes">Seedtid i minutter<input type="number" id="ratio-seed-minutes" min="1" max="525600" step="1" value="60" inputmode="numeric" disabled aria-describedby="ratio-time-help"></label><p id="ratio-time-help" class="muted small">60 minutter = 1 time. Tiden tæller først efter download. Registrerede net-/VPN-udfald og pauser tæller ikke med.</p><p class="seeding-choice-info small">Dette valg kan slette før trackerens seedkrav er opfyldt. Torrenten og filerne slettes, når den valgte tid er nået, også hvis nogen downloader.</p></div>{% endif %}
 <div id="{{ prefix }}-limits" hidden>
 <label><span id="{{ prefix }}-ratio-label">Målratio (reel upload/download)</span><input type="number" id="{{ prefix }}-{{ 'limit' if prefix == 'ratio' else 'ratio' }}" min="1" max="10000" step="any" value="1" required inputmode="decimal" aria-describedby="{{ prefix }}-help"></label>
 <details class="seeding-help"><summary>Sådan beregnes ratio og seedtid</summary>

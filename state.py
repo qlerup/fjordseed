@@ -40,3 +40,20 @@ class State:
             data.update(profile_id=profile_id, enabled=enabled)
             atomic(self.path, json.dumps(data))
             return data
+
+    def appearance(self):
+        data = self.get().get('appearance', {})
+        if not isinstance(data, dict):
+            data = {}
+        return {'theme': data.get('theme') if data.get('theme') in ('fjord', 'viking') else 'fjord',
+                'animation': data.get('animation') is not False}
+
+    def save_appearance(self, value):
+        if (not isinstance(value, dict) or value.get('theme') not in ('fjord', 'viking')
+                or type(value.get('animation')) is not bool):
+            raise ValueError('Vælg et gyldigt tema og en indstilling for animation.')
+        with self.lock:
+            data = self.get()
+            data['appearance'] = {'theme': value['theme'], 'animation': value['animation']}
+            atomic(self.path, json.dumps(data))
+            return data['appearance']

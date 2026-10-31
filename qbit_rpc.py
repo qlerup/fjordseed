@@ -137,8 +137,8 @@ def apply_limits(api,row,action=None):
             'shareLimitAction':action or row.get('share_limit_action') or 'Stop'})
 
 
-def initial_managed_ratio(hashes,target,ratio_only=False,adaptive=False,stop_on_complete=False):
-    initial_ratio_limit(hashes,target,ratio_only=ratio_only,adaptive=adaptive,stop_on_complete=stop_on_complete)  # Persist before add.
+def initial_managed_ratio(hashes,target,ratio_only=False,adaptive=False,stop_on_complete=False,seed_minutes=None):
+    initial_ratio_limit(hashes,target,ratio_only=ratio_only,adaptive=adaptive,stop_on_complete=stop_on_complete,seed_minutes=seed_minutes)  # Persist before add.
     return -1
 
 
@@ -147,14 +147,18 @@ def seeding_completion(row,credit):
     ratio=real_ratio(credit) if 'ratio' in credit else real_ratio(row)
     seconds=credit.get('seeding_time',row.get('seeding_time'))
     unlimited=row.get('share_limit_action') != 'RemoveWithContent'
-    reached=not unlimited and (ratio>=credit['ratio_limit'] or (not credit.get('ratio_only',False) and
-        type(seconds) in (int,float) and math.isfinite(seconds) and seconds>=SEEDING_SECONDS+credit.get('extra_seed_hours',0)*3600))
+    timed=credit.get('seed_minutes')
+    valid_time=type(seconds) in (int,float) and math.isfinite(seconds)
+    reached=not unlimited and (valid_time and seconds>=timed*60 if timed else
+        ratio>=credit['ratio_limit'] or (not credit.get('ratio_only',False) and
+        valid_time and seconds>=SEEDING_SECONDS+credit.get('extra_seed_hours',0)*3600))
     peers=row.get('num_leechs')
     speed=row.get('upspeed')
     known=(type(peers) is int and peers>=0 and type(speed) in (int,float)
            and math.isfinite(speed) and speed>=0)
-    waiting=bool(active and reached and (not known or peers>0 or speed>0))
-    extended=bool(active and reached and credit.get('adaptive_seeding') and credit.get('seeding_upload_potential'))
+    # The explicitly selected manual timer is a deadline, including during uploads.
+    waiting=bool(not timed and active and reached and (not known or peers>0 or speed>0))
+    extended=bool(not timed and active and reached and credit.get('adaptive_seeding') and credit.get('seeding_upload_potential'))
     return {'seeding_unlimited':unlimited,'seeding_goal_reached':bool(reached),'waiting_for_downloaders':waiting,
             'seeding_auto_extended':extended,
             'seeding_peer_status_known':known}
@@ -195,9 +199,20 @@ def extra_seed_hours(value):
     return float(value)
 
 
-def share_policy(data):
+def share_policy(data, *, manual=False):
     value = data.get('ratio_limit', -1)
     action = data.get('ratio_action', 'keep')
+    if action == 'delete_time':
+        if not manual:
+            raise ValueError('Seed i X min kan kun vælges ved manuel download.')
+        value = data.get('seed_minutes')
+        try:
+            minutes = float(value)
+        except (TypeError, ValueError):
+            raise ValueError('Seedtid skal være et helt antal minutter mellem 1 og 525600.') from None
+        if isinstance(value, bool) or not math.isfinite(minutes) or not minutes.is_integer() or not 1 <= minutes <= 525600:
+            raise ValueError('Seedtid skal være et helt antal minutter mellem 1 og 525600.')
+        return {'ratio_limit':1.0, 'ratio_action':action, 'seed_minutes':int(minutes)}
     if action == 'stop_keep':
         return {'ratio_limit':1.0, 'ratio_action':action}
     try:
@@ -258,9 +273,9 @@ def execute(action, data):
                 apply_limits(call,row)
                 if any(storage_entries.get(row.get(k),{}).get('convert') for k in ('hash','infohash_v1','infohash_v2')):
                     credit={**credit,'ratio_limit':1,'ratio_only':False,'adaptive_seeding':False,
-                            'stop_on_complete':False,'extra_seed_hours':0}
+                            'stop_on_complete':False,'extra_seed_hours':0,'seed_minutes':None}
                 torrents.append({**{k:row.get(k) for k in fields},**credit,
-                    'seeding_time_limit':SEEDING_MINUTES+credit.get('extra_seed_hours',0)*60 if row.get('share_limit_action')=='RemoveWithContent' and not credit.get('ratio_only',False) else -1,**stop_requirement({**row,**credit}),
+                    'seeding_time_limit':(credit.get('seed_minutes') or SEEDING_MINUTES+credit.get('extra_seed_hours',0)*60) if row.get('share_limit_action')=='RemoveWithContent' and not credit.get('ratio_only',False) else -1,**stop_requirement({**row,**credit}),
                     **seeding_completion(row,credit), **moving_progress(row,storage_entries)})
         return {'torrents':torrents,
                 'download_queue':download_queue_summary(rows),
@@ -301,12 +316,12 @@ def execute(action, data):
         convert=choice(data.get('convert',False))
         if convert:
             data={**data,'ratio_limit':1,'ratio_action':'delete'}
-        policy = share_policy(data)
+        policy = share_policy(data, manual=True)
         from torrent_meta import magnet_meta, torrent_meta
         meta=magnet_meta(data['magnet']) if data.get('magnet') else torrent_meta(base64.b64decode(data['torrent'],validate=True))
         from download_storage import prepare
         options = {'savepath':prepare(meta['hashes'],name=meta.get('name',''),convert=convert), 'autoTMM':'false', 'stopped':'false', 'forceStart':'false',
-                   'ratioLimit':initial_managed_ratio(meta['hashes'],seed_ratio(policy['ratio_limit']),ratio_only=policy['ratio_action']=='delete_ratio',adaptive=policy['ratio_action']=='automatic',stop_on_complete=policy['ratio_action']=='stop_keep'),
+                   'ratioLimit':initial_managed_ratio(meta['hashes'],seed_ratio(policy['ratio_limit']),ratio_only=policy['ratio_action']=='delete_ratio',adaptive=policy['ratio_action']=='automatic',stop_on_complete=policy['ratio_action']=='stop_keep',seed_minutes=policy.get('seed_minutes')),
                    'seedingTimeLimit':-1, 'inactiveSeedingTimeLimit':-1,
                    'shareLimitAction':'RemoveWithContent' if policy['ratio_action'] not in ('keep','stop_keep') else 'Stop'}
         if data.get('magnet'):
@@ -327,7 +342,7 @@ def execute(action, data):
         from download_storage import read,CONFIG
         if read(CONFIG/'download-storage.json',{}).get(ident.lower(),{}).get('convert'):
             raise ValueError('Konverterede downloads bruger ratio 1:1 eller 50 timers seeding.')
-        policy=share_policy(data)
+        policy=share_policy(data, manual=True)
         ratio=policy['ratio_limit']
         extra=extra_seed_hours(data['extra_seed_hours']) if 'extra_seed_hours' in data else None
         if ratio<1:
@@ -336,11 +351,15 @@ def execute(action, data):
             rows=call('torrents/info?hashes='+ident).json()
             if len(rows)!=1 or rows[0].get('hash','').lower()!=ident.lower():
                 raise ValueError('Torrent not found')
-            ledger.update(rows[0],target=ratio)
+            existing=ledger.update(rows[0])
+            if policy['ratio_action']=='delete_time' and (rss_download(rows[0]) or not existing.get('seed_minutes')):
+                raise ValueError('Seed i X min kan kun vælges ved manuel tilføjelse.')
+            ledger.entries[ident.lower()]['target']=ratio
             if 'ratio_action' in data:
                 ledger.entries[ident.lower()]['ratio_only']=policy['ratio_action']=='delete_ratio'
                 ledger.entries[ident.lower()]['adaptive_seeding']=policy['ratio_action']=='automatic'
                 ledger.entries[ident.lower()]['stop_on_complete']=policy['ratio_action']=='stop_keep'
+                ledger.entries[ident.lower()]['seed_minutes']=policy.get('seed_minutes')
                 if policy['ratio_action']!='automatic':
                     ledger.entries[ident.lower()].pop('upload_potential',None)
             if extra is not None:

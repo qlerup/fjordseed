@@ -119,10 +119,10 @@ def read(path, default):
         return default
 
 
-def initial_ratio_limit(hashes, target, now=None, ratio_only=False, adaptive=False, stop_on_complete=False):
+def initial_ratio_limit(hashes, target, now=None, ratio_only=False, adaptive=False, stop_on_complete=False, seed_minutes=None):
     """Shared manual/RSS startup policy before any payload can download."""
     with CreditLedger().transaction() as ledger:
-        ledger.register(hashes,target,ratio_only=ratio_only,adaptive=adaptive,stop_on_complete=stop_on_complete)
+        ledger.register(hashes,target,ratio_only=ratio_only,adaptive=adaptive,stop_on_complete=stop_on_complete,seed_minutes=seed_minutes)
     return target
 
 
@@ -255,10 +255,10 @@ class CreditLedger:
                 item['download_credit_incomplete']=bool(state.get('unknown_downloaded') or state.get('legacy_download_incomplete'))
                 item['tracker_credit_estimated']=bool(state.get('estimated') or state.get('legacy_credit'))
 
-    def register(self, hashes, target, policy=None, ratio_only=False, adaptive=False, stop_on_complete=False):
+    def register(self, hashes, target, policy=None, ratio_only=False, adaptive=False, stop_on_complete=False, seed_minutes=None):
         for ident in hashes:
             if ident not in self.entries:
-                self.entries[ident] = {'target': max(1, target), 'ratio_only': ratio_only, 'adaptive_seeding':adaptive, 'stop_on_complete':stop_on_complete, 'uploaded': 0,
+                self.entries[ident] = {'target': max(1, target), 'ratio_only': ratio_only, 'adaptive_seeding':adaptive, 'stop_on_complete':stop_on_complete, 'seed_minutes':seed_minutes, 'uploaded': 0,
                     'green_uploaded': 0, 'at': time.time(), 'policy': policy or {'known': not self.policies.get('_enabled', False), 'until': None}}
 
     def update(self, row, target=None, now=None):
@@ -320,6 +320,7 @@ class CreditLedger:
         display_until=display_until if type(display_until) in (int,float) else until
         raw_ratio = number(row.get('ratio'))
         return {'seeding_time': seed_time(entry, row, self.seed_health), 'extra_seed_hours': entry.get('extra_seed_hours', 0),
+                'seed_minutes': entry.get('seed_minutes'),
                 'ratio_only': entry.get('ratio_only', False),
                 'adaptive_seeding': entry.get('adaptive_seeding', False),
                 'stop_on_complete': entry.get('stop_on_complete', False),

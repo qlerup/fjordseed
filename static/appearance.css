@@ -1,0 +1,34 @@
+.appearance-panel{max-width:1100px}
+.appearance-panel>.section-heading{margin:0 0 12px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+.appearance-panel .eyebrow{margin-bottom:5px}
+.appearance-panel h2::before{display:none}
+.appearance-label{color:var(--muted);font-size:10px;letter-spacing:2px}
+.appearance-intro{max-width:650px;margin-bottom:26px;line-height:1.8}
+.theme-options{border:0;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+.theme-option{position:relative;min-width:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;background:var(--bg);transition:border-color .2s,box-shadow .2s}
+.theme-option:has(input:checked){border-color:var(--green);box-shadow:0 0 0 1px var(--green)}
+.theme-option:has(input:focus-visible){outline:2px solid var(--green);outline-offset:5px}
+.theme-option input[type=radio]{position:absolute;right:16px;top:16px;width:20px;height:20px;margin:0;z-index:1;accent-color:var(--green)}
+.theme-preview{display:flex;align-items:end;height:190px;padding:18px;background-position:center;background-size:cover}
+.theme-preview>span{font-size:9px;letter-spacing:2.4px;color:#f3eee4;text-shadow:0 1px 5px #000}
+.theme-preview-fjord{background-image:linear-gradient(0deg,#090f23d9,transparent 65%),url('/static/fjord-aurora-night.png')}
+.theme-preview-viking{background-image:linear-gradient(0deg,#111b1bb3,transparent 60%),url('/static/viking-fjord.svg');background-position:center 65%}
+.theme-option-copy{display:grid;gap:10px;padding:20px}
+.theme-option-copy>strong{font-size:21px;display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--text)}
+.theme-option-copy>span{color:var(--muted);font-size:12px;font-weight:400;line-height:1.75}
+.theme-selected{visibility:hidden;font:600 10px/1.4 Inter,Segoe UI,sans-serif;color:var(--green);border:1px solid var(--green);padding:4px 9px;border-radius:20px}
+.theme-option:has(input:checked) .theme-selected{visibility:visible}
+.theme-swatches{display:flex;gap:6px;margin-top:6px}
+.theme-swatches i{width:17px;height:17px;border-radius:50%;border:1px solid #ffffff26}
+.theme-swatches-fjord i:nth-child(1){background:#1b2542}.theme-swatches-fjord i:nth-child(2){background:#78f0c3}.theme-swatches-fjord i:nth-child(3){background:#8bbcff}.theme-swatches-fjord i:nth-child(4){background:#c3acff}
+.theme-swatches-viking i:nth-child(1){background:#1b292b}.theme-swatches-viking i:nth-child(2){background:#ddba75}.theme-swatches-viking i:nth-child(3){background:#87bdb6}.theme-swatches-viking i:nth-child(4){background:#9b5548}
+.appearance-motion{margin-top:26px;padding:20px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.appearance-motion p{margin-top:7px}.appearance-motion input{accent-color:var(--green)}
+.appearance-footer{display:flex;align-items:center;gap:18px;margin-top:22px;flex-wrap:wrap}
+#appearance-error{margin-top:18px}
+.battle-guide{max-width:1100px;margin-top:22px;border-left:3px solid var(--green)}
+.battle-guide p{max-width:740px;margin-top:12px;line-height:1.8}.battle-guide .eyebrow{margin-top:0}
+.theme-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+html[data-theme=viking] .goat-mountain{display:none}
+html[data-animation=false] .ambient-scene *,html[data-animation=false] .mountain-goat *{animation-play-state:paused!important}
+@media(max-width:600px){.theme-options{grid-template-columns:1fr;gap:16px}.theme-preview{height:155px}.appearance-label{display:none}.appearance-footer{align-items:stretch;flex-direction:column}}

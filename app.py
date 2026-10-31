@@ -185,7 +185,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
 
     @app.get('/')
     def index():
-        return render_template('index.html',csrf=session['csrf'],tracker_providers=PROVIDERS)
+        return render_template('index.html',csrf=session['csrf'],tracker_providers=PROVIDERS,
+                               appearance=state.appearance())
 
     @app.get('/api/status')
     def status():
@@ -274,6 +275,15 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             return jsonify({**result,'ratio_estimates':estimates})
         except ValueError as exc:
             return jsonify(error=str(exc)),400
+
+    @app.route('/api/appearance', methods=['GET', 'POST'])
+    def appearance_settings():
+        if request.method == 'GET':
+            return jsonify(state.appearance())
+        try:
+            return jsonify(state.save_appearance(request.get_json(silent=True)))
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
 
     @app.post('/api/settings')
     def settings():
@@ -598,7 +608,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             convert=convert=='true'
             if convert and not Streaming(runtime).public()['conversion_enabled']:
                 raise ValueError('Slå GPU-konvertering til under Streaming først.')
-            policy = share_policy({'ratio_limit':1,'ratio_action':'delete'} if convert else request.form)
+            policy = share_policy({'ratio_limit':1,'ratio_action':'delete'} if convert else request.form, manual=True)
         except ValueError as exc:
             return jsonify(error=str(exc)),400
         magnet = request.form.get('magnet','').strip()
@@ -655,7 +665,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             return jsonify(error='Ugyldig bekræftelse.'),400
         if action=='ratio':
             try:
-                policy=share_policy({key:payload[key] for key in ('ratio_limit','ratio_action') if key in payload})
+                policy=share_policy({key:payload[key] for key in ('ratio_limit','ratio_action','seed_minutes') if key in payload}, manual=True)
                 if policy['ratio_limit']<1:
                     raise ValueError('Stop-ratio skal være mindst 1.')
                 extra=extra_seed_hours(payload['extra_seed_hours']) if 'extra_seed_hours' in payload else None
@@ -666,6 +676,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                 data['extra_seed_hours']=extra
             if 'ratio_action' in payload:
                 data['ratio_action']=policy['ratio_action']
+                if 'seed_minutes' in policy:
+                    data['seed_minutes']=policy['seed_minutes']
             return invoke(action,data)
         data={'hash':ident,'confirm_early_stop':payload.get('confirm_early_stop',False)}
         if action=='delete':
