@@ -3,7 +3,7 @@
  'use strict';
  const input=$('#torrent-file'),zone=$('#torrent-dropzone'),dialog=$('#ratio-dialog');
  const MAX_FILES=50,MAX_BYTES=4*1024*1024,CONCURRENCY=3;
- let selected=[],items=[],reviewing=false,submitting=false,serial=0;
+ let selected=[],items=[],reviewing=false,submitting=false,serial=0,packageOptions={};
  let selection=Promise.resolve(),selectionVersion=0,selectionJobs=0,context=null;
  const message=(selector,text)=>{$(selector).textContent=text;$(selector).hidden=!text;};
  const files=()=>selected.map(entry=>entry.file);
@@ -17,6 +17,7 @@
   $('#torrent-selection-clear').hidden=!selected.length;
   $('#add-save').disabled=!current?.ready||(addMethod==='file'&&selectionJobs>0);
   $('#torrent-selection-status').textContent=selectionJobs?'Læser torrentfiler…':selected.length?`${selected.length} ${selected.length===1?'fil valgt':'filer valgt'} · ${size(selected.reduce((sum,e)=>sum+e.file.size,0))}`:'Ingen filer valgt';
+  input.dataset.selectionState=selectionJobs?'loading':'ready';
  }
  function checksum(bytes){let hash=2166136261;for(const byte of bytes)hash=Math.imul(hash^byte,16777619);return hash>>>0;}
  function selectFiles(fileList){
@@ -58,10 +59,11 @@
   for(const controller of context.requests)controller.abort();context=null;
  }
  function resetView(){
-  stopPreviews();reviewing=false;items=[];dialog.classList.remove('is-batch');
+  stopPreviews();reviewing=false;items=[];packageOptions={};dialog.classList.remove('is-batch');
   $('#torrent-batch-review').hidden=true;$('#torrent-batch-list').replaceChildren();
   for(const id of ['single-benefit-tracker','preview-benefits','preview-ratio'])$('#'+id).hidden=false;
   $('#ratio-save').textContent='Start download';$('#ratio-save').disabled=false;
+  $('#ratio-back').textContent='Tilbage';
  }
  function reset(){
   resetView();selectionVersion++;selectionJobs=0;selected=[];input.value='';selectionView();message('#torrent-selection-error','');
@@ -78,7 +80,7 @@
    throw error;
   }finally{clearTimeout(timer);}
  }
- function pendingItems(){return items.filter(item=>!item.removed&&!item.added&&!item.invalid);}
+ function pendingItems(){return items.filter(item=>!item.removed&&!item.removing&&!item.added&&!item.invalid);}
  function summary(){
   if(!reviewing)return;
   const remaining=items.filter(item=>!item.removed),added=remaining.filter(item=>item.added).length;
@@ -98,7 +100,7 @@
   item.state.textContent=item.added?'Tilføjet til downloads':item.addError|| (item.invalid?'Ugyldig torrentfil – fjern filen for at fortsætte.':size(item.file.size)+' · torrentfil');
   item.el.classList.toggle('is-added',!!item.added);item.el.classList.toggle('has-error',!!item.addError||item.invalid);
   item.retry.hidden=!!item.added;item.retry.disabled=submitting||!!item.controller;
-  item.remove.disabled=submitting||!!item.added;item.select.disabled=submitting||!!item.added;
+  item.remove.disabled=submitting||!!item.added||!!item.removing;item.select.disabled=submitting||!!item.added||!!item.removing;
   summary();
  }
  function queue(item){
@@ -120,8 +122,12 @@
   el.append(head,state,label,benefits,detail,retry);
   Object.assign(item,{el,state,select,remove,benefits,ratio,ratioTitle,retry});
   select.onchange=()=>queue(item);retry.onclick=()=>queue(item);
-  remove.onclick=()=>{
-   if(submitting)return;item.removed=true;item.controller?.abort();el.remove();selected=selected.filter(e=>e.file!==file);selectionView();summary();
+  remove.onclick=async()=>{
+   if(submitting)return;item.removing=true;remove.disabled=true;summary();
+   try{
+    if(packageOptions.remove)await packageOptions.remove(file);
+    item.removed=true;item.controller?.abort();el.remove();selected=selected.filter(e=>e.file!==file);selectionView();summary();
+   }catch(error){item.removing=false;if(items.includes(item)){message('#ratio-error',error.message);remove.disabled=false;summary();}}
   };
   return item;
  }
@@ -152,8 +158,9 @@
   }
   if(waiting.length&&ctx.requests.size<CONCURRENCY)ctx.timer=setTimeout(()=>pump(ctx),Math.max(50,waiting[0].nextAt-Date.now()));
  }
- function open(fileList){
-  resetView();reviewing=true;dialog.classList.add('is-batch');$('#torrent-batch-review').hidden=false;
+ function open(fileList,options={}){
+  resetView();packageOptions=options;reviewing=true;dialog.classList.add('is-batch');$('#torrent-batch-review').hidden=false;
+  if(options.ids)$('#ratio-back').textContent='Luk pakken';
   for(const id of ['single-benefit-tracker','preview-benefits','preview-ratio'])$('#'+id).hidden=true;
   items=fileList.map(build);$('#torrent-batch-list').replaceChildren(...items.map(item=>item.el));
   items.forEach(drawResult);context={requests:new Set(),cancelled:false,timer:0};pump(context);
@@ -167,10 +174,13 @@
   try{
    for(const [index,item] of batch.entries()){
     $('#ratio-save').textContent=`Tilføjer ${index+1} af ${batch.length}…`;item.state.textContent='Tilføjer torrent…';
-    const body=new FormData();body.set('torrent',item.file);for(const [key,value] of Object.entries(policy))body.set(key,value);
+    const body=new FormData();
+    if(packageOptions.ids)body.set('package_item_id',packageOptions.ids.get(item.file));else body.set('torrent',item.file);
+    for(const [key,value] of Object.entries(policy))body.set(key,value);
     try{
      await request('/api/torrents',body,new AbortController(),60000);
      item.added=true;item.addError='';selected=selected.filter(entry=>entry.file!==item.file);
+     document.dispatchEvent(new Event('fjordseed:package-updated'));
     }catch(error){item.addStatus=error.status;item.addError=error.status?error.message:'Tilføjelsen kunne ikke bekræftes. Kontrollér Downloads før et nyt forsøg. '+error.message;}
     drawResult(item);
     if([401,403].includes(item.addStatus))break;
@@ -184,5 +194,5 @@
   }
  }
  dialog.addEventListener('close',stopPreviews);
- window.TorrentBatch={files,reset,resetView,open,submit,get active(){return reviewing;},get submitting(){return submitting;},get selecting(){return selectionJobs>0;}};
+ window.TorrentBatch={files,reset,resetView,open,submit,get packaged(){return !!packageOptions.ids;},get active(){return reviewing;},get submitting(){return submitting;},get selecting(){return selectionJobs>0;}};
 })();

@@ -120,8 +120,31 @@ export async function showTorrent(base64, name, transferId, expectedOrigin) {
   const data = new DataTransfer();
   data.items.add(new File([bytes], name, {type: 'application/x-bittorrent'}));
   file.files = data.files;
+  file.dispatchEvent(new Event('change', {bubbles: true}));
+  for (let i = 0; file.dataset.selectionState === 'loading' && i < 80; i++) await new Promise(resolve => setTimeout(resolve, 100));
+  if (file.dataset.selectionState === 'loading') return 'busy';
+  if (document.querySelector('#add-save')?.disabled) return 'offline';
   form.requestSubmit();
   if (!ratio.open) return 'incompatible';
   form.dataset.fjordseedTransfer = transferId;
   return 'delivered';
+}
+
+// Runs in the isolated world of an exact, configured FjordSeed origin. It only
+// saves a draft through the normal session/CSRF gate; it never starts downloads.
+export async function stageTorrent(base64, name, expectedOrigin) {
+  if (location.origin !== expectedOrigin) return {status:'wrong-host'};
+  const csrf=document.querySelector('meta[name="csrf-token"]')?.content;
+  if (!csrf || !document.querySelector('#add-form')) return {status:'login'};
+  try {
+    const data=new FormData(),bytes=Uint8Array.from(atob(base64),c=>c.charCodeAt(0));
+    data.set('torrent',new File([bytes],name,{type:'application/x-bittorrent'}));
+    const response=await fetch('/api/manual-package',{method:'POST',headers:{'X-CSRF-Token':csrf},body:data,signal:AbortSignal.timeout(20000)});
+    if(response.status===401||response.status===403)return {status:'login'};
+    if(response.status===404)return {status:'incompatible'};
+    const result=await response.json();
+    if(!response.ok)return {status:'error',message:result.error||'Pakken kunne ikke gemmes.'};
+    document.dispatchEvent(new Event('fjordseed:package-updated'));
+    return {status:'stored',count:result.count,duplicate:result.duplicate===true};
+  }catch(_){return {status:'error',message:'Pakken kunne ikke bekræftes gemt. Prøv overførslen igen.'};}
 }

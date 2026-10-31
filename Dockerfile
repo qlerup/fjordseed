@@ -41,6 +41,7 @@ COPY tracker_providers.py ./
 COPY tracker_history.py ./
 COPY storage_release.py ./
 COPY move_progress.py ./
+COPY manual_package.py ./
 COPY static ./static
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 EXPOSE 8088

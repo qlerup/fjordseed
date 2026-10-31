@@ -1,6 +1,9 @@
 import {sourceLink, seedAddress, permissionOrigin, readTorrent, showTorrent, showRss, selectSeedTab, MAX_AGE, TRACKER_ORIGINS} from './common.mjs';
+import {createPackageDelivery} from './package.mjs';
 
 const MENU = 'send-fjordseed';
+const PACKAGE_MENU = 'package-fjordseed';
+const packageDelivery = createPackageDelivery({destination,status});
 let working = false;
 let delivering = false;
 
@@ -15,6 +18,8 @@ chrome.runtime.onInstalled.addListener(async () => {
   await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({id: MENU, title: 'Send til FjordSeed', contexts: ['link'],
     targetUrlPatterns: Object.keys(TRACKER_ORIGINS).flatMap(origin => [origin+'/torrents/download/*', origin+'/rss*', origin+'/torrents/rss*'])});
+  chrome.contextMenus.create({id:PACKAGE_MENU,title:'Føj til torrentpakke (flere)',contexts:['link'],
+    targetUrlPatterns:Object.keys(TRACKER_ORIGINS).map(origin=>origin+'/torrents/download/*')});
 });
 
 async function destination() {
@@ -121,14 +126,19 @@ async function retry() {
 
 chrome.contextMenus.onClicked.addListener(info => {
   if (info.menuItemId === MENU) begin(info.linkUrl).catch(e => status(e.message, true));
+  if (info.menuItemId === PACKAGE_MENU) packageDelivery.enqueue(info.linkUrl).catch(e=>status(e.message,true));
 });
 chrome.tabs.onUpdated.addListener((id, change) => {
   if (change.status === 'complete') deliver(id).catch(() => status('Åbn udvidelsen og tryk Fortsæt for at prøve igen.', true));
+  if (change.status === 'complete') packageDelivery.process().catch(()=>status('Pakken venter. Prøv igen fra udvidelsen.',true));
 });
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('popup.html')) return;
   const run = async () => {
-    if (message.type === 'retry') await retry();
+    if (message.type === 'package-open') await packageDelivery.open();
+    else if (message.type === 'package-retry') await packageDelivery.retry();
+    else if (message.type === 'package-clear') await packageDelivery.clear();
+    else if (message.type === 'retry') await retry();
     else if (message.type === 'clear') {
       if (working || delivering) throw Error('Vent, til overførslen er færdig.');
       await chrome.storage.session.remove('pending');

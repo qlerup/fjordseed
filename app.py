@@ -1,5 +1,6 @@
 import base64
 import ipaddress
+import io
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,7 @@ import time
 
 from flask import Flask, jsonify, redirect, render_template, request, session, send_file
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.datastructures import FileStorage
 
 from hub import Hub, HubError
 from runtime import Runtime
@@ -27,10 +29,12 @@ from state import State, atomic
 from covers import Covers
 from storage import Storage
 from streaming import Streaming
+from manual_package import ManualPackage
 
 
 def create_app(root=None, testing=False, runtime_factory=Runtime):
     state = State(root or os.environ.get('FJORDSEED_DATA','/data'))
+    manual_package = ManualPackage(state)
     hub = Hub()
     app = Flask(__name__)
     app.config.update(SECRET_KEY=state.secret_path.read_text(), TESTING=testing,
@@ -599,8 +603,63 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         except ValueError as exc:
             return jsonify(error=str(exc)),400
 
+    def package_owner():
+        return 'hub:' + str(session['hub_uid']) if 'hub_uid' in session else 'local'
+
+    @app.route('/api/manual-package', methods=['GET', 'POST'])
+    def package_draft():
+        if request.method == 'GET':
+            return jsonify(manual_package.public(package_owner()))
+        uploaded = request.files.get('torrent')
+        if not uploaded or request.form.get('rss') or request.form.get('url'):
+            return jsonify(error='Vælg en torrentfil til manuel download. RSS kan ikke lægges i pakken.'), 400
+        try:
+            return jsonify(manual_package.add(package_owner(), uploaded.read(4*1024*1024+1), uploaded.filename))
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+
+    @app.get('/api/manual-package/<ident>/file')
+    def package_file(ident):
+        try:
+            item = manual_package.get(package_owner(), ident)
+            if item is None:
+                return jsonify(error='Filen ligger ikke længere i pakken.'), 404
+            return send_file(io.BytesIO(base64.b64decode(item['base64'])), mimetype='application/x-bittorrent',
+                             as_attachment=True, download_name=item['name'])
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+
+    @app.post('/api/manual-package/remove')
+    def package_remove():
+        data = request.get_json(silent=True)
+        try:
+            return jsonify(manual_package.remove(package_owner(), data.get('ids') if isinstance(data, dict) else None))
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+
     @app.post('/api/torrents')
     def add():
+        ident = request.form.get('package_item_id')
+        if ident is None:
+            return add_request()
+        if request.form.get('magnet') or request.files:
+            return jsonify(error='Et pakkeelement kan ikke kombineres med andre kilder.'), 400
+        with state.lock:
+            try:
+                item = manual_package.get(package_owner(), ident)
+            except ValueError as exc:
+                return jsonify(error=str(exc)), 400
+            if item is None:
+                if ident in manual_package.read(package_owner()).get('completed', []):
+                    return jsonify(ok=True, already_added=True)
+                return jsonify(error='Filen ligger ikke længere i pakken. Genindlæs pakken.'), 404
+            response = add_request(FileStorage(io.BytesIO(base64.b64decode(item['base64'])), filename=item['name']))
+            response = app.make_response(response)
+            if response.status_code < 300:
+                manual_package.remove(package_owner(), [ident], completed=True)
+            return response
+
+    def add_request(staged=None):
         try:
             convert=request.form.get('convert','false')
             if convert not in ('true','false'):
@@ -612,7 +671,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         except ValueError as exc:
             return jsonify(error=str(exc)),400
         magnet = request.form.get('magnet','').strip()
-        uploaded = request.files.get('torrent')
+        uploaded = staged if staged is not None else request.files.get('torrent')
         if bool(magnet) == bool(uploaded):
             return jsonify(error='Vælg enten et magnetlink eller en torrentfil.'),400
         if magnet:

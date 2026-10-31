@@ -307,6 +307,8 @@ Date checks also run for RSS without a browser, solely to estimate account credi
 
 ## Chrome extension
 
+Extension 1.3.0 adds **Føj til torrentpakke (flere)** to torrent-link right-click menus. Selections are saved as a per-user manual-download draft in FjordSeed, with individual tracker previews and common seeding settings when opened. An existing authenticated tab receives selections without taking focus; otherwise a visible tab opens and delivery waits for login. RSS continues to use the original direct handoff only. Update FjordSeed and replace/reload the unpacked extension. Regression coverage: `python tests/browser_extension_package.py` and `python -m pytest tests/test_manual_package.py`.
+
 The Manifest V3 [extension](chrome-extension/README.md) sends NordicBytes/Sagmire torrent/RSS links into an existing Seed tab. Torrent links open the normal manual dialog; RSS opens the feed form with its full address. Users confirm settings before starting/saving. Private parameters are handed off through extension session storage, never a destination URL, and RSS is not fetched by the extension.
 
 Package with `python tools/package_chrome_extension.py`; the ZIP is served at `/static/fjordseed-chrome.zip`. Extension tests: `node --test tests/test_chrome_extension.mjs` and `python tests/browser_extension_check.py`.

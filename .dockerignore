@@ -1,6 +1,7 @@
 *
 !requirements.txt
 !app.py
+!manual_package.py
 !event_notifier.py
 !hub_email.py
 !hub.py

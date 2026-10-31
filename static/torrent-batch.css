@@ -33,3 +33,7 @@
 .batch-item-retry{margin-top:10px;padding:4px 0;font-size:11px;text-decoration:underline;text-underline-offset:3px}
 .batch-shared-policy{padding:14px 0;margin:24px 0 18px!important;border-top:1px solid var(--border);font-size:13px;font-weight:600;color:var(--green)}
 @media(max-width:600px){.torrent-dropzone{min-height:190px;padding:22px 14px}.torrent-dropzone>strong{font-size:15px}.torrent-batch-item{padding:14px}.batch-review-heading{display:block}.batch-review-heading p{margin-top:6px!important}.torrent-selection-list{max-height:190px}}
+.manual-package-banner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:18px;margin:0 0 24px;border-left:3px solid var(--green)}
+.manual-package-banner .eyebrow{margin-bottom:5px}.manual-package-banner p{margin-top:5px}
+.manual-package-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.manual-package-banner>.error{flex-basis:100%}

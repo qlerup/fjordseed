@@ -458,7 +458,7 @@ function updateSeedingFields(prefix){
 $('#ratio-action').onchange=()=>updateSeedingFields('ratio');
 updateSeedingFields('ratio');
 $('#ratio-dialog').addEventListener('cancel',e=>{if(window.TorrentBatch?.active?window.TorrentBatch.submitting:$('#ratio-save').disabled)e.preventDefault();});
-$('#ratio-back').onclick=()=>{$('#ratio-dialog').close();$('#add-dialog').showModal();};
+$('#ratio-back').onclick=()=>{$('#ratio-dialog').close();if(!window.TorrentBatch?.packaged)$('#add-dialog').showModal();};
 $('#ratio-form').onsubmit=async e=>{e.preventDefault();if(window.TorrentBatch?.active){await window.TorrentBatch.submit();return;}if(!pendingTorrent)return;$('#ratio-save').disabled=true;$('#ratio-back').disabled=true;$('#ratio-dialog .close').disabled=true;$('#ratio-error').hidden=true;try{pendingTorrent.set('convert',String($('#ratio-convert').checked));pendingTorrent.set('ratio_limit',$('#ratio-limit').value);pendingTorrent.set('ratio_action',$('#ratio-action').value);pendingTorrent.set('seed_minutes',$('#ratio-seed-minutes').value);await api('/api/torrents',{method:'POST',body:pendingTorrent});pendingTorrent=null;$('#ratio-dialog').close();toast('Torrent tilføjet');await refresh();}catch(e){error('#ratio-error',e);}finally{$('#ratio-save').disabled=false;$('#ratio-back').disabled=false;$('#ratio-dialog .close').disabled=false;}};
 function openDeleteEditor(t){
  deleting=t;$('#delete-form').reset();$('#delete-name').textContent=t.name;

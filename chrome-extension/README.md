@@ -13,6 +13,10 @@ A Manifest V3 extension that hands NordicBytes and Sagmire torrent and RSS links
 
 Torrent handoff fetches only the small `.torrent` using your existing tracker login, without writing to Chrome's Downloads directory. Content starts downloading only after confirmation in Seed, through its ordinary VPN/buffer/seeding rules.
 
+Version 1.3.0 adds a second torrent-link context menu: **Føj til torrentpakke (flere)**. Repeated selections collect a manual-download package; this option is never offered for RSS. An existing signed-in FjordSeed tab receives selections in the background without replacing an open dialog. If no matching tab exists, the first selection opens a visible tab. If sign-in is required, the extension focuses the login tab and waits before fetching or delivering the selected torrents. Delivery resumes after login.
+
+In FjordSeed, choose **Åbn pakken** to review Freeleech and ratio information for each torrent and select common seeding settings before starting. Successful starts leave the draft; failed items remain available for retry. Drafts are stored per FjordSeed account across reloads/restarts, with limits of 50 files, 4 MiB per file and 32 MiB total. Removing a draft does not remove or stop a running torrent. The extension popup can open FjordSeed or retry/clear links still awaiting delivery. Undelivered links expire after 15 minutes and are lost when Chrome closes; already delivered drafts remain in FjordSeed. Both FjordSeed and the extension must be updated to use packages.
+
 RSS handoff opens Add RSS feed with the full address, including private parameters. Set name, start date, filters and seeding, then save. The extension never fetches the feed; qBittorrent fetches it through VPN after activation. Feeds can be configured while the VPN is offline.
 
 The context menu recognizes `https://nordicbytes.org/torrents/download/<number>` or the matching Sagmire URL, and feed paths under `/rss` or `/torrents/rss`, including query parameters. Chrome's Copy link address and clipboard are untouched.

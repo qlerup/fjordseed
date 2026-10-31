@@ -3,7 +3,7 @@ from pathlib import Path
 from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 
 root = Path(__file__).resolve().parents[1]
-files = ['manifest.json', 'background.js', 'common.mjs', 'popup.html', 'popup.js', 'popup.css', 'icon.png', 'README.md']
+files = ['manifest.json', 'background.js', 'common.mjs', 'package.mjs', 'popup.html', 'popup.js', 'popup.css', 'icon.png', 'README.md']
 target = root/'static'/'fjordseed-chrome.zip'
 with ZipFile(target, 'w', compression=ZIP_DEFLATED) as archive:
     for name in files:
