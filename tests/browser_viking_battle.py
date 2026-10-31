@@ -1,4 +1,5 @@
 from pathlib import Path
+import base64
 from playwright.sync_api import sync_playwright, expect
 root=Path(__file__).resolve().parents[1]
 with sync_playwright() as p:
@@ -7,11 +8,16 @@ with sync_playwright() as p:
   page=browser.new_page(viewport={'width':width,'height':950})
   errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
   page.clock.install()
-  page.set_content('<html data-theme="viking"><body style="margin:0;background:#20383b"><div class="ambient-scene"></div></body></html>')
-  page.add_style_tag(content=(root/'static/viking.css').read_text(encoding='utf-8-sig'))
+  page.set_content('<html data-theme="viking"><body style="margin:0;background:#20383b"><div class="ambient-scene"></div><main><button id="battle-full-view">Fuld visning</button></main></body></html>')
+  page.add_style_tag(content=(root/'static/ambient.css').read_text(encoding='utf-8-sig'))
+  backdrop='data:image/svg+xml;base64,'+base64.b64encode((root/'static/viking-fjord.svg').read_bytes()).decode()
+  page.add_style_tag(content=(root/'static/viking.css').read_text(encoding='utf-8-sig').replace('/static/viking-fjord.svg',backdrop))
   page.add_script_tag(content=(root/'static/viking-battle-model.js').read_text(encoding='utf-8-sig'))
   page.evaluate('''() => { let seed=71;const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};const Model=window.FjordBattleModel;window.FjordBattleModel=class extends Model {constructor(count){super(count,random);window.testBattle=this;}};}''')
   page.add_script_tag(content=(root/'static/viking-battle.js').read_text(encoding='utf-8-sig'))
+  page.locator('#battle-full-view').click()
+  expect(page.locator('body')).to_have_class('viking-full-view')
+  assert page.locator('main').evaluate('e=>e.inert')
   def advance(seconds):
    page.evaluate('seconds=>{for(let i=0;i<seconds*20;i++)testBattle.advance(.05,innerWidth,innerHeight);dispatchEvent(new Event("resize"));}',seconds)
   advance(5)
@@ -34,6 +40,10 @@ with sync_playwright() as p:
   assert page.locator('.viking-blood').count()<=40
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
   assert not errors,errors
+  page.keyboard.press('Escape')
+  expect(page.locator('#battle-full-view')).to_be_visible()
+  assert not page.locator('main').evaluate('e=>e.inert')
+  expect(page.locator('#battle-full-view')).to_be_focused()
   page.close()
  browser.close()
 print('PASS boats, visible combat and blood, desktop/mobile, bounded DOM and console')

@@ -5,6 +5,23 @@
  const root=document.documentElement,reduced=matchMedia('(prefers-reduced-motion: reduce)');
  const layer=document.createElement('div');layer.className='viking-battle';layer.setAttribute('role','group');layer.setAttribute('aria-label','Vikingekamp i baggrunden. Klik på en kriger for at slå med øksen.');
  document.body.append(layer);
+ const fullButton=document.querySelector('#battle-full-view');
+ const controls=document.createElement('div');controls.className='viking-view-controls';controls.hidden=true;
+ controls.innerHTML='<button type="button" class="secondary">Tilbage til FjordSeed · Esc</button><span>Slaget ved fjorden</span>';
+ document.body.append(controls);
+ let hiddenPanels=[],previousFocus=null;
+ function fullView(enabled){
+  if(enabled){
+   previousFocus=document.activeElement;
+   hiddenPanels=[...document.body.children].filter(el=>el!==layer&&el!==controls&&!el.classList.contains('ambient-scene')).map(el=>[el,el.inert]);
+   hiddenPanels.forEach(([el])=>el.inert=true);
+  }else{hiddenPanels.forEach(([el,inert])=>el.inert=inert);hiddenPanels=[];}
+  document.body.classList.toggle('viking-full-view',enabled);controls.hidden=!enabled;
+  if(enabled)controls.querySelector('button').focus();else previousFocus?.focus();
+ }
+ fullButton?.addEventListener('click',()=>fullView(true));
+ controls.querySelector('button').addEventListener('click',()=>fullView(false));
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!controls.hidden){event.preventDefault();fullView(false);}});
  const battle=new window.FjordBattleModel(innerWidth<700?16:24);
  let raf=0,last=0,renderedRound=0,actors=[],boats=[],splashes=new Map(),arrows=new Map();
  const axe='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 65 85"><path d="M17 80L42 9" stroke="#211d17" stroke-width="9"/><path d="M17 80L42 9" stroke="#b69a69" stroke-width="5"/><path d="M37 13L53 5Q49 18 62 31L41 30L35 25Z" fill="#b9c9c5" stroke="#445959" stroke-width="2"/><path d="M53 5Q49 18 62 31" stroke="#edf0d9" stroke-width="3"/></svg>';
@@ -32,6 +49,7 @@
     render();
    });
    el.weapon=el.querySelector('.viking-weapon');el.body=el.querySelector('.viking-body');
+   el.body.lastElementChild.classList.add('viking-shield');
    if(u.archer){
     el.classList.add('is-archer');
     el.weapon.insertAdjacentHTML('afterend','<g class="viking-bow"><path d="M45 46L67 47" stroke="#c4a17b" stroke-width="7" stroke-linecap="round"/><path d="M65 20Q91 47 65 76" fill="none" stroke="#bd955e" stroke-width="4"/><path class="bow-string" d="M65 20L54 47 65 76" fill="none" stroke="#d9cdb1" stroke-width="1.2"/><path d="M50 47h36m-5-3 5 3-5 3" stroke="#c9c3a6" fill="none" stroke-width="1.5"/></g>');
@@ -42,17 +60,21 @@
  function render(){
   if(renderedRound!==battle.round)build();
   layer.dataset.phase=battle.phase;layer.dataset.round=String(battle.round);
+  const strategyNames={shieldwall:'Skjoldmur',wedge:'Kile',flank:'Flankeangreb'};
+  controls.querySelector('span').textContent=`${strategyNames[battle.strategies[0]]} mod ${strategyNames[battle.strategies[1]]}`;
   const motion=root.dataset.animation!=='false'&&!reduced.matches;
   battle.boats.forEach((b,i)=>{
-   const el=boats[i],scale=innerWidth<700?.65:.9;
-   el.hidden=battle.time>26;
+   const el=boats[i],scale=b.scale*(innerWidth<700?.65:1);
+   el.hidden=!b.visible;
    el.style.zIndex=String(Math.round(b.y*1000)+1);
-   el.style.transform=`translate(${b.x*innerWidth-120}px,${b.y*innerHeight-136+(motion?Math.sin(battle.time*2+b.team)*2:0)}px) scale(${scale})`;
+   el.style.transform=`translate(${b.x*innerWidth}px,${b.y*innerHeight+(motion?Math.sin(battle.time*2+b.team)*scale:0)}px) scale(${scale}) translate(-120px,-146px)`;
   });
   battle.units.forEach((u,i)=>{
    const el=actors[i],dead=u.deadAt!==null,age=dead?battle.time-u.deadAt:0;
-   const scale=(innerWidth<700?.7:.86)+(u.y-.7)*.65;
-   const jumpAge=battle.time-u.jumpAt,jump=motion&&jumpAge>=0&&jumpAge<.65?Math.sin(jumpAge/.65*Math.PI)*u.jumpHeight:0;
+   const boat=u.state==='sailing'?battle.boats[u.boat]:null;
+   const scale=boat?boat.scale*(innerWidth<700?.65:1)*.68:(innerWidth<700?.7:.86)+(u.y-.7)*.65;
+   const jumpDuration=u.state==='landing'?.8:.65;
+   const jumpAge=battle.time-u.jumpAt,jump=motion&&jumpAge>=0&&jumpAge<jumpDuration?Math.sin(jumpAge/jumpDuration*Math.PI)*u.jumpHeight:0;
    const attackAge=battle.time-u.attackAt;
    const impact=u.impactDelay,windup=impact*.72,duration=u.attackDuration;
    const pose=u.attackStyle==='sweep'?{back:-35,hit:78}:u.attackStyle==='jab'?{back:20,hit:-12}:{back:-85,hit:48};
@@ -60,6 +82,7 @@
    const lunge=attackAge>=0&&attackAge<duration?Math.sin(Math.min(1,attackAge/impact)*Math.PI/2)*Math.max(0,1-Math.max(0,attackAge-impact)/(duration-impact)):0;
    el.weapon.style.transform=`translateX(${!dead&&u.attackStyle==='jab'?lunge*13:0}px) rotate(${dead?30:swing}deg)`;
    el.classList.toggle('is-ranged',u.archer&&u.state!=='fighting');
+   el.classList.toggle('lost-arm',!!u.lostArm);el.classList.toggle('lost-leg',!!u.lostLeg);
    el.classList.toggle('is-shooting',u.archer&&battle.time-u.shotAt<.25);
    el.body.style.transform=`translateX(${dead?0:lunge*3}px) rotate(${!dead&&battle.time-u.hitAt<.22?-10:dead?0:lunge*(u.attackStyle==='sweep'?9:4)}deg)`;
    el.style.zIndex=String(Math.round(u.y*1000));
@@ -75,16 +98,22 @@
    active.add(effect.id);let el=splashes.get(effect.id);
    if(!el){
     el=document.createElement('div');el.className='viking-blood';el.setAttribute('aria-hidden','true');
-    el.innerHTML='<i></i>'.repeat(7);layer.append(el);splashes.set(effect.id,el);
+    el.innerHTML='<i></i>'.repeat(18);
+    if(effect.limb){const fragment=document.createElement('span');fragment.className='viking-limb '+effect.limb;el.append(fragment);}
+    layer.append(el);splashes.set(effect.id,el);
    }
    const age=battle.time-effect.at;
    el.style.transform=`translate(${effect.x*innerWidth}px,${effect.y*innerHeight-42}px)`;
    el.style.zIndex=String(Math.round(effect.y*1000)+2);
-   el.style.opacity=String(Math.max(0,1-age/1.15));
-   [...el.children].forEach((drop,j)=>{
-    const vx=effect.direction*(12+j*6+effect.seed*10),vy=-35-j*9;
-    drop.style.transform=`translate(${vx*age}px,${vy*age+95*age*age}px) rotate(${j*39}deg)`;
+   el.style.opacity=String(Math.min(1,Math.max(0,(4-age)/1.2)));
+   [...el.querySelectorAll('i')].forEach((drop,j)=>{
+    const scatter=Math.abs(Math.sin(j*41.7+effect.seed*97)),flight=Math.min(age,.8);
+    const vx=effect.direction*(5+scatter*70),vy=-20-Math.abs(Math.cos(j*19.1+effect.seed*31))*90;
+    const y=Math.min(36+scatter*9,vy*flight+150*age*age);
+    drop.style.transform=`translate(${vx*flight}px,${y}px) rotate(${j*39}deg) scale(${age>.9?1.2:.7+scatter*.5},${age>.9?.45:1})`;
    });
+   const fragment=el.querySelector('.viking-limb');
+   if(fragment)fragment.style.transform=`translate(${effect.direction*Math.min(age,.7)*50}px,${Math.min(39,-60*age+150*age*age)}px) rotate(${Math.min(age,.7)*effect.direction*250}deg)`;
   }
   for(const [id,el] of splashes)if(!active.has(id)){el.remove();splashes.delete(id);}
   const flying=new Set();
@@ -109,6 +138,7 @@
  }
  function sync(){
   const active=root.dataset.theme==='viking';layer.hidden=!active;layer.inert=!active;
+  if(!active&&!controls.hidden)fullView(false);
   const run=allowed();layer.classList.toggle('is-paused',!run);
   if(!run){cancelAnimationFrame(raf);raf=0;last=0;}
   // Still artwork is visible when animation is disabled from the beginning.

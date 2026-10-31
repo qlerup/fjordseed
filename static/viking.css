@@ -1,7 +1,7 @@
 /* All Viking overrides are scoped; Fjord keeps its original palette and artwork. */
 html[data-theme=viking]{--bg:#101b20;--panel:#1c2b2e;--border:#4c5750;--text:#f2ebdc;--muted:#b9c2b8;--green:#ddba75;--accent-blue:#8dc3c2;--accent-violet:#d8a580}
 html[data-theme=viking] ::selection{background:#795c35;color:#fff8e9}
-html[data-theme=viking] .ambient-scene{z-index:-2;background:#17272b url('/static/viking-fjord.svg') center / cover no-repeat}
+html[data-theme=viking] .ambient-scene{z-index:-2;background:#17272b url('/static/viking-fjord.svg') center / 100% 100% no-repeat}
 html[data-theme=viking] .ambient-scene::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#07121b40,#08171a24 50%,#07131645)}
 html[data-theme=viking] .ambient-glow{background:radial-gradient(ellipse at 60% 35%,#dbbf7924,transparent 55%);animation-duration:70s;mix-blend-mode:screen}
 html[data-theme=viking] .ambient-glow-secondary{background:radial-gradient(ellipse at 20% 70%,#9bc9c71c,transparent 55%)}
@@ -57,13 +57,20 @@ html:not([data-theme=viking]) .viking-battle{display:none}
 .viking-warrior.is-running .viking-leg-left{animation:viking-step .48s ease-in-out infinite alternate}
 .viking-warrior.is-running .viking-leg-right{animation:viking-step .48s ease-in-out -.48s infinite alternate-reverse}
 .viking-warrior.is-running .viking-body{animation:viking-bob .48s ease-in-out infinite alternate}
-.viking-longship{position:absolute;top:0;left:0;width:240px;height:160px;pointer-events:none;transform-origin:50% 85%;filter:drop-shadow(0 5px 3px #06111360)}
+.viking-longship{position:absolute;top:0;left:0;width:240px;height:160px;pointer-events:none;transform-origin:0 0;filter:drop-shadow(0 5px 3px #06111360)}
 .viking-longship svg{width:100%;height:100%;overflow:visible}
 .ship-oars{transform-origin:120px 120px;animation:viking-row 1.8s ease-in-out infinite alternate}
 .ship-wake{animation:viking-wake 2.4s ease-out infinite}
 .viking-blood{position:absolute;top:0;left:0;pointer-events:none}
 .viking-blood i{position:absolute;width:4px;height:6px;border-radius:65% 40% 60% 45%;background:#94382e;box-shadow:inset 1px 0 #c25e43}
 .viking-blood i:nth-child(even){width:3px;height:4px;background:#6d2524}
+.viking-blood i:nth-child(3n){width:6px;height:8px;background:#a6332b}
+.viking-warrior.lost-arm .viking-shield,.viking-warrior.lost-leg .viking-leg-left{visibility:hidden}
+.viking-warrior.lost-leg.is-running .viking-leg-right{animation-duration:.95s}
+.viking-warrior.lost-leg.is-running .viking-body{animation:viking-limp .95s ease-in-out infinite}
+.viking-limb{position:absolute;display:block;top:0;left:0;width:8px;height:20px;border-radius:4px;background:#b49370;border-top:3px solid #842c27;box-shadow:0 2px 2px #10191b80}
+.viking-limb.leg{width:10px;height:27px;background:#39352d;border-bottom:5px solid #252822}
+@keyframes viking-limp{0%,100%{transform:translateY(3px) rotate(-8deg)}35%{transform:translateY(-2px) rotate(3deg)}65%{transform:translateY(2px) rotate(-5deg)}}
 @keyframes viking-row{from{transform:rotate(-7deg)}to{transform:rotate(9deg)}}
 @keyframes viking-wake{from{opacity:.4;transform:scaleX(.9)}to{opacity:0;transform:scaleX(1.12)}}
 .viking-spark{opacity:0}
@@ -76,6 +83,13 @@ html:not([data-theme=viking]) .viking-battle{display:none}
 .viking-warrior.is-fallen{pointer-events:none;cursor:default}
 .viking-player-axe{position:absolute;width:65px;height:85px;pointer-events:none;transform-origin:35% 90%;animation:player-chop .42s ease-out both;filter:drop-shadow(0 3px 2px #05121799)}
 .viking-battle.is-paused *{animation-play-state:paused!important}
+.viking-view-controls{position:fixed;top:20px;left:20px;right:20px;display:flex;align-items:center;gap:18px;z-index:1000;color:#efdfbe;font-size:14px}
+.viking-view-controls[hidden]{display:none}
+.viking-view-controls button{padding:12px 18px;cursor:pointer}
+body.viking-full-view{overflow:hidden}
+body.viking-full-view> :not(.ambient-scene):not(.viking-battle):not(.viking-view-controls){visibility:hidden!important;pointer-events:none!important}
+body.viking-full-view>.ambient-scene,body.viking-full-view>.viking-battle{visibility:visible}
+@media(max-width:600px){.viking-view-controls{top:12px;left:12px;right:12px;flex-wrap:wrap;gap:8px}}
 @keyframes viking-step{from{transform:rotate(-23deg)}to{transform:rotate(24deg)}}
 @keyframes viking-bob{to{transform:translateY(-2px) rotate(2deg)}}
 @keyframes viking-brace{0%,65%,100%{transform:rotate(0)}35%{transform:rotate(-8deg)}48%{transform:rotate(8deg)}}

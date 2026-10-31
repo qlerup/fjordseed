@@ -38,6 +38,7 @@ for(const width of [390,1440]){
   twoAgainstOne ||= b.units.some(target=>target.deadAt===null&&b.units.filter(u=>u.deadAt===null&&u.enemyId===target.id&&u.state==='fighting').length===2);
   for(const u of b.units){
    assert(Number.isFinite(u.x)&&Number.isFinite(u.y));
+   if(!['sailing','landing'].includes(u.state))assert(u.y>=Battle.LAND,'Walking and combat must stay on dry land');
    if(u.state==='fighting'&&u.deadAt===null){
     if(u.attackAt>0)styles.add(u.attackStyle);
     const enemy=b.units[u.enemyId];
@@ -51,9 +52,36 @@ for(const width of [390,1440]){
  assert(sailing&&jumping&&contact&&blood&&arrows);
  assert(twoAgainstOne,'Some close-range fights should have two attackers against one');
  assert.deepEqual([...styles].sort(),['jab','overhead','sweep']);
- assert(b.boats.every(boat=>boat.x<0||boat.x>1));
+ assert(b.boats.every(boat=>!boat.visible));
  b.reset();assert.notDeepEqual(b.units.map(u=>u.targetX),initialTargets);
  assert.equal(b.effects.length,0);
  assert.equal(b.arrows.length,0);
+}
+{
+ const b=new Battle(4,()=>.5);
+ b.time=20;
+ for(const [i,u] of b.units.entries()){u.x=[.3,.35,.2,.9][i];u.y=.85;u.state='guarding';u.boat=null;u.archer=false;u.decisionAt=100;}
+ b.units[0].enemyId=3;
+ for(let i=0;i<100;i++){
+  b.advance(.02,1000,1000);
+  assert(b.units[0].x<b.units[1].x,'Approaching enemies must not walk through each other');
+ }
+ assert.equal(b.units[0].enemyId,1,'Engage the nearby enemy instead of chasing a distant assignment');
+ const slow=b.units[2];slow.lostLeg=true;slow.x=.05;slow.y=.94;
+ const old=slow.x;b.move(slow,100,0,.1,1000,1000,50);
+ assert(slow.x-old<.003,'A lost leg must reduce movement speed');
+ const victim=b.units[3];b.random=()=>.1;
+ b.wound(victim,1,true);b.wound(victim,1,true);
+ assert(victim.lostArm&&victim.lostLeg);
+ assert(b.effects.some(e=>e.limb==='arm')&&b.effects.some(e=>e.limb==='leg'));
+}
+{
+ const b=new Battle(16,()=>.5);
+ let previous=.18;
+ for(let i=0;i<70;i++){
+  b.advance(.1);
+  assert(b.boats[0].scale>=previous);previous=b.boats[0].scale;
+  for(const boat of b.boats)assert(boat.y>=.56&&boat.y<=boat.dockY&&boat.y<Battle.LAND);
+ }
 }
 console.log('PASS varied rounds, boat arrivals, jumps, close-range combat, blood and bounded effects on mobile/desktop');
