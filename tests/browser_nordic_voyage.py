@@ -32,8 +32,11 @@ with sync_playwright() as p:
         samples.append(page.locator('.nordic-voyage-lane').evaluate_all('''lanes=>lanes.map(lane=>{
             const water=lane.querySelector('.nordic-voyage-water').getBoundingClientRect();
             const ship=lane.querySelector('.nordic-voyage-ship').getBoundingClientRect();
+            const second=lane.querySelectorAll('.nordic-voyage-ship')[1].getBoundingClientRect();
             return {left:(ship.left-water.left)/water.width,
-                    right:(ship.right-water.left)/water.width};
+                    right:(ship.right-water.left)/water.width,
+                    separation:Math.abs(ship.left-second.left)/water.width,
+                    halfCrossing:(water.width+ship.width)/water.width/2};
         })'''))
     # Download enters from the right and exits fully on the left; upload does
     # the reverse. Rebuilding at intermediate polls must retain that journey.
@@ -45,7 +48,11 @@ with sync_playwright() as p:
     assert all(samples[i][1]['left'] < samples[i+1][1]['left'] for i in range(5)), samples
     for direction in (0,1):
         assert abs(samples[1][direction]['left']-samples[6][direction]['left']) < .02, samples
+        for sample in samples:
+            assert abs(sample[direction]['separation']-sample[direction]['halfCrossing']) < .02, samples
     page.emulate_media(reduced_motion='reduce')
     assert page.locator('.nordic-voyage-ship').first.evaluate('e=>getComputedStyle(e).animationName') == 'none'
+    assert page.locator('.nordic-voyage-water').first.evaluate("e=>getComputedStyle(e,'::before').animationName") == 'none'
+    assert page.locator('.nordic-voyage-water').first.evaluate("e=>getComputedStyle(e,'::after').animationName") == 'none'
     browser.close()
 print('PASS uninterrupted full-width download/upload crossings across polls, rate changes, wraparound and reduced motion')

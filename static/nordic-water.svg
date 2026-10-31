@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="28" viewBox="0 0 256 28" fill="none">
+ <defs><linearGradient id="sea" x2="0" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#397a9a" stop-opacity=".85"/><stop offset=".55" stop-color="#164f70" stop-opacity=".75"/><stop offset="1" stop-color="#123853" stop-opacity="0"/></linearGradient></defs>
+ <path d="M0 8Q16 0 32 8T64 8T96 8T128 8T160 8T192 8T224 8T256 8V28H0Z" fill="url(#sea)"/>
+ <path d="M0 8Q16 0 32 8T64 8T96 8T128 8T160 8T192 8T224 8T256 8" stroke="#9ad9e7" stroke-opacity=".8" stroke-width="1.2"/>
+ <path d="M0 17Q16 9 32 17T64 17T96 17T128 17T160 17T192 17T224 17T256 17" stroke="#5caac9" stroke-opacity=".7"/>
+ <path d="M10 12q7-4 14 0m50 0q7-4 14 0m50 0q7-4 14 0m50 0q7-4 14 0" stroke="#c9edf0" stroke-opacity=".65" stroke-linecap="round"/>
+</svg>

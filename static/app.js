@@ -172,8 +172,9 @@ function torrentProgress(t) {
   const elapsed=typeof performance!=='undefined'?performance.now():0;
   lane.style.setProperty('--voyage-duration',duration+'ms');
   lane.style.setProperty('--voyage-delay',-(elapsed%duration)+'ms');
-  const water=node('span','nordic-voyage-water'),ship=node('i','nordic-voyage-ship');
-  water.append(ship);lane.append(node('span','nordic-voyage-label',label),water);voyage.append(lane);
+  const water=node('span','nordic-voyage-water');
+  for(let shipIndex=0;shipIndex<2;shipIndex++)water.append(node('i','nordic-voyage-ship'));
+  lane.append(node('span','nordic-voyage-label',label),water);voyage.append(lane);
  }
  wrap.append(voyage);return wrap;
 }

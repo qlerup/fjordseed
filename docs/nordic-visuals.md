@@ -6,7 +6,7 @@ finish. The outer surfaces reuse the oak image under opaque tinted layers. Their
 backgrounds extend beneath the bronze fittings,
 with no border-image outset, so there is no transparent seam around the panel.
 Nested theme fieldsets use a divider rather than a second ornamental frame.
-The landscape has a dark overlay so its detail stays behind the controls.
+The landscape has been replaced by the quiet rune background described below.
 
 The stretched decorative oak column and the animated mist overlay have been
 removed. The clearer scene is saved at
@@ -96,7 +96,19 @@ scroll/details, pause/start, balance/ratio and axe/remove actions. Text labels,
 accessible names, confirmation dialogs and handlers are unchanged. Hover,
 pressed, disabled and visible keyboard-focus states are preserved.
 
-Desktop posters now occupy a 120–180 pixel wide column, retaining their 2:3
-aspect ratio and filling most of the collapsed flag's red field vertically.
-Mobile posters sit above the title and actions at up to 130 pixels wide, so
-the controls and progress display retain the full content width.
+Posters are compact again: 64 × 96 pixels on desktop and 48 × 72 on mobile.
+The larger poster treatment was removed; the bronze action buttons are retained.
+
+## Quiet rune background and the sea
+
+The Nordic background uses a dark base, sparse vector runes from
+`static/nordic-rune-field.svg`, a faint 48-second drifting gold glow and a
+32-second sheen passing over the rune strokes. The landscape image is no longer
+used by the scene or Nordic theme preview. Paused animation settings, reduced
+motion, hidden tabs and open dialogs also stop the new decorative motion.
+
+Torrent sea lanes use layered blue waves from `static/nordic-water.svg` and
+foam-colored wakes. Each active lane has two ships, spaced half a crossing apart.
+Both retain their positions through polling using the existing page-clock
+anchor. Idle lanes show one stationary ship. With reduced motion, active ships
+remain separated and the water stays still.

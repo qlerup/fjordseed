@@ -97,15 +97,16 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('.ambient-particles')).to_be_hidden()
             # Ensure the real background loads, rather than a silent CSS fallback.
             assert page.evaluate('''async () => {
-                const image = new Image(); image.src='/static/nordic-saga-fjord-clear.png';
-                await image.decode(); return image.naturalWidth > 1000;
+                const image = new Image(); image.src='/static/nordic-rune-field.svg';
+                await image.decode(); return image.naturalWidth === 1000;
             }''')
             glow = page.locator('.ambient-glow').first
-            assert glow.evaluate('e=>getComputedStyle(e).animationName') == 'nordic-mist'
+            assert glow.evaluate('e=>getComputedStyle(e).animationName') == 'nordic-gold-drift'
             page.locator('#theme-animation').uncheck()
             page.locator('#appearance-save').click()
             expect(page.locator('html')).to_have_attribute('data-animation','false')
             assert glow.evaluate('e=>getComputedStyle(e).animationPlayState') == 'paused'
+            assert page.locator('.ambient-scene').evaluate("e=>getComputedStyle(e,'::before').animationPlayState") == 'paused'
             page.reload()
             expect(page.locator('#theme-animation')).not_to_be_checked()
             page.locator('#theme-animation').check()
@@ -113,6 +114,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('html')).to_have_attribute('data-animation','true')
             page.emulate_media(reduced_motion='reduce')
             assert glow.evaluate('e=>getComputedStyle(e).animationName') == 'none'
+            assert page.locator('.ambient-scene').evaluate("e=>getComputedStyle(e,'::before').animationName") == 'none'
             assert page.locator('aside').evaluate('e=>getComputedStyle(e).animationName') == 'none'
             page.emulate_media(reduced_motion='no-preference')
             # The second sign is the original navigation, with keyboard and
@@ -176,10 +178,9 @@ with tempfile.TemporaryDirectory() as folder:
                 expect(page.locator('#torrent-list .torrent-cover').first).to_be_visible()
                 poster=page.locator('#torrent-list .torrent-cover').first.bounding_box()
                 if width>800:
-                    assert poster['width']>=120 and poster['height']>=180
+                    assert poster['width']==64 and poster['height']==96
                 else:
-                    title=page.locator('#torrent-list .torrent-head').first.bounding_box()
-                    assert poster['y']+poster['height']<=title['y']+1
+                    assert poster['width']==48 and poster['height']==72
                 if width>1100:
                     toolbar=page.locator('#download-toolbar').bounding_box()
                     worklist=page.locator('#downloads-view').bounding_box()
@@ -192,6 +193,7 @@ with tempfile.TemporaryDirectory() as folder:
                 page.locator('#new-torrent').click()
                 expect(page.locator('#add-dialog')).to_be_visible()
                 assert glow.evaluate('e=>getComputedStyle(e).animationPlayState') == 'paused'
+                assert page.locator('.ambient-scene').evaluate("e=>getComputedStyle(e,'::before').animationPlayState") == 'paused'
                 page.locator('#method-magnet').click()
                 page.locator('#magnet').fill('invalid')
                 page.locator('#add-save').click()
@@ -237,7 +239,8 @@ with tempfile.TemporaryDirectory() as folder:
                 scene.draw(4);const idleNext=scene.canvas.toDataURL();scene.ready=ready;
                 return first!==next && idle===idleNext && JSON.stringify(scene.rates)===before;
             }""")
-            assert 'nordic-saga-fjord-clear.png' in page.locator('.ambient-scene').evaluate('e=>getComputedStyle(e).backgroundImage')
+            assert 'nordic-saga-fjord' not in page.locator('.ambient-scene').evaluate('e=>getComputedStyle(e).backgroundImage')
+            assert 'nordic-rune-field.svg' in page.locator('.ambient-grid').evaluate('e=>getComputedStyle(e).backgroundImage')
             # The VPN landmark has no inherited breathing animation, halo or
             # arrival pulse, even while both streams are active.
             assert page.locator('.flow-core-shell').evaluate("e=>e.getAnimations({subtree:true}).length") == 0
@@ -246,6 +249,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.goto(base+'/#torrents')
             expect(page.locator('#torrent-list .nordic-voyage')).to_have_count(2)
             expect(page.locator('#torrent-list .nordic-voyage-lane[data-moving=true]')).to_have_count(3)
+            expect(page.locator('#torrent-list .nordic-voyage-lane[data-moving=true] .nordic-voyage-ship')).to_have_count(6)
             # Ten fixed-color wear patterns; selection survives status rebuilds.
             assert page.evaluate('''async ()=>{
                 const variants=Array.from({length:100},(_,i)=>torrentBannerVariant({hash:'fixture-'+i}));
