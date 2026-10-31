@@ -45,12 +45,18 @@ with tempfile.TemporaryDirectory() as folder:
    expect(page.locator('html')).to_have_attribute('data-theme','viking')
    expect(page.locator('.viking-warrior:not([hidden])')).to_have_count(24)
    page.screenshot(path=str(root/'test-results/theme-viking-desktop.png'),full_page=True)
+   # The settings form covers most of the background; test pointer targeting
+   # in the empty downloads area, without relying on random spawn positions.
+   page.locator('a[href="#torrents"]').click()
+   expect(page.locator('#appearance-view')).to_be_hidden()
+   page.screenshot(path=str(root/'test-results/viking-click-area.png'))
    hit=page.evaluate('''() => {
-    for(const [index,el] of [...document.querySelectorAll('.viking-warrior')].entries()) {
+    const actors=[...document.querySelectorAll('.viking-warrior')];
+    for(const el of [...actors].sort((a,b)=>Number(b.style.zIndex)-Number(a.style.zIndex)||actors.indexOf(b)-actors.indexOf(a))) {
      const r=el.getBoundingClientRect();
      for(const fraction of [.25,.5,.75]) {
       const x=r.left+r.width*fraction,y=r.top+r.height*.5,target=document.elementFromPoint(x,y);
-      if(target&&!target.closest('a,input,select,textarea,dialog,aside,form,.connection,.torrent,.tracker-card,.insights,.stats,.settings-tabs')&&(!target.closest('button')||target.closest('.viking-warrior')))return {index,x,y};
+      if(target&&!target.closest('a,input,select,textarea,dialog,aside,form,.connection,.torrent,.tracker-card,.insights,.stats,.settings-tabs')&&(!target.closest('button')||target.closest('.viking-warrior')))return {index:actors.indexOf(target.closest('.viking-warrior')||el),x,y};
      }
     }
    }''')
@@ -61,6 +67,8 @@ with tempfile.TemporaryDirectory() as folder:
    warrior=page.locator('.viking-warrior').last
    warrior.focus();page.keyboard.press('Enter')
    expect(warrior).to_be_disabled()
+   page.evaluate('location.hash="#appearance"')
+   expect(page.locator('#appearance-view')).to_be_visible()
    for width in (390,320):
     page.set_viewport_size({'width':width,'height':950})
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
