@@ -92,3 +92,28 @@ nordic-vessel.svg, nordic-chart.svg and the updated preview are original vector 
 A photographic background was explored with built-in imagegen but was not selected
 after the user's preference for a modern illustrated direction. No new generated
 raster is referenced or shipped by this edition.
+
+Reference-led depth edition, 31 October 2026
+Final direction uses the user's three visual references: scenic fjord and aurora,
+carved oak, restrained bronze corner fittings, slate textures, jewel-coloured data.
+The compact hanging desktop sign is explicitly preserved, with dark brown ropes.
+A decorative carved pillar stays at the left edge; it contains no duplicate menu.
+The raven overlaps the top panel edge; the shield and dragon artwork layer above
+animated data filaments. These layers never intercept pointer events. On narrow
+screens the raven and pillar are hidden and the navigation stays compact.
+The generated artwork is illustrative Viking-inspired fantasy, not archaeology.
+All graphs, labels, countries and live states are real DOM/canvas, never baked text.
+Generated with the built-in image_gen tool, inspected and copied into the repo.
+Final selected assets and exact prompts:
+
+static/nordic-saga-fjord.png
+Use case: historical-scene. Asset type: full-screen background artwork behind an interactive desktop dashboard, not a mockup. Wide cinematic 16:9 Scandinavian fjord at blue hour, realistically painted premium game UI atmosphere. Towering jagged snowy mountains across upper third, subtle teal aurora in deep blue sky, small Norse timber great hall glowing amber on rocky ridge upper right, realistic clinker longship with muted red striped sail moored along far right edge partly cropped, shore wharf rocks at bottom corners, dark slate water. Frame the outer edges with atmosphere, keep central 70 percent dark, low detail and open for application panels. Very polished dramatic illustration, physically textured wood and stone, restrained amber highlights and mint aurora, dark navy tones. No text, no letters, no UI, no charts, no frame, no logos, no people, no cartoon faces, no horned helmets, no modern buildings. This is fantasy Viking-inspired atmospheric art, not a claim of archaeological accuracy.
+
+static/nordic-carved-oak.png
+Use case: stylized-concept. Asset type: narrow vertical decorative timber sidebar texture for a premium Viking desktop application. Very tall 1:4 composition. Straight-on dark weathered oak plank with elaborate deep carved Norse interlaced knotwork down its centre and fine carved vertical border rails, hand wrought small iron rivets, central circular knotwork medallion placed around 55 percent of total height. Upper 30 percent mostly quiet dark oak reserved for real UI buttons; bottom 15 percent quiet oak. Premium realistic game material, charcoal umber oak, warm brown relief edges, restrained antique bronze fasteners, dramatic low raking light, genuinely dark and readable behind white controls. Entire composition is timber panel, no background scene, no text, no runes, no labels, no interface, no axes, no horned helmets, no characters. Absolutely straight vertical rectangular edges.
+
+static/nordic-dragon-shield.png
+Use case: stylized-concept. Asset type: transparent decorative VPN shield surround for a premium Viking application. A small symmetrical carved wooden shield, pointed bottom, antique bronze rim with tiny iron rivets. Two beautifully engraved Norse dragon heads and flowing interlaced knotwork extend horizontally to left and right of the shield, facing outwards. Rich physically textured dark bronze and oak, restrained warm gold edge highlights, elegant detailed premium game UI artwork. Centre of the shield must remain blank dark wood for a real country flag to be overlaid in code. Wide 2:1 composition, shield height about 75 percent of canvas, dragons curl left/right, completely transparent background, isolated object, no lettering, no runes, no numbers, no flags, no words, no UI, no floating particles, no excessive glow.
+
+static/nordic-raven.png
+Use case: stylized-concept. Asset type: transparent foreground ornament for a premium Viking dashboard. A single realistic black raven in elegant side profile facing left, perched on a short gnarled ancient oak root running horizontally along the bottom of the composition, with subtle carved Norse bronze knotwork band around one end of the root. Raven feathers dark blue-black with silvery moonlit edges, a tiny warm amber rim light. Premium cinematic game-interface decorative cutout, physically convincing detail. Wide 4:3 composition, raven occupies upper centre, feet and root visible, wholly isolated on a truly transparent background. No landscape, no circle, no text, no UI, no labels, no words, no extra animals, no glowing eyes. Dark sophisticated realistic painted style, not a cartoon mascot.

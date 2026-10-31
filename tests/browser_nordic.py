@@ -88,7 +88,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('.ambient-particles')).to_be_hidden()
             # Ensure the real background loads, rather than a silent CSS fallback.
             assert page.evaluate('''async () => {
-                const image = new Image(); image.src='/static/nordic-chart.svg';
+                const image = new Image(); image.src='/static/nordic-saga-fjord.png';
                 await image.decode(); return image.naturalWidth > 1000;
             }''')
             glow = page.locator('.ambient-glow').first
@@ -178,7 +178,6 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('.insights-stage')).to_have_class('insights-stage is-changing')
             expect(page.locator('#tracker-insights')).to_have_attribute('data-metric','real_uploaded')
             # The new harbour is animated independently from the old node diagram.
-            page.wait_for_function('transferFlow.vessel?.complete && transferFlow.vessel.naturalWidth > 0')
             assert page.evaluate("""() => {
                 const scene=transferFlow, before=JSON.stringify(scene.rates);
                 scene.draw(1);const first=scene.canvas.toDataURL();
@@ -188,7 +187,7 @@ with tempfile.TemporaryDirectory() as folder:
                 scene.draw(4);const idleNext=scene.canvas.toDataURL();scene.ready=ready;
                 return first!==next && idle===idleNext && JSON.stringify(scene.rates)===before;
             }""")
-            assert 'nordic-chart.svg' in page.locator('.ambient-scene').evaluate('e=>getComputedStyle(e).backgroundImage')
+            assert 'nordic-saga-fjord.png' in page.locator('.ambient-scene').evaluate('e=>getComputedStyle(e).backgroundImage')
             page.goto(base+'/#torrents')
             expect(page.locator('#torrent-list .nordic-voyage')).to_have_count(2)
             expect(page.locator('#torrent-list .nordic-voyage-lane[data-moving=true]')).to_have_count(3)

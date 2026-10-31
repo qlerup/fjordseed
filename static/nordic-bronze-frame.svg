@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120" fill="none">
+ <defs>
+  <linearGradient id="metal" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse"><stop stop-color="#f1ce8b"/><stop offset=".25" stop-color="#7f5d3b"/><stop offset=".49" stop-color="#ba9565"/><stop offset=".75" stop-color="#55402e"/><stop offset="1" stop-color="#d3ab70"/></linearGradient>
+  <g id="corner"><path d="M7 34V18Q7 7 18 7h16" stroke="#13191d" stroke-width="10"/><path d="M7 34V18Q7 7 18 7h16" stroke="url(#metal)" stroke-width="5"/><path d="M12 34V19q0-7 7-7h15" stroke="#c6a172" stroke-width=".8"/><path d="M9 30c22-3 27-24 10-19-15 5 9 22 13 6 3-13-17-1-16 14M8 22c8 5 18-13 22-12M13 33l20-20" stroke="#1b1e1c" stroke-width="4"/><path d="M9 30c22-3 27-24 10-19-15 5 9 22 13 6 3-13-17-1-16 14M8 22c8 5 18-13 22-12M13 33l20-20" stroke="#b28a56" stroke-width="1.7"/><circle cx="9" cy="9" r="3" fill="#3f392c" stroke="#d6b57a"/><circle cx="9" cy="9" r=".8" fill="#f1d4a0"/></g>
+ </defs>
+ <rect x="7" y="7" width="106" height="106" rx="12" stroke="#10171b" stroke-width="10"/><rect x="7" y="7" width="106" height="106" rx="12" stroke="url(#metal)" stroke-width="4"/><rect x="12" y="12" width="96" height="96" rx="9" stroke="#d5b17b" stroke-opacity=".4" stroke-width=".8"/>
+ <use href="#corner"/><use href="#corner" transform="translate(120 0) scale(-1 1)"/><use href="#corner" transform="translate(0 120) scale(1 -1)"/><use href="#corner" transform="translate(120 120) scale(-1 -1)"/>
+</svg>

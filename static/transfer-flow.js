@@ -168,58 +168,41 @@
     c.lineWidth=1;c.beginPath();c.arc(p.x,p.y,34+phase*22,0,TAU);c.stroke();
    }
   }
-  // A harbour, not the shared network diagram. Direction and motion use real rates.
+  // Bronze filaments sit behind a raised, illustrated VPN shield.
   drawNordic(time){
-   const c=this.ctx,w=this.width,h=this.height;
-   if(!this.vessel){
-    this.vessel=new Image();this.vessel.onload=()=>this.draw(performance.now()/1000);
-    this.vessel.src='/static/nordic-vessel.svg';
+   const c=this.ctx;
+   const moving=this.ready&&this.rates.some(rate=>rate>0);
+   if(this.motion.matches||!moving||document.documentElement.dataset.animation==='false')time=0;
+   c.lineCap='round';
+   for(const path of this.paths){
+    if(path.strand!==1)continue;
+    const color=path.direction?'143,207,255':'121,239,194';
+    this.stroke(path,0,1,'#b38a4744',1.1);
+    if(!this.ready)continue;
+    this.stroke(path,0,1,`rgba(${color},${.14+this.energy[path.direction]*.13})`,1);
+    for(const packet of this.packets){
+     if(packet.direction!==path.direction||packet.strand!==1||Math.floor(packet.progress)!==path.link)continue;
+     const t=packet.progress-path.link,p=this.point(path,t);
+     this.stroke(path,clamp(t-.13,0,1),t,`rgba(${color},.12)`,7);
+     this.stroke(path,clamp(t-.07,0,1),t,`rgba(${color},.8)`,1.6);
+     c.save();c.translate(p.x,p.y);c.rotate(Math.PI/4);
+     c.fillStyle=`rgba(${color},.95)`;c.shadowColor=`rgb(${color})`;c.shadowBlur=8;
+     c.fillRect(-2,-2,4,4);c.restore();
+    }
    }
-   if(this.motion.matches||!this.ready||document.documentElement.dataset.animation==='false')time=0;
-   const water=c.createLinearGradient(0,0,0,h);
-   water.addColorStop(0,'#162e36');water.addColorStop(.55,'#10262e');water.addColorStop(1,'#0b1d24');
-   c.fillStyle=water;c.fillRect(0,0,w,h);
-   // Coast contours and measured water ripples keep the scene graphic and quiet.
-   c.strokeStyle='#78949422';c.lineWidth=1;
-   for(let row=0;row<12;row++){
-    c.beginPath();const y=22+row*(h-35)/12;
-    for(let x=0;x<=w;x+=8){const yy=y+Math.sin(x/44+row+time*.45)*2;x?c.lineTo(x,yy):c.moveTo(x,yy);}
-    c.stroke();
-   }
-   const pier=(x,y,flip)=>{
-    c.save();c.translate(x,y);c.scale(flip,1);
-    c.fillStyle='#32271f';c.fillRect(0,-23,41,46);
-    c.strokeStyle='#82603d';c.lineWidth=1;
-    for(let i=0;i<5;i++){c.strokeRect(0,-22+i*9,40,8);}
-    for(const py of [-25,25]){c.fillStyle='#151b1c';c.fillRect(34,py-4,8,8);c.strokeStyle='#9e8152';c.strokeRect(34,py-4,8,8);}
-    c.restore();
-   };
-   c.font='600 10px Segoe UI, sans-serif';c.textBaseline='middle';
-   c.fillStyle='#b7a47e';c.textAlign='left';c.fillText('DIN HAVN',16,20);
-   c.textAlign='right';c.fillText('FJORDEN',w-16,20);
-   for(let direction=0;direction<2;direction++){
-    const y=h*(direction?.73:.34),moving=this.ready&&this.rates[direction]>0;
-    const duration=9-this.energy[direction]*3;
-    const phase=moving&&time?(time/duration+direction*.37)%1:0;
-    const left=65,right=Math.max(left,w-65);
-    const x=moving?(direction?left+(right-left)*phase:right-(right-left)*phase):left;
-    pier(0,y,1);pier(w,y,-1);
-    c.setLineDash([3,9]);c.strokeStyle=direction?'#ac835b55':'#91b5b455';
-    c.beginPath();c.moveTo(49,y+8);c.lineTo(w-49,y+8);c.stroke();c.setLineDash([]);
-    c.textAlign='center';c.fillStyle=direction?'#c5a172':'#b5cece';
-    c.fillText(direction?'UPLOAD  /  LAST UD':'DOWNLOAD  /  LAST IND',w/2,y+45);
+   const center=this.points[1];
+   if(center&&this.ready){
+    const radius=Math.min(58,this.height*.24),pulse=moving?(.5+.5*Math.sin(time*2)):.25;
+    const glow=c.createRadialGradient(center.x,center.y,radius*.65,center.x,center.y,radius*1.65);
+    glow.addColorStop(0,'#71f4c100');glow.addColorStop(.5,`rgba(113,244,193,${.07+pulse*.08})`);glow.addColorStop(1,'#71f4c100');
+    c.fillStyle=glow;c.fillRect(center.x-radius*2,center.y-radius*2,radius*4,radius*4);
+    c.strokeStyle=`rgba(194,159,99,${.25+pulse*.2})`;c.lineWidth=1;
+    c.beginPath();c.arc(center.x,center.y,radius,0,TAU);c.stroke();
     if(moving){
-     c.strokeStyle=direction?'#c5a17266':'#9cbfc366';c.lineWidth=1;
-     for(let i=0;i<3;i++){const tail=x+(direction?-1:1)*(36+i*10);c.beginPath();c.moveTo(tail,y+6-i*3);c.lineTo(tail+(direction?-15:15),y+6-i*3);c.stroke();}
-    }
-    if(this.vessel.complete&&this.vessel.naturalWidth){
-     c.save();c.translate(x,y+(moving?Math.sin(time*2+direction)*1.5:0));
-     c.scale(direction?1:-1,1);c.drawImage(this.vessel,-53,-53,106,67);c.restore();
+     const angle=time*.6;c.fillStyle='#e5c086';
+     for(const offset of [0,Math.PI]){c.beginPath();c.arc(center.x+Math.cos(angle+offset)*radius,center.y+Math.sin(angle+offset)*radius,2,0,TAU);c.fill();}
     }
    }
-   c.fillStyle='#c5b28b';c.textAlign='center';c.font='10px Segoe UI, sans-serif';
-   const country=this.root.querySelector('#flow-country')?.textContent||'';
-   c.fillText(this.ready?'VPN-beskyttet farvand'+(country&&!country.startsWith('Afventer')?' ? '+country:''):'Havnen afventer VPN-forbindelse',w/2,h-15);
   }
  }
  window.FjordTransferFlow=TransferFlow;

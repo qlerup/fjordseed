@@ -3,7 +3,7 @@
  'use strict';
  const root=document.querySelector('#tracker-insights');
  if(!root)return;
- const nordicColors=['#b6cda1','#c6a38f','#a3bec7','#bbb4ce','#d4b27c','#c1c38e'];
+ const nordicColors=['#79efbd','#ff80b2','#8fd7ff','#c59bff','#ffd56d','#f3d667'];
  const metrics=[
   {key:'ratio',name:'Ratio',tab:'Ratio',color:'#79dfb7',scope:'account'},
   {key:'credited_uploaded',name:'Krediteret upload',tab:'Kredit · upload',color:'#f18fb8',scope:'account'},

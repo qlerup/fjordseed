@@ -1,467 +1,251 @@
-﻿@font-face{font-family:'Nordic Runes';src:url('/static/fonts/NotoSansRunic-Regular.ttf') format('truetype');font-style:normal;font-weight:400;font-display:swap}
-.nordic-runes{display:none}
-/* Modern Nordisk workspace. Theme-only presentation; shared controls and data.
-   Research, font license and image provenance: docs/nordic-design.txt. */
-html[data-theme=nordic]{color-scheme:dark;--bg:#111916;--panel:#1c2621;--border:#3c4840;--text:#ecede5;--muted:#abb5a9;--green:#b6cda1;--accent-blue:#a3bec7;--accent-violet:#d4b27c;--nordic-input:#131d18;--nordic-raised:#263129}
-html[data-theme=nordic] ::selection{background:#9f7e47;color:#fff}
-html[data-theme=nordic] body{position:relative;background:var(--bg);font-family:'Segoe UI',Inter,Arial,sans-serif}
-/* No image banner. A faint harbour only sits in the unused edge of the workspace. */
-html[data-theme=nordic] .ambient-scene{position:fixed;inset:0;background:#111916;z-index:-1}
-html[data-theme=nordic] .ambient-scene::before{content:'';position:absolute;right:0;bottom:0;width:min(700px,70vw);height:420px;background:url('/static/nordic-fjord.png') right bottom / cover no-repeat;opacity:.055;mask-image:linear-gradient(135deg,transparent 10%,#000);filter:saturate(.35)}
-html[data-theme=nordic] .ambient-scene::after{display:none}
+/* Nordisk: scenic fjord, carved oak, bronze fittings and live controls. */
+.nordic-runes,.nordic-harbour-title,.nordic-voyage{display:none}
+html[data-theme=nordic]{color-scheme:dark;--bg:#08141d;--panel:#101e25;--border:#6e5b42;--text:#f0eee5;--muted:#b3c3ca;--green:#79efc2;--accent-blue:#8fcfff;--accent-violet:#e6bf7e;--nordic-input:#09151c;--nordic-raised:#1b2b31}
+html[data-theme=nordic] ::selection{background:#b58d48;color:#08141d}
+html[data-theme=nordic] body{display:flow-root;background:#08141d;font-family:'Segoe UI',Arial,sans-serif}
+html[data-theme=nordic] .ambient-scene{position:fixed;inset:0;z-index:-1;background:#0a1720 url('/static/nordic-saga-fjord.png') center top/cover no-repeat}
+html[data-theme=nordic] .ambient-scene::before{content:'';position:absolute;inset:0 auto 0 0;width:64px;background:#211a13 url('/static/nordic-carved-oak.png') center/auto 100% no-repeat;border-right:2px solid #95754e;box-shadow:10px 0 20px #0008}
+html[data-theme=nordic] .ambient-scene::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#03121b15,#04101922 45%,#04101966);pointer-events:none}
 html[data-theme=nordic] :is(.ambient-grid,.ambient-particles,.goat-mountain){display:none}
-html[data-theme=nordic] .ambient-glow{inset:40% -10% -10% 30%;background:radial-gradient(ellipse at 65% 75%,#b7c5a411,transparent 60%);mix-blend-mode:normal;animation:nordic-mist 48s ease-in-out infinite alternate;opacity:.3}
+html[data-theme=nordic] .ambient-glow{inset:0;background:radial-gradient(ellipse at 55% 8%,#5ee9c220,transparent 55%);mix-blend-mode:screen;animation:nordic-mist 24s ease-in-out infinite alternate;opacity:.35}
 html[data-theme=nordic] .ambient-glow-secondary{display:none}
-@keyframes nordic-mist{from{transform:translate3d(-3%,0,0);opacity:.2}to{transform:translate3d(4%,1%,0);opacity:.5}}
-/* Compact application navigation, with the same links and keyboard order. */
-html[data-theme=nordic] body aside{position:relative;inset:auto;width:100%;min-height:64px;padding:10px max(24px,calc((100vw - 1800px)/2 + 28px));display:flex;flex-direction:row;align-items:center;gap:8px;border:0;border-bottom:1px solid #70613e66;background:#19211bf5;color:var(--text)}
-html[data-theme=nordic] .brand{padding:0;margin:0 34px 0 0;color:#eee9d8;letter-spacing:-.6px;font:650 23px/1.2 'Segoe UI',Arial,sans-serif;white-space:nowrap}
-html[data-theme=nordic] .brand img{content:url('/static/nordic-mark.svg');width:34px;height:34px;border-radius:0;box-shadow:none}
+@keyframes nordic-mist{from{transform:translate3d(-2%,0,0);opacity:.2}to{transform:translate3d(2%,1%,0);opacity:.5}}
+/* The requested compact hanging sign stays on desktop. */
+html[data-theme=nordic] body aside{position:relative;inset:auto;display:flex;flex-direction:row;align-items:center;gap:8px;width:fit-content;max-width:calc(100% - 80px);min-height:74px;margin:34px auto 12px;padding:12px 24px;border:9px solid transparent;border-image:url('/static/nordic-bronze-frame.svg') 36 / 12px / 0 stretch;background:linear-gradient(#17150fe6,#13120ee6),url('/static/nordic-carved-oak.png') center 14%/100% auto;border-radius:12px;box-shadow:0 12px 28px #0009,inset 0 0 14px #0008;transform-origin:50% -34px;animation:nordic-sign-sway 10s ease-in-out infinite}
+html[data-theme=nordic] body aside::before,html[data-theme=nordic] body aside::after{content:'';position:absolute;bottom:calc(100% + 3px);width:9px;height:40px;background:repeating-linear-gradient(133deg,#302119 0 2px,#785138 2px 4px,#4d3123 4px 6px);border:1px solid #241a14;box-shadow:1px 0 3px #0008}
+html[data-theme=nordic] body aside::before{left:42px}html[data-theme=nordic] body aside::after{right:42px}
+html[data-theme=nordic] .brand{margin:0 18px 0 0;padding:0;gap:10px;font:700 25px Georgia,serif;color:#f6e7c6;white-space:nowrap;letter-spacing:-.5px;text-shadow:0 2px 3px #000}
+html[data-theme=nordic] .brand img{content:url('/static/nordic-mark.svg');width:35px;height:35px;filter:drop-shadow(0 2px 3px #0008)}
 html[data-theme=nordic] aside>.eyebrow{display:none}
-html[data-theme=nordic] .nav{min-height:40px;margin:0;padding:9px 16px;border:1px solid transparent;border-radius:6px;color:#acb5a8;gap:10px;transition:background .18s,color .18s}
-html[data-theme=nordic] .nav>svg{display:none}
-html[data-theme=nordic] .nav::before{content:'';display:block;width:20px;height:20px;flex:none;background:currentColor;mask:url('/static/nordic-hall.svg') center / contain no-repeat}
-html[data-theme=nordic] .nav[href='#torrents']::before{mask-image:url('/static/nordic-ship.svg')}
-html[data-theme=nordic] .nav[href='#settings']::before{mask-image:url('/static/nordic-craft.svg')}
-html[data-theme=nordic] .nav:hover{background:#d5b5780d;color:#f0dfbb}
-html[data-theme=nordic] .nav.active{background:#b18b4421;border-color:#b899624f;color:#e3c78f;box-shadow:inset 0 -2px #c6a263}
-html[data-theme=nordic] .aside-bottom{display:flex;align-items:center;gap:18px;margin:0 0 0 auto;padding:0;border:0;color:#a7b0a2;font-size:11px;white-space:nowrap}
-html[data-theme=nordic] .aside-bottom p{display:none}
-html[data-theme=nordic] .aside-bottom :is(a,.quiet){color:#c8c9b9}
-html[data-theme=nordic] main{width:100%;max-width:1800px;margin:0 auto;padding:0 28px}
-html[data-theme=nordic] body header{height:34px;color:#909f91;border-color:#35413988;font-size:10px;letter-spacing:.2px}
-html[data-theme=nordic] .heading{min-height:112px;margin:0;padding:16px 0 20px;align-items:center;gap:24px}
-html[data-theme=nordic] .heading>div{max-width:880px;min-width:0}
-html[data-theme=nordic] .heading h1{font:600 27px/1.2 'Segoe UI',Arial,sans-serif;letter-spacing:-.65px;color:#f0f0e7}
-html[data-theme=nordic] .heading .eyebrow{font-size:0;letter-spacing:0;margin-bottom:6px}
-html[data-theme=nordic] .nordic-runes{display:inline-block;font:11px/1 'Nordic Runes',serif;letter-spacing:3px;color:#b8a16f}
-html[data-theme=nordic] .heading .muted{color:#aeb8aa;font-size:12px;margin:5px 0 3px;line-height:1.5}
-html[data-theme=nordic] .heading .text-link{color:#baa77f;font-size:10px}
-html[data-theme=nordic] :is(h2,h3){font-weight:600;letter-spacing:-.2px}
-html[data-theme=nordic] .section-heading h2{font:600 16px 'Segoe UI',Arial,sans-serif}
-html[data-theme=nordic] .section-heading h2::before{width:5px;height:5px;background:#c7a269;border-radius:1px;transform:rotate(45deg)}
-/* Continuous workspace surfaces rather than separate presentation cards. */
-html[data-theme=nordic] body :is(.connection,.tracker-card,.torrent,.stats>div,.insights){background:var(--panel);border-color:var(--border);border-radius:8px;box-shadow:none}
-html[data-theme=nordic] .stats{gap:0;border:1px solid var(--border);border-radius:8px;background:var(--panel);margin:0 0 16px;overflow:hidden}
-html[data-theme=nordic] .stats>div{border:0;border-radius:0;box-shadow:none;padding:16px 22px;background:transparent}
-html[data-theme=nordic] .stats>div+div{border-left:1px solid var(--border)}
-html[data-theme=nordic] .stats>div::after{display:none}
-html[data-theme=nordic] .stats span{color:#a7b1a4;font-size:9px;font-weight:600;letter-spacing:1.4px}
-html[data-theme=nordic] .stats strong{font:600 27px/1.35 'Segoe UI',Arial,sans-serif;font-variant-numeric:tabular-nums;color:var(--metric-color)}
-html[data-theme=nordic] .shared-download-queue{background:#242d23;border:1px solid #5a6145;border-radius:8px;box-shadow:none;margin-bottom:16px}
-html[data-theme=nordic] .shared-download-queue #shared-download-count{font:600 25px/1.3 'Segoe UI',Arial,sans-serif;color:#d7c5a1}
-html[data-theme=nordic] .shared-download-queue #shared-queue-count{color:#d4b27c}
-html[data-theme=nordic] .download-toolbar{background:#1b251f;border:1px solid var(--border);padding:12px 16px;border-radius:8px;margin:0 0 16px}
-html[data-theme=nordic] .download-search label{color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:1px}
-html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){background:var(--panel);border-color:var(--border);border-radius:8px;padding:0 18px 18px}
-html[data-theme=nordic] .downloads-page .section-heading{margin:18px 0 12px}
-html[data-theme=nordic] .downloads-page :is(.torrent,.torrent-inactive){background:transparent;border-color:var(--border);box-shadow:none}
-html[data-theme=nordic] .downloads-page .torrent{margin-bottom:0;padding:14px 16px;border-radius:0;border-width:0 0 1px}
-html[data-theme=nordic] .downloads-page .torrent:hover{background:#253027}
-html[data-theme=nordic] .downloads-page .torrent.is-expanded{background:#202c24;border:1px solid #52604a;border-radius:6px;margin:8px 0}
-html[data-theme=nordic] .torrent-head h3{font-size:13px;font-weight:600}
-html[data-theme=nordic] .torrent-summary{color:#a7b1a4;font-size:11px}
-html[data-theme=nordic] .torrent-actions button{font-size:11px;padding:8px 12px}
-html[data-theme=nordic] :is(.empty,.insights-empty){background:#17211b;border:1px dashed #52614e;color:var(--muted);border-radius:6px}
-html[data-theme=nordic] .empty h3{font:600 18px 'Segoe UI',Arial,sans-serif;color:var(--text)}
-html[data-theme=nordic] :is(.download-filters,.settings-tabs,.insights-period){background:#131d17;border-color:#404d3e;border-radius:6px}
-html[data-theme=nordic] .settings-tabs{width:100%;padding:5px;gap:4px;margin:0 0 18px}
-html[data-theme=nordic] :is(.download-filters button,.settings-tabs a){color:#adb5a7;border-radius:4px;font-size:12px}
-html[data-theme=nordic] .download-filters button{padding:9px 17px}
-html[data-theme=nordic] .settings-tabs a{flex:1;text-align:center;padding:10px}
-html[data-theme=nordic] :is(.download-filters button[aria-pressed=true],.settings-tabs a[aria-current=page],.insights-period button[aria-pressed=true]){background:#353c2a;border-color:#827249;color:#e4d1a5;box-shadow:none}
-html[data-theme=nordic] :is(.download-filters button:hover,.settings-tabs a:hover){background:#2d382b;color:#e3ddc9}
-@media(min-width:1101px){
- html[data-theme=nordic] .downloads-page main{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:20px}
- html[data-theme=nordic] .downloads-page main>*{grid-column:1/-1;min-width:0}
- html[data-theme=nordic] .downloads-page header{grid-row:1}
- html[data-theme=nordic] .downloads-page .heading{grid-row:2}
- html[data-theme=nordic] .downloads-page #download-summary{grid-column:1/9;grid-row:3}
- html[data-theme=nordic] .downloads-page #download-queue{grid-column:9/-1;grid-row:3;padding:12px 16px;gap:16px}
- html[data-theme=nordic] .downloads-page #download-queue>div:last-child{max-width:185px;font-size:11px}
-}
-/* Bronze actions and charcoal input surfaces. */
-html[data-theme=nordic] .primary{background:#d2b27a;border-color:#ddc292;color:#29291f;border-radius:5px;box-shadow:none;font-weight:650;transition:background .16s}
-html[data-theme=nordic] .primary:hover:not(:disabled){background:#e1c795;border-color:#e7d2aa}
-html[data-theme=nordic] .secondary{background:#2a352b;border-color:#55604c;color:#d5dac9;border-radius:5px;box-shadow:none;font-weight:500}
-html[data-theme=nordic] .secondary:hover:not(:disabled){background:#394431;border-color:#85906e}
-html[data-theme=nordic] .quiet{color:#acb5a4}
-html[data-theme=nordic] .quiet:hover:not(:disabled){color:#ede6d2;background:#b0c19d0c}
-html[data-theme=nordic] :is(input:not([type=hidden]),select,textarea,.tracker-select-trigger,.tracker-select-options,#insights-account){background:var(--nordic-input);border-color:#53604e;color:var(--text);border-radius:5px}
-html[data-theme=nordic] :is(input[type=checkbox],input[type=radio]){accent-color:#c5ad77}
-html[data-theme=nordic] ::placeholder{color:#929d8d;opacity:1}
-html[data-theme=nordic] :is(.tracker-select-option:hover,.tracker-select-option[aria-selected=true]){background:#394431;color:#e5dfca}
-html[data-theme=nordic] .tracker-select-options{box-shadow:0 8px 24px #090e0a80}
-html[data-theme=nordic] .error{background:#3b2b24;border-color:#9a6751;color:#efbba3;border-radius:5px}
-html[data-theme=nordic] :is(.custom-select-error,.insights-change.is-negative){color:#efad94}
-html[data-theme=nordic] .badge{background:#373323;border-color:#8b7946;color:#dfc58a}
-html[data-theme=nordic] .badge.ready{background:#263422;border-color:#77875f;color:#c4d5a8}
-html[data-theme=nordic] :is(.benefit-panel,.ratio-estimate,.rss-history-file,.rss-history-metrics,.rss-filter-column,.rss-exclude-selection){background:#17221b;border-color:#485540;color:var(--text)}
-html[data-theme=nordic] :is(.rss-history-group,.rss-history-overview){background:#263126;border-color:#485540}
-html[data-theme=nordic] :is(.rss-history-file,#rss-history-search){background:var(--nordic-input);border-color:#485540}
-html[data-theme=nordic] .rss-badges .check-label:has(input:checked){background:#34432b;border-color:#89966e}
-html[data-theme=nordic] :is(dialog,#rss-history-dialog,#rss-exclude-dialog){background:#1c2820;border:1px solid #697455;border-radius:8px;box-shadow:0 24px 90px #050c09b3}
-html[data-theme=nordic] dialog::backdrop{background:#070e0ac9;backdrop-filter:blur(5px)}
-html[data-theme=nordic] :is(.dialog-heading,.dialog-footer,#rss-history-dialog .dialog-heading,#rss-history-dialog .dialog-footer){background:#293326;border-color:#4b5840}
-html[data-theme=nordic] .dialog-heading h2{font:600 20px/1.3 'Segoe UI',Arial,sans-serif;color:#f0ead8}
-html[data-theme=nordic] .unified-add .add-method button{background:#263123;border-color:#536146;color:#d4dbc5;border-radius:5px}
-html[data-theme=nordic] .unified-add .add-method button[aria-pressed=true]{background:#3c412a;border-color:#b49a63;color:#eee0b9;box-shadow:inset 0 -2px #b49a63}
-html[data-theme=nordic] .unified-add .add-method button span{color:#aeb69f}
-html[data-theme=nordic] :is(.storage-usage-temporary,.storage-usage-used-detail,.conversion-status){color:#afc4ca}
-html[data-theme=nordic] :is(.conversion-installer,.conversion-pairing,.workspace-device,.workspace-queue,.workspace-job,.workspace-count,.workspace-folder,.workspace-file){background:#17221b;border-color:#46543e;border-radius:6px}
-html[data-theme=nordic] .workspace-device-header{background:#283427;border-color:#46543e}
-html[data-theme=nordic] .workspace-connection{background:#1c2b20;border-color:#506144}
-html[data-theme=nordic] .workspace-files{scrollbar-color:#697955 #17221b}
-html[data-theme=nordic] .workspace-file>.workspace-icon{color:var(--accent-blue)}
-html[data-theme=nordic] .workspace-job-progress::-webkit-progress-bar{background:#3f4c36}
-html[data-theme=nordic] .workspace-job-progress.is-indeterminate{background:linear-gradient(90deg,#3f4c36 35%,#b6cda1 50%,#3f4c36 65%);background-size:250% 100%}
-html[data-theme=nordic] .torrent .torrent-progress{margin-top:10px}
-html[data-theme=nordic] :is(.seed-state,.seed-caption,.progress-caption,.is-seeding .progress-caption strong,.seed-complete){color:#b6cda1}
-html[data-theme=nordic] .torrent .seed-state{font-size:12px}
-html[data-theme=nordic] .torrent .seed-caption{margin-bottom:4px}
-html[data-theme=nordic] .torrent .progress-caption{margin-top:5px}
-html[data-theme=nordic] .torrent .progress-caption strong{font-size:11px}
-html[data-theme=nordic] .torrent .seed-complete{margin:4px 0;font-size:10px}
-html[data-theme=nordic] .torrent-progress:not(.is-seeding):not(.is-moving) .seed-state{color:#adc7cf}
-html[data-theme=nordic] .is-moving :is(.seed-state,.progress-caption strong){color:#dfb87f}
-html[data-theme=nordic] .torrent-progress .progress,html[data-theme=nordic] .torrent-progress-track{height:5px;border-radius:2px}
-html[data-theme=nordic] .torrent-progress .progress::-webkit-progress-bar{background:#384435;border-radius:2px}
-html[data-theme=nordic] .torrent-progress .progress::-webkit-progress-value{background:#a8be8d;border-radius:2px}
-html[data-theme=nordic] .torrent-progress .progress::-moz-progress-bar{background:#a8be8d;border-radius:2px}
-html[data-theme=nordic] .torrent-progress .download-progress::-webkit-progress-value{background:#8dacb9}
-html[data-theme=nordic] .torrent-progress .download-progress::-moz-progress-bar{background:#8dacb9}
-html[data-theme=nordic] .torrent-progress .seed-progress::-webkit-progress-value{background:#a8be8d}
-html[data-theme=nordic] .torrent-progress .seed-progress::-moz-progress-bar{background:#a8be8d}
-html[data-theme=nordic] .torrent-progress .seed-progress::-webkit-progress-bar{background:transparent}
-html[data-theme=nordic] .torrent-progress .move-progress::-webkit-progress-value{background:#d4ad72}
-html[data-theme=nordic] .seed-state::before{box-shadow:none;background:currentColor}
-html[data-theme=nordic] .seed-active .seed-state::before{animation:nordic-seeding 2.8s ease-in-out infinite}
-@keyframes nordic-seeding{50%{opacity:.55}}
-/* Live traffic: measurements first, compact route diagram alongside. */
-html[data-theme=nordic] .traffic-flow{--flow-mint:#b6cda1;--flow-blue:#a3bec7;background:#1c2621;border-color:#3c4840;box-shadow:none;border-radius:8px;padding:20px 24px;display:grid;grid-template-columns:minmax(340px,.9fr) minmax(0,1.6fr);column-gap:28px;row-gap:12px}
-html[data-theme=nordic] .traffic-flow::before{display:none}
-html[data-theme=nordic] .flow-header{position:relative;inset:auto;grid-column:1/-1;grid-row:1}
-html[data-theme=nordic] .flow-eyebrow{color:#c3a76f;font-size:8px;letter-spacing:1.7px}
-html[data-theme=nordic] .flow-title{font:600 16px 'Segoe UI',Arial,sans-serif;color:var(--text);max-width:none}
-html[data-theme=nordic] .flow-stage{grid-column:2;grid-row:2;height:180px;margin:0;padding-left:20px;border-left:1px solid #3c4840}
-html[data-theme=nordic] .flow-node{grid-template-rows:70px 20px 18px}
-html[data-theme=nordic] .flow-node:is(.flow-tracker,.flow-peers){grid-template-rows:43px 18px 16px}
-html[data-theme=nordic] .flow-node>strong{font-size:11px}
-html[data-theme=nordic] .flow-node>span{font-size:9px}
-html[data-theme=nordic] .flow-icon{width:38px;height:38px;background:#293626;border-color:#697455;border-radius:6px;box-shadow:none}
-html[data-theme=nordic] .flow-icon img{width:25px;height:25px}
-html[data-theme=nordic] .flow-computer .flow-icon img{content:url('/static/nordic-hall.svg')}
-html[data-theme=nordic] .flow-tracker .flow-icon img{content:url('/static/nordic-ship.svg')}
-html[data-theme=nordic] .flow-peers .flow-icon img{content:url('/static/nordic-craft.svg')}
-html[data-theme=nordic] :is(.flow-icon::before,.flow-core-shell::before,.flow-orbit){display:none}
-html[data-theme=nordic] .flow-core-shell{width:78px;height:78px}
-html[data-theme=nordic] .flow-shield{width:57px;height:65px;filter:none}
-html[data-theme=nordic] .flow-shield path{fill:#2c3f28;stroke:#8b9b71;stroke-width:1.5}
-html[data-theme=nordic] .flow-shield .flow-shield-inset{fill:#344a2e;stroke:#657952}
-html[data-theme=nordic] .flow-vpn .flow-icon{background:none;border:0;width:42px;height:48px}
-html[data-theme=nordic] .flow-vpn .flow-icon>span{color:#d4dfbe;font-size:10px}
-html[data-theme=nordic] .flow-core-check{bottom:4px;right:9px;background:#b6cda1;color:#21301c;box-shadow:none;border-radius:3px;width:15px;height:15px;font-size:9px}
-html[data-theme=nordic] .flow-node-light{box-shadow:none!important;bottom:4px;width:7px}
-html[data-theme=nordic] .flow-rates{grid-column:1;grid-row:2;display:flex;flex-direction:row;align-self:stretch;padding:0;border:0;gap:12px}
-html[data-theme=nordic] .flow-rate{display:grid;grid-template-columns:28px minmax(0,1fr);align-content:center;gap:12px;padding:18px;background:#22301f;border-color:#4b5b3d;border-radius:6px}
-html[data-theme=nordic] .flow-rate-upload{background:#202e2c;border-color:#435c5a}
-html[data-theme=nordic] .flow-rate-icon{width:28px;height:28px;background:#35462a;border-color:#63764d;border-radius:5px;font-size:18px}
-html[data-theme=nordic] .flow-rate-upload .flow-rate-icon{background:#304441;border-color:#547471}
-html[data-theme=nordic] :is(.flow-rate-label,.flow-rate-upload .flow-rate-label){color:#b9c5af;font-size:9px;letter-spacing:1.3px}
-html[data-theme=nordic] .flow-rate strong{font:600 clamp(20px,2vw,28px)/1.3 'Segoe UI',Arial,sans-serif;font-variant-numeric:tabular-nums}
-html[data-theme=nordic] .flow-equalizer{grid-column:1/-1;justify-content:flex-start;height:18px;gap:5px}
-html[data-theme=nordic] .flow-equalizer i{width:3px}
-html[data-theme=nordic] .traffic-flow[data-download=moving] .flow-rate-download .flow-equalizer i,html[data-theme=nordic] .traffic-flow[data-upload=moving] .flow-rate-upload .flow-equalizer i{animation-name:nordic-signal!important;animation-duration:1.8s!important}
-html[data-theme=nordic] .flow-note{grid-column:1/-1;grid-row:3;padding:0;color:#9eae9b;font-size:10px}
-html[data-theme=nordic] #flow-status{background:#373323;border-color:#8b7946;color:#dfc58a;border-radius:5px}
-html[data-theme=nordic] .traffic-flow[data-state=active] #flow-status{background:#2b3825;border-color:#65774c;color:#c3d6aa}
-html[data-theme=nordic] #flow-status::before{box-shadow:none}
-@keyframes nordic-signal{from{transform:scaleY(.65);opacity:.5}to{transform:scaleY(1);opacity:1}}
-/* Chart presentation keeps all original data, selectors, tooltips and timing. */
-html[data-theme=nordic] .insights{margin:16px 0 22px}
-html[data-theme=nordic] .insights-heading{padding:16px 22px 12px}
-html[data-theme=nordic] .insights-face{background:transparent;border-color:var(--border)}
-html[data-theme=nordic] .insights-eyebrow{color:#c3a76f}
-html[data-theme=nordic] .insights-account-details{background:#202c23}
-html[data-theme=nordic] .insights-selectors{padding-top:12px}
-html[data-theme=nordic] .insights-visual .insights-value{font-size:27px}
-html[data-theme=nordic] .insights-empty>strong{color:var(--text)}
-html[data-theme=nordic] .insights-selectors .insights-tab[aria-pressed=true]{background:#33412f}
-html[data-theme=nordic] .insights-selectors .insights-all-button{background:#3a3c29;border-color:#8b794f;color:#e0cda0;border-radius:5px;box-shadow:none}
-html[data-theme=nordic] .insights-selectors .insights-all-button[aria-pressed=true]{background:#51492f;border-color:#b29b63}
-html[data-theme=nordic] .insights-svg text{fill:#a4b09e}
-html[data-theme=nordic] .insights-grid{stroke:#a9b29820}
-html[data-theme=nordic] .insights-zero{stroke:#bdb99b55}
-html[data-theme=nordic] .insights-svg .insights-axis-title{fill:#c5c9b8}
-html[data-theme=nordic] .insights-tooltip rect{fill:#18211a;stroke:#9c966c}
-html[data-theme=nordic] .insights-svg .insights-tooltip-value{fill:#ecebda}
-html[data-theme=nordic] .insights-svg .insights-tooltip-date{fill:#b8c0ac}
-html[data-theme=nordic] .insights-stage.is-changing .insights-current{transform:none;transition:opacity .35s}
-html[data-theme=nordic] .insights-stage.is-changing .insights-next{transform:none;transition:opacity .5s}
-html[data-theme=nordic] .appearance-panel{max-width:none}
-html[data-theme=nordic] .appearance-panel>.section-heading{padding-bottom:14px;border-bottom:1px solid var(--border)}
-html[data-theme=nordic] .appearance-label{color:#c3a76f}
-html[data-theme=nordic] .theme-option{background:#162019;border-radius:6px}
-html[data-theme=nordic] .theme-option-copy>strong{font:600 20px 'Segoe UI',Arial,sans-serif;color:var(--text)}
-html[data-theme=nordic] .theme-selected{color:#d8c28f;border-color:#a3915c;border-radius:4px}
-html[data-theme=nordic] .appearance-motion{border-color:var(--border)}
-html[data-theme=nordic] footer{color:#94a18e;border-color:#354139;font-size:10px;margin:24px 0;padding:16px 0}
-@media(max-width:1100px){
- html[data-theme=nordic] body aside{padding:10px 20px;gap:4px}
- html[data-theme=nordic] .brand{margin-right:18px;font-size:21px}
- html[data-theme=nordic] .nav{padding:9px 12px}
- html[data-theme=nordic] main{padding:0 24px}
- html[data-theme=nordic] .settings-tabs a{font-size:11px;padding:10px 7px}
- html[data-theme=nordic] .traffic-flow{grid-template-columns:minmax(0,1fr);padding:18px}
- html[data-theme=nordic] .flow-rates{grid-column:1;grid-row:2;min-height:130px}
- html[data-theme=nordic] .flow-stage{grid-column:1;grid-row:3;border:0;padding:0;height:180px}
- html[data-theme=nordic] .flow-note{grid-column:1;grid-row:4}
- html[data-theme=nordic] .flow-rate strong{font-size:25px}
-}
-@media(max-width:800px){
- html[data-theme=nordic] body aside{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:10px 18px 8px;gap:7px 4px}
- html[data-theme=nordic] .brand{grid-column:1/-1;margin:0 0 2px;font-size:22px}
- html[data-theme=nordic] .brand img{width:30px;height:30px}
- html[data-theme=nordic] .aside-bottom{display:none}
- html[data-theme=nordic] .nav{display:flex;justify-content:center;gap:7px;font-size:12px;padding:10px 6px;min-height:44px}
- html[data-theme=nordic] .nav::before{width:18px;height:18px}
- html[data-theme=nordic] main{padding:0 18px}
- html[data-theme=nordic] .ambient-scene::before{display:none}
- html[data-theme=nordic] body header{height:32px;font-size:10px}
- html[data-theme=nordic] .heading{min-height:148px;padding:14px 0 18px;gap:12px;flex-wrap:wrap}
- html[data-theme=nordic] .heading h1{font-size:24px}
- html[data-theme=nordic] .heading>div{flex:1 1 100%}
- html[data-theme=nordic] .heading>.primary{margin:0;padding:10px 16px;font-size:12px}
- html[data-theme=nordic] .stats>div{padding:13px 11px}
- html[data-theme=nordic] .stats strong{font-size:clamp(18px,5.6vw,24px);white-space:nowrap}
- html[data-theme=nordic] .stats span{font-size:8px;letter-spacing:1px}
- html[data-theme=nordic] .download-toolbar{padding:14px}
- html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){padding:0 14px 14px}
- html[data-theme=nordic] .downloads-page .torrent{padding:14px 0}
- html[data-theme=nordic] .dialog-heading h2{font-size:19px}
- html[data-theme=nordic] .insights-layout{grid-auto-rows:auto}
- html[data-theme=nordic] #insights-account-details .tracker-stats+p{margin-top:10px;padding-top:0}
-}
-@media(max-width:600px){html[data-theme=nordic] .traffic-flow{padding:16px 14px}html[data-theme=nordic] .flow-rate{padding:12px;gap:8px;grid-template-columns:20px minmax(0,1fr)}html[data-theme=nordic] .flow-rate-icon{width:20px;height:22px;font-size:15px}html[data-theme=nordic] .flow-rate strong{font-size:20px}html[data-theme=nordic] .flow-title{font-size:14px}}
-@media(max-width:380px){html[data-theme=nordic] .nav{font-size:11px;gap:5px}html[data-theme=nordic] .flow-rate strong{font-size:17px}}
-@media(prefers-reduced-motion:reduce){html[data-theme=nordic] .ambient-glow{animation:none;will-change:auto}html[data-theme=nordic] .seed-active .seed-state::before{animation:none}html[data-theme=nordic] :is(.nav,.primary){transition:none}}
-
-/* Nordic operations workspace: independent composition, shared controls. */
-html[data-theme=nordic] main{max-width:1880px;padding:0 32px}
-html[data-theme=nordic] .heading{min-height:94px;padding:14px 0 18px}
-html[data-theme=nordic] .heading h1{font-size:25px}
-html[data-theme=nordic] .heading .eyebrow{margin:0 0 5px}
-html[data-theme=nordic] #overview-view{display:grid;grid-template-columns:292px minmax(0,1fr);gap:24px;align-items:start}
-html[data-theme=nordic] #overview-view[hidden]{display:none}
-html[data-theme=nordic] #tracker-overview{min-width:0}
-html[data-theme=nordic] #tracker-overview>.section-heading{margin:0;padding:0 0 10px;border-bottom:1px solid var(--border)}
-html[data-theme=nordic] #tracker-overview>.muted{margin:10px 0 14px;font-size:11px}
-html[data-theme=nordic] #tracker-insights{margin:0;border-radius:4px;overflow:hidden}
-html[data-theme=nordic] .insights-heading{padding:20px 24px;border-bottom:1px solid var(--border)}
-html[data-theme=nordic] .insights-heading h3{font-size:24px;letter-spacing:-.7px}
-html[data-theme=nordic] .insights-layout{display:flex;flex-direction:column;border:0}
-html[data-theme=nordic] .insights-account-details{padding:16px 24px;border:0;border-bottom:1px solid var(--border);background:#141e18}
-html[data-theme=nordic] .insights-account-details>.insights-eyebrow{margin:0}
-html[data-theme=nordic] .insights-account-details .tracker-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:16px 0}
-html[data-theme=nordic] .insights-account-details .tracker-stats>div{padding-left:12px;border-left:2px solid #65784e}
+html[data-theme=nordic] .nav{display:flex;align-items:center;gap:9px;margin:0;padding:10px 15px;min-height:42px;border:1px solid transparent;border-radius:7px;color:#dbd4c4;font-size:13px;white-space:nowrap}
+html[data-theme=nordic] .nav svg{width:18px;height:18px;color:#d7af68}
+html[data-theme=nordic] .nav.active{background:linear-gradient(120deg,#62461ec9,#30261cb8);color:#fff1cf;border-color:#d4ac6c;box-shadow:inset 0 0 0 2px #3c2a1c,inset 0 1px #fff1bb55,0 0 12px #dda63a18}
+html[data-theme=nordic] .nav:hover{background-color:#d6ac6222;color:white}
+html[data-theme=nordic] .aside-bottom{margin:0 0 0 16px;padding:0;border:0;white-space:nowrap}.nordic-runes{display:none}
+html[data-theme=nordic] .aside-bottom p{display:none}html[data-theme=nordic] .aside-bottom .quiet{color:#d7cdb8;font-size:11px}
+@keyframes nordic-sign-sway{0%,100%{transform:rotate(-.14deg) translateX(-.5px)}50%{transform:rotate(.14deg) translateX(.5px)}}
+html[data-theme=nordic] main{width:calc(100% - 160px);max-width:1740px;margin:0 auto;padding:0}
+html[data-theme=nordic] body header{height:34px;border-color:#b1925b55;color:#d4d9d5;font-size:11px;text-shadow:0 1px 3px #000}
+html[data-theme=nordic] .heading{margin:0;min-height:120px;padding:16px 12px 20px;gap:24px;align-items:center}
+html[data-theme=nordic] .heading>div{min-width:0}
+html[data-theme=nordic] .heading h1{font:700 clamp(28px,2.9vw,42px)/1.15 Georgia,serif;letter-spacing:-.65px;color:#fff4dc;text-shadow:0 2px 8px #000}
+html[data-theme=nordic] .heading .eyebrow{font-size:10px;letter-spacing:2.2px;color:#e8bd73;margin:0 0 8px;text-shadow:0 1px 4px #000}
+html[data-theme=nordic] .heading .muted{margin:7px 0 4px;font-size:13px;color:#e0e6e4;text-shadow:0 1px 5px #000}
+html[data-theme=nordic] .text-link{color:#e3c385;text-underline-offset:3px}
+html[data-theme=nordic] .section-heading h2{font:700 24px Georgia,serif;color:#eee0c5;letter-spacing:0;text-shadow:0 2px 4px #000}
+html[data-theme=nordic] .section-heading h2::before{background:#c6a46b;width:8px;height:8px;border:1px solid #ffe2a4;transform:rotate(45deg);box-shadow:0 0 10px #e5b35544}
+/* Stone surfaces and bronze corner fittings are independent from live content. */
+html[data-theme=nordic] body :is(.connection,#traffic-flow,#tracker-insights,.download-toolbar,#download-summary,#settings-tabs,dialog,.theme-group),html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){border:12px solid transparent;border-image:url('/static/nordic-bronze-frame.svg') 36 / 20px / 2px stretch;border-radius:18px;background:#101e25 url('/static/nordic-stone.svg') repeat;box-shadow:0 12px 24px #0007,inset 0 1px #d4b17220;background-clip:padding-box}
+html[data-theme=nordic] :is(.connection,.download-toolbar){padding:18px}
+html[data-theme=nordic] .primary{background:linear-gradient(135deg,#b88844,#654a2e);border:1px solid #e9be78;border-radius:7px;color:#fff4d9;box-shadow:inset 0 1px #fce1a555,0 3px 6px #0004;font-weight:600}
+html[data-theme=nordic] .primary:hover:not(:disabled){background:linear-gradient(135deg,#cea05a,#89603a)}
+html[data-theme=nordic] .secondary{background:linear-gradient(#23333b,#101c23);border-color:#a18154;color:#d7e4e4;border-radius:7px;box-shadow:inset 0 1px #c6d1cb14}
+html[data-theme=nordic] .secondary:hover:not(:disabled){background:#2e4148;border-color:#d5b074}
+html[data-theme=nordic] .quiet{color:#a8c9cb}
+html[data-theme=nordic] :is(input:not([type=hidden]),select,textarea,.tracker-select-trigger,.tracker-select-options,#insights-account){background:#0b1920;border-color:#7b705b;color:#e7eeea;border-radius:6px}
+html[data-theme=nordic] :is(input[type=checkbox],input[type=radio]){accent-color:#76e9c6}
+html[data-theme=nordic] ::placeholder{color:#93a5ac;opacity:1}
+html[data-theme=nordic] .error{background:#35242b;border-color:#a76b58;color:#ffcfb7;border-radius:6px}
+html[data-theme=nordic] .badge{background:#3d3021;border-color:#a68655;color:#f5d18e}
+html[data-theme=nordic] .badge.ready{background:#123629;border-color:#4f9573;color:#8ff6b8}
+html[data-theme=nordic] :is(.empty,.insights-empty){border:1px dashed #79674e;background:#0d1b21;color:var(--muted);border-radius:8px}
+html[data-theme=nordic] :is(.dialog-heading,.dialog-footer){background:#0b1820;border-color:#8a6e44}
+html[data-theme=nordic] .dialog-heading h2{font:700 24px Georgia,serif;color:#efdfbe}
+html[data-theme=nordic] dialog::backdrop{background:#020a10cc;backdrop-filter:blur(4px)}
+html[data-theme=nordic] :is(.benefit-panel,.ratio-estimate,.rss-history-file,.rss-history-metrics,.rss-filter-column,.rss-exclude-selection,.conversion-installer,.conversion-pairing,.workspace-device,.workspace-queue,.workspace-job,.workspace-count,.workspace-folder,.workspace-file){background:#10222b;border-color:#776346}
+html[data-theme=nordic] :is(.rss-history-group,.rss-history-overview,.workspace-device-header){background:#1b3039;border-color:#776346}
+html[data-theme=nordic] .workspace-connection{background:#153128;border-color:#4e876b}
+html[data-theme=nordic] .workspace-job-progress::-webkit-progress-bar{background:#20343e}
+html[data-theme=nordic] .workspace-job-progress.is-indeterminate{background:linear-gradient(90deg,#20343e 35%,#78e7bd 50%,#20343e 65%);background-size:250% 100%}
+/* Traffic panel: a real animated circuit beneath a raised dragon shield. */
+html[data-theme=nordic] #overview-view{display:block}html[data-theme=nordic] #overview-view[hidden]{display:none}
+html[data-theme=nordic] #traffic-flow{position:relative;overflow:visible;display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:10px 18px;padding:14px 20px;margin:0 0 25px;isolation:isolate;z-index:2}
+html[data-theme=nordic] #traffic-flow::before{display:none}
+html[data-theme=nordic] #traffic-flow::after{content:'';position:absolute;right:2px;top:-106px;width:150px;height:126px;background:url('/static/nordic-raven.png') center bottom/contain no-repeat;pointer-events:none;z-index:4;filter:drop-shadow(0 8px 5px #0008)}
+html[data-theme=nordic] .flow-header{position:relative;inset:auto;grid-column:1/-1;grid-row:1;display:flex;flex-direction:row;justify-content:space-between;align-items:center;gap:16px}
+html[data-theme=nordic] .flow-eyebrow{color:#e3bd79;font-size:10px;letter-spacing:2px}
+html[data-theme=nordic] .flow-title{font-size:16px;color:#f0e8d7;font-weight:600}
+html[data-theme=nordic] .flow-stage{grid-column:1;grid-row:2/4;position:relative;height:210px;padding:0;margin:0;border:0;background:transparent;overflow:visible}
+html[data-theme=nordic] .flow-canvas{mask-image:none}
+html[data-theme=nordic] .flow-route{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:1fr 1fr;height:100%;width:100%;clip-path:none;overflow:visible;max-width:none}
+html[data-theme=nordic] .flow-computer{grid-column:1;grid-row:1/3}html[data-theme=nordic] .flow-vpn{grid-column:2;grid-row:1/3}html[data-theme=nordic] .flow-tracker{grid-column:3;grid-row:1}html[data-theme=nordic] .flow-peers{grid-column:3;grid-row:2}
+html[data-theme=nordic] .flow-node{grid-template-rows:100px 24px 18px;align-self:center}
+html[data-theme=nordic] .flow-node:is(.flow-tracker,.flow-peers){grid-template-rows:54px 20px 18px}
+html[data-theme=nordic] .flow-node>strong{font-size:12px;color:#efe8d6}
+html[data-theme=nordic] .flow-node>span{font-size:10px;color:#b0c3cb}
+html[data-theme=nordic] .flow-icon{width:56px;height:56px;background:radial-gradient(circle at 35% 25%,#263e45,#0a1319);border:2px solid #b38f5b;border-radius:14px;box-shadow:inset 0 0 0 2px #080e13,0 5px 10px #0008,0 0 12px #c3a56816;z-index:2}
+html[data-theme=nordic] .flow-icon img{width:29px;height:29px;filter:sepia(.4) saturate(.8)}
+html[data-theme=nordic] :is(.flow-icon::before,.flow-orbit,.flow-node-light){display:none}
+html[data-theme=nordic] .flow-core-shell{position:relative;width:130px;height:100px;isolation:isolate;z-index:3}
+html[data-theme=nordic] .flow-core-shell::before{content:'';position:absolute;inset:-9px -59px -2px;background:url('/static/nordic-dragon-shield.png') center/contain no-repeat;border:0;border-radius:0;filter:drop-shadow(0 6px 4px #0009);box-shadow:none;z-index:-1}
+html[data-theme=nordic] .flow-shield{display:none}
+html[data-theme=nordic] .flow-vpn .flow-icon{width:45px;height:46px;border:0;background:none;box-shadow:none;border-radius:0;padding:0}
+html[data-theme=nordic] .flow-vpn .flow-icon img{width:38px;height:28px;filter:none;box-shadow:0 1px 4px #0008}
+html[data-theme=nordic] .flow-vpn .flow-icon>span{color:#e9d4a9;font-size:13px}
+html[data-theme=nordic] .flow-core-check{right:35px;bottom:3px;width:19px;height:19px;background:#7befbd;color:#103c2d;box-shadow:0 0 10px #75efbf55;border:1px solid #ddffe7}
+html[data-theme=nordic] .flow-rates{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:10px;padding:0;border:0;margin:0;align-self:start}
+html[data-theme=nordic] .flow-rate{display:grid;grid-template-columns:30px minmax(0,1fr) 24px;align-content:center;gap:10px;padding:12px;border:1px solid #ab8751;border-radius:10px;background:linear-gradient(135deg,#1b2a31,#0a151c);box-shadow:inset 0 1px #c6ad7726,0 4px 8px #0004}
+html[data-theme=nordic] .flow-rate-icon{width:30px;height:34px;position:static;background:#183a32;border:1px solid #4e9a7b;border-radius:7px;color:#78efc2;font-size:20px}
+html[data-theme=nordic] .flow-rate-upload .flow-rate-icon{background:#203445;border-color:#557d9a;color:#9bcfff}
+html[data-theme=nordic] .flow-rate-label{font-size:8px;letter-spacing:1.4px;color:#e5c589}
+html[data-theme=nordic] .flow-rate strong{font:700 23px/1.3 'Segoe UI',Arial,sans-serif;color:#79efc2;font-variant-numeric:tabular-nums}
+html[data-theme=nordic] .flow-rate-upload strong{color:#8fcfff}
+html[data-theme=nordic] .flow-equalizer{display:flex;grid-column:3;grid-row:1;gap:2px;height:22px;align-self:center}
+html[data-theme=nordic] .flow-equalizer i{width:2px}
+html[data-theme=nordic] .flow-rate::after{display:none}
+html[data-theme=nordic] .flow-note{grid-column:2;grid-row:3;padding:0;margin:0;max-width:none;font-size:10px;color:#bbc9cc;line-height:1.65;text-align:left}
+html[data-theme=nordic] #flow-status{background:#0b2b21;border-color:#2f7f5c;color:#8bf5ba;padding:4px 10px;font-size:10px;border-radius:20px;box-shadow:inset 0 1px #91ffd41a}
+html[data-theme=nordic] #flow-status::before{box-shadow:0 0 8px currentColor}
+/* Account figures and metric choices share one framed workspace. */
+html[data-theme=nordic] #tracker-overview>.section-heading{margin:0 0 8px}
+html[data-theme=nordic] #tracker-overview>.muted{margin:0 0 14px;font-size:12px;text-shadow:0 1px 4px #000}
+html[data-theme=nordic] #tracker-insights{margin:0 0 20px;overflow:visible;position:relative;z-index:1}
+html[data-theme=nordic] .insights-heading{padding:14px 18px 16px 64px;border-bottom:1px solid #96784c77;position:relative}
+html[data-theme=nordic] .insights-heading::before{content:'';position:absolute;left:7px;top:14px;width:43px;height:43px;border:2px solid #bf9b67;border-radius:50%;background:#102029 url('/static/nordic-mark.svg') center/32px no-repeat;box-shadow:inset 0 0 0 3px #263239,0 4px 6px #0008}
+html[data-theme=nordic] .insights-heading h3{font:700 23px Georgia,serif;color:#f0e7d5}
+html[data-theme=nordic] .insights-eyebrow{font-size:9px;letter-spacing:1.7px;color:#dfb879}
+html[data-theme=nordic] .insights-layout{display:grid;grid-template-columns:minmax(230px,.75fr) minmax(0,1.85fr);border:0}
+html[data-theme=nordic] .insights-account-details{padding:22px 18px 18px;background:transparent;border:0;border-right:1px solid #9a7a4d77}
+html[data-theme=nordic] .insights-account-details>.insights-eyebrow{display:none}
+html[data-theme=nordic] .insights-account-details .tracker-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin:0 0 20px}
 html[data-theme=nordic] .insights-account-details .tracker-stats strong{font-size:19px}
-html[data-theme=nordic] #insights-account-details>p{font-size:10px;margin:4px 0;padding:0}
-html[data-theme=nordic] #insights-account-details .tracker-stats+p{margin:4px 0;padding:0}
-html[data-theme=nordic] .insights-visual{display:grid;grid-template-columns:minmax(0,1fr) 190px;align-items:stretch;min-width:0}
-html[data-theme=nordic] .insights-selectors{grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:0;padding:8px;background:#18221b;border-left:1px solid var(--border)}
-html[data-theme=nordic] .insights-selectors .insights-tab{display:grid;grid-template-columns:1fr auto;align-items:center;gap:5px;padding:12px;border-radius:3px;border:1px solid transparent;min-height:64px}
-html[data-theme=nordic] .insights-selectors .insights-tab[aria-pressed=true]{background:#35432d;border-color:#768460}
-html[data-theme=nordic] .insights-selectors .insights-tab::after{display:none}
-html[data-theme=nordic] .insights-selectors .insights-metric-name{grid-column:1/-1;font-size:10px}
-html[data-theme=nordic] .insights-selector-value{font-size:17px}
-html[data-theme=nordic] .insights-selectors .insights-all-button{display:flex;align-self:stretch;justify-self:stretch;margin:8px 0 0;min-height:40px}
-html[data-theme=nordic] .insights-visual .insights-viewport{grid-column:1;grid-row:1;min-height:460px;height:100%}
-html[data-theme=nordic] .insights-visual .insights-face{padding:24px;grid-template-rows:auto minmax(0,1fr);gap:16px}
-html[data-theme=nordic] .insights-visual .insights-change{font-size:22px;font-weight:600}
-html[data-theme=nordic] .insights-visual .insights-source{font-size:10px}
-html[data-theme=nordic] .insights-error:not([hidden]){grid-column:1/-1;grid-row:1;margin:0}
-html[data-theme=nordic] .insights-error:not([hidden])~:is(.insights-selectors,.insights-viewport){grid-row:2}
-/* Live connection rail: rates, vertical route, then connection note. */
-html[data-theme=nordic] #traffic-flow{display:flex;flex-direction:column;gap:20px;padding:20px;margin:0;border-radius:4px;background:#17211b}
-html[data-theme=nordic] .flow-header{flex-direction:column;align-items:stretch;gap:14px}
-html[data-theme=nordic] #flow-status{align-self:flex-start;font-size:11px}
-html[data-theme=nordic] .flow-title{font-size:17px}
-html[data-theme=nordic] .flow-rates{order:1;display:grid;grid-template-columns:1fr;gap:10px;min-height:0}
-html[data-theme=nordic] .flow-rate{display:grid;grid-template-columns:28px minmax(0,1fr) 36px;padding:18px 14px;gap:12px;border:0;border-left:3px solid var(--flow-mint);border-radius:0;background:#23301f}
-html[data-theme=nordic] .flow-rate-upload{border-left-color:var(--flow-blue);background:#202e2c}
-html[data-theme=nordic] .flow-rate strong{font-size:27px;letter-spacing:-.8px}
-html[data-theme=nordic] .flow-equalizer{grid-column:3;grid-row:1;align-self:end;height:28px;gap:3px}
-html[data-theme=nordic] .flow-equalizer i{width:3px}
-html[data-theme=nordic] .flow-stage{order:2;width:100%;height:350px;padding:0;border:0;margin:0}
-html[data-theme=nordic] .flow-route{grid-template-columns:1fr 1fr;grid-template-rows:90px 140px 100px;gap:10px 0}
-html[data-theme=nordic] .flow-computer{grid-column:1/-1;grid-row:1}
-html[data-theme=nordic] .flow-vpn{grid-column:1/-1;grid-row:2}
-html[data-theme=nordic] .flow-tracker{grid-column:1;grid-row:3}
-html[data-theme=nordic] .flow-peers{grid-column:2;grid-row:3}
-html[data-theme=nordic] .flow-node{grid-template-rows:54px 20px 18px}
-html[data-theme=nordic] .flow-node.flow-vpn{grid-template-rows:78px 20px 18px}
-html[data-theme=nordic] .flow-node>span{font-size:9px}
-html[data-theme=nordic] .flow-note{order:3;margin:0;padding:14px 0 0;border-top:1px solid var(--border);line-height:1.7;font-size:11px}
-/* Downloads have a status rail and a separate searchable work list. */
+html[data-theme=nordic] .insights-account-details .tracker-stats>div{border:0;padding:0}
+html[data-theme=nordic] .insights-account-details .tracker-stats span{font-size:9px;color:#b6c7d1;letter-spacing:1px}
+html[data-theme=nordic] #insights-account-details>p{font-size:10px}
+html[data-theme=nordic] .insights-visual{display:flex;flex-direction:column;min-width:0;background:transparent}
+html[data-theme=nordic] .insights-selectors{display:grid;grid-template-columns:repeat(6,minmax(0,1fr)) auto;gap:8px;padding:10px 14px 0;background:transparent;border:0}
+html[data-theme=nordic] .insights-selectors .insights-tab{padding:8px 4px;gap:7px;min-height:60px;display:flex;flex-direction:column;border:0;border-radius:3px;background:transparent}
+html[data-theme=nordic] .insights-selectors .insights-tab[aria-pressed=true]{background:#abcad008}
+html[data-theme=nordic] .insights-selectors .insights-tab::after{display:block}
+html[data-theme=nordic] .insights-selectors .insights-metric-name{font-size:9px}
+html[data-theme=nordic] .insights-selector-value{font-size:16px;font-weight:650}
+html[data-theme=nordic] .insights-selectors .insights-all-button{display:flex;flex-direction:row;align-self:center;min-height:38px;padding:8px 10px;margin:0;background:linear-gradient(#493824,#231d17);border:1px solid #d2ad76;border-radius:8px;color:#f7dfb5;box-shadow:inset 0 1px #f2d3a138}
+html[data-theme=nordic] .insights-visual .insights-viewport{height:300px;min-height:300px;flex:none}
+html[data-theme=nordic] .insights-visual .insights-face{padding:14px 18px;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:12px;background:transparent}
+html[data-theme=nordic] .insights-visual .insights-summary{align-content:start;gap:6px}
+html[data-theme=nordic] .insights-visual .insights-change{font-size:13px}
+html[data-theme=nordic] .insights-visual .insights-source{font-size:9px;color:#a7beca}
+html[data-theme=nordic] .insights-chart{justify-content:flex-start}
+html[data-theme=nordic] .insights-svg{height:200px;max-height:220px;min-height:0}
+html[data-theme=nordic] .insights-svg text{fill:#bfced5}
+html[data-theme=nordic] .insights-grid{stroke:#8ba7b020}
+html[data-theme=nordic] .insights-zero{stroke:#a4b7b955}
+html[data-theme=nordic] .insights-tooltip rect{fill:#0a1720;stroke:#bd9b64}
+html[data-theme=nordic] .insights-svg .insights-tooltip-value{fill:#f5e9d1}
+html[data-theme=nordic] .insights-all-chart{height:200px}
+html[data-theme=nordic] .insights-stage.is-changing :is(.insights-current,.insights-next){transform:none}
+/* Download worklist, search and settings preserve their real controls. */
+html[data-theme=nordic] .stats{gap:0;background:#101e25;margin:0 0 16px}
+html[data-theme=nordic] .stats>div{border:0;background:transparent;box-shadow:none;padding:18px}
+html[data-theme=nordic] .stats>div+div{border-left:1px solid #8d704855}
+html[data-theme=nordic] .stats>div::after{display:none}
+html[data-theme=nordic] .stats strong{font-size:27px;font-variant-numeric:tabular-nums}
+html[data-theme=nordic] .stats span{font-size:9px;letter-spacing:1.3px}
+html[data-theme=nordic] .download-toolbar{margin:0 0 16px;gap:14px}
+html[data-theme=nordic] :is(.download-filters,.settings-tabs,.insights-period){background:#0b1820;border-color:#8d7048;border-radius:8px}
+html[data-theme=nordic] .download-filters button{padding:9px 14px;color:#b6cbd0;border-radius:5px}
+html[data-theme=nordic] :is(.download-filters button[aria-pressed=true],.settings-tabs a[aria-current=page]){background:linear-gradient(#523d25,#2c261d);border-color:#cba56d;color:#ffe5b3;box-shadow:inset 0 1px #edcf9733}
+html[data-theme=nordic] .download-search label{color:#c5d3d6;font-size:10px}
+html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){padding:12px 16px 16px;margin-bottom:16px}
+html[data-theme=nordic] .downloads-page .section-heading{margin:8px 0 14px}
+html[data-theme=nordic] .downloads-page .section-heading h2{font-size:21px}
+html[data-theme=nordic] .downloads-page .torrent{padding:16px;margin:0 0 12px;background:linear-gradient(130deg,#132630ee,#0b1921f2);border:1px solid #90734d;border-left:3px solid #84baa8;border-radius:8px;box-shadow:inset 0 1px #b6d2cb16}
+html[data-theme=nordic] .downloads-page .torrent:hover{background:#192d36}
+html[data-theme=nordic] .downloads-page .torrent.is-expanded{border-color:#d2ae76;background:#152b34}
+html[data-theme=nordic] .torrent-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px 20px}
+html[data-theme=nordic] .torrent-head h3{grid-column:1;grid-row:1;font-size:14px}
+html[data-theme=nordic] .torrent-summary{grid-column:1;grid-row:2;font-size:11px;display:flex;gap:18px;color:#a9c6ce}
+html[data-theme=nordic] .torrent-actions{grid-column:2;grid-row:1/3;display:grid;grid-template-columns:repeat(2,auto);gap:6px}
+html[data-theme=nordic] .torrent-actions button{font-size:11px;padding:8px 10px}
+html[data-theme=nordic] .torrent-progress{margin-top:14px;border-top:1px solid #9dbbbc18;padding-top:12px}
+html[data-theme=nordic] .torrent-progress .progress,html[data-theme=nordic] .torrent-progress-track{height:5px;border-radius:2px}
+html[data-theme=nordic] .torrent-progress .progress::-webkit-progress-bar{background:#07141a}
+html[data-theme=nordic] .torrent-progress .download-progress::-webkit-progress-value{background:linear-gradient(90deg,#367d74,#83efc4)}
+html[data-theme=nordic] .torrent-progress .seed-progress::-webkit-progress-value{background:linear-gradient(90deg,#647c9d,#96cfff)}
+html[data-theme=nordic] .seed-state{font-size:12px}.nordic-voyage{display:none}
+html[data-theme=nordic] .settings-tabs{padding:6px;gap:6px;margin:0 0 18px;min-width:0}
+html[data-theme=nordic] .settings-tabs a{font-size:12px;color:#c6d4d6;border-radius:6px}
+html[data-theme=nordic] .theme-group{padding:18px}
+html[data-theme=nordic] .theme-option{background:#0c1c25;border-color:#89704c}
+html[data-theme=nordic] .theme-option-copy>strong{font:700 23px Georgia,serif}
+html[data-theme=nordic] .theme-selected{color:#efcc8b;border-color:#bfa174}
+html[data-theme=nordic] .appearance-motion{border-color:#826c4e}
+html[data-theme=nordic] footer{margin:24px 0;padding:14px 6px;color:#b0c2c8;border-color:#ba9b6244;font-size:10px;text-shadow:0 1px 4px #000}
 @media(min-width:1101px){
- html[data-theme=nordic] .downloads-page main{grid-template-columns:252px minmax(0,1fr);grid-template-rows:auto auto auto 178px auto auto;column-gap:24px;align-items:start}
- html[data-theme=nordic] .downloads-page main>*{grid-column:1/-1}
- html[data-theme=nordic] .downloads-page #download-summary{grid-column:1;grid-row:3 / 5;display:flex;flex-direction:column;margin:0;border-radius:4px}
- html[data-theme=nordic] .downloads-page #download-summary>div{padding:20px;border:0;border-bottom:1px solid var(--border)}
+ html[data-theme=nordic] .downloads-page main{display:grid;grid-template-columns:228px minmax(0,1fr);grid-template-rows:auto auto auto 178px auto auto;gap:0 22px;align-items:start}
+ html[data-theme=nordic] .downloads-page main>*{grid-column:1/-1;min-width:0}
+ html[data-theme=nordic] .downloads-page header{grid-row:1}html[data-theme=nordic] .downloads-page .heading{grid-row:2}
+ html[data-theme=nordic] .downloads-page #download-summary{grid-column:1;grid-row:3/5;display:flex;flex-direction:column;margin:0}
+ html[data-theme=nordic] .downloads-page #download-summary>div{padding:18px;border:0;border-bottom:1px solid #8d704855}
  html[data-theme=nordic] .downloads-page #download-summary>div:last-child{border:0}
- html[data-theme=nordic] .downloads-page #download-queue{grid-column:1;grid-row:5;display:flex;flex-direction:column;align-items:stretch;gap:20px;margin:16px 0 0;padding:20px;border-radius:4px}
- html[data-theme=nordic] .downloads-page #download-queue>div:last-child{max-width:none}
- html[data-theme=nordic] .downloads-page #download-toolbar{grid-column:2;grid-row:3;margin:0;align-self:start;flex-wrap:wrap;border-radius:4px;padding:16px}
- html[data-theme=nordic] .downloads-page #downloads-view{grid-column:2;grid-row:4 / 7;margin-top:16px}
- html[data-theme=nordic] .downloads-page #rss-view{grid-column:2;grid-row:6}
- html[data-theme=nordic] main:has(#settings-tabs:not([hidden])){display:grid;grid-template-columns:220px minmax(0,1fr);column-gap:28px;align-items:start}
+ html[data-theme=nordic] .downloads-page #download-queue{grid-column:1;grid-row:5;display:flex;flex-direction:column;align-items:stretch;gap:18px;margin:16px 0 0;padding:16px}
+ html[data-theme=nordic] .downloads-page #download-toolbar{grid-column:2;grid-row:3;align-self:start;flex-wrap:wrap;margin:0}
+ html[data-theme=nordic] .downloads-page #downloads-view{grid-column:2;grid-row:4/7;margin-top:16px}
+ html[data-theme=nordic] .downloads-page #rss-view{grid-column:2;grid-row:7}
+ html[data-theme=nordic] main:has(#settings-tabs:not([hidden])){display:grid;grid-template-columns:210px minmax(0,1fr);gap:0 24px;align-items:start}
  html[data-theme=nordic] main:has(#settings-tabs:not([hidden]))>*{grid-column:1/-1;min-width:0}
- html[data-theme=nordic] main>#settings-tabs:not([hidden]){grid-column:1;grid-row:3 / span 12;display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:4px}
- html[data-theme=nordic] #settings-tabs a{text-align:left;padding:14px 12px;border-left:2px solid transparent}
- html[data-theme=nordic] #settings-tabs a[aria-current=page]{border-left-color:#d2b27a}
+ html[data-theme=nordic] main>#settings-tabs:not([hidden]){grid-column:1;grid-row:3/span 12;display:flex;flex-direction:column;gap:6px;padding:12px;width:100%}
+ html[data-theme=nordic] #settings-tabs a{width:100%;min-width:0;flex:none;text-align:left;padding:12px 8px}
  html[data-theme=nordic] main:has(#settings-tabs:not([hidden]))>:is(#connection,#storage-view,#streaming-view,#conversion-view,#trackers-view,#appearance-view){grid-column:2;grid-row:3}
 }
-html[data-theme=nordic] .downloads-page .torrent{position:relative;border-left:3px solid #5e7863;border-bottom:1px solid var(--border);padding:20px;margin:0 0 8px;background:#152019;border-radius:3px}
-html[data-theme=nordic] .downloads-page .torrent:has(.download-progress){border-left-color:#a3bec7}
-html[data-theme=nordic] .downloads-page .torrent-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px 24px;align-items:start}
-html[data-theme=nordic] .downloads-page .torrent-head h3{grid-column:1;grid-row:1;font-size:15px}
-html[data-theme=nordic] .downloads-page .torrent-summary{grid-column:1;grid-row:2;display:flex;gap:24px}
-html[data-theme=nordic] .downloads-page .torrent-actions{grid-column:2;grid-row:1 / span 2;display:grid;grid-template-columns:repeat(2,auto);gap:6px}
-html[data-theme=nordic] .downloads-page .torrent-actions button{padding:8px 10px;font-size:11px}
-html[data-theme=nordic] .downloads-page .torrent-progress{margin:16px 0 0;padding-top:12px;border-top:1px solid #ffffff0b}
-html[data-theme=nordic] .downloads-page .torrent-progress-track{height:8px}
-html[data-theme=nordic] .downloads-page .torrent-progress .progress{height:8px}
-@media(max-width:1250px){
- html[data-theme=nordic] #overview-view{grid-template-columns:250px minmax(0,1fr);gap:18px}
- html[data-theme=nordic] .insights-visual{grid-template-columns:minmax(0,1fr) 160px}
- html[data-theme=nordic] .insights-account-details .tracker-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
- html[data-theme=nordic] .insights-selector-value{font-size:15px}
- html[data-theme=nordic] .downloads-page .torrent-actions{grid-template-columns:1fr}
+@media(max-width:1280px){html[data-theme=nordic] main{width:calc(100% - 110px);margin-left:76px;margin-right:34px}html[data-theme=nordic] .insights-layout{grid-template-columns:minmax(0,1fr)}html[data-theme=nordic] .insights-account-details{border-right:0;border-bottom:1px solid #9a7a4d77}html[data-theme=nordic] .insights-account-details .tracker-stats{grid-template-columns:repeat(4,minmax(0,1fr))}html[data-theme=nordic] .insights-selectors{grid-template-columns:repeat(6,minmax(0,1fr)) auto}html[data-theme=nordic] .insights-selector-value{font-size:15px}}
+@media(max-width:1000px){html[data-theme=nordic] main{width:calc(100% - 64px);margin:0 auto}html[data-theme=nordic] .ambient-scene::before{width:22px;opacity:.8}html[data-theme=nordic] .insights-selectors{grid-template-columns:repeat(3,minmax(0,1fr))}html[data-theme=nordic] .flow-core-shell::before{inset:-4px -37px 0}html[data-theme=nordic] .flow-node>strong{font-size:11px}html[data-theme=nordic] .flow-node>span{font-size:9px}}
+@media(max-width:800px){
+ html[data-theme=nordic] body aside{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;max-width:none;margin:0;padding:12px 16px 10px;gap:8px 4px;border:0;border-bottom:1px solid #92734c;border-image:none;border-radius:0;background:linear-gradient(#15120edb,#15120ef0),url('/static/nordic-carved-oak.png') center 10%/100% auto;animation:none;transform:none}
+ html[data-theme=nordic] body aside::before,html[data-theme=nordic] body aside::after{display:none}
+ html[data-theme=nordic] .brand{grid-column:1/-1;margin:0 0 4px;font-size:24px}
+ html[data-theme=nordic] .brand img{width:31px;height:31px}
+ html[data-theme=nordic] .aside-bottom{display:none}
+ html[data-theme=nordic] .nav{padding:10px 6px;font-size:12px;justify-content:center;gap:7px}
+ html[data-theme=nordic] main{width:auto;margin:0;padding:0 18px}
+ html[data-theme=nordic] .ambient-scene::before{display:none}
+ html[data-theme=nordic] .heading{min-height:145px;padding:18px 0;flex-wrap:wrap;gap:10px}
+ html[data-theme=nordic] .heading>div{flex:1 1 100%}
+ html[data-theme=nordic] .heading h1{font-size:29px}
+ html[data-theme=nordic] .heading .muted{font-size:12px}
+ html[data-theme=nordic] .heading .primary{margin:0}
+ html[data-theme=nordic] #traffic-flow{grid-template-columns:minmax(0,1fr);padding:12px;gap:12px;margin-top:8px}
+ html[data-theme=nordic] #traffic-flow::after{display:none}
+ html[data-theme=nordic] .flow-stage{grid-column:1;grid-row:2;height:206px}
+ html[data-theme=nordic] .flow-rates{grid-column:1;grid-row:3;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ html[data-theme=nordic] .flow-note{grid-column:1;grid-row:4;font-size:10px}
+ html[data-theme=nordic] .flow-rate{padding:11px 8px;grid-template-columns:24px minmax(0,1fr);gap:8px}
+ html[data-theme=nordic] .flow-rate-icon{width:24px;height:28px;font-size:17px}
+ html[data-theme=nordic] .flow-rate strong{font-size:21px}
+ html[data-theme=nordic] .flow-equalizer{display:none}
+ html[data-theme=nordic] .flow-core-shell{width:100px;height:94px}
+ html[data-theme=nordic] .flow-core-shell::before{inset:0 -20px}
+ html[data-theme=nordic] .flow-core-check{right:25px;bottom:7px}
+ html[data-theme=nordic] .flow-vpn .flow-icon img{width:31px;height:23px}
+ html[data-theme=nordic] .flow-node{grid-template-rows:100px 26px 24px}
+ html[data-theme=nordic] .flow-node>strong{font-size:10px;line-height:1.25}
+ html[data-theme=nordic] .flow-node>span{font-size:8px;line-height:1.3}
+ html[data-theme=nordic] .flow-node:is(.flow-tracker,.flow-peers){grid-template-rows:46px 22px 24px}
+ html[data-theme=nordic] .flow-icon{width:44px;height:44px;border-radius:11px}
+ html[data-theme=nordic] .flow-icon img{width:24px;height:24px}
+ html[data-theme=nordic] .section-heading h2{font-size:22px}
+ html[data-theme=nordic] .insights-account-details .tracker-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+ html[data-theme=nordic] .insights-selectors{grid-template-columns:repeat(2,minmax(0,1fr));padding:10px}
+ html[data-theme=nordic] .insights-selectors .insights-all-button{grid-column:1/-1;justify-self:stretch}
+ html[data-theme=nordic] .insights-heading{padding-left:54px}
+ html[data-theme=nordic] .insights-heading h3{font-size:22px}
+ html[data-theme=nordic] .insights-heading::before{left:3px;width:39px;height:39px}
+ html[data-theme=nordic] .insights-visual .insights-viewport{height:330px;min-height:330px}
+ html[data-theme=nordic] .insights-visual .insights-face{padding:14px 10px}
+ html[data-theme=nordic] .stats>div{padding:12px 8px}html[data-theme=nordic] .stats strong{font-size:22px}
+ html[data-theme=nordic] .download-toolbar{padding:12px}
+ html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){padding:8px}
+ html[data-theme=nordic] .downloads-page .torrent{padding:12px}
+ html[data-theme=nordic] .torrent-head{grid-template-columns:minmax(0,1fr)}
+ html[data-theme=nordic] .torrent-actions{grid-column:1;grid-row:3;display:flex;flex-wrap:wrap}
+ html[data-theme=nordic] .torrent-summary{gap:10px;flex-wrap:wrap}
+ html[data-theme=nordic] .settings-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:8px}
+ html[data-theme=nordic] .settings-tabs a{padding:8px;font-size:11px;text-align:center}
+ html[data-theme=nordic] body :is(.connection,#traffic-flow,#tracker-insights,.download-toolbar,#download-summary,#settings-tabs,dialog,.theme-group),html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){border-width:9px;border-image-width:15px}
 }
-@media(max-width:1000px){
- html[data-theme=nordic] main{padding:0 22px}
- html[data-theme=nordic] #overview-view{grid-template-columns:minmax(0,1fr)}
- html[data-theme=nordic] #traffic-flow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
- html[data-theme=nordic] .flow-header{grid-column:1/-1;grid-row:1;flex-direction:row;align-items:center}
- html[data-theme=nordic] .flow-rates{grid-column:1;grid-row:2;align-self:center}
- html[data-theme=nordic] .flow-stage{grid-column:2;grid-row:2;height:350px}
- html[data-theme=nordic] .flow-note{grid-column:1/-1;grid-row:3}
- html[data-theme=nordic] .insights-account-details .tracker-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
-}
-@media(max-width:650px){
- html[data-theme=nordic] main{padding:0 16px}
- html[data-theme=nordic] .heading{min-height:116px}
- html[data-theme=nordic] .heading h1{font-size:23px}
- html[data-theme=nordic] #traffic-flow{display:flex;padding:16px;gap:16px}
- html[data-theme=nordic] .flow-header{flex-direction:column;align-items:stretch;gap:10px}
- html[data-theme=nordic] .flow-rates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:8px}
- html[data-theme=nordic] .flow-rate{grid-template-columns:minmax(0,1fr);padding:14px 10px;gap:8px}
- html[data-theme=nordic] .flow-rate-icon{display:none}
- html[data-theme=nordic] .flow-rate strong{font-size:21px;letter-spacing:-.6px}
- html[data-theme=nordic] .flow-equalizer{grid-column:1;grid-row:2;height:14px}
- html[data-theme=nordic] .flow-stage{height:170px}
- html[data-theme=nordic] .flow-route{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:1fr 1fr;gap:0}
- html[data-theme=nordic] .flow-computer{grid-column:1;grid-row:1/3}
- html[data-theme=nordic] .flow-vpn{grid-column:2;grid-row:1/3}
- html[data-theme=nordic] .flow-tracker{grid-column:3;grid-row:1}
- html[data-theme=nordic] .flow-peers{grid-column:3;grid-row:2}
- html[data-theme=nordic] .flow-node>strong{font-size:10px}
- html[data-theme=nordic] .flow-node>span{font-size:8px}
- html[data-theme=nordic] .insights-heading{padding:18px 16px}
- html[data-theme=nordic] .insights-account-details{padding:16px}
- html[data-theme=nordic] .insights-account-details .tracker-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
- html[data-theme=nordic] .insights-visual{display:flex;flex-direction:column}
- html[data-theme=nordic] .insights-selectors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;border-left:0;border-bottom:1px solid var(--border);padding:12px}
- html[data-theme=nordic] .insights-selectors .insights-tab{padding:10px;min-height:58px}
- html[data-theme=nordic] .insights-selectors .insights-all-button{grid-column:1/-1;margin:0;min-height:40px}
- html[data-theme=nordic] .insights-visual .insights-viewport{height:340px;min-height:340px;flex:none}
- html[data-theme=nordic] .insights-visual .insights-face{padding:18px 16px}
- html[data-theme=nordic] .downloads-page .torrent{padding:16px 12px}
- html[data-theme=nordic] .downloads-page .torrent-head{grid-template-columns:minmax(0,1fr);gap:12px}
- html[data-theme=nordic] .downloads-page .torrent-head h3{font-size:14px}
- html[data-theme=nordic] .downloads-page .torrent-actions{grid-column:1;grid-row:3;display:flex;flex-wrap:wrap}
- html[data-theme=nordic] .downloads-page .torrent-summary{gap:12px;flex-wrap:wrap}
-}
-
-html[data-theme=nordic] .insights-visual .insights-chart{justify-content:flex-start}
-html[data-theme=nordic] .insights-visual .insights-svg{height:100%;min-height:240px;max-height:340px}
-html[data-theme=nordic] .insights-visual .insights-all-chart{height:280px;min-height:0}
-html[data-theme=nordic] .insights-visual .insights-summary{align-content:start}
-html[data-theme=nordic] #settings-tabs:not([hidden]){min-width:0;width:100%}
-html[data-theme=nordic] #settings-tabs a{min-width:0;width:100%;flex:none}
-/* Desktop navigation hangs from two ropes. Mobile keeps its compact app bar. */
-@media(min-width:1101px){
- html[data-theme=nordic] body aside{position:relative;width:fit-content;max-width:calc(100% - 64px);min-height:76px;margin:38px auto 18px;padding:14px 24px;gap:10px;border:1px solid #92724b;border-bottom:3px solid #302417;border-radius:6px;background:#292b23 url('/static/nordic-sign.svg') center/auto 100%;box-shadow:inset 0 1px #e4c68b30,inset 0 -2px #0b0e0a99,0 10px 18px #0005;transform-origin:50% -38px;animation:nordic-sign-sway 10s ease-in-out infinite}
- html[data-theme=nordic] body aside::before,html[data-theme=nordic] body aside::after{content:'';position:absolute;bottom:calc(100% - 3px);width:10px;height:42px;background:repeating-linear-gradient(133deg,#695333 0 2px,#b29a68 2px 4px,#76603c 4px 6px);border:1px solid #43391f;border-radius:2px;box-shadow:1px 0 2px #0007;pointer-events:none}
- html[data-theme=nordic] body aside::before{left:54px}
- html[data-theme=nordic] body aside::after{right:54px}
- html[data-theme=nordic] .brand{margin-right:18px;color:#f0e5ce;text-shadow:0 1px #0009}
- html[data-theme=nordic] .nav{color:#c6c6b1;background:#10180f22;border-color:#e2c9950c}
- html[data-theme=nordic] .nav.active{background:#c5a26725;border-color:#c7a46c77;color:#f2d59c;box-shadow:inset 0 -2px #c6a263,inset 0 1px #f3d9a80d}
- html[data-theme=nordic] .nav:hover{background:#e7c88b18;color:#fff0ce}
- html[data-theme=nordic] .aside-bottom{margin-left:16px}
- html[data-theme=nordic] .aside-bottom :is(a,.quiet){color:#d6cdb6}
- html[data-theme=nordic][data-animation=false] body aside{animation:none}
-}
-@keyframes nordic-sign-sway{0%,100%{transform:rotate(-.14deg) translateX(-.5px)}50%{transform:rotate(.14deg) translateX(.5px)}}
-@media(prefers-reduced-motion:reduce){html[data-theme=nordic] body aside{animation:none}}
-@media(max-width:650px){html[data-theme=nordic] .insights-visual .insights-svg{min-height:180px;max-height:220px}}
-/* Braided frame on substantial surfaces; form controls keep their clear edges. */
-html[data-theme=nordic] body :is(.connection,#traffic-flow,#tracker-insights,.download-toolbar,#download-summary,#settings-tabs,dialog,.theme-group),
-html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){border:6px solid #74623f;border-image:url('/static/nordic-rope.svg') 14 / 6px / 0 round;border-radius:0}
-html[data-theme=nordic] .shared-download-queue{background:#202a20}
-html[data-theme=nordic] .theme-group{padding:18px}
-@media(max-width:650px){
- html[data-theme=nordic] body :is(.connection,#traffic-flow,#tracker-insights,.download-toolbar,#download-summary,#settings-tabs,dialog,.theme-group),
- html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){border-width:4px;border-image-width:4px}
-}
-
-/* The harbour edition: ink-blue chart, smoked oak, dark hemp and iron. */
-.nordic-voyage{display:none}
-html[data-theme=nordic]{--bg:#101a20;--panel:#25221e;--border:#5a4938;--text:#eee7d8;--muted:#b5afa1;--green:#c8b17b;--accent-blue:#a8c7cd;--accent-violet:#bd9767;--nordic-input:#191e20;--nordic-raised:#353029}
-html[data-theme=nordic] body{background:#101a20}
-html[data-theme=nordic] .ambient-scene{background:#101c22 url('/static/nordic-chart.svg') center/cover no-repeat}
-html[data-theme=nordic] .ambient-scene::before{inset:0;width:100%;height:100%;background:linear-gradient(90deg,#0b141944,transparent 35%,transparent 75%,#0b141944);mask-image:none;filter:none;opacity:1}
-html[data-theme=nordic] .ambient-glow{background:radial-gradient(ellipse at 90% 10%,#d7a66416,transparent 60%);opacity:.45}
-html[data-theme=nordic] body :is(.connection,#traffic-flow,#tracker-insights,.download-toolbar,#download-summary,#settings-tabs,dialog,.theme-group),
-html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){background-color:#25221ef5;background-image:linear-gradient(#27231eee,#201d19f5),url('/static/nordic-sign.svg');background-size:auto,auto 100px;box-shadow:inset 0 0 0 1px #a38a5c30,0 12px 28px #0003;border-color:#493023}
-html[data-theme=nordic] .insights-account-details{background:#1b1f20;border-color:#5a4938}
-html[data-theme=nordic] .insights-selectors{background:#201e1b;border-color:#5a4938}
-html[data-theme=nordic] .insights-selectors .insights-tab[aria-pressed=true]{background:#493d2b;border-color:#9e8153}
-html[data-theme=nordic] .insights-account-details .tracker-stats>div{border-left-color:#957a50}
-html[data-theme=nordic] .heading h1{color:#f0e6d3;letter-spacing:-.4px}
-html[data-theme=nordic] .heading .muted{color:#b7b7ad}
-html[data-theme=nordic] .section-heading h2{color:#ded1b8}
-html[data-theme=nordic] .downloads-page .torrent{background:#1c2325;border:1px solid #465154;border-left:3px solid #a68854;box-shadow:inset 0 1px #b4c9c808}
-html[data-theme=nordic] .downloads-page .torrent:hover{background:#222a2c}
-html[data-theme=nordic] .downloads-page .torrent.is-expanded{background:#252d2f;border-color:#a58a5a}
-html[data-theme=nordic] .secondary{background:#353029;border-color:#756346;color:#e2d4b9}
-html[data-theme=nordic] .secondary:hover:not(:disabled){background:#4b3d2c;border-color:#b49a68}
-html[data-theme=nordic] :is(.dialog-heading,.dialog-footer){background:#302b24;border-color:#66523a}
-html[data-theme=nordic] :is(.download-filters,.settings-tabs,.insights-period){background:#171e22;border-color:#5a4938}
-html[data-theme=nordic] :is(.download-filters button[aria-pressed=true],.settings-tabs a[aria-current=page]){background:#54432b;border-color:#9e8153;color:#efd5a2}
-html[data-theme=nordic] .flow-title{font-size:20px;letter-spacing:-.3px;color:#e8d3ab}
-html[data-theme=nordic] #overview-view{display:block}
-html[data-theme=nordic] #overview-view[hidden]{display:none}
-html[data-theme=nordic] #traffic-flow{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:18px 24px;padding:22px;margin:0 0 28px}
-html[data-theme=nordic] .flow-header{grid-row:1;grid-column:1/-1;flex-direction:row;align-items:center}
-html[data-theme=nordic] .flow-stage{grid-column:1;grid-row:2;order:0;height:275px;width:100%;background:#10262e;border:1px solid #776348;border-radius:4px;overflow:hidden}
-html[data-theme=nordic] .flow-canvas{mask-image:none}
-html[data-theme=nordic] .flow-route{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
-html[data-theme=nordic] .flow-rates{grid-column:2;grid-row:2;order:0;display:flex;flex-direction:column;gap:14px;align-self:stretch;width:auto}
-html[data-theme=nordic] .flow-rate{position:relative;flex:1;display:grid;grid-template-columns:1fr;padding:22px 20px 16px;gap:12px;border:1px solid #79613e;border-top:3px solid #b69b65;border-radius:3px;background:linear-gradient(135deg,#41382a,#242420);box-shadow:inset 0 1px #d1ba7b1a}
-html[data-theme=nordic] .flow-rate-upload{border-top-color:#8cb2bb;background:linear-gradient(135deg,#2c3b3f,#1c272b)}
-html[data-theme=nordic] .flow-rate-icon{position:absolute;right:14px;top:14px;background:none;border:0;color:#cbb07c;font-size:22px}
-html[data-theme=nordic] .flow-rate strong{font-size:32px;color:#e6d0a4}
-html[data-theme=nordic] .flow-rate-upload strong{color:#b8d3d9}
-html[data-theme=nordic] .flow-rate-label{font-size:10px;letter-spacing:2px;color:#c1b89f}
-html[data-theme=nordic] .flow-equalizer{display:none}
-html[data-theme=nordic] .flow-rate::after{content:'';height:3px;width:100%;background:repeating-linear-gradient(90deg,#d3b67b 0 14px,transparent 14px 24px);opacity:.25}
-html[data-theme=nordic] .flow-rate-upload::after{background:repeating-linear-gradient(90deg,#a8c7cd 0 14px,transparent 14px 24px)}
-html[data-theme=nordic] .traffic-flow[data-download=moving] .flow-rate-download::after,html[data-theme=nordic] .traffic-flow[data-upload=moving] .flow-rate-upload::after{animation:nordic-current 2s linear infinite;opacity:.8}
-html[data-theme=nordic] .flow-note{grid-column:1/-1;grid-row:3;order:0;margin:0;padding:10px 0 0;max-width:none;text-align:left;color:#b9b09e}
-html[data-theme=nordic] #flow-status{background:#343d2d;border-color:#7b8557;color:#d0d7ab}
-html[data-theme=nordic] #tracker-overview{margin:0}
+@media(max-width:380px){html[data-theme=nordic] main{padding:0 12px}html[data-theme=nordic] .heading h1{font-size:26px}html[data-theme=nordic] .flow-rate{grid-template-columns:minmax(0,1fr)}html[data-theme=nordic] .flow-rate-icon{display:none}html[data-theme=nordic] .flow-core-shell::before{inset:4px -10px}html[data-theme=nordic] .nav{font-size:11px;gap:5px}}
+html[data-theme=nordic][data-animation=false] body aside{animation:none}
+@media(prefers-reduced-motion:reduce){html[data-theme=nordic] body aside,html[data-theme=nordic] .ambient-glow{animation:none}}
 /* Each torrent has two animated sea lanes; the native progress retains its meaning. */
 html[data-theme=nordic] .nordic-voyage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:14px 0 0}
 html[data-theme=nordic] .nordic-voyage-lane{display:grid;grid-template-columns:50px minmax(0,1fr);gap:10px;align-items:center;min-width:0}
@@ -482,35 +266,18 @@ html[data-theme=nordic] .downloads-page .torrent-progress-track{height:4px}
 @keyframes nordic-current{to{background-position:72px 0}}
 @keyframes nordic-cargo-out{from{left:-72px;transform:translateY(0)}50%{transform:translateY(-2px)}to{left:100%;transform:translateY(0)}}
 @keyframes nordic-cargo-in{from{left:100%;transform:translateY(0)}50%{transform:translateY(-2px)}to{left:-72px;transform:translateY(0)}}
-@media(min-width:1101px){html[data-theme=nordic] body aside::before,html[data-theme=nordic] body aside::after{background:repeating-linear-gradient(133deg,#36251c 0 2px,#795139 2px 4px,#4b3022 4px 6px);border-color:#291d17}}
-@media(max-width:650px){
- html[data-theme=nordic] #traffic-flow{display:grid;grid-template-columns:minmax(0,1fr);padding:16px;gap:16px}
- html[data-theme=nordic] .flow-header{grid-column:1;grid-row:1;flex-direction:column;align-items:flex-start}
- html[data-theme=nordic] .flow-title{font-size:18px}
- html[data-theme=nordic] .flow-stage{grid-column:1;grid-row:2;height:250px}
- html[data-theme=nordic] .flow-rates{grid-column:1;grid-row:3;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
- html[data-theme=nordic] .flow-rate{padding:18px 10px 12px;gap:10px}
- html[data-theme=nordic] .flow-rate strong{font-size:24px}
- html[data-theme=nordic] .flow-rate-icon{display:none}
- html[data-theme=nordic] .flow-note{grid-column:1;grid-row:4}
- html[data-theme=nordic] .nordic-voyage{grid-template-columns:1fr;gap:4px}
- html[data-theme=nordic] .nordic-voyage-water{height:42px}
- html[data-theme=nordic] .ambient-scene::before{display:block}
-}
-html[data-theme=nordic][data-animation=false] .nordic-voyage-ship,html[data-theme=nordic][data-animation=false] .nordic-voyage-water::after,html[data-theme=nordic][data-animation=false] .flow-rate::after{animation:none!important}
-@media(prefers-reduced-motion:reduce){html[data-theme=nordic] .nordic-voyage-ship,html[data-theme=nordic] .nordic-voyage-water::after,html[data-theme=nordic] .flow-rate::after{animation:none!important}}
 
-/* The totals on Downloads also carry the same live nautical signal. */
-html[data-theme=nordic] #download-summary>div:nth-child(-n+2){position:relative;overflow:hidden;padding-bottom:54px}
-html[data-theme=nordic] #download-summary>div:nth-child(-n+2)::before{content:'';position:absolute;left:14px;right:14px;bottom:9px;height:1px;background:repeating-linear-gradient(90deg,#748e9622 0 12px,transparent 12px 24px);border-bottom:1px solid #8c9f9e33}
-html[data-theme=nordic] #download-summary>div:nth-child(-n+2)::after{content:'';position:absolute;inset:auto auto 4px calc(50% - 29px);display:block;width:58px;height:38px;border:0;border-radius:0;background:url('/static/nordic-vessel.svg') center/contain no-repeat;opacity:.5;transform:none}
-html[data-theme=nordic] #download-summary>div:first-child::after{scale:-1 1}
-html[data-theme=nordic] #download-summary[data-download=moving]>div:first-child::after{animation:nordic-cargo-in 7s linear infinite;opacity:1}
-html[data-theme=nordic] #download-summary[data-upload=moving]>div:nth-child(2)::after{animation:nordic-cargo-out 7s linear infinite;opacity:1}
+html[data-theme=nordic][data-animation=false] .nordic-voyage-ship,html[data-theme=nordic][data-animation=false] .nordic-voyage-water::after{animation:none!important}
+@media(prefers-reduced-motion:reduce){html[data-theme=nordic] .nordic-voyage-ship,html[data-theme=nordic] .nordic-voyage-water::after{animation:none!important}}
+
+@media(min-width:801px) and (max-width:1100px){html[data-theme=nordic] body aside{animation:none;transform:none;margin-top:16px}html[data-theme=nordic] body aside::before,html[data-theme=nordic] body aside::after{display:none}}
+@media(max-width:650px){html[data-theme=nordic] .nordic-voyage{grid-template-columns:1fr;gap:4px}html[data-theme=nordic] .nordic-voyage-water{height:42px}}
+html[data-theme=nordic] #download-summary>div:nth-child(-n+2){position:relative;overflow:hidden}
+html[data-theme=nordic] #download-summary>div:nth-child(-n+2)::after{content:'';display:block;position:absolute;inset:auto 12px 7px;height:2px;width:auto;border:0;border-radius:0;transform:none;opacity:.3;background:linear-gradient(90deg,transparent,#79efc2,transparent);background-size:200% 100%}
+html[data-theme=nordic] #download-summary>div:nth-child(2)::after{background-image:linear-gradient(90deg,transparent,#8fcfff,transparent)}
+html[data-theme=nordic] #download-summary[data-download=moving]>div:first-child::after,html[data-theme=nordic] #download-summary[data-upload=moving]>div:nth-child(2)::after{animation:nordic-total-current 2.5s linear infinite;opacity:.9}
+@keyframes nordic-total-current{to{background-position:200% 0}}
 html[data-theme=nordic][data-animation=false] #download-summary>div::after{animation:none!important}
-@media(min-width:1101px){html[data-theme=nordic] .downloads-page main{grid-template-rows:auto auto auto 260px auto auto}}
 @media(prefers-reduced-motion:reduce){html[data-theme=nordic] #download-summary>div::after{animation:none!important}}
 
-.nordic-harbour-title{display:none}
-html[data-theme=nordic] .nordic-harbour-title{display:inline}
-html[data-theme=nordic] .flow-default-title{display:none}
+html[data-theme=nordic] .theme-preview-nordic{background-image:linear-gradient(0deg,#04121be8,transparent 65%),url('/static/nordic-saga-fjord.png');background-position:center;background-size:cover}
