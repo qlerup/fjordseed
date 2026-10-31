@@ -29,7 +29,7 @@
  function art(u){
   const cloth=u.team?'#507c84':'#964f43',edge=u.team?'#9fc3c1':'#d5a07c';
   const beard=['#c4a16c','#77503b','#d0b68c','#51443b'][u.id%4];
-  return `<svg viewBox="0 0 90 110" aria-hidden="true"><ellipse cx="42" cy="103" rx="29" ry="4" fill="#061115" opacity=".3"/><g class="viking-leg-left" stroke="#302e29" stroke-width="9" stroke-linecap="round"><path d="M33 68L30 94l-6 5"/></g><g class="viking-leg-right" stroke="#39352d" stroke-width="9" stroke-linecap="round"><path d="M46 68L50 94l6 5"/></g><g class="viking-body" stroke="#263237" stroke-width="1.7" stroke-linejoin="round"><path d="M23 39Q13 52 13 81L36 76 60 85 57 46Z" fill="${cloth}"/><path d="M29 38L48 37 56 70 26 73Z" fill="#68706a"/><path d="M28 47h24M27 53h27M27 59h28" stroke="#a5aaa0" stroke-dasharray="2 3" opacity=".5"/><path d="M24 66L56 63 58 76 25 78Z" fill="${cloth}"/><path d="M26 64l29-3" stroke="#ad8b58" stroke-width="4"/><path d="M23 41l-6 15 13 9" stroke="#baa07b" stroke-width="8" fill="none"/><path d="M27 20Q39 9 50 24L47 42 35 47 25 34Z" fill="#d1b08b"/><path d="M27 31L34 36 47 32 46 49 37 57 28 44Z" fill="${beard}"/><path d="M34 28h3m7 0h3" stroke="#1a2629" stroke-width="2.4"/><path d="M23 25Q22 7 37 6Q53 7 52 25L41 22 40 34 36 34 34 22Z" fill="#86978f"/><path d="M37 6v16M24 22h27" stroke="#ceccae" stroke-width="2"/><g class="viking-weapon"><path d="M47 44L58 53 69 38" fill="none" stroke="#bca080" stroke-width="8" stroke-linecap="round"/><path d="M62 58L76 9" stroke="#2a2e2b" stroke-width="7"/><path d="M62 58L76 9" stroke="#ad8759" stroke-width="4"/><path d="M72 14L84 8Q80 18 89 27L74 26 69 23Z" fill="#aebdb3"/><path d="M84 8Q80 18 89 27" stroke="#dddcc5" stroke-width="2"/></g><g><circle cx="23" cy="59" r="21" fill="${cloth}" stroke="#c4b28b" stroke-width="3"/><path d="M23 39v40M3 59h40" stroke="${edge}" stroke-width="7" opacity=".6"/><circle cx="23" cy="59" r="7" fill="#7e8d85" stroke="#d2c6a5" stroke-width="2"/><path d="M9 45l3 3M34 45l-3 3M8 73l4-4M36 73l-4-4" stroke="#e1cfa4"/></g></g><path class="viking-spark" d="M77 36l5-8m-3 11 10-2m-11 6 8 5" stroke="#f5d79b" stroke-width="2"/></svg>`;
+  return `<svg viewBox="0 0 90 110" aria-hidden="true"><ellipse cx="42" cy="103" rx="29" ry="4" fill="#061115" opacity=".3"/><g class="viking-leg-left" stroke="#302e29" stroke-width="9" stroke-linecap="round"><path d="M33 68L30 94l-6 5"/></g><g class="viking-leg-right" stroke="#39352d" stroke-width="9" stroke-linecap="round"><path d="M46 68L50 94l6 5"/></g><g class="viking-body" stroke="#263237" stroke-width="1.7" stroke-linejoin="round"><path d="M23 39Q13 52 13 81L36 76 60 85 57 46Z" fill="${cloth}"/><path d="M29 38L48 37 56 70 26 73Z" fill="#68706a"/><path d="M28 47h24M27 53h27M27 59h28" stroke="#a5aaa0" stroke-dasharray="2 3" opacity=".5"/><path d="M24 66L56 63 58 76 25 78Z" fill="${cloth}"/><path d="M26 64l29-3" stroke="#ad8b58" stroke-width="4"/><path d="M23 41l-6 15 13 9" stroke="#baa07b" stroke-width="8" fill="none"/><g class="viking-head"><path d="M27 20Q39 9 50 24L47 42 35 47 25 34Z" fill="#d1b08b"/><path d="M27 31L34 36 47 32 46 49 37 57 28 44Z" fill="${beard}"/><path d="M34 28h3m7 0h3" stroke="#1a2629" stroke-width="2.4"/><path d="M23 25Q22 7 37 6Q53 7 52 25L41 22 40 34 36 34 34 22Z" fill="#86978f"/><path d="M37 6v16M24 22h27" stroke="#ceccae" stroke-width="2"/></g><g class="viking-weapon"><path d="M47 44L58 53 69 38" fill="none" stroke="#bca080" stroke-width="8" stroke-linecap="round"/><path d="M62 58L76 9" stroke="#2a2e2b" stroke-width="7"/><path d="M62 58L76 9" stroke="#ad8759" stroke-width="4"/><path d="M72 14L84 8Q80 18 89 27L74 26 69 23Z" fill="#aebdb3"/><path d="M84 8Q80 18 89 27" stroke="#dddcc5" stroke-width="2"/></g><g><circle cx="23" cy="59" r="21" fill="${cloth}" stroke="#c4b28b" stroke-width="3"/><path d="M23 39v40M3 59h40" stroke="${edge}" stroke-width="7" opacity=".6"/><circle cx="23" cy="59" r="7" fill="#7e8d85" stroke="#d2c6a5" stroke-width="2"/><path d="M9 45l3 3M34 45l-3 3M8 73l4-4M36 73l-4-4" stroke="#e1cfa4"/></g></g><path class="viking-spark" d="M77 36l5-8m-3 11 10-2m-11 6 8 5" stroke="#f5d79b" stroke-width="2"/></svg>`;
  }
  function build(){
   layer.replaceChildren();splashes.clear();arrows.clear();trails.clear();rocks.clear();renderedRound=battle.round;
@@ -95,6 +95,7 @@
    if(el.spear)el.spear.style.transform=`translateX(${dead?0:lunge*15}px) rotate(${u.attackStyle==='spear-low'?8:0}deg)`;
    el.classList.toggle('is-ranged',u.archer&&u.state!=='fighting');
    el.classList.toggle('lost-arm',!!u.lostArm);el.classList.toggle('lost-leg',!!u.lostLeg);
+   el.classList.toggle('lost-head',!!u.lostHead);
    el.classList.toggle('is-crawling',!dead&&!!u.lostLeg);
    el.classList.toggle('has-victory-flag',!!u.flag);
    el.classList.toggle('is-shooting',u.archer&&battle.time-u.shotAt<.25);
@@ -138,7 +139,14 @@
    if(!el){
     el=document.createElement('div');el.className='viking-blood';el.setAttribute('aria-hidden','true');
     el.innerHTML='<i></i>'.repeat(18);
-    if(effect.limb){const fragment=document.createElement('span');fragment.className='viking-limb '+effect.limb;el.append(fragment);}
+    if(effect.limb){
+     const fragment=document.createElement('span');fragment.className='viking-limb '+effect.limb;
+     if(effect.limb==='head'){
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','20 4 36 56');
+      const head=actors[effect.unitId]?.querySelector('.viking-head');if(head)svg.append(head.cloneNode(true));fragment.append(svg);
+     }
+     el.append(fragment);
+    }
     layer.append(el);splashes.set(effect.id,el);
    }
    const age=battle.time-effect.at;
@@ -152,7 +160,7 @@
     drop.style.transform=`translate(${vx*flight}px,${y}px) rotate(${j*39}deg) scale(${age>.9?1.2:.7+scatter*.5},${age>.9?.45:1})`;
    });
    const fragment=el.querySelector('.viking-limb');
-   if(fragment)fragment.style.transform=`translate(${effect.direction*Math.min(age,.7)*50}px,${Math.min(39,-60*age+150*age*age)}px) rotate(${Math.min(age,.7)*effect.direction*250}deg)`;
+   if(fragment)fragment.style.transform=`translate(${effect.direction*Math.min(age,.7)*50}px,${Math.min(39,(effect.limb==='head'?-24:0)-60*age+150*age*age)}px) rotate(${Math.min(age,.7)*effect.direction*250}deg)`;
   }
   for(const [id,el] of splashes)if(!active.has(id)){el.remove();splashes.delete(id);}
   const flying=new Set();

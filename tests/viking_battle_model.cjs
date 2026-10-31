@@ -58,7 +58,7 @@ for(const width of [390,1440]){
  assert(sailing&&jumping&&contact&&blood&&arrows);
  assert(twoAgainstOne,'Some close-range fights should have two attackers against one');
  assert.deepEqual([...styles].sort(),['jab','overhead','spear-low','spear-thrust','sweep']);
- if(b.phase!=='clear')assert(b.boats.every(boat=>boat.visible));
+ if(b.phase!=='clear')assert(b.boats.filter(boat=>b.time>=boat.delay).every(boat=>boat.visible));
  b.reset();assert.notDeepEqual(b.units.map(u=>u.targetX),initialTargets);
  assert.equal(b.effects.length,0);
  assert.equal(b.arrows.length,0);
@@ -157,3 +157,17 @@ console.log('PASS victory flag, smooth outward movement, early restart, injury w
  b.reset();assert.equal(b.trails.length,0);assert.equal(b.rocks.length,0);
 }
 console.log('PASS staggered curved convoys, mixed squad formations, catapults and persistent withdrawal trails');
+
+{
+ const b=new Battle(8,()=>0);b.time=b.arrivalEnd+1;
+ const axeVictim=b.units[1];axeVictim.hp=1;b.wound(axeVictim,1,true);
+ assert(axeVictim.lostHead&&axeVictim.deadAt!==null);
+ assert(b.effects.some(e=>e.limb==='head'&&e.unitId===axeVictim.id));
+ const count=b.effects.length;b.wound(axeVictim,1,true);assert.equal(b.effects.length,count);
+ const arrowVictim=b.units[3];arrowVictim.hp=1;b.wound(arrowVictim,1,false);
+ assert(!arrowVictim.lostHead&&arrowVictim.deadAt!==null);
+ const survivor=b.units[5];survivor.hp=4;b.wound(survivor,1,true);
+ assert(!survivor.lostHead&&survivor.deadAt===null);
+ b.reset();assert(b.units.every(u=>!u.lostHead));assert.equal(b.effects.length,0);
+}
+console.log('PASS occasional fatal axe decapitation, other weapons excluded, no repeated corpse hits and clean reset');

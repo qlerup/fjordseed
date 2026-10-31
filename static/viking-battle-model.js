@@ -71,7 +71,7 @@
    }
   }
   blood(u,direction=1,limb=null){
-   this.effects.push({id:++this.effectId,x:u.x,y:u.y,at:this.time,direction,seed:this.random(),limb});
+   this.effects.push({id:++this.effectId,unitId:u.id,x:u.x,y:u.y,at:this.time,direction,seed:this.random(),limb});
    if(this.effects.length>40)this.effects.shift();
   }
   bleed(u){
@@ -82,8 +82,10 @@
    if(this.trails.length>240)this.trails.shift();
   }
   wound(u,direction,axe=false){
+   if(u.deadAt!==null)return;
    let limb=null;
-   if(axe&&this.random()<.18){
+   if(axe&&u.hp<=1&&this.random()<.22){u.lostHead=true;limb='head';}
+   else if(axe&&this.random()<.18){
     if(!u.lostArm&&this.random()<.5){u.lostArm=true;limb='arm';}
     else if(!u.lostLeg){u.lostLeg=true;limb='leg';}
    }
