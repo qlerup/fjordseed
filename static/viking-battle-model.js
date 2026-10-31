@@ -9,12 +9,12 @@
   constructor(count=24,random=Math.random){this.count=count;this.random=random;this.round=0;this.reset();}
   range(a,b){return a+(b-a)*this.random();}
   reset(){
-   this.time=0;this.round++;this.effects=[];this.effectId=0;
+   this.time=0;this.round++;this.effects=[];this.effectId=0;this.arrows=[];this.arrowId=0;
    this.boats=[0,1].map(team=>({team,x:team?1.3:-.3,y:.76+team*.13,dock:team?.83:.17,landAt:8+team*2}));
    this.units=Array.from({length:this.count},(_,id)=>{
     const team=id%2,lane=Math.floor(id/2)%4,entryX=team?1.12+id*.006:-.12-id*.006;
     const boat=Math.floor(id/2)%4===0?team:null;
-    return {id,team,lane,boat,x:entryX,y:this.range(.72,.94),entryX,
+    return {id,team,lane,boat,archer:id%8<2,x:entryX,y:this.range(.72,.94),entryX,
      targetX:this.range(.12,.88),targetY:this.range(.72,.94),bend:this.range(-.06,.06),
      speed:this.range(32,57),decisionAt:0,side:0,enemyId:null,
      facing:team?-1:1,state:'running',deadAt:null,exitX:null,
@@ -37,6 +37,17 @@
    if(this.time>=Battle.DURATION){this.reset();return;}
    this.effects=this.effects.filter(e=>this.time-e.at<1.15);
    width=Math.max(320,width);height=Math.max(320,height);
+   for(const arrow of this.arrows){
+    if(!arrow.landed&&this.time-arrow.at>=arrow.duration){
+     arrow.landed=true;const target=this.units[arrow.target];
+     if(this.phase==='battle'&&target.deadAt===null&&Math.hypot((target.x-arrow.tx)*width,(target.y-arrow.ty)*height)<26&&this.random()<.55){
+      target.hitAt=this.time;this.blood(target,arrow.direction);target.hp--;
+      if(target.hp<=0&&this.units.filter(u=>u.deadAt===null).length>this.count/3)this.kill(target.id);
+      else target.hp=Math.max(1,target.hp);
+     }
+    }
+   }
+   this.arrows=this.arrows.filter(a=>this.time-a.at<a.duration+.4);
    for(const boat of this.boats){
     const entry=boat.team?1.3:-.3,progress=clamp(this.time/(boat.landAt-1),0,1);
     boat.x=entry+(boat.dock-entry)*(1-(1-progress)**2);
@@ -86,6 +97,20 @@
      const scale=(width<700?.7:.86)+(u.y-.7)*.65;
      const reach=32*scale,close=Math.abs(dx)<=reach+3&&Math.abs(dy)<13;
      const attacking=this.time-u.attackAt<u.attackDuration;
+     if(u.archer&&!close){
+      const distance=Math.hypot(dx,dy),preferred=Math.min(230,width*.32);
+      if(distance<preferred*.72||distance>preferred*1.3){
+       const direction=distance<preferred?-1:1;
+       u.x=clamp(u.x+dx/(distance||1)*direction*dt*u.speed*.75/width,.04,.96);
+       u.y=clamp(u.y+dy/(distance||1)*direction*dt*u.speed*.45/height,.70,.95);u.state='running';
+      }else u.state='aiming';
+      if(distance>65&&distance<preferred*1.6&&this.time>=u.nextAttack){
+       u.shotAt=this.time;u.nextAttack=this.time+this.range(2.5,4.8);
+       this.arrows.push({id:++this.arrowId,x:u.x,y:u.y,tx:enemy.x,ty:enemy.y,target:enemy.id,direction:u.facing,at:this.time,duration:clamp(distance/280,.45,1.4),landed:false});
+       if(this.arrows.length>32)this.arrows.shift();
+      }
+      continue;
+     }
      if(this.time<u.evadeUntil&&!attacking){
       u.x=clamp(u.x-u.facing*dt*17/width,.04,.96);u.y=clamp(u.y+u.evadeSide*dt*20/height,.70,.95);u.state='running';continue;
      }

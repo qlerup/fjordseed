@@ -67,6 +67,12 @@ html:not([data-theme=viking]) .viking-battle{display:none}
 @keyframes viking-row{from{transform:rotate(-7deg)}to{transform:rotate(9deg)}}
 @keyframes viking-wake{from{opacity:.4;transform:scaleX(.9)}to{opacity:0;transform:scaleX(1.12)}}
 .viking-spark{opacity:0}
+.viking-bow{display:none}
+.viking-warrior.is-ranged .viking-bow{display:block}
+.viking-warrior.is-ranged .viking-weapon{display:none}
+.viking-warrior.is-shooting .bow-string{transform:translateX(7px)}
+.viking-arrow{position:absolute;top:0;left:0;width:36px;height:10px;pointer-events:none;transform-origin:center}
+.viking-arrow svg{width:100%;height:100%;overflow:visible}
 .viking-warrior.is-fallen{pointer-events:none;cursor:default}
 .viking-player-axe{position:absolute;width:65px;height:85px;pointer-events:none;transform-origin:35% 90%;animation:player-chop .42s ease-out both;filter:drop-shadow(0 3px 2px #05121799)}
 .viking-battle.is-paused *{animation-play-state:paused!important}

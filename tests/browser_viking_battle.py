@@ -19,6 +19,11 @@ with sync_playwright() as p:
   assert page.evaluate('testBattle.units.some(u=>u.state==="sailing")')
   page.screenshot(path=str(root/f'test-results/viking-boats-{width}.png'))
   advance(27)
+  expect(page.locator('.viking-warrior.is-archer').first).to_be_visible()
+  for _ in range(30):
+   if page.locator('.viking-arrow').count():break
+   advance(.1)
+  expect(page.locator('.viking-arrow').first).to_be_visible()
   assert page.evaluate('testBattle.units.some(u=>u.state==="fighting")')
   alive=page.locator('.viking-warrior:not([disabled])').last
   alive.evaluate('e=>e.click()')

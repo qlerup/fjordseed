@@ -6,7 +6,7 @@
  const layer=document.createElement('div');layer.className='viking-battle';layer.setAttribute('role','group');layer.setAttribute('aria-label','Vikingekamp i baggrunden. Klik på en kriger for at slå med øksen.');
  document.body.append(layer);
  const battle=new window.FjordBattleModel(innerWidth<700?16:24);
- let raf=0,last=0,renderedRound=0,actors=[],boats=[],splashes=new Map();
+ let raf=0,last=0,renderedRound=0,actors=[],boats=[],splashes=new Map(),arrows=new Map();
  const axe='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 65 85"><path d="M17 80L42 9" stroke="#211d17" stroke-width="9"/><path d="M17 80L42 9" stroke="#b69a69" stroke-width="5"/><path d="M37 13L53 5Q49 18 62 31L41 30L35 25Z" fill="#b9c9c5" stroke="#445959" stroke-width="2"/><path d="M53 5Q49 18 62 31" stroke="#edf0d9" stroke-width="3"/></svg>';
  layer.style.setProperty('--axe-cursor',`url("data:image/svg+xml,${encodeURIComponent(axe)}") 18 20, crosshair`);
  function art(u){
@@ -15,7 +15,7 @@
   return `<svg viewBox="0 0 90 110" aria-hidden="true"><ellipse cx="42" cy="103" rx="29" ry="4" fill="#061115" opacity=".3"/><g class="viking-leg-left" stroke="#302e29" stroke-width="9" stroke-linecap="round"><path d="M33 68L30 94l-6 5"/></g><g class="viking-leg-right" stroke="#39352d" stroke-width="9" stroke-linecap="round"><path d="M46 68L50 94l6 5"/></g><g class="viking-body" stroke="#263237" stroke-width="1.7" stroke-linejoin="round"><path d="M23 39Q13 52 13 81L36 76 60 85 57 46Z" fill="${cloth}"/><path d="M29 38L48 37 56 70 26 73Z" fill="#68706a"/><path d="M28 47h24M27 53h27M27 59h28" stroke="#a5aaa0" stroke-dasharray="2 3" opacity=".5"/><path d="M24 66L56 63 58 76 25 78Z" fill="${cloth}"/><path d="M26 64l29-3" stroke="#ad8b58" stroke-width="4"/><path d="M23 41l-6 15 13 9" stroke="#baa07b" stroke-width="8" fill="none"/><path d="M27 20Q39 9 50 24L47 42 35 47 25 34Z" fill="#d1b08b"/><path d="M27 31L34 36 47 32 46 49 37 57 28 44Z" fill="${beard}"/><path d="M34 28h3m7 0h3" stroke="#1a2629" stroke-width="2.4"/><path d="M23 25Q22 7 37 6Q53 7 52 25L41 22 40 34 36 34 34 22Z" fill="#86978f"/><path d="M37 6v16M24 22h27" stroke="#ceccae" stroke-width="2"/><g class="viking-weapon"><path d="M47 44L58 53 69 38" fill="none" stroke="#bca080" stroke-width="8" stroke-linecap="round"/><path d="M62 58L76 9" stroke="#2a2e2b" stroke-width="7"/><path d="M62 58L76 9" stroke="#ad8759" stroke-width="4"/><path d="M72 14L84 8Q80 18 89 27L74 26 69 23Z" fill="#aebdb3"/><path d="M84 8Q80 18 89 27" stroke="#dddcc5" stroke-width="2"/></g><g><circle cx="23" cy="59" r="21" fill="${cloth}" stroke="#c4b28b" stroke-width="3"/><path d="M23 39v40M3 59h40" stroke="${edge}" stroke-width="7" opacity=".6"/><circle cx="23" cy="59" r="7" fill="#7e8d85" stroke="#d2c6a5" stroke-width="2"/><path d="M9 45l3 3M34 45l-3 3M8 73l4-4M36 73l-4-4" stroke="#e1cfa4"/></g></g><path class="viking-spark" d="M77 36l5-8m-3 11 10-2m-11 6 8 5" stroke="#f5d79b" stroke-width="2"/></svg>`;
  }
  function build(){
-  layer.replaceChildren();splashes.clear();renderedRound=battle.round;
+  layer.replaceChildren();splashes.clear();arrows.clear();renderedRound=battle.round;
   boats=battle.boats.map(b=>{
    const el=document.createElement('div');el.className='viking-longship';el.setAttribute('aria-hidden','true');
    const cloth=b.team?'#688e91':'#a66b55';
@@ -32,6 +32,10 @@
     render();
    });
    el.weapon=el.querySelector('.viking-weapon');el.body=el.querySelector('.viking-body');
+   if(u.archer){
+    el.classList.add('is-archer');
+    el.weapon.insertAdjacentHTML('afterend','<g class="viking-bow"><path d="M45 46L67 47" stroke="#c4a17b" stroke-width="7" stroke-linecap="round"/><path d="M65 20Q91 47 65 76" fill="none" stroke="#bd955e" stroke-width="4"/><path class="bow-string" d="M65 20L54 47 65 76" fill="none" stroke="#d9cdb1" stroke-width="1.2"/><path d="M50 47h36m-5-3 5 3-5 3" stroke="#c9c3a6" fill="none" stroke-width="1.5"/></g>');
+   }
    layer.append(el);return el;
   });
  }
@@ -55,6 +59,8 @@
    const swing=attackAge<windup?8+(pose.back-8)*attackAge/windup:attackAge<impact?pose.back+(pose.hit-pose.back)*(attackAge-windup)/(impact-windup):attackAge<duration?pose.hit+(8-pose.hit)*(attackAge-impact)/(duration-impact):8;
    const lunge=attackAge>=0&&attackAge<duration?Math.sin(Math.min(1,attackAge/impact)*Math.PI/2)*Math.max(0,1-Math.max(0,attackAge-impact)/(duration-impact)):0;
    el.weapon.style.transform=`translateX(${!dead&&u.attackStyle==='jab'?lunge*13:0}px) rotate(${dead?30:swing}deg)`;
+   el.classList.toggle('is-ranged',u.archer&&u.state!=='fighting');
+   el.classList.toggle('is-shooting',u.archer&&battle.time-u.shotAt<.25);
    el.body.style.transform=`translateX(${dead?0:lunge*3}px) rotate(${!dead&&battle.time-u.hitAt<.22?-10:dead?0:lunge*(u.attackStyle==='sweep'?9:4)}deg)`;
    el.style.zIndex=String(Math.round(u.y*1000));
    el.style.transform=`translate(${u.x*innerWidth-38}px,${u.y*innerHeight-90-jump}px) scale(${scale}) rotate(${dead?(motion?Math.min(1,age/.45):1)*u.facing*85:0}deg)`;
@@ -81,6 +87,18 @@
    });
   }
   for(const [id,el] of splashes)if(!active.has(id)){el.remove();splashes.delete(id);}
+  const flying=new Set();
+  if(motion)for(const arrow of battle.arrows){
+   flying.add(arrow.id);let el=arrows.get(arrow.id);
+   if(!el){el=document.createElement('div');el.className='viking-arrow';el.setAttribute('aria-hidden','true');el.innerHTML='<svg viewBox="0 0 36 10"><path d="M2 5h30m-6-4 8 4-8 4M8 5 2 1m6 4-6 4" fill="none" stroke="#ddc79c" stroke-width="2"/></svg>';layer.append(el);arrows.set(arrow.id,el);}
+   const age=battle.time-arrow.at,p=Math.min(1,age/arrow.duration),arc=36;
+   const dx=(arrow.tx-arrow.x)*innerWidth,dy=(arrow.ty-arrow.y)*innerHeight;
+   const angle=Math.atan2(dy-arc*Math.PI*Math.cos(p*Math.PI),dx)*180/Math.PI;
+   el.style.transform=`translate(${arrow.x*innerWidth+dx*p-18}px,${arrow.y*innerHeight+dy*p-44-Math.sin(p*Math.PI)*arc}px) rotate(${angle}deg)`;
+   el.style.zIndex=String(Math.round((arrow.y+(arrow.ty-arrow.y)*p)*1000)+3);
+   el.style.opacity=String(arrow.landed?Math.max(0,1-(age-arrow.duration)/.4):1);
+  }
+  for(const [id,el] of arrows)if(!flying.has(id)){el.remove();arrows.delete(id);}
  }
  function allowed(){return root.dataset.theme==='viking'&&root.dataset.animation!=='false'&&!reduced.matches&&!document.hidden&&!document.querySelector('dialog[open]');}
  function frame(t){
