@@ -28,8 +28,8 @@ function benefitView(data){
  }
  return wrap;
 }
-function renderRatioPreview(data){
- const target=$('#preview-ratio');target.replaceChildren();
+function renderRatioPreview(data,target=$('#preview-ratio')){
+ target.replaceChildren();
  if(data.status==='pending'){target.append(node('p','muted small','Beregner forventet tracker-ratio...'));return;}
  const estimates=data.ratio_estimates||[];
  if(!estimates.length){target.append(node('p','muted small','Forventet ratio er ukendt. Vælg en tracker med kontotal, og brug en torrentfil eller et magnetlink, der kan slås op.'));return;}
@@ -349,7 +349,7 @@ function renderFlow(data){
  const icon=$('#flow-vpn-icon'),key=code||'unknown';
  if(icon.dataset.country!==key){icon.dataset.country=key;const content=code?node('img'):node('span','','VPN');if(code){content.src='/static/flags/'+code.toLowerCase()+'.svg';content.alt='';content.width=32;content.height=24;}icon.replaceChildren(content);}
 }
-function render(data){current=data;renderFlow(data);$('#vpn-message').textContent=data.message;$('#vpn-badge').textContent=data.ready?'VPN aktiv':data.torrents_available===false?'Afventer status':'Blokeret';$('#vpn-badge').className='badge'+(data.ready?' ready':'');$('#new-torrent').disabled=false;$('#add-save').disabled=!data.ready;$('#stop').hidden=!data.enabled;$('#connect').textContent=data.enabled?'Gem VPN-valg':'Start seedbox';$('#dl').textContent=size(data.transfer?.dl_info_speed)+'/s';$('#ul').textContent=size(data.transfer?.up_info_speed)+'/s';$('#count').textContent=data.torrents.filter(t=>!t.rss_feed).length;$('#download-path').textContent='Downloadmappe: '+data.download_path;$('#qbit-version').textContent=data.version?'qBittorrent '+data.version:'qBittorrent inkluderet';renderPublicAddress(data);
+function render(data){current=data;renderFlow(data);$('#vpn-message').textContent=data.message;$('#vpn-badge').textContent=data.ready?'VPN aktiv':data.torrents_available===false?'Afventer status':'Blokeret';$('#vpn-badge').className='badge'+(data.ready?' ready':'');$('#new-torrent').disabled=false;$('#add-save').disabled=!data.ready||(addMethod==='file'&&window.TorrentBatch?.selecting);$('#stop').hidden=!data.enabled;$('#connect').textContent=data.enabled?'Gem VPN-valg':'Start seedbox';$('#dl').textContent=size(data.transfer?.dl_info_speed)+'/s';$('#ul').textContent=size(data.transfer?.up_info_speed)+'/s';$('#count').textContent=data.torrents.filter(t=>!t.rss_feed).length;$('#download-path').textContent='Downloadmappe: '+data.download_path;$('#qbit-version').textContent=data.version?'qBittorrent '+data.version:'qBittorrent inkluderet';renderPublicAddress(data);
  const select=$('#profile'),chosen=select.value||data.profile_id;const options=[node('option','','Vælg VPN')];options[0].value='';for(const p of data.profiles){const o=node('option','',p.name+(p.gateway_enabled?' · delt VPN, egen torrentport':p.relay_enabled?' · bruges til TCP':p.desired?' · egen torrent-VPN, startet':' · slukket'));o.value=p.id;o.disabled=p.relay_enabled&&!p.gateway_enabled;options.push(o);}if(data.profile_id&&!data.profiles.some(p=>p.id===data.profile_id)){const o=node('option','','Valgt VPN er ikke tilgængelig');o.value=data.profile_id;options.push(o);}select.replaceChildren(...options);select.value=chosen;renderDownloadLists(data,downloadFilter);renderDownloadSummary(data);$('#updated').textContent='Opdateret '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});}
 async function refresh(){
  if(busy||refreshing)return;
@@ -378,13 +378,35 @@ function chooseMethod(method){
 $('#method-magnet').onclick=()=>chooseMethod('magnet');$('#method-file').onclick=()=>chooseMethod('file');
 $('#method-rss').onclick=()=>{chooseMethod('rss');};
 $('#new-torrent').onclick=()=>{
+ window.TorrentBatch?.reset();
  $('#add-form').reset();resetRssForm();loadRssTrackers('');chooseMethod('file');
  $('#add-title').textContent='Tilføj download';$('.unified-add .add-method').hidden=false;
  $('#add-dialog').showModal();$('#torrent-file').focus();
 };
 document.querySelectorAll('.close').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 let pendingTorrent;
-$('#add-form').onsubmit=e=>{e.preventDefault();$('#add-error').hidden=true;try{const body=new FormData();const magnet=$('#magnet').value.trim();const file=$('#torrent-file').files[0];if(addMethod==='magnet'){if(!magnet.startsWith('magnet:?'))throw Error('Indtast et gyldigt magnetlink.');body.set('magnet',magnet);}else{if(!file||!file.name.toLowerCase().endsWith('.torrent'))throw Error('Vælg en .torrent-fil.');body.set('torrent',file);}pendingTorrent=body;$('#ratio-form').reset();$('#ratio-source').textContent=addMethod==='file'?file.name:'Torrent fra magnetlink';$('#ratio-error').hidden=true;$('#ratio-delete-notice').hidden=true;$('#add-dialog').close();$('#ratio-dialog').showModal();prepareBenefits();updateSeedingFields('ratio');$('#ratio-action').focus();}catch(e){error('#add-error',e);}};
+$('#add-form').onsubmit=e=>{
+ e.preventDefault();$('#add-error').hidden=true;
+ try{
+  if(addMethod==='file'&&window.TorrentBatch?.selecting)throw Error('Vent et øjeblik, mens torrentfilerne læses.');
+  const body=new FormData(),magnet=$('#magnet').value.trim();
+  const files=addMethod==='file'?(window.TorrentBatch?.files()||[...$('#torrent-file').files]):[];
+  if(addMethod==='magnet'){
+   if(!magnet.startsWith('magnet:?'))throw Error('Indtast et gyldigt magnetlink.');body.set('magnet',magnet);
+  }else{
+   if(!files.length)throw Error('Vælg mindst én .torrent-fil.');body.set('torrent',files[0]);
+  }
+  pendingTorrent=files.length>1?null:body;
+  $('#ratio-form').reset();$('#ratio-error').hidden=true;$('#ratio-delete-notice').hidden=true;
+  $('#add-dialog').close();$('#ratio-dialog').showModal();
+  if(files.length>1)window.TorrentBatch.open(files);
+  else{
+   window.TorrentBatch?.resetView();
+   $('#ratio-source').textContent=addMethod==='file'?files[0].name:'Torrent fra magnetlink';prepareBenefits();
+  }
+  updateSeedingFields('ratio');$('#ratio-action').focus();
+ }catch(e){error('#add-error',e);}
+};
 let previewTimer,previewGeneration=0;
 function prepareBenefits(){
  const select=$('#benefit-tracker');select.replaceChildren(node('option','','Find automatisk blandt mine trackere'));select.firstChild.value='';
@@ -435,9 +457,9 @@ function updateSeedingFields(prefix){
 }
 $('#ratio-action').onchange=()=>updateSeedingFields('ratio');
 updateSeedingFields('ratio');
-$('#ratio-dialog').addEventListener('cancel',e=>{if($('#ratio-save').disabled)e.preventDefault();});
+$('#ratio-dialog').addEventListener('cancel',e=>{if(window.TorrentBatch?.active?window.TorrentBatch.submitting:$('#ratio-save').disabled)e.preventDefault();});
 $('#ratio-back').onclick=()=>{$('#ratio-dialog').close();$('#add-dialog').showModal();};
-$('#ratio-form').onsubmit=async e=>{e.preventDefault();if(!pendingTorrent)return;$('#ratio-save').disabled=true;$('#ratio-back').disabled=true;$('#ratio-dialog .close').disabled=true;$('#ratio-error').hidden=true;try{pendingTorrent.set('convert',String($('#ratio-convert').checked));pendingTorrent.set('ratio_limit',$('#ratio-limit').value);pendingTorrent.set('ratio_action',$('#ratio-action').value);pendingTorrent.set('seed_minutes',$('#ratio-seed-minutes').value);await api('/api/torrents',{method:'POST',body:pendingTorrent});pendingTorrent=null;$('#ratio-dialog').close();toast('Torrent tilføjet');await refresh();}catch(e){error('#ratio-error',e);}finally{$('#ratio-save').disabled=false;$('#ratio-back').disabled=false;$('#ratio-dialog .close').disabled=false;}};
+$('#ratio-form').onsubmit=async e=>{e.preventDefault();if(window.TorrentBatch?.active){await window.TorrentBatch.submit();return;}if(!pendingTorrent)return;$('#ratio-save').disabled=true;$('#ratio-back').disabled=true;$('#ratio-dialog .close').disabled=true;$('#ratio-error').hidden=true;try{pendingTorrent.set('convert',String($('#ratio-convert').checked));pendingTorrent.set('ratio_limit',$('#ratio-limit').value);pendingTorrent.set('ratio_action',$('#ratio-action').value);pendingTorrent.set('seed_minutes',$('#ratio-seed-minutes').value);await api('/api/torrents',{method:'POST',body:pendingTorrent});pendingTorrent=null;$('#ratio-dialog').close();toast('Torrent tilføjet');await refresh();}catch(e){error('#ratio-error',e);}finally{$('#ratio-save').disabled=false;$('#ratio-back').disabled=false;$('#ratio-dialog .close').disabled=false;}};
 function openDeleteEditor(t){
  deleting=t;$('#delete-form').reset();$('#delete-name').textContent=t.name;
  $('#delete-choice').hidden=false;

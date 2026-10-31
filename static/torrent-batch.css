@@ -1,0 +1,35 @@
+.unified-add[open]{display:flex;flex-direction:column;max-height:90dvh}
+.unified-add>.dialog-heading,.unified-add>.add-method{flex-shrink:0}
+.unified-add>form{min-height:0;max-height:none;overflow:hidden}
+.unified-add>form>.dialog-body{min-height:0}
+.torrent-dropzone{position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;min-height:210px;border:1px dashed var(--border);border-radius:12px;background:color-mix(in srgb,var(--panel) 65%,var(--bg));padding:28px 20px;cursor:pointer;text-align:center;transition:border-color .15s,background .15s}
+.torrent-dropzone>svg{width:36px;height:36px;fill:none;stroke:var(--green);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;margin-bottom:2px}
+.torrent-dropzone>strong{font-size:17px;color:var(--text)}
+.torrent-dropzone>span{font-weight:400}
+.torrent-dropzone:hover,.torrent-dropzone.is-dragging{border-color:var(--green);background:color-mix(in srgb,var(--green) 8%,var(--bg))}
+.torrent-dropzone:focus-within{outline:2px solid var(--green);outline-offset:4px}
+.unified-add .torrent-dropzone input[type=file]{position:absolute;width:1px;height:1px;min-height:0;margin:0;padding:0;opacity:0;clip-path:inset(50%);border:0;overflow:hidden}
+.torrent-selection-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0}
+.torrent-selection-heading p{margin:0}
+.torrent-selection-list{list-style:none;margin:0;padding:0;max-height:230px;overflow:auto;overscroll-behavior:contain}
+.torrent-selection-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
+.torrent-selection-name{min-width:0;overflow-wrap:anywhere;font-size:12px}.torrent-selection-name small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+.torrent-selection-list button{flex:none;padding:6px 10px}
+#ratio-dialog.is-batch{width:min(860px,calc(100vw - 28px))}
+.batch-review-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.batch-review-heading p{margin:0!important}.batch-explanation{line-height:1.7}
+.torrent-batch-item{padding:18px;border:1px solid var(--border);border-radius:10px;background:color-mix(in srgb,var(--panel) 55%,var(--bg));margin:14px 0}
+.torrent-batch-item.is-added{border-color:var(--green)}.torrent-batch-item.has-error{border-color:#c78379}
+.batch-item-heading{display:flex;align-items:start;justify-content:space-between;gap:12px}
+.batch-item-heading h4{margin:0;font-size:13px;overflow-wrap:anywhere;line-height:1.7;min-width:0}
+.batch-item-heading button{flex:none;padding:0 4px;font-size:12px}
+.batch-item-status{margin:6px 0 12px!important;color:var(--muted);font-size:11px}
+.is-added .batch-item-status{color:var(--green)}.has-error .batch-item-status{color:#ffc3b6}
+.torrent-batch-item label{margin-bottom:12px}.torrent-batch-item .custom-select{max-width:340px}
+.batch-item-benefits .torrent-benefits{margin:0 0 12px}
+.batch-ratio-detail{border-top:1px solid var(--border);padding-top:10px}
+.batch-ratio-detail>summary{cursor:pointer;color:var(--text);font-size:12px;font-weight:600;overflow-wrap:anywhere}
+.batch-ratio-detail .ratio-estimate{margin:12px 0 0}.batch-ratio-detail .ratio-estimate:last-child{margin-bottom:0}
+.batch-item-retry{margin-top:10px;padding:4px 0;font-size:11px;text-decoration:underline;text-underline-offset:3px}
+.batch-shared-policy{padding:14px 0;margin:24px 0 18px!important;border-top:1px solid var(--border);font-size:13px;font-weight:600;color:var(--green)}
+@media(max-width:600px){.torrent-dropzone{min-height:190px;padding:22px 14px}.torrent-dropzone>strong{font-size:15px}.torrent-batch-item{padding:14px}.batch-review-heading{display:block}.batch-review-heading p{margin-top:6px!important}.torrent-selection-list{max-height:190px}}

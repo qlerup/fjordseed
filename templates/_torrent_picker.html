@@ -1,0 +1,12 @@
+<div id="file-fields">
+ <label class="torrent-dropzone" id="torrent-dropzone" for="torrent-file">
+  <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M10 5H5v22h18v-5M11 1h10l7 7v16H11Z"/><path d="M21 1v7h7M19 12v8m-4-4 4 4 4-4"/></svg>
+  <strong>Slip dine torrentfiler her</strong>
+  <span>eller <span class="text-link">vælg filer fra din computer</span></span>
+  <span class="muted small">Vælg flere på én gang. Op til 50 filer · højst 4 MB pr. torrentfil.</span>
+  <input type="file" id="torrent-file" name="torrent" accept=".torrent" multiple aria-describedby="torrent-selection-status">
+ </label>
+ <div class="torrent-selection-heading"><p id="torrent-selection-status" class="muted small" role="status">Ingen filer valgt</p><button class="quiet" type="button" id="torrent-selection-clear" hidden>Ryd filer</button></div>
+ <p id="torrent-selection-error" class="error small" role="alert" hidden></p>
+ <ul id="torrent-selection-list" class="torrent-selection-list" aria-label="Valgte torrentfiler"></ul>
+</div>
