@@ -88,7 +88,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('.ambient-particles')).to_be_hidden()
             # Ensure the real background loads, rather than a silent CSS fallback.
             assert page.evaluate('''async () => {
-                const image = new Image(); image.src='/static/nordic-saga-fjord.png';
+                const image = new Image(); image.src='/static/nordic-saga-fjord-clear.png';
                 await image.decode(); return image.naturalWidth > 1000;
             }''')
             glow = page.locator('.ambient-glow').first
@@ -127,6 +127,7 @@ with tempfile.TemporaryDirectory() as folder:
                 page.goto(base+'/#appearance')
                 expect(page.locator('#appearance-view')).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('appearance',width)
+                page.evaluate('scrollTo(0,0)')
                 page.screenshot(path=str(root/f'test-results/nordic-appearance-{width}.png'),full_page=True)
                 # Skip Playwright's stationary-element wait for the swaying sign.
                 page.locator('.nav[href="#torrents"]').click(force=True)
@@ -187,7 +188,7 @@ with tempfile.TemporaryDirectory() as folder:
                 scene.draw(4);const idleNext=scene.canvas.toDataURL();scene.ready=ready;
                 return first!==next && idle===idleNext && JSON.stringify(scene.rates)===before;
             }""")
-            assert 'nordic-saga-fjord.png' in page.locator('.ambient-scene').evaluate('e=>getComputedStyle(e).backgroundImage')
+            assert 'nordic-saga-fjord-clear.png' in page.locator('.ambient-scene').evaluate('e=>getComputedStyle(e).backgroundImage')
             page.goto(base+'/#torrents')
             expect(page.locator('#torrent-list .nordic-voyage')).to_have_count(2)
             expect(page.locator('#torrent-list .nordic-voyage-lane[data-moving=true]')).to_have_count(3)

@@ -165,7 +165,13 @@ function torrentProgress(t) {
   const lane=node('div','nordic-voyage-lane');lane.dataset.direction=direction;
   const moving=current?.ready&&Number(rate)>0&&!/^(paused|stopped|checking|moving)/.test(t.state||'');
   lane.dataset.moving=String(moving);
-  lane.style.setProperty('--voyage-duration',(9-Math.min(4,Math.log2(1+Math.max(0,Number(rate)||0)/65536)))+'s');
+  // Cards are rebuilt by status polling. Anchor every crossing to the page
+  // clock so replacing a card cannot send its ship back to the starting bank.
+  // A fixed duration also avoids jumps whenever the transfer rate changes.
+  const duration=8000;
+  const elapsed=typeof performance!=='undefined'?performance.now():0;
+  lane.style.setProperty('--voyage-duration',duration+'ms');
+  lane.style.setProperty('--voyage-delay',-(elapsed%duration)+'ms');
   const water=node('span','nordic-voyage-water'),ship=node('i','nordic-voyage-ship');
   water.append(ship);lane.append(node('span','nordic-voyage-label',label),water);voyage.append(lane);
  }
