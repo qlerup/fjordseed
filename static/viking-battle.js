@@ -41,6 +41,7 @@
   houses=battle.settlement.map(house=>{
    const el=document.createElement('div');el.className='viking-settlement-house'+(house.church?' is-church':'');el.setAttribute('aria-hidden','true');el.dataset.variant=String(house.variant??0);
    el.innerHTML=`<svg viewBox="0 0 150 150"><ellipse cx="75" cy="142" rx="72" ry="7" fill="#0c171b" opacity=".3"/><path d="M18 75h114v65H18Z" fill="${house.church?'#b2af91':'#b99c73'}" stroke="#514b3e" stroke-width="3"/><path d="M8 77L75 26l67 51Z" fill="#65513e" stroke="#9b8260" stroke-width="3"/><path d="M20 72l55-39 54 39M26 68h99M41 57h69" fill="none" stroke="#aa8d64" stroke-width="2" opacity=".6"/><path d="M22 80v58m106-58v58M20 103h110" stroke="#67533b" stroke-width="5"/><path d="M60 140v-34q15-18 30 0v34Z" fill="#182326" stroke="#7e6444" stroke-width="4"/><path d="M33 88h14v18H33Zm70 0h14v18h-14Z" fill="#403e32" stroke="#d1bc90" stroke-width="2"/>${house.church?'<path d="M58 74V32h34v42" fill="#b6b196" stroke="#5e5e50" stroke-width="3"/><path d="M52 34L75 12l23 22Z" fill="#605347"/><path d="M75 0v19M67 7h16" stroke="#d9c99c" stroke-width="4"/><path d="M69 48q6-10 12 0v15H69Z" fill="#39433d"/>':'<path d="M108 50V26h12v34" fill="#766c56" stroke="#b2a17a" stroke-width="2"/>'}</svg>`;
+   el.insertAdjacentHTML('beforeend','<div class="house-symbols house-hearts">'+Array.from({length:5},(_,i)=>`<svg style="--i:${i}" viewBox="0 0 32 32"><path d="M16 28 4 16C-5 5 10-2 16 8 22-2 37 5 28 16Z" fill="#ed91a7" stroke="#fff0d1" stroke-width="1.5"/></svg>`).join('')+'</div><div class="house-symbols house-skulls">'+Array.from({length:5},(_,i)=>`<svg style="--i:${i}" viewBox="0 0 32 32"><path d="M8 23C-3 7 8 2 16 2S35 7 24 23v6H8Z" fill="#e7dec1" stroke="#394749" stroke-width="2"/><path d="M8 12h6v7H8Zm10 0h6v7h-6ZM14 22l2-4 2 4m-6 3v5m8-5v5" fill="#394749" stroke="#394749" stroke-width="1.5"/></svg>`).join('')+'</div>');
    layer.append(el);return el;
   });
   boats=battle.boats.map(b=>{
@@ -99,6 +100,8 @@
   layer.dataset.phase=battle.phase;layer.dataset.round=String(battle.round);
   const strategyNames={shieldwall:'Skjoldmur',wedge:'Kile',flank:'Flankeangreb'};
   controls.querySelector('span').textContent=battle.phase==='raid'?'Vikingerne plyndrer husene':battle.exitStart!==null?(battle.winner===null?'Begge hold trækker sig tilbage':battle.winner?'Vikingerne drager af sted med byttet':'Bosættelsen er forsvaret'):(battle.village?'Vikingelandgang ved landsbyen':`Vikingelandgang · ${battle.formations[0].length} grupper pr. side`);
+  if(battle.phase==='boarding')controls.querySelector('span').textContent='Vikingerne bærer byttet tilbage til bådene';
+  if(battle.phase==='departure')controls.querySelector('span').textContent='Vikingerne sejler væk med byttet';
   const motion=root.dataset.animation!=='false'&&!reduced.matches;
   battle.settlement.forEach((house,i)=>{
    const el=houses[i],scale=(innerWidth<700?.42:.85)*(house.variant===1?1.15:house.variant===2?.8:1);
@@ -106,6 +109,9 @@
    el.style.zIndex=String(Math.round(house.y*1000)-2);
    el.classList.toggle('is-being-raided',battle.units.some(u=>u.raidHouse===house.id&&u.state==='inside'));
    el.classList.toggle('is-raided',battle.units.some(u=>u.raidHouse===house.id&&u.loot));
+   el.classList.toggle('has-hearts',house.symbolType==='hearts'&&battle.time<house.symbolUntil);
+   el.classList.toggle('has-skulls',house.symbolType==='skulls'&&battle.time<house.symbolUntil);
+   el.classList.toggle('has-hidden-residents',battle.units.some(u=>u.civilian&&u.deadAt===null&&u.houseId===house.id&&u.state==='hiding'));
   });
   battle.boats.forEach((b,i)=>{
    const el=boats[i],scale=b.scale*(innerWidth<700?.65:1);
@@ -115,9 +121,9 @@
   });
   battle.units.forEach((u,i)=>{
    const el=actors[i],dead=u.deadAt!==null,age=dead?battle.time-u.deadAt:0;
-   const boat=u.state==='sailing'?battle.boats[u.boat]:null;
+   const boat=['sailing','aboard'].includes(u.state)?battle.boats[u.boat]:null;
    const scale=boat?boat.scale*(innerWidth<700?.65:1)*.95:(innerWidth<700?.7:.86)+(u.y-.7)*.65;
-   const jumpDuration=u.state==='landing'?1.2:.65;
+   const jumpDuration=['landing','boarding'].includes(u.state)?1.2:.65;
    const jumpAge=battle.time-u.jumpAt,jump=motion&&jumpAge>=0&&jumpAge<jumpDuration?Math.sin(jumpAge/jumpDuration*Math.PI)*u.jumpHeight:0;
    const attackAge=battle.time-u.attackAt;
    const impact=u.impactDelay,windup=impact*.72,duration=u.attackDuration;
@@ -141,7 +147,7 @@
    el.style.setProperty('--facing',u.facing);
    el.classList.toggle('is-fallen',dead);el.classList.toggle('is-running',!dead&&u.state==='running');el.classList.toggle('is-fighting',!dead&&u.state==='fighting');
    el.disabled=dead||u.civilian;el.tabIndex=dead||u.civilian||u.x<0||u.x>1?-1:0;
-   el.hidden=dead&&(!motion||age>4)||u.state==='offscreen'||u.state==='inside'||(boat&&!boat.visible);
+   el.hidden=dead&&(!motion||age>4)||u.state==='offscreen'||u.state==='inside'||u.state==='hiding'||u.diedInside||(boat&&!boat.visible);
   });
   battle.catapults.forEach((cart,i)=>{
    const el=carts[i],age=battle.time-cart.shotAt,scale=innerWidth<700?.65:.9;

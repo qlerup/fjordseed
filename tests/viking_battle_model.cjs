@@ -1,5 +1,93 @@
 const assert=require('node:assert/strict');
 const Battle=require('../static/viking-battle-model.js');
+// Raiders leave their boats toward residents, without staging on the right.
+for(const width of [390,1440]){
+ const b=new Battle(2,()=>.5,true),resident=b.units[0],raider=b.units[1];
+ resident.x=resident.targetX=.08;resident.y=resident.targetY=.80;
+ resident.fleeDelay=100;raider.archer=false;
+ const landAt=b.boats[raider.boat].landAt;
+ while(b.time<landAt+1.15)b.advance(.05,width,950);
+ const startX=raider.x,startY=raider.y;
+ while(b.time<landAt+3){
+  const previousX=raider.x;b.advance(.05,width,950);
+  assert(raider.x<=previousX+1e-9,'Land straight toward the village without running right first');
+ }
+ assert(raider.x<startX&&raider.y>startY);
+ assert.equal(raider.enemyId,resident.id);
+ assert.equal(b.phase,'arrival','Pursuit begins before the last boat arrives');
+}
+for(const width of [390,1440]){
+ let seed=71;
+ const b=new Battle(width<700?40:64,()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;},true);
+ let hiding=false,visiting=false;const symbols=new Set();
+ while(b.time<150&&b.phase!=='raid'){
+  b.advance(.05,width,950);
+  hiding ||= b.units.some(u=>u.civilian&&u.state==='hiding');
+  visiting ||= b.units.some(u=>u.visitingHouse!=null&&u.state==='inside');
+  b.settlement.forEach(h=>{if(h.symbolType)symbols.add(h.symbolType);});
+  for(const u of b.units.filter(u=>u.civilian)){
+   assert(u.x>=.025&&u.x<=.64&&u.y>=Battle.LAND&&u.y<=.95,'Frightened residents stay in the picture');
+   assert.notEqual(u.state,'offscreen');
+  }
+ }
+ const residents=b.units.filter(u=>u.civilian);
+ assert.equal(b.phase,'raid');
+ assert(residents.some(u=>u.deadAt!==null),'Raiders can catch and kill fleeing residents');
+ assert(residents.some(u=>u.sheltered&&u.deadAt===null),'Hearts spare residents inside houses');
+ assert(residents.some(u=>u.diedInside),'Skulls resolve a fatal house encounter');
+ assert(hiding&&visiting);assert.deepEqual([...symbols].sort(),['hearts','skulls']);
+ assert(residents.every(u=>u.deadAt!==null||u.sheltered));
+ assert(residents.every(u=>u.attackAt===-10),'Residents flee without fighting');
+ const fallen=residents.find(u=>u.deadAt!==null),position=[fallen.x,fallen.y];
+ b.advance(.1,width,950);assert.deepEqual([fallen.x,fallen.y],position);
+ while(b.time<b.exitStart-.1)b.advance(.05,width,950);
+ const crew=b.units.filter(u=>u.team===1&&u.deadAt===null&&!u.withdrawing),round=b.round;
+ assert(crew.some(u=>u.loot),'Raiders carry loot bags back');
+ let jumping=false;
+ while(b.sailStart===null){
+  b.advance(.05,width,950);
+  assert.equal(b.round,round,'Do not restart before everyone has boarded');
+  assert(b.time<b.exitStart+25,'All surviving raiders must reach their boats');
+  jumping ||= crew.some(u=>u.state==='boarding');
+  for(const boat of b.boats)assert.equal(boat.y,boat.dockY,'Ships wait at the shore for their crew');
+  for(const u of crew)if(u.state==='running')assert(u.y>=Battle.LAND,'Returning raiders run on land');
+ }
+ assert(jumping);assert(crew.every(u=>u.state==='aboard'));
+ assert.equal(b.phase,'departure');
+ for(let i=0;i<160;i++){
+  const previous=b.boats.map(boat=>({y:boat.y,scale:boat.scale}));b.advance(.05,width,950);
+  b.boats.forEach((boat,i)=>{assert(boat.y<=previous[i].y);assert(boat.scale<=previous[i].scale);});
+  for(const u of crew){const boat=b.boats[u.boat];assert(Math.abs(u.x-boat.x-u.seatOffset*boat.scale/width)<1e-9);assert(u.y<Battle.LAND);}
+ }
+ assert(b.boats.every(boat=>boat.y<boat.dockY&&boat.scale<.63));
+ while(b.phase!=='clear')b.advance(.05,width,950);
+ assert(b.boats.every(boat=>!boat.visible));
+ while(b.round===round)b.advance(.05,width,950);
+ assert.equal(b.returnStart,null);assert.equal(b.sailStart,null);assert.equal(b.departureEnd,null);
+ b.reset();assert(b.units.every(u=>u.deadAt===null&&u.enemyId===null&&!u.sheltered&&u.visitingHouse==null));
+ assert(b.settlement.every(h=>!h.encounter&&!h.symbolType));
+}
+{
+ let seed=95;const b=new Battle(16,()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;},true);
+ b.units.filter(u=>u.team===1).forEach(u=>{u.deadAt=0;});b.checkVictory=()=>{};
+ b.time=b.arrivalEnd;const directions=new Map();
+ for(let i=0;i<400;i++){
+  const xs=b.units.map(u=>u.x);b.advance(.05,1440,950);
+  for(const u of b.units.filter(u=>u.civilian&&!u.seekShelter)){
+   if(!directions.has(u.id))directions.set(u.id,new Set());
+   if(Math.abs(u.x-xs[u.id])>.00001)directions.get(u.id).add(Math.sign(u.x-xs[u.id]));
+  }
+ }
+ assert([...directions.values()].some(d=>d.has(-1)&&d.has(1)),'Panicked residents change direction');
+}
+console.log('PASS direct pursuit, bounded panic, hiding, both house outcomes and clean restart on mobile/desktop');
+{
+ const b=new Battle(4,()=>.5,true),resident=b.units[0];
+ resident.houseId=1;resident.state='hiding';resident.x=b.settlement[1].x;resident.y=b.settlement[1].y;
+ const hp=resident.hp;
+ b.arrows.push({id:1,target:resident.id,tx:resident.x,ty:resident.y,at:0,duration:.45,direction:-1});
+ b.advance(.5);assert.equal(resident.hp,hp,'Residents inside houses cannot be hit by arrows outside');
+}
 for(const count of [16,24,40,64]){
  let seed=71;
  const b=new Battle(count,()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;});
