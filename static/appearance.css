@@ -4,7 +4,11 @@
 .appearance-panel h2::before{display:none}
 .appearance-label{color:var(--muted);font-size:10px;letter-spacing:2px}
 .appearance-intro{max-width:650px;margin-bottom:26px;line-height:1.8}
-.theme-options{border:0;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+.theme-group{border:0;padding:0;margin:0;min-width:0}
+.theme-group+.theme-group{margin-top:30px}
+.theme-group>legend{padding:0;font-size:16px;font-weight:600;color:var(--text)}
+.theme-group-description{margin:6px 0 16px;line-height:1.7}
+.theme-options{border:0;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
 .theme-option{position:relative;min-width:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;background:var(--bg);transition:border-color .2s,box-shadow .2s}
 .theme-option:has(input:checked){border-color:var(--green);box-shadow:0 0 0 1px var(--green)}
 .theme-option:has(input:focus-visible){outline:2px solid var(--green);outline-offset:5px}
@@ -29,6 +33,9 @@
 .battle-guide{max-width:1100px;margin-top:22px;border-left:3px solid var(--green)}
 .battle-guide p{max-width:740px;margin-top:12px;line-height:1.8}.battle-guide .eyebrow{margin-top:0}
 .theme-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-html[data-theme=viking] .goat-mountain{display:none}
+html:not([data-theme=fjord]) .goat-mountain{display:none}
 html[data-animation=false] .ambient-scene *,html[data-animation=false] .mountain-goat *{animation-play-state:paused!important}
 @media(max-width:600px){.theme-options{grid-template-columns:1fr;gap:16px}.theme-preview{height:155px}.appearance-label{display:none}.appearance-footer{align-items:stretch;flex-direction:column}}
+.theme-preview-nordic{background-image:linear-gradient(0deg,#101915ed,transparent 55%),url('/static/nordic-preview.svg');background-position:center}
+.theme-swatches-nordic i:nth-child(1){background:#1c2621}.theme-swatches-nordic i:nth-child(2){background:#b6cda1}.theme-swatches-nordic i:nth-child(3){background:#d2b27a}.theme-swatches-nordic i:nth-child(4){background:#a3bec7}
+@media(min-width:601px) and (max-width:1100px){.theme-options{grid-template-columns:1fr}.theme-option{display:grid;grid-template-columns:minmax(180px,35%) 1fr}.theme-preview{height:100%;min-height:180px}.theme-option input[type=radio]{left:16px;right:auto}}

@@ -45,11 +45,11 @@ class State:
         data = self.get().get('appearance', {})
         if not isinstance(data, dict):
             data = {}
-        return {'theme': data.get('theme') if data.get('theme') in ('fjord', 'viking') else 'fjord',
+        return {'theme': data.get('theme') if data.get('theme') in ('fjord', 'viking', 'nordic') else 'fjord',
                 'animation': data.get('animation') is not False}
 
     def save_appearance(self, value):
-        if (not isinstance(value, dict) or value.get('theme') not in ('fjord', 'viking')
+        if (not isinstance(value, dict) or value.get('theme') not in ('fjord', 'viking', 'nordic')
                 or type(value.get('animation')) is not bool):
             raise ValueError('Vælg et gyldigt tema og en indstilling for animation.')
         with self.lock:

@@ -15,7 +15,8 @@
    if(!response.ok)throw new Error(data.error||'Temaet kunne ikke gemmes. Prøv igen.');
    root.dataset.theme=data.theme;root.dataset.animation=String(data.animation);
    document.querySelector('#battle-guide').hidden=data.theme!=='viking';
-   document.querySelector('#appearance-status').textContent=`${data.theme==='viking'?'Viking':'Fjord'} er gemt. ${data.animation?'Levende baggrund er slået til.':'Baggrunden er sat på pause.'}`;
+   const themeName={fjord:'Fjord',viking:'Viking',nordic:'Nordisk'}[data.theme]||'Fjord';
+   document.querySelector('#appearance-status').textContent=`${themeName} er gemt. ${data.animation?'Levende baggrund er slået til.':'Baggrunden er sat på pause.'}`;
    document.dispatchEvent(new CustomEvent('fjordseed:appearance',{detail:data}));
   }catch(exc){error.textContent=exc.message;error.hidden=false;}
   finally{fields.forEach(field=>field.disabled=false);button.textContent='Gem tema';}

@@ -45,7 +45,7 @@ with tempfile.TemporaryDirectory() as folder:
    page.goto(f'http://127.0.0.1:{server.server_port}')
    page.locator('[name=username]').fill('admin');page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
    page.get_by_role('button',name='Log ind',exact=True).click()
-   for theme in ('fjord','viking'):
+   for theme in ('fjord','viking','nordic'):
     calls.clear();previews.clear()
     page.goto(f'http://127.0.0.1:{server.server_port}/#appearance')
     page.locator(f'[name=theme][value={theme}]').check();page.locator('#appearance-save').click()
@@ -130,4 +130,4 @@ with tempfile.TemporaryDirectory() as folder:
    assert not errors,errors
    browser.close()
  finally:server.shutdown()
-print('PASS batch picker/drop, exact file deduplication, individual badges/ratios, invalid files, partial retry, cancellation, single-file flow and both themes')
+print('PASS batch picker/drop, exact file deduplication, individual badges/ratios, invalid files, partial retry, cancellation, single-file flow and all three themes')

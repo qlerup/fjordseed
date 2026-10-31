@@ -53,7 +53,7 @@
     return g;
   });
   let last=0,raf=0;
-  const active=()=>document.documentElement.dataset.theme!=='viking'&&!document.hidden;
+  const active=()=>document.documentElement.dataset.theme==='fjord'&&!document.hidden;
   function sync(){
     layer.hidden=!active();layer.inert=!active();
     if(!active()){cancelAnimationFrame(raf);raf=0;last=0;}

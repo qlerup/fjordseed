@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 450 240" fill="none">
+ <path fill="#111916" d="M0 0h450v240H0z"/><path fill="#20291e" d="M0 0h450v35H0z"/>
+ <g stroke="#d2b27a" stroke-width="1.4"><path d="m20 9 10 6v11l-10 6-10-6V15Z"/><path d="M14 23h12l-6 5-6-5Zm6-11v11m-2-9-4 7h4m4-7 4 7h-4"/></g>
+ <text x="40" y="24" fill="#e5e5d5" font-family="Segoe UI,Arial,sans-serif" font-size="13" font-weight="600">FjordSeed</text>
+ <rect x="137" y="8" width="56" height="21" rx="4" fill="#46432c" stroke="#88744a"/><path d="M147 18h34m28 0h40m22 0h43" stroke="#bcba9e" stroke-width="3"/>
+ <path d="M20 56h109" stroke="#eeeada" stroke-width="6"/><path d="M20 70h188" stroke="#71816c" stroke-width="3"/>
+ <g fill="#1c2621" stroke="#3c4840"><rect x="20" y="85" width="260" height="48" rx="5"/><rect x="292" y="85" width="138" height="48" rx="5"/><rect x="20" y="145" width="410" height="72" rx="5"/></g>
+ <path d="M105 86v46m88-46v46" stroke="#3c4840"/><path d="M34 99h39m47 0h39m49 0h39m60 0h51" stroke="#8c9984" stroke-width="2"/>
+ <path d="M34 116h50" stroke="#b6cda1" stroke-width="6"/><path d="M120 116h51" stroke="#a3bec7" stroke-width="6"/><path d="M208 116h19m60-65h0m39 65h27" stroke="#d4b27c" stroke-width="6"/>
+ <path d="M34 161h145m-145 27h170" stroke="#b5beaa" stroke-width="3"/><path d="M34 173h380m-380 27h380" stroke="#3e4a38" stroke-width="4"/><path d="M34 173h220" stroke="#a3bec7" stroke-width="4"/><path d="M34 200h332" stroke="#b6cda1" stroke-width="4"/>
+</svg>

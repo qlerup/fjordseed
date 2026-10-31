@@ -3,17 +3,30 @@
   <div class="section-heading"><div><p class="eyebrow">DIT FJORDSEED</p><h2 id="appearance-heading">Vælg din verden</h2></div><span class="appearance-label">UDSEENDE</span></div>
   <p class="muted appearance-intro">Den samme seedbox. En ny udsigt. Vælg temaet, der skal møde dig, når du åbner FjordSeed.</p>
   <form id="appearance-form">
-   <fieldset class="theme-options"><legend class="theme-sr-only">Tema</legend>
+   <fieldset class="theme-group" id="system-themes"><legend>Systemtemaer</legend>
+    <p class="muted small theme-group-description">Fjord og Nordisk — to forskellige udtryk til dit arbejdsområde.</p>
+    <div class="theme-options">
     <label class="theme-option">
      <input type="radio" name="theme" value="fjord" {% if appearance.theme == 'fjord' %}checked{% endif %}>
      <span class="theme-preview theme-preview-fjord" aria-hidden="true"><span>NORDLYS &amp; BJERGE</span></span>
      <span class="theme-option-copy"><strong>Fjord <span class="theme-selected">Valgt</span></strong><span>Dit oprindelige tema med kølige blå toner, nordlys og bjerggeder.</span><span class="theme-swatches theme-swatches-fjord" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
     </label>
     <label class="theme-option">
-     <input type="radio" name="theme" value="viking" {% if appearance.theme == 'viking' %}checked{% endif %}>
-     <span class="theme-preview theme-preview-viking" aria-hidden="true"><span>VED FJORDENS BRED</span></span>
-     <span class="theme-option-copy"><strong>Viking <span class="theme-selected">Valgt</span></strong><span>Vikinger går i land ved en kristen landsby med beboere, marker, forskellige huse og en lille kirke.</span><span class="theme-swatches theme-swatches-viking" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
+     <input type="radio" name="theme" value="nordic" {% if appearance.theme == 'nordic' %}checked{% endif %}>
+     <span class="theme-preview theme-preview-nordic" aria-hidden="true"><span>KONTROLPANEL · NORDISK</span></span>
+     <span class="theme-option-copy"><strong>Nordisk <span class="theme-selected">Valgt</span></strong><span>Et moderne kontrolpanel med nordisk karakter. Kompakt topmenu, mørke arbejdsflader, bronze, runedetaljer og et nyt trafikoverblik.</span><span class="theme-swatches theme-swatches-nordic" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
     </label>
+    </div>
+   </fieldset>
+   <fieldset class="theme-group" id="animated-themes"><legend>Animerede verdener</legend>
+    <p class="muted small theme-group-description">En levende scene med figurer og begivenheder i baggrunden.</p>
+    <div class="theme-options">
+     <label class="theme-option">
+      <input type="radio" name="theme" value="viking" {% if appearance.theme == 'viking' %}checked{% endif %}>
+      <span class="theme-preview theme-preview-viking" aria-hidden="true"><span>VED FJORDENS BRED</span></span>
+      <span class="theme-option-copy"><strong>Viking <span class="theme-selected">Valgt</span></strong><span>Vikinger går i land ved en kristen landsby med beboere, marker, forskellige huse og en lille kirke.</span><span class="theme-swatches theme-swatches-viking" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
+     </label>
+    </div>
    </fieldset>
    <div class="appearance-motion"><div><label class="check-label"><input type="checkbox" id="theme-animation" {% if appearance.animation %}checked{% endif %}> Levende baggrund</label><p class="muted small">Slå bevægelse til eller fra. Din enheds indstilling for reduceret bevægelse respekteres også.</p></div></div>
    <div class="appearance-footer"><button type="submit" class="primary" id="appearance-save">Gem tema</button><p id="appearance-status" class="muted small" role="status">Temaet gemmes i FjordSeed og huskes efter genstart.</p></div>

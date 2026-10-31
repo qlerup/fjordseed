@@ -1,0 +1,58 @@
+NORDISK — FjordSeed theme design, 31 October 2026
+
+Aim
+A distinct, historically informed Viking Age interface, preserving all application
+controls and workflows. This is a modern design inspired by archaeological evidence,
+not a claim that a website or an imagined harbour is a historical reconstruction.
+
+Composition
+A compact top navigation and status/title row lead into a modern dark workspace.
+No photographic banner or presentation-style hero. The generated harbour is only
+faintly visible at the unused lower right edge; data surfaces are opaque. On mobile
+that decorative image is hidden. Colour, line icons, bronze actions and a small
+runic detail carry the historical character without replacing modern app controls.
+On desktop download metrics and the queue share one row. Download/upload rates
+lead the overview, with the measured-traffic route diagram beside them. On mobile
+rates appear above the diagram. Dense torrent rows retain all existing actions.
+
+Historical basis and deliberate modern choices
+- Younger futhark, 16 characters, is the relevant Viking Age alphabet. The six runes
+  in the title ornament are its opening sequence: f u th a r k (not a translation of
+  FjordSeed, and not a magical inscription). The ornament is hidden from screen readers.
+  https://www.vikingeskibsmuseet.dk/runer
+  https://nors.ku.dk/forskning/navneforskning/runologi/
+- Runic writing had no dedicated digits; numbers were written as words. Operational
+  metrics therefore retain modern numerals and units, with tabular numerals for clarity.
+  https://www.raa.se/kulturarv/runor-och-runstenar/runskolan/skriva-och-lasa-runor/
+- The palette draws on ochre, red/brown earth pigments, charcoal and light natural
+  materials. It is an interpretation, not a pigment or colour reconstruction.
+  https://www.vikingeskibsmuseet.dk/frontend/Dokumenter/Farver_DK_udskriftsark_2.pdf
+- Viking ornament includes stylised animals and interlace. This informed the
+  research; the final modern interface keeps decoration minimal. The geometric
+  ship emblem is original artwork, not an authentic museum artefact.
+  https://vikingar.historiska.se/objects.php?e=no&l=en&showcase=ec28e1a8-e260-4f92-bac2-d15e88af1360
+- The illustration takes inspiration from clinker-built coastal trading vessels,
+  including the Danish oak Skuldelev 3, rather than presenting every ship as a warship.
+  https://www.vikingeskibsmuseet.dk/en/visit-the-museum/exhibitions/the-five-viking-ships/skuldelev-3
+- Hall, vessel and craft pictograms are modern UI artwork. Segoe UI headings and compact tabular metrics keep the interface operational;
+  modern UI typography is not presented as a Viking typeface. Danish labels,
+  accessible names, form controls and numbers retain their original meaning.
+
+Motion
+A faint drift at the edge of the workspace obeys background pause, hidden-tab, modal
+and reduced-motion settings. Traffic uses existing measured rates and packet timing,
+but draws a quiet single route per direction without the old starfield and glow.
+The VPN indicator no longer scales on every arriving packet. Graphs cross-fade
+instead of morphing their curves. Existing chart timing, hover pause, keyboard
+navigation and data remain unchanged. Seed-status motion is a quiet opacity pulse.
+
+Assets
+static/nordic-fjord.png — generated with the built-in image_gen tool; illustrative.
+static/nordic-{mark,hall,ship,craft,preview}.svg — original code-native vector artwork.
+static/fonts/NotoSansRunic-Regular.ttf — Noto Project, SIL Open Font License 1.1.
+License: static/fonts/NotoSansRunic-OFL.txt. Font is served locally; no external font
+or image service is contacted at runtime.
+Source: https://github.com/google/fonts/tree/main/ofl/notosansrunic
+
+Original image prompt (built-in image_gen; the final UI uses this only as faint edge scenery)
+Use case: historical-scene. Asset type: ultra-wide photographic masthead background for a carefully designed Viking Age inspired productivity app. Create a realistic archaeological reconstruction of a quiet Scandinavian coastal trading harbour around 1000 CE at dawn. Small clinker-built oak coastal cargo vessel inspired by Skuldelev 3 moored in the right third, natural brown timber hull, single mast with furled rectangular wool sail in faded ochre and muted iron red, simple rope rigging, no oversized dragon head, no shields. Low shoreline at right with two modest timber buildings with turf or thatch roofs. Weathered timber pier at far right. Calm pewter blue sea, low mist and wooded rocky coastline receding into distance, warm muted dawn light behind cloud. Composition: horizon at lower middle, huge quiet empty sky and water on LEFT and centre for white application heading text. Photorealistic landscape / museum reconstruction, convincing natural materials, dignified and quiet. Palette: charcoal, grey seawater, oak, flax, ochre, muted iron red. Wide 16:9 panorama suitable to crop into a shallow header. No people, no fighting, no medieval castles, no horned helmets, no magical symbols, no runic inscriptions, no modern objects, no text or logo. This is an illustrative reconstruction not an exact depiction of any excavated harbour.

@@ -15,6 +15,7 @@
    this.motion=matchMedia('(prefers-reduced-motion: reduce)');
    this.tick=this.tick.bind(this);
    this.motion.addEventListener('change',()=>this.sync());
+   document.addEventListener('fjordseed:appearance',()=>{this.pulse?.cancel();this.resize();});
    document.addEventListener('visibilitychange',()=>this.sync());
    this.resizeObserver=new ResizeObserver(()=>this.resize());
    this.resizeObserver.observe(this.canvas);
@@ -98,6 +99,7 @@
    }
   }
   pulseShield(){
+   if(document.documentElement.dataset.theme==='nordic')return;
    if(!this.core||!this.ready||!this.visible||document.hidden||this.motion.matches)return;
    // Merge simultaneous arrivals into one bounded pulse, starting at its current
    // appearance so a second packet never snaps the shield back to its base size.
@@ -126,6 +128,7 @@
   draw(time){
    const c=this.ctx,w=this.width,h=this.height;if(!c||!w||!h)return;
    c.clearRect(0,0,w,h);
+   if(document.documentElement.dataset.theme==='nordic'){this.drawNordic();return;}
    const active=this.ready,still=this.motion.matches||!active;
    if(still)time=0;
    // Quiet constellation and an illuminated tunnel behind the gateway.
@@ -162,6 +165,23 @@
     const p=this.points[index],phase=(time*.6)%1;
     c.strokeStyle=i?`rgba(100,174,255,${(1-phase)*.28})`:`rgba(102,246,191,${(1-phase)*.28})`;
     c.lineWidth=1;c.beginPath();c.arc(p.x,p.y,34+phase*22,0,TAU);c.stroke();
+   }
+  }
+  // The same measured traffic becomes quiet, single-strand routes in Nordisk.
+  // No synthetic traffic, starfield, neon trails or changes to rates/status.
+  drawNordic(){
+   const c=this.ctx;c.lineCap='round';
+   for(const path of this.paths){
+    if(path.strand!==1)continue;
+    const color=path.direction?'#a3bec7':'#b6cda1';
+    this.stroke(path,0,1,this.ready?'#596b52':'#3f4d3b',1.2);
+    if(!this.ready)continue;
+    for(const packet of this.packets){
+     if(packet.direction!==path.direction||packet.strand!==1||Math.floor(packet.progress)!==path.link)continue;
+     const t=packet.progress-path.link,p=this.point(path,t);
+     this.stroke(path,clamp(t-.045,0,1),t,color,2);
+     c.fillStyle=color;c.beginPath();c.arc(p.x,p.y,2.5,0,TAU);c.fill();
+    }
    }
   }
  }

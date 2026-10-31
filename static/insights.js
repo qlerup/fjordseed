@@ -3,6 +3,7 @@
  'use strict';
  const root=document.querySelector('#tracker-insights');
  if(!root)return;
+ const nordicColors=['#b6cda1','#c6a38f','#a3bec7','#bbb4ce','#d4b27c','#c1c38e'];
  const metrics=[
   {key:'ratio',name:'Ratio',tab:'Ratio',color:'#79dfb7',scope:'account'},
   {key:'credited_uploaded',name:'Krediteret upload',tab:'Kredit · upload',color:'#f18fb8',scope:'account'},
@@ -10,7 +11,7 @@
   {key:'credited_downloaded',name:'Krediteret download',tab:'Kredit · download',color:'#c1a5f2',scope:'account'},
   {key:'real_downloaded',name:'Reel download',tab:'Reel download',color:'#f1c48e',scope:'seedbox'},
   {key:'seedbonus',name:'Shards',tab:'Shards',color:'#e5d87a',scope:'account'}
- ];
+ ].map((metric,index)=>{const original=metric.color;return {...metric,get color(){return document.documentElement.dataset.theme==='nordic'?nordicColors[index]:original;}};});
  const format=(value,key)=>typeof value!=='number'||!Number.isFinite(value)?'—':['ratio','seedbonus'].includes(key)?value.toLocaleString('da-DK',{maximumFractionDigits:key==='ratio'?3:2}):trackerBytes(value);
  const svgNode=(tag,attrs={})=>{const el=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [key,value] of Object.entries(attrs))el.setAttribute(key,value);return el;};
  let gradientId=0;
@@ -38,6 +39,7 @@
    this.index=0;this.data={account:[],seedbox:[]};this.accounts=[];this.timer=null;this.busy=false;this.hover=false;this.focus=false;this.visible=false;this.loaded=false;this.generation=0;
    this.viewport=root.querySelector('.insights-viewport');this.current=root.querySelector('.insights-current');this.next=root.querySelector('.insights-next');this.stage=root.querySelector('.insights-stage');this.select=root.querySelector('#insights-account');this.mode=root.querySelector('.insights-mode span');this.error=root.querySelector('.insights-error');
    this.motion=matchMedia('(prefers-reduced-motion: reduce)');
+   document.addEventListener('fjordseed:appearance',()=>{if(this.busy)this.finish();else if(this.loaded)this.draw();});
    this.tabs=[...metrics,{key:'all',tab:'Alle'}].map((metric,i)=>{const button=node('button','insights-tab',metric.tab);button.type='button';button.setAttribute('aria-label',metric.tab);button.setAttribute('aria-pressed',String(i===0));button.onclick=()=>this.turn(i);root.querySelector('.insights-selectors').append(button);return button;});
    const allButton=this.tabs.at(-1);
    allButton.classList.add('insights-all-button');
@@ -105,7 +107,7 @@
    if(this.motion.matches){this.index=index;this.draw();this.schedule();return;}
    this.busy=true;this.next.replaceChildren(...this.face(metrics[index]));
    this.next.style.setProperty('--insight-color',metrics[index]?.color||'#c1a5f2');
-   const morph=this.morphLine();
+   const morph=document.documentElement.dataset.theme==='nordic'?null:this.morphLine();
    let done=false;
    this.finish=()=>{
     if(done)return;done=true;clearTimeout(this.fallback);cancelAnimationFrame(this.morphFrame);
