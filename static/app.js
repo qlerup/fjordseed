@@ -178,7 +178,14 @@ function torrentProgress(t) {
  wrap.append(voyage);return wrap;
 }
 const expandedTorrents = new Set();
+function torrentBannerVariant(t){
+ // Stable across polls, sorting and RSS/manual views; never reshuffle live cards.
+ let hash=0;
+ for(const character of String(t.hash||t.name||''))hash=(Math.imul(hash,31)+character.codePointAt(0))|0;
+ return (hash>>>0)%10+1;
+}
 function card(t){const row=node('article','torrent'),head=node('div','torrent-head');
+ row.dataset.banner=String(torrentBannerVariant(t));
  if(t.cover&&/^\/api\/covers\/[a-f0-9]{64}$/.test(t.cover)){const cover=node('img','torrent-cover');cover.src=t.cover;cover.alt='';cover.width=64;cover.height=96;cover.loading='lazy';cover.decoding='async';cover.onerror=()=>{cover.remove();row.classList.remove('has-cover');};row.classList.add('has-cover');row.append(cover);}
  const heading=node('h3'),titleToggle=node('button','torrent-title-toggle');titleToggle.type='button';
  const arrow=node('span','torrent-chevron');arrow.setAttribute('aria-hidden','true');

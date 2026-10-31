@@ -24,6 +24,7 @@ class Demo(FakeRuntime):
     def status(self):
         torrents = [
             dict(hash='a'*40, name='Northern landscapes · A journey through the fjords · 2160p',
+                 cover='/api/covers/'+'a'*64,
                  state='downloading', progress=.64, size=18*1024**3, dlspeed=12*1024**2,
                  upspeed=2*1024**2, ratio=.42),
             dict(hash='b'*40, name='The quiet coast · Season 01 · Complete collection',
@@ -61,6 +62,14 @@ with tempfile.TemporaryDirectory() as folder:
             errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
             page.route('**/api/streaming', lambda route:route.fulfill(json={'conversion_enabled':False}))
+            page.route('**/api/covers/'+'a'*64,lambda route:route.fulfill(content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="64" height="96"><rect width="64" height="96" fill="#294b59"/><path d="M0 70 30 20 64 70" fill="#b3ccd2"/><text x="32" y="87" text-anchor="middle" fill="white" font-size="9">FJORD</text></svg>'))
+            def status_with_cover(route):
+                response=route.fetch()
+                data=response.json()
+                if data.get('torrents'):
+                    data['torrents'][0]['cover']='/api/covers/'+'a'*64
+                route.fulfill(response=response,json=data)
+            page.route('**/api/status',status_with_cover)
             page.route('**/api/conversion/dolby-vision', lambda route:route.fulfill(json={'items':[]}))
             page.route('**/api/storage', lambda route:route.fulfill(json={'path':'/downloads','buffer':'/downloads/.incomplete','fjordflix_enabled':False,'streaming_enabled':True}))
             page.route('**/api/storage/usage', lambda route:route.fulfill(json={'path':'/downloads','total_bytes':2*1024**4,'used_bytes':.7*1024**4,'free_bytes':1.3*1024**4}))
@@ -164,6 +173,7 @@ with tempfile.TemporaryDirectory() as folder:
                 expect(page.locator('.nav.active')).to_have_count(1)
                 expect(page.locator('.nav[href="#torrents"]')).to_have_attribute('aria-current','page')
                 expect(page.locator('#torrent-list')).to_contain_text('Northern landscapes')
+                expect(page.locator('#torrent-list .torrent-cover').first).to_be_visible()
                 if width>1100:
                     toolbar=page.locator('#download-toolbar').bounding_box()
                     worklist=page.locator('#downloads-view').bounding_box()
@@ -230,6 +240,32 @@ with tempfile.TemporaryDirectory() as folder:
             page.goto(base+'/#torrents')
             expect(page.locator('#torrent-list .nordic-voyage')).to_have_count(2)
             expect(page.locator('#torrent-list .nordic-voyage-lane[data-moving=true]')).to_have_count(3)
+            # Ten fixed-color wear patterns; selection survives status rebuilds.
+            assert page.evaluate('''async ()=>{
+                const variants=Array.from({length:100},(_,i)=>torrentBannerVariant({hash:'fixture-'+i}));
+                if(new Set(variants).size!==10)return false;
+                const t={hash:'a'.repeat(40),name:'Stable banner',state:'downloading',progress:.5};
+                if(card(t).dataset.banner!==card({...t,dlspeed:1000}).dataset.banner)return false;
+                const sources=await Promise.all(Array.from({length:10},async(_,i)=>{
+                    const path='/static/nordic-banners/banner-'+String(i+1).padStart(2,'0')+'.svg';
+                    const response=await fetch(path);if(!response.ok)throw Error(path);
+                    const text=await response.text(),image=new Image();image.src=path;await image.decode();return text;
+                }));
+                return new Set(sources).size===10;
+            }''')
+            # Review the ten silhouettes with identical content and color.
+            page.evaluate('''()=>{
+                const catalog=document.createElement('section');catalog.id='banner-catalog';
+                catalog.style.cssText='padding:24px;background:#081823;max-width:1200px';
+                for(let i=1;i<=10;i++){
+                    const row=document.querySelector('#torrent-list .torrent').cloneNode(true);
+                    row.dataset.banner=String(i);row.querySelector('.torrent-name').textContent='Sejldugsbanner '+String(i).padStart(2,'0');
+                    catalog.append(row);
+                }
+                document.querySelector('main').append(catalog);
+            }''')
+            page.locator('#banner-catalog').screenshot(path=str(root/'test-results/nordic-banner-variants.png'))
+            page.locator('#banner-catalog').evaluate('e=>e.remove()')
             for direction in ('download','upload'):
                 ship=page.locator(f'#torrent-list .nordic-voyage-lane[data-direction={direction}][data-moving=true] .nordic-voyage-ship').first
                 assert ship.evaluate('e=>getComputedStyle(e).animationName') == ('nordic-cargo-in' if direction=='download' else 'nordic-cargo-out')

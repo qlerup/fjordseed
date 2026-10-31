@@ -2,8 +2,7 @@
 
 The Nordisk panels use dark blue-green stained timber instead of the repeating
 stone noise texture. Download controls and summary panels have a warmer oak
-finish; torrent cards use a richer petrol finish so the surfaces have distinct
-roles. All finishes reuse the oak image under opaque tinted layers. Their
+finish. The outer surfaces reuse the oak image under opaque tinted layers. Their
 backgrounds extend beneath the bronze fittings,
 with no border-image outset, so there is no transparent seam around the panel.
 Nested theme fieldsets use a divider rather than a second ornamental frame.
@@ -64,3 +63,27 @@ Only routes with real transfer animate. Stationary arrowheads preserve direction
 when motion is disabled. The VPN shield has no breathing animation, arrival
 pulse, orbit, changing halo or rotating lights. The rate equalizers are hidden.
 The original Fjord animation is preserved.
+
+## Torrent flags
+
+Only Nordic torrent cards use the long crimson and ivory cloth flag in
+`static/nordic-banners/flag-red-white.png`. It includes real folds, rope ties,
+a thin wooden support and lightly frayed, nearly straight hems. The large
+end notch and deep curvature from the design draft are removed.
+
+The generated transparent PNG is rendered as a nine-slice border on a decorative
+pseudo-element. Rope ties and hems therefore retain their size when details
+open. All live text, poster art, progress, boats and controls sit in the protected
+red center. Ten small SVG wear masks add different holes and shallow nicks to
+the hems. Their damage uses fixed pixel dimensions and never masks live content.
+`torrentBannerVariant` chooses a stable variant from each torrent's hash, with a
+name fallback. Every variant shares the exact same base colors and flag image.
+
+The built-in imagegen tool generated the flag, then edited it with this final
+prompt (the earlier red/ivory flag was the edit target):
+
+> Edit the supplied long red and ivory-white cloth flag. Preserve its exact crimson-red center, aged white upper and lower stripes, textile realism, rope ties, thin wooden support, horizontal wide proportions, transparent outside and calm central field. Make ONLY these two changes: 1) Remove the large V-shaped swallowtail notch on the right. Replace it with an almost straight vertical right edge with only tiny shallow frayed nicks and a few small torn threads. No big cutouts, no pointed tails. 2) Greatly reduce the sag and curvature. The long top and bottom hems should run nearly straight horizontally with just a VERY slight natural fabric irregularity. Keep a few shallow fabric folds so it remains clearly a real physical flag, but no deep drape, no pronounced U-shaped sag, no billowing. A long, almost straight, lightly weathered horizontal red-and-white flag. Keep the entire middle red field clear and calm for application content. No text, symbols or logos. Preserve true transparency.
+
+The browser review covers all ten masks, stable assignment, posters, expanded
+details and responsive layout down to 320 pixels. The ten-pattern catalog is
+saved to `test-results/nordic-banner-variants.png`.

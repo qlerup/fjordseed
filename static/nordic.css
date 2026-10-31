@@ -173,9 +173,26 @@ html[data-theme=nordic] .download-search label{color:#c5d3d6;font-size:10px}
 html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){padding:12px 16px 16px;margin-bottom:16px}
 html[data-theme=nordic] .downloads-page .section-heading{margin:8px 0 14px}
 html[data-theme=nordic] .downloads-page .section-heading h2{font-size:21px}
-html[data-theme=nordic] .downloads-page .torrent{padding:20px;margin:0 0 14px;background:linear-gradient(105deg,#16424ad9,#102c3aeb 70%,#102434ed),url('/static/nordic-sign-oak.png') center/1000px auto repeat;border:1px solid #6d8278;border-left:3px solid #84baa8;border-radius:6px;box-shadow:inset 0 1px #b4e2da17,0 5px 14px #020c151f}
-html[data-theme=nordic] .downloads-page .torrent:hover{border-color:#9ab6a4;box-shadow:inset 0 1px #b4e2da2b,0 5px 14px #020c1533}
-html[data-theme=nordic] .downloads-page .torrent.is-expanded{border-color:#b99860}
+/* Each torrent lives on the same dyed canvas, with one of ten worn silhouettes.
+   Only the fabric is masked: holes can never cut text, controls or focus rings. */
+html[data-theme=nordic] .downloads-page .torrent{position:relative;isolation:isolate;padding:98px 48px 62px;margin:8px 0 20px;background:none;border:0;border-radius:0;box-shadow:none;--banner-cut:url('/static/nordic-banners/banner-01.svg');color:#fff3df;text-shadow:0 1px 2px #260606}
+/* Nine-slice the physical flag: ropes and hems keep their size when details open. */
+html[data-theme=nordic] .downloads-page .torrent::before{content:'';position:absolute;inset:0;z-index:-1;border:solid transparent;border-width:90px 32px 42px;border-image:url('/static/nordic-banners/flag-red-white.png') 220 70 170 70 fill / 90px 32px 42px / 0 stretch;mask-image:var(--banner-cut);mask-size:100% 100%;mask-repeat:no-repeat;mask-mode:alpha;pointer-events:none}
+html[data-theme=nordic] .downloads-page .torrent::after{content:'';position:absolute;inset:90px 32px 42px;z-index:0;border:0;background:radial-gradient(ellipse,#20050966,#20050922 70%,transparent);pointer-events:none}
+html[data-theme=nordic] .downloads-page .torrent>*{position:relative;z-index:1}
+html[data-theme=nordic] .downloads-page .torrent.torrent-exact-match{box-shadow:none}
+html[data-theme=nordic] .downloads-page .torrent.torrent-exact-match::after{outline:1px solid #78efc4;outline-offset:3px}
+html[data-theme=nordic] .downloads-page .torrent :is(.muted,.torrent-summary,.torrent-policy,.seed-caption,.seed-values,.progress-caption){color:#f2e8d7}
+html[data-theme=nordic] .downloads-page .torrent .secondary{background:linear-gradient(#3e2020,#291515);border-color:#d0b98d;color:#fff1df;text-shadow:none}
+html[data-theme=nordic] .downloads-page .torrent[data-banner="2"]{--banner-cut:url('/static/nordic-banners/banner-02.svg')}
+html[data-theme=nordic] .downloads-page .torrent[data-banner="3"]{--banner-cut:url('/static/nordic-banners/banner-03.svg')}
+html[data-theme=nordic] .downloads-page .torrent[data-banner="4"]{--banner-cut:url('/static/nordic-banners/banner-04.svg')}
+html[data-theme=nordic] .downloads-page .torrent[data-banner="5"]{--banner-cut:url('/static/nordic-banners/banner-05.svg')}
+html[data-theme=nordic] .downloads-page .torrent[data-banner="6"]{--banner-cut:url('/static/nordic-banners/banner-06.svg')}
+html[data-theme=nordic] .downloads-page .torrent[data-banner="7"]{--banner-cut:url('/static/nordic-banners/banner-07.svg')}
+html[data-theme=nordic] .downloads-page .torrent[data-banner="8"]{--banner-cut:url('/static/nordic-banners/banner-08.svg')}
+html[data-theme=nordic] .downloads-page .torrent[data-banner="9"]{--banner-cut:url('/static/nordic-banners/banner-09.svg')}
+html[data-theme=nordic] .downloads-page .torrent[data-banner="10"]{--banner-cut:url('/static/nordic-banners/banner-10.svg')}
 html[data-theme=nordic] .downloads-page .torrent-inactive{background:linear-gradient(110deg,#102a35dc,#091c2bec),url('/static/nordic-sign-oak.png') center/1000px auto repeat;border-color:#66756b}
 html[data-theme=nordic] .downloads-page .torrent-inactive>summary{background:linear-gradient(100deg,#34302299,#172d32b3);color:#dfdfcf}
 /* Warm oak fittings surround cooler, lacquered blue-green work surfaces. */
@@ -267,7 +284,10 @@ html[data-theme=nordic] footer{margin:24px 0;padding:14px 6px;color:#b0c2c8;bord
  html[data-theme=nordic] .stats>div{padding:12px 8px}html[data-theme=nordic] .stats strong{font-size:22px}
  html[data-theme=nordic] .download-toolbar{padding:12px}
  html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){padding:8px}
- html[data-theme=nordic] .downloads-page .torrent{padding:12px}
+ html[data-theme=nordic] .downloads-page .torrent{padding:96px 40px 58px}
+ html[data-theme=nordic] .downloads-page .torrent.has-cover{grid-template-columns:40px minmax(0,1fr);column-gap:10px}
+ html[data-theme=nordic] .downloads-page .torrent-cover{width:40px;height:60px;grid-row:1}
+ html[data-theme=nordic] .downloads-page .torrent.has-cover>:is(.torrent-progress,.torrent-extra,.torrent-summary,.conversion-status){grid-column:1/-1}
  html[data-theme=nordic] .torrent-head{grid-template-columns:minmax(0,1fr)}
  html[data-theme=nordic] .torrent-actions{grid-column:1;grid-row:3;display:flex;flex-wrap:wrap}
  html[data-theme=nordic] .torrent-summary{gap:10px;flex-wrap:wrap}
