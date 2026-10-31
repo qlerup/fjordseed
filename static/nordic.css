@@ -206,6 +206,20 @@ html[data-theme=nordic] .torrent-head h3{grid-column:1;grid-row:1;font-size:14px
 html[data-theme=nordic] .torrent-summary{grid-column:1;grid-row:2;font-size:11px;display:flex;gap:18px;color:#a9c6ce}
 html[data-theme=nordic] .torrent-actions{grid-column:2;grid-row:1/3;display:grid;grid-template-columns:repeat(2,auto);gap:6px}
 html[data-theme=nordic] .torrent-actions button{font-size:11px;padding:8px 10px}
+/* Small oak-and-bronze fittings sewn onto the flag, with carved action marks. */
+html[data-theme=nordic] .downloads-page .torrent .torrent-actions .secondary{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:104px;min-height:40px;padding:10px 15px;border:1px solid #bd9558;border-radius:2px;background:linear-gradient(#261b12a6,#120f0bd9),url('/static/nordic-sign-oak.png') center/210px auto;color:#ffeac2;font:600 11px/1.25 'Segoe UI',Arial,sans-serif;letter-spacing:.1px;text-shadow:0 1px 2px #0d0704;box-shadow:inset 0 0 0 2px #37291c,inset 0 3px #e3bf783b,inset 0 -3px #05060588,0 3px 5px #22060655;transition:background-color .15s,box-shadow .15s;--control-icon:url('/static/nordic-controls/details.svg')}
+html[data-theme=nordic] .downloads-page .torrent .torrent-actions .secondary::before{content:'';flex:none;width:16px;height:16px;background:#e6bf7c;mask:var(--control-icon) center/contain no-repeat;pointer-events:none}
+html[data-theme=nordic] .downloads-page .torrent .torrent-actions .secondary::after{content:'';position:absolute;inset:3px;background:radial-gradient(circle at 1px 1px,#dec087 0 1px,#5f4729 1.2px 1.8px,transparent 2px),radial-gradient(circle at calc(100% - 1px) 1px,#dec087 0 1px,#5f4729 1.2px 1.8px,transparent 2px),radial-gradient(circle at 1px calc(100% - 1px),#dec087 0 1px,#5f4729 1.2px 1.8px,transparent 2px),radial-gradient(circle at calc(100% - 1px) calc(100% - 1px),#dec087 0 1px,#5f4729 1.2px 1.8px,transparent 2px);pointer-events:none}
+html[data-theme=nordic] .downloads-page .torrent .torrent-actions [data-torrent-action=stop]{--control-icon:url('/static/nordic-controls/stop.svg')}
+html[data-theme=nordic] .downloads-page .torrent .torrent-actions [data-torrent-action=start]{--control-icon:url('/static/nordic-controls/start.svg')}
+html[data-theme=nordic] .downloads-page .torrent .torrent-actions [data-torrent-action=ratio]{--control-icon:url('/static/nordic-controls/ratio.svg')}
+html[data-theme=nordic] .downloads-page .torrent .torrent-actions [data-torrent-action=delete]{--control-icon:url('/static/nordic-controls/delete.svg');border-color:#b67e57;color:#ffd3b0}
+html[data-theme=nordic] .downloads-page .torrent .torrent-actions .secondary:hover:not(:disabled){border-color:#f0cb88;box-shadow:inset 0 0 0 2px #735334,inset 0 3px #edce8a55,inset 0 -2px #05060588,0 3px 5px #22060666}
+html[data-theme=nordic] .downloads-page .torrent .torrent-actions .secondary:active:not(:disabled){box-shadow:inset 0 0 0 2px #37291c,inset 0 3px 5px #0009}
+html[data-theme=nordic] .downloads-page .torrent .torrent-actions .secondary:focus-visible{outline:2px solid #fff0bd;outline-offset:3px}
+html[data-theme=nordic] .downloads-page .torrent .torrent-actions .secondary:disabled{opacity:.45}
+html[data-theme=nordic] .downloads-page .torrent.has-cover{grid-template-columns:clamp(120px,11vw,180px) minmax(0,1fr);column-gap:24px}
+html[data-theme=nordic] .downloads-page .torrent-cover{width:100%;height:auto;aspect-ratio:2/3;object-fit:cover;align-self:start;border:1px solid #b39b6c;border-radius:2px;box-shadow:0 4px 9px #29050566}
 html[data-theme=nordic] .torrent-progress{margin-top:14px;border-top:1px solid #9dbbbc18;padding-top:12px}
 html[data-theme=nordic] .torrent-progress .progress,html[data-theme=nordic] .torrent-progress-track{height:5px;border-radius:2px}
 html[data-theme=nordic] .torrent-progress .progress::-webkit-progress-bar{background:#07141a}
@@ -285,9 +299,10 @@ html[data-theme=nordic] footer{margin:24px 0;padding:14px 6px;color:#b0c2c8;bord
  html[data-theme=nordic] .download-toolbar{padding:12px}
  html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){padding:8px}
  html[data-theme=nordic] .downloads-page .torrent{padding:96px 40px 58px}
- html[data-theme=nordic] .downloads-page .torrent.has-cover{grid-template-columns:40px minmax(0,1fr);column-gap:10px}
- html[data-theme=nordic] .downloads-page .torrent-cover{width:40px;height:60px;grid-row:1}
- html[data-theme=nordic] .downloads-page .torrent.has-cover>:is(.torrent-progress,.torrent-extra,.torrent-summary,.conversion-status){grid-column:1/-1}
+ html[data-theme=nordic] .downloads-page .torrent.has-cover{grid-template-columns:minmax(0,1fr);column-gap:0}
+ html[data-theme=nordic] .downloads-page .torrent-cover{width:min(130px,100%);height:auto;grid-column:1;grid-row:auto;margin-bottom:16px}
+ html[data-theme=nordic] .downloads-page .torrent.has-cover>:not(.torrent-cover){grid-column:1}
+ html[data-theme=nordic] .downloads-page .torrent .torrent-actions .secondary{min-width:0;min-height:44px;padding:10px 12px;gap:6px}
  html[data-theme=nordic] .torrent-head{grid-template-columns:minmax(0,1fr)}
  html[data-theme=nordic] .torrent-actions{grid-column:1;grid-row:3;display:flex;flex-wrap:wrap}
  html[data-theme=nordic] .torrent-summary{gap:10px;flex-wrap:wrap}

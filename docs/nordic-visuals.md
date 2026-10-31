@@ -87,3 +87,16 @@ prompt (the earlier red/ivory flag was the edit target):
 The browser review covers all ten masks, stable assignment, posters, expanded
 details and responsive layout down to 320 pixels. The ten-pattern catalog is
 saved to `test-results/nordic-banner-variants.png`.
+
+## Torrent controls and poster size
+
+The four Nordic torrent actions use small oak fittings with bronze rims and
+corner rivets. Code-native SVG marks in `static/nordic-controls/` identify the
+scroll/details, pause/start, balance/ratio and axe/remove actions. Text labels,
+accessible names, confirmation dialogs and handlers are unchanged. Hover,
+pressed, disabled and visible keyboard-focus states are preserved.
+
+Desktop posters now occupy a 120–180 pixel wide column, retaining their 2:3
+aspect ratio and filling most of the collapsed flag's red field vertically.
+Mobile posters sit above the title and actions at up to 130 pixels wide, so
+the controls and progress display retain the full content width.

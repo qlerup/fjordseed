@@ -174,6 +174,12 @@ with tempfile.TemporaryDirectory() as folder:
                 expect(page.locator('.nav[href="#torrents"]')).to_have_attribute('aria-current','page')
                 expect(page.locator('#torrent-list')).to_contain_text('Northern landscapes')
                 expect(page.locator('#torrent-list .torrent-cover').first).to_be_visible()
+                poster=page.locator('#torrent-list .torrent-cover').first.bounding_box()
+                if width>800:
+                    assert poster['width']>=120 and poster['height']>=180
+                else:
+                    title=page.locator('#torrent-list .torrent-head').first.bounding_box()
+                    assert poster['y']+poster['height']<=title['y']+1
                 if width>1100:
                     toolbar=page.locator('#download-toolbar').bounding_box()
                     worklist=page.locator('#downloads-view').bounding_box()
