@@ -19,9 +19,18 @@ for(const width of [390,1440]){
 for(const width of [390,1440]){
  let seed=71;
  const b=new Battle(width<700?40:64,()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;},true);
+ assert.equal(b.units.filter(u=>u.team===1).length,width<700?9:12);
+ assert.equal(b.units.filter(u=>u.civilian).length,width<700?20:32);
+ const assertHouseSignals=()=>{
+  for(const u of b.units.filter(u=>u.team===1&&u.state==='inside')){
+   const house=b.settlement[u.visitingHouse??u.raidHouse];
+   assert(['hearts','skulls'].includes(house.symbolType)&&house.symbolUntil>b.time,'Every house entry must show a symbol throughout the visit');
+  }
+ };
  let hiding=false,visiting=false;const symbols=new Set();
  while(b.time<150&&b.phase!=='raid'){
   b.advance(.05,width,950);
+  assertHouseSignals();
   hiding ||= b.units.some(u=>u.civilian&&u.state==='hiding');
   visiting ||= b.units.some(u=>u.visitingHouse!=null&&u.state==='inside');
   b.settlement.forEach(h=>{if(h.symbolType)symbols.add(h.symbolType);});
@@ -44,7 +53,7 @@ for(const width of [390,1440]){
  b.advance(.1,width,950);assert.deepEqual([fallen.x,fallen.y],position);
  let earlyReturn=false,lootReturn=false;
  while(b.time<b.exitStart-.1){
-  const previous=b.units.map(u=>({x:u.x,y:u.y,state:u.state}));b.advance(.05,width,950);
+  const previous=b.units.map(u=>({x:u.x,y:u.y,state:u.state}));b.advance(.05,width,950);assertHouseSignals();
   for(const u of b.units.filter(u=>u.team===1&&u.deadAt===null&&!u.withdrawing)){
    earlyReturn ||= u.returnAt!==undefined;
    lootReturn ||= u.loot&&u.returnAt!==undefined;
@@ -103,14 +112,14 @@ console.log('PASS direct pursuit, bounded panic, hiding, both house outcomes and
  assert.equal(captive.state,'running','Prisoners can escape if their escort is defeated on shore');
  assert.equal(b.winner,null,'A freed resident still counts as a survivor');
 }
-{
+for(const occupied of [false,true]){
  const b=new Battle(4,()=>.5,true);b.time=b.arrivalEnd+1;
- for(const resident of b.units.filter(u=>u.civilian)){resident.houseId=1;resident.state='hiding';resident.sheltered=true;}
+ for(const resident of b.units.filter(u=>u.civilian)){resident.houseId=occupied?1:2;resident.state='hiding';resident.sheltered=true;}
  b.checkVictory();
  const raider=b.units[1];raider.raidHouse=1;raider.raidDuration=1;raider.raidDelay=0;raider.raidFromX=raider.x;raider.raidFromY=raider.y;
  b.advance(1.1);
  assert.equal(raider.state,'inside');assert.equal(b.settlement[1].symbolType,'hearts');
- assert(b.settlement[1].symbolUntil>b.time,'Occupied houses also show symbols during post-battle looting');
+ assert(b.settlement[1].symbolUntil>b.time,'Both empty and occupied houses show symbols during post-battle looting');
 }
 {
  const b=new Battle(4,()=>.5,true),resident=b.units[0];

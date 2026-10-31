@@ -7,7 +7,7 @@
   static RETREAT=270;
   static CLEAR=296;
   static LAND=.66;
-  constructor(count=64,random=Math.random,village=false){this.village=village;this.count=count;this.random=random;this.round=0;this.reset();}
+  constructor(count=64,random=Math.random,village=false){this.village=village;this.count=count;this.vikingCount=village?Math.min(Math.floor(count/2),count<64?9:12):Math.floor(count/2);this.random=random;this.round=0;this.reset();}
   range(a,b){return a+(b-a)*this.random();}
   reset(){
    this.time=0;this.round++;this.effects=[];this.effectId=0;this.arrows=[];this.arrowId=0;this.houseEncounterId=0;
@@ -38,17 +38,20 @@
      nextShot:this.arrivalEnd+this.range(8,16),shotAt:-10,exitX:null};
    });
    if(this.village)this.catapults=[];
-   this.units=Array.from({length:this.count},(_,id)=>{
-    const team=id%2,lane=Math.floor(id/2)%4,entryX=team?1.12+id*.006:-.12-id*.006;
+   const unitCount=this.village?Math.ceil(this.count/2)+this.vikingCount:this.count;
+   this.units=Array.from({length:unitCount},(_,id)=>{
+    const team=this.village&&id>=this.vikingCount*2?0:id%2;
+    const rank=this.village&&id>=this.vikingCount*2?id-this.vikingCount:Math.floor(id/2);
+    const lane=rank%4,entryX=team?1.12+id*.006:-.12-id*.006;
     const boat=team===1?Math.floor(id/2)%fleetSize:null;
-    const rank=Math.floor(id/2),squad=Math.floor(rank/8),slot=rank%8,archer=(!this.village||team===1)&&id%8<2;
+    const squad=Math.floor(rank/8),slot=rank%8,archer=(!this.village||team===1)&&id%8<2;
     const strategy=this.formations[team][squad];
     const centerX=.17+(squad%2)*.19,centerY=.685+Math.floor(squad/2)*.14;
     const column=Math.floor(slot/4),front=strategy==='wedge'?-.018*Math.abs(lane-1.5):strategy==='flank'?.012*lane:0;
     const targetX=centerX+front-column*.03-(archer?.035:0)+this.range(-.004,.004);
     const targetY=centerY+lane*.032;
-    const seats=boat===null?0:Math.ceil((this.count/2-boat)/fleetSize),seat=Math.floor(rank/fleetSize);
-    return {id,team,lane,squad,boat,seatOffset:(seat-(seats-1)/2)*Math.min(26,150/Math.max(1,seats-1)),archer,spearman:(!this.village||team===1)&&!archer&&rank%3===1,strategy,civilian:this.village&&team===0,female:rank%2===0,fleeDelay:this.range(0,7),
+    const seats=boat===null?0:Math.ceil((this.vikingCount-boat)/fleetSize),seat=Math.floor(rank/fleetSize);
+    return {id,rank,team,lane,squad,boat,seatOffset:(seat-(seats-1)/2)*Math.min(26,150/Math.max(1,seats-1)),archer,spearman:(!this.village||team===1)&&!archer&&rank%3===1,strategy,civilian:this.village&&team===0,female:rank%2===0,fleeDelay:this.range(0,7),
      x:team?this.boats[boat].x:targetX+.16,y:team?.35:targetY,entryX,
      targetX:team?1-targetX:targetX+.16,targetY,bend:this.range(-.015,.015),
      speed:this.range(32,57),decisionAt:0,side:0,enemyId:null,
@@ -57,10 +60,10 @@
      attackAt:-10,attackStyle:'overhead',attackDuration:.8,impactDelay:.34,nextAttack:this.range(15,19),struck:true,hp:3+Math.floor(this.random()*3),hitAt:-10};
    });
    if(this.village)for(const u of this.units.filter(u=>u.civilian)){
-    const house=this.settlement[1+Math.floor(u.id/2)%(this.settlement.length-1)];
+    const house=this.settlement[1+u.rank%(this.settlement.length-1)];
     u.x=u.targetX=clamp(house.x+this.range(-.025,.04),.035,.55);
     u.y=u.targetY=clamp(house.y+this.range(.005,.025),Battle.LAND,.98);
-    u.y=u.targetY=Math.min(u.y,.95);u.seekShelter=Math.floor(u.id/2)%3!==0;
+    u.y=u.targetY=Math.min(u.y,.95);u.seekShelter=u.rank%3!==0;
    }
   }
   get phase(){
@@ -180,9 +183,13 @@
    if(house.encounter){u.state='guarding';u.enemyId=null;u.decisionAt=0;return;}
    const dx=(house.x-u.x)*width,dy=(y-u.y)*height;
    if(Math.hypot(dx,dy)>9){u.facing=dx<0?-1:1;this.move(u,dx,dy,dt,width,height);return;}
-   const type=this.houseEncounterId++%2===0?'hearts':'skulls',until=this.time+this.range(4.5,6);
-   house.encounter={resident:enemy.id,visitor:u.id,type,until};house.symbolType=type;house.symbolUntil=until+1.5;
+   const until=this.time+this.range(4.5,6),type=this.signalHouse(house,until+1.5);
+   house.encounter={resident:enemy.id,visitor:u.id,type,until};
    u.x=house.x;u.y=y;u.state='inside';u.visitingHouse=house.id;u.attackAt=-10;u.shotAt=-10;
+  }
+  signalHouse(house,until,type=null){
+   house.symbolType=type??(this.houseEncounterId++%2===0?'hearts':'skulls');
+   house.symbolUntil=Math.max(house.symbolUntil??0,until);return house.symbolType;
   }
   returnToBoat(u,width,height){
    const boat=this.boats[u.boat],seat=u.seatOffset*boat.scale/width;
@@ -336,8 +343,9 @@
       u.facing=house.x<u.raidFromX?-1:1;u.state='running';
      }else if(age<u.raidDuration+2.2){
       u.x=house.x;u.y=house.y;u.state='inside';
-      if(this.village&&!u.raidSignaled&&this.units.some(resident=>resident.civilian&&resident.deadAt===null&&resident.houseId===house.id&&resident.state==='hiding')){
-       house.symbolType='hearts';house.symbolUntil=this.time+5.5;u.raidSignaled=true;
+      if(!u.raidSignaled){
+       const peaceful=this.units.some(resident=>resident.civilian&&resident.deadAt===null&&resident.sheltered&&resident.houseId===house.id);
+       this.signalHouse(house,this.time+5.5,peaceful?'hearts':null);u.raidSignaled=true;
       }
      }
      else{

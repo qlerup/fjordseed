@@ -21,8 +21,11 @@ with sync_playwright() as p:
   assert page.locator('main').evaluate('e=>e.inert')
   def advance(seconds):
    page.evaluate('seconds=>{for(let i=0;i<seconds*20;i++)testBattle.advance(.05,innerWidth,innerHeight);dispatchEvent(new Event("resize"));}',seconds)
+   assert page.evaluate('''()=>testBattle.units.filter(u=>u.team===1&&u.state==='inside').every(u=>{const id=u.visitingHouse??u.raidHouse;const symbols=document.querySelector('.house-symbols.is-active[data-house="'+id+'"]');if(!symbols)return false;const badge=symbols.querySelector('.house-symbol-badge');return getComputedStyle(symbols).display!=='none'&&getComputedStyle(badge).opacity==='1'&&badge.getBoundingClientRect().width>=36;})''')
   expect(page.locator('.viking-settlement-house')).to_have_count(9)
   expect(page.locator('.viking-longship')).to_have_count(3)
+  assert page.evaluate('testBattle.units.filter(u=>u.team===1).length')==(9 if width<700 else 12)
+  assert page.evaluate('testBattle.units.filter(u=>u.civilian).length')==(20 if width<700 else 32)
   expect(page.locator('.village-fields')).to_have_count(1)
   assert page.locator('.village-resident.is-woman').count()>0
   assert page.locator('.village-resident:not(.is-woman)').count()>0
