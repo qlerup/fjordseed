@@ -245,3 +245,173 @@ html[data-theme=nordic] footer{color:#94a18e;border-color:#354139;font-size:10px
 @media(max-width:600px){html[data-theme=nordic] .traffic-flow{padding:16px 14px}html[data-theme=nordic] .flow-rate{padding:12px;gap:8px;grid-template-columns:20px minmax(0,1fr)}html[data-theme=nordic] .flow-rate-icon{width:20px;height:22px;font-size:15px}html[data-theme=nordic] .flow-rate strong{font-size:20px}html[data-theme=nordic] .flow-title{font-size:14px}}
 @media(max-width:380px){html[data-theme=nordic] .nav{font-size:11px;gap:5px}html[data-theme=nordic] .flow-rate strong{font-size:17px}}
 @media(prefers-reduced-motion:reduce){html[data-theme=nordic] .ambient-glow{animation:none;will-change:auto}html[data-theme=nordic] .seed-active .seed-state::before{animation:none}html[data-theme=nordic] :is(.nav,.primary){transition:none}}
+
+/* Nordic operations workspace: independent composition, shared controls. */
+html[data-theme=nordic] main{max-width:1880px;padding:0 32px}
+html[data-theme=nordic] .heading{min-height:94px;padding:14px 0 18px}
+html[data-theme=nordic] .heading h1{font-size:25px}
+html[data-theme=nordic] .heading .eyebrow{margin:0 0 5px}
+html[data-theme=nordic] #overview-view{display:grid;grid-template-columns:292px minmax(0,1fr);gap:24px;align-items:start}
+html[data-theme=nordic] #overview-view[hidden]{display:none}
+html[data-theme=nordic] #tracker-overview{min-width:0}
+html[data-theme=nordic] #tracker-overview>.section-heading{margin:0;padding:0 0 10px;border-bottom:1px solid var(--border)}
+html[data-theme=nordic] #tracker-overview>.muted{margin:10px 0 14px;font-size:11px}
+html[data-theme=nordic] #tracker-insights{margin:0;border-radius:4px;overflow:hidden}
+html[data-theme=nordic] .insights-heading{padding:20px 24px;border-bottom:1px solid var(--border)}
+html[data-theme=nordic] .insights-heading h3{font-size:24px;letter-spacing:-.7px}
+html[data-theme=nordic] .insights-layout{display:flex;flex-direction:column;border:0}
+html[data-theme=nordic] .insights-account-details{padding:16px 24px;border:0;border-bottom:1px solid var(--border);background:#141e18}
+html[data-theme=nordic] .insights-account-details>.insights-eyebrow{margin:0}
+html[data-theme=nordic] .insights-account-details .tracker-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:16px 0}
+html[data-theme=nordic] .insights-account-details .tracker-stats>div{padding-left:12px;border-left:2px solid #65784e}
+html[data-theme=nordic] .insights-account-details .tracker-stats strong{font-size:19px}
+html[data-theme=nordic] #insights-account-details>p{font-size:10px;margin:4px 0;padding:0}
+html[data-theme=nordic] #insights-account-details .tracker-stats+p{margin:4px 0;padding:0}
+html[data-theme=nordic] .insights-visual{display:grid;grid-template-columns:minmax(0,1fr) 190px;align-items:stretch;min-width:0}
+html[data-theme=nordic] .insights-selectors{grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:0;padding:8px;background:#18221b;border-left:1px solid var(--border)}
+html[data-theme=nordic] .insights-selectors .insights-tab{display:grid;grid-template-columns:1fr auto;align-items:center;gap:5px;padding:12px;border-radius:3px;border:1px solid transparent;min-height:64px}
+html[data-theme=nordic] .insights-selectors .insights-tab[aria-pressed=true]{background:#35432d;border-color:#768460}
+html[data-theme=nordic] .insights-selectors .insights-tab::after{display:none}
+html[data-theme=nordic] .insights-selectors .insights-metric-name{grid-column:1/-1;font-size:10px}
+html[data-theme=nordic] .insights-selector-value{font-size:17px}
+html[data-theme=nordic] .insights-selectors .insights-all-button{display:flex;align-self:stretch;justify-self:stretch;margin:8px 0 0;min-height:40px}
+html[data-theme=nordic] .insights-visual .insights-viewport{grid-column:1;grid-row:1;min-height:460px;height:100%}
+html[data-theme=nordic] .insights-visual .insights-face{padding:24px;grid-template-rows:auto minmax(0,1fr);gap:16px}
+html[data-theme=nordic] .insights-visual .insights-change{font-size:22px;font-weight:600}
+html[data-theme=nordic] .insights-visual .insights-source{font-size:10px}
+html[data-theme=nordic] .insights-error:not([hidden]){grid-column:1/-1;grid-row:1;margin:0}
+html[data-theme=nordic] .insights-error:not([hidden])~:is(.insights-selectors,.insights-viewport){grid-row:2}
+/* Live connection rail: rates, vertical route, then connection note. */
+html[data-theme=nordic] #traffic-flow{display:flex;flex-direction:column;gap:20px;padding:20px;margin:0;border-radius:4px;background:#17211b}
+html[data-theme=nordic] .flow-header{flex-direction:column;align-items:stretch;gap:14px}
+html[data-theme=nordic] #flow-status{align-self:flex-start;font-size:11px}
+html[data-theme=nordic] .flow-title{font-size:17px}
+html[data-theme=nordic] .flow-rates{order:1;display:grid;grid-template-columns:1fr;gap:10px;min-height:0}
+html[data-theme=nordic] .flow-rate{display:grid;grid-template-columns:28px minmax(0,1fr) 36px;padding:18px 14px;gap:12px;border:0;border-left:3px solid var(--flow-mint);border-radius:0;background:#23301f}
+html[data-theme=nordic] .flow-rate-upload{border-left-color:var(--flow-blue);background:#202e2c}
+html[data-theme=nordic] .flow-rate strong{font-size:27px;letter-spacing:-.8px}
+html[data-theme=nordic] .flow-equalizer{grid-column:3;grid-row:1;align-self:end;height:28px;gap:3px}
+html[data-theme=nordic] .flow-equalizer i{width:3px}
+html[data-theme=nordic] .flow-stage{order:2;width:100%;height:350px;padding:0;border:0;margin:0}
+html[data-theme=nordic] .flow-route{grid-template-columns:1fr 1fr;grid-template-rows:90px 140px 100px;gap:10px 0}
+html[data-theme=nordic] .flow-computer{grid-column:1/-1;grid-row:1}
+html[data-theme=nordic] .flow-vpn{grid-column:1/-1;grid-row:2}
+html[data-theme=nordic] .flow-tracker{grid-column:1;grid-row:3}
+html[data-theme=nordic] .flow-peers{grid-column:2;grid-row:3}
+html[data-theme=nordic] .flow-node{grid-template-rows:54px 20px 18px}
+html[data-theme=nordic] .flow-node.flow-vpn{grid-template-rows:78px 20px 18px}
+html[data-theme=nordic] .flow-node>span{font-size:9px}
+html[data-theme=nordic] .flow-note{order:3;margin:0;padding:14px 0 0;border-top:1px solid var(--border);line-height:1.7;font-size:11px}
+/* Downloads have a status rail and a separate searchable work list. */
+@media(min-width:1101px){
+ html[data-theme=nordic] .downloads-page main{grid-template-columns:252px minmax(0,1fr);grid-template-rows:auto auto auto 178px auto auto;column-gap:24px;align-items:start}
+ html[data-theme=nordic] .downloads-page main>*{grid-column:1/-1}
+ html[data-theme=nordic] .downloads-page #download-summary{grid-column:1;grid-row:3 / 5;display:flex;flex-direction:column;margin:0;border-radius:4px}
+ html[data-theme=nordic] .downloads-page #download-summary>div{padding:20px;border:0;border-bottom:1px solid var(--border)}
+ html[data-theme=nordic] .downloads-page #download-summary>div:last-child{border:0}
+ html[data-theme=nordic] .downloads-page #download-queue{grid-column:1;grid-row:5;display:flex;flex-direction:column;align-items:stretch;gap:20px;margin:16px 0 0;padding:20px;border-radius:4px}
+ html[data-theme=nordic] .downloads-page #download-queue>div:last-child{max-width:none}
+ html[data-theme=nordic] .downloads-page #download-toolbar{grid-column:2;grid-row:3;margin:0;align-self:start;flex-wrap:wrap;border-radius:4px;padding:16px}
+ html[data-theme=nordic] .downloads-page #downloads-view{grid-column:2;grid-row:4 / 7;margin-top:16px}
+ html[data-theme=nordic] .downloads-page #rss-view{grid-column:2;grid-row:6}
+ html[data-theme=nordic] main:has(#settings-tabs:not([hidden])){display:grid;grid-template-columns:220px minmax(0,1fr);column-gap:28px;align-items:start}
+ html[data-theme=nordic] main:has(#settings-tabs:not([hidden]))>*{grid-column:1/-1;min-width:0}
+ html[data-theme=nordic] main>#settings-tabs:not([hidden]){grid-column:1;grid-row:3 / span 12;display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:4px}
+ html[data-theme=nordic] #settings-tabs a{text-align:left;padding:14px 12px;border-left:2px solid transparent}
+ html[data-theme=nordic] #settings-tabs a[aria-current=page]{border-left-color:#d2b27a}
+ html[data-theme=nordic] main:has(#settings-tabs:not([hidden]))>:is(#connection,#storage-view,#streaming-view,#conversion-view,#trackers-view,#appearance-view){grid-column:2;grid-row:3}
+}
+html[data-theme=nordic] .downloads-page .torrent{position:relative;border-left:3px solid #5e7863;border-bottom:1px solid var(--border);padding:20px;margin:0 0 8px;background:#152019;border-radius:3px}
+html[data-theme=nordic] .downloads-page .torrent:has(.download-progress){border-left-color:#a3bec7}
+html[data-theme=nordic] .downloads-page .torrent-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px 24px;align-items:start}
+html[data-theme=nordic] .downloads-page .torrent-head h3{grid-column:1;grid-row:1;font-size:15px}
+html[data-theme=nordic] .downloads-page .torrent-summary{grid-column:1;grid-row:2;display:flex;gap:24px}
+html[data-theme=nordic] .downloads-page .torrent-actions{grid-column:2;grid-row:1 / span 2;display:grid;grid-template-columns:repeat(2,auto);gap:6px}
+html[data-theme=nordic] .downloads-page .torrent-actions button{padding:8px 10px;font-size:11px}
+html[data-theme=nordic] .downloads-page .torrent-progress{margin:16px 0 0;padding-top:12px;border-top:1px solid #ffffff0b}
+html[data-theme=nordic] .downloads-page .torrent-progress-track{height:8px}
+html[data-theme=nordic] .downloads-page .torrent-progress .progress{height:8px}
+@media(max-width:1250px){
+ html[data-theme=nordic] #overview-view{grid-template-columns:250px minmax(0,1fr);gap:18px}
+ html[data-theme=nordic] .insights-visual{grid-template-columns:minmax(0,1fr) 160px}
+ html[data-theme=nordic] .insights-account-details .tracker-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+ html[data-theme=nordic] .insights-selector-value{font-size:15px}
+ html[data-theme=nordic] .downloads-page .torrent-actions{grid-template-columns:1fr}
+}
+@media(max-width:1000px){
+ html[data-theme=nordic] main{padding:0 22px}
+ html[data-theme=nordic] #overview-view{grid-template-columns:minmax(0,1fr)}
+ html[data-theme=nordic] #traffic-flow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+ html[data-theme=nordic] .flow-header{grid-column:1/-1;grid-row:1;flex-direction:row;align-items:center}
+ html[data-theme=nordic] .flow-rates{grid-column:1;grid-row:2;align-self:center}
+ html[data-theme=nordic] .flow-stage{grid-column:2;grid-row:2;height:350px}
+ html[data-theme=nordic] .flow-note{grid-column:1/-1;grid-row:3}
+ html[data-theme=nordic] .insights-account-details .tracker-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media(max-width:650px){
+ html[data-theme=nordic] main{padding:0 16px}
+ html[data-theme=nordic] .heading{min-height:116px}
+ html[data-theme=nordic] .heading h1{font-size:23px}
+ html[data-theme=nordic] #traffic-flow{display:flex;padding:16px;gap:16px}
+ html[data-theme=nordic] .flow-header{flex-direction:column;align-items:stretch;gap:10px}
+ html[data-theme=nordic] .flow-rates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:8px}
+ html[data-theme=nordic] .flow-rate{grid-template-columns:minmax(0,1fr);padding:14px 10px;gap:8px}
+ html[data-theme=nordic] .flow-rate-icon{display:none}
+ html[data-theme=nordic] .flow-rate strong{font-size:21px;letter-spacing:-.6px}
+ html[data-theme=nordic] .flow-equalizer{grid-column:1;grid-row:2;height:14px}
+ html[data-theme=nordic] .flow-stage{height:170px}
+ html[data-theme=nordic] .flow-route{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:1fr 1fr;gap:0}
+ html[data-theme=nordic] .flow-computer{grid-column:1;grid-row:1/3}
+ html[data-theme=nordic] .flow-vpn{grid-column:2;grid-row:1/3}
+ html[data-theme=nordic] .flow-tracker{grid-column:3;grid-row:1}
+ html[data-theme=nordic] .flow-peers{grid-column:3;grid-row:2}
+ html[data-theme=nordic] .flow-node>strong{font-size:10px}
+ html[data-theme=nordic] .flow-node>span{font-size:8px}
+ html[data-theme=nordic] .insights-heading{padding:18px 16px}
+ html[data-theme=nordic] .insights-account-details{padding:16px}
+ html[data-theme=nordic] .insights-account-details .tracker-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ html[data-theme=nordic] .insights-visual{display:flex;flex-direction:column}
+ html[data-theme=nordic] .insights-selectors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;border-left:0;border-bottom:1px solid var(--border);padding:12px}
+ html[data-theme=nordic] .insights-selectors .insights-tab{padding:10px;min-height:58px}
+ html[data-theme=nordic] .insights-selectors .insights-all-button{grid-column:1/-1;margin:0;min-height:40px}
+ html[data-theme=nordic] .insights-visual .insights-viewport{height:340px;min-height:340px;flex:none}
+ html[data-theme=nordic] .insights-visual .insights-face{padding:18px 16px}
+ html[data-theme=nordic] .downloads-page .torrent{padding:16px 12px}
+ html[data-theme=nordic] .downloads-page .torrent-head{grid-template-columns:minmax(0,1fr);gap:12px}
+ html[data-theme=nordic] .downloads-page .torrent-head h3{font-size:14px}
+ html[data-theme=nordic] .downloads-page .torrent-actions{grid-column:1;grid-row:3;display:flex;flex-wrap:wrap}
+ html[data-theme=nordic] .downloads-page .torrent-summary{gap:12px;flex-wrap:wrap}
+}
+
+html[data-theme=nordic] .insights-visual .insights-chart{justify-content:flex-start}
+html[data-theme=nordic] .insights-visual .insights-svg{height:100%;min-height:240px;max-height:340px}
+html[data-theme=nordic] .insights-visual .insights-all-chart{height:280px;min-height:0}
+html[data-theme=nordic] .insights-visual .insights-summary{align-content:start}
+html[data-theme=nordic] #settings-tabs:not([hidden]){min-width:0;width:100%}
+html[data-theme=nordic] #settings-tabs a{min-width:0;width:100%;flex:none}
+/* Desktop navigation hangs from two ropes. Mobile keeps its compact app bar. */
+@media(min-width:1101px){
+ html[data-theme=nordic] body aside{position:relative;width:fit-content;max-width:calc(100% - 64px);min-height:76px;margin:38px auto 18px;padding:14px 24px;gap:10px;border:1px solid #92724b;border-bottom:3px solid #302417;border-radius:6px;background:#292b23 url('/static/nordic-sign.svg') center/auto 100%;box-shadow:inset 0 1px #e4c68b30,inset 0 -2px #0b0e0a99,0 10px 18px #0005;transform-origin:50% -38px;animation:nordic-sign-sway 10s ease-in-out infinite}
+ html[data-theme=nordic] body aside::before,html[data-theme=nordic] body aside::after{content:'';position:absolute;bottom:calc(100% - 3px);width:10px;height:42px;background:repeating-linear-gradient(133deg,#695333 0 2px,#b29a68 2px 4px,#76603c 4px 6px);border:1px solid #43391f;border-radius:2px;box-shadow:1px 0 2px #0007;pointer-events:none}
+ html[data-theme=nordic] body aside::before{left:54px}
+ html[data-theme=nordic] body aside::after{right:54px}
+ html[data-theme=nordic] .brand{margin-right:18px;color:#f0e5ce;text-shadow:0 1px #0009}
+ html[data-theme=nordic] .nav{color:#c6c6b1;background:#10180f22;border-color:#e2c9950c}
+ html[data-theme=nordic] .nav.active{background:#c5a26725;border-color:#c7a46c77;color:#f2d59c;box-shadow:inset 0 -2px #c6a263,inset 0 1px #f3d9a80d}
+ html[data-theme=nordic] .nav:hover{background:#e7c88b18;color:#fff0ce}
+ html[data-theme=nordic] .aside-bottom{margin-left:16px}
+ html[data-theme=nordic] .aside-bottom :is(a,.quiet){color:#d6cdb6}
+ html[data-theme=nordic][data-animation=false] body aside{animation:none}
+}
+@keyframes nordic-sign-sway{0%,100%{transform:rotate(-.14deg) translateX(-.5px)}50%{transform:rotate(.14deg) translateX(.5px)}}
+@media(prefers-reduced-motion:reduce){html[data-theme=nordic] body aside{animation:none}}
+@media(max-width:650px){html[data-theme=nordic] .insights-visual .insights-svg{min-height:180px;max-height:220px}}
+/* Braided frame on substantial surfaces; form controls keep their clear edges. */
+html[data-theme=nordic] body :is(.connection,#traffic-flow,#tracker-insights,.download-toolbar,#download-summary,#settings-tabs,dialog,.theme-group),
+html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){border:6px solid #74623f;border-image:url('/static/nordic-rope.svg') 14 / 6px / 0 round;border-radius:0}
+html[data-theme=nordic] .shared-download-queue{background:#202a20}
+html[data-theme=nordic] .theme-group{padding:18px}
+@media(max-width:650px){
+ html[data-theme=nordic] body :is(.connection,#traffic-flow,#tracker-insights,.download-toolbar,#download-summary,#settings-tabs,dialog,.theme-group),
+ html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){border-width:4px;border-image-width:4px}
+}

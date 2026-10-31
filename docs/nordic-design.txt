@@ -56,3 +56,18 @@ Source: https://github.com/google/fonts/tree/main/ofl/notosansrunic
 
 Original image prompt (built-in image_gen; the final UI uses this only as faint edge scenery)
 Use case: historical-scene. Asset type: ultra-wide photographic masthead background for a carefully designed Viking Age inspired productivity app. Create a realistic archaeological reconstruction of a quiet Scandinavian coastal trading harbour around 1000 CE at dawn. Small clinker-built oak coastal cargo vessel inspired by Skuldelev 3 moored in the right third, natural brown timber hull, single mast with furled rectangular wool sail in faded ochre and muted iron red, simple rope rigging, no oversized dragon head, no shields. Low shoreline at right with two modest timber buildings with turf or thatch roofs. Weathered timber pier at far right. Calm pewter blue sea, low mist and wooded rocky coastline receding into distance, warm muted dawn light behind cloud. Composition: horizon at lower middle, huge quiet empty sky and water on LEFT and centre for white application heading text. Photorealistic landscape / museum reconstruction, convincing natural materials, dignified and quiet. Palette: charcoal, grey seawater, oak, flax, ochre, muted iron red. Wide 16:9 panorama suitable to crop into a shallow header. No people, no fighting, no medieval castles, no horned helmets, no magical symbols, no runic inscriptions, no modern objects, no text or logo. This is an illustrative reconstruction not an exact depiction of any excavated harbour.
+
+Workspace revision, 31 October 2026
+Overview now has a dedicated left traffic/VPN rail with a vertical network route.
+Tracker totals run across the top of the main workspace; graph selectors form a
+right inspector column. Downloads use a separate status/queue rail, searchable
+worklist and new action/progress composition. Settings use a left navigation rail.
+These layouts collapse independently on tablet/mobile; shared control behavior stays intact.
+Desktop navigation (>1100px) hangs as a dark oak sign from two visible ropes.
+It sways continuously by 0.14 degrees, including on hover, as requested. Mobile
+retains the compact app bar. The motion preference and reduced-motion setting
+both disable the sway. nordic-sign.svg is original vector artwork, not a photograph.
+
+The desktop sign is content-sized and centered, with no empty full-width extension.
+Braided rope frames (original nordic-rope.svg) edge the major panels and dialogs;
+small controls retain clear conventional borders. Mobile frames are thinner.

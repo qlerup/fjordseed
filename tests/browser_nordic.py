@@ -104,22 +104,38 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('html')).to_have_attribute('data-animation','true')
             page.emulate_media(reduced_motion='reduce')
             assert glow.evaluate('e=>getComputedStyle(e).animationName') == 'none'
+            assert page.locator('aside').evaluate('e=>getComputedStyle(e).animationName') == 'none'
             page.emulate_media(reduced_motion='no-preference')
             for width in (1920,1440,900,390,320):
                 page.set_viewport_size({'width':width,'height':1000})
                 page.goto(base+'/#overview')
                 expect(page.locator('#tracker-insights')).to_be_visible()
                 expect(page.locator('.insights-current svg')).to_be_visible()
+                nav=page.locator('aside')
+                assert nav.evaluate('e=>getComputedStyle(e).animationName') == ('nordic-sign-sway' if width>1100 else 'none')
+                if width>1100:
+                    # The sign intentionally keeps moving while hovered.
+                    box=nav.bounding_box()
+                    assert box['width'] < 950
+                    assert abs(box['x']+box['width']/2-width/2) < 4
+                    page.mouse.move(box['x']+box['width']/2,box['y']+box['height']/2)
+                    assert nav.evaluate('e=>getComputedStyle(e).animationPlayState') == 'running'
+                    assert page.locator('#traffic-flow').bounding_box()['x'] < page.locator('#tracker-overview').bounding_box()['x']
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('overview',width)
                 page.screenshot(path=str(root/f'test-results/nordic-overview-{width}.png'),full_page=True,animations='disabled')
                 page.goto(base+'/#appearance')
                 expect(page.locator('#appearance-view')).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('appearance',width)
                 page.screenshot(path=str(root/f'test-results/nordic-appearance-{width}.png'),full_page=True)
-                page.locator('.nav[href="#torrents"]').click()
+                # Skip Playwright's stationary-element wait for the swaying sign.
+                page.locator('.nav[href="#torrents"]').click(force=True)
                 expect(page.locator('.nav.active')).to_have_count(1)
                 expect(page.locator('.nav[href="#torrents"]')).to_have_attribute('aria-current','page')
                 expect(page.locator('#torrent-list')).to_contain_text('Northern landscapes')
+                if width>1100:
+                    toolbar=page.locator('#download-toolbar').bounding_box()
+                    worklist=page.locator('#downloads-view').bounding_box()
+                    assert 0 <= worklist['y']-(toolbar['y']+toolbar['height']) <= 24
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), ('downloads',width)
                 page.screenshot(path=str(root/f'test-results/nordic-downloads-{width}.png'),full_page=True,animations='disabled')
                 page.locator('[data-download-filter=manual]').click()
@@ -148,6 +164,9 @@ with tempfile.TemporaryDirectory() as folder:
                                  ('trackers','#trackers-view'),('conversion','#conversion-view'),('streaming','#streaming-view')]:
                     page.goto(base+'/#'+tab)
                     expect(page.locator(view)).to_be_visible()
+                    if width>1100:
+                        menu=page.locator('#settings-tabs').bounding_box()
+                        assert menu['x']+menu['width'] <= page.locator(view).bounding_box()['x']-16
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), (tab,width)
                     if width in (1440,390):
                         page.screenshot(path=str(root/f'test-results/nordic-{tab}-{width}.png'),full_page=True,animations='disabled')
