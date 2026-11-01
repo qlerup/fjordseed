@@ -43,6 +43,14 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#traffic-flow')).to_be_visible()
             assert page.evaluate('''() => {
                 const scene=new FjordNordicCaravan();
+                for(const w of [300,800,1400])for(const direction of [0,1])for(const link of [0,1]){
+                    const route=scene.route(direction,link,w,390);
+                    const name=direction?(link?'vpn':'seed'):(link?'vpn':'torrent');
+                    const gate=scene.gate(name,w,390),start=scene.point(route,0);
+                    if(Math.hypot(start.x-gate.x,start.y-gate.y)>.001)return false;
+                    if(Math.abs(scene.point(route,.1).y-gate.y)>.001)return false;
+                }
+
                 const cargo=Array.from({length:100},(_,i)=>scene.loot(i));
                 if(cargo.filter(c=>c==='gold').length!==70)return false;
                 if(cargo.filter(c=>c==='captive').length!==30)return false;
