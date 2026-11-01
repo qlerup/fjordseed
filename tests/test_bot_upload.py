@@ -15,7 +15,7 @@ def test_choices_keep_feed_credit_and_account_upload_separate_and_drop_secrets()
     result = upload_choices(rss,trackers,now=1100)
     assert result == {'ok':True,'options':[
         dict(kind='rss',id='feed1',name='Film',credited_uploaded=2048,estimated=True,updated_at=None),
-        dict(kind='tracker',id='t1',name='Tracker',credited_uploaded=8192,estimated=False,updated_at=1000)]}
+        dict(kind='tracker',id='t1',name='Tracker',credited_uploaded=8192,credited_downloaded=None,ratio=None,estimated=False,updated_at=1000)]}
     assert 'secret' not in str(result) and 'private' not in str(result)
 
 
@@ -45,3 +45,17 @@ def test_upload_endpoint_requires_hub_app_key_and_returns_only_projection(tmp_pa
     assert response.json['options'][0]['credited_uploaded']==1234
     assert 'private' not in response.get_data(as_text=True)
     assert response.headers['Cache-Control']=='no-store'
+
+
+def test_tracker_ratio_and_download_balance_are_fresh_and_public_only():
+    rss,trackers=Mock(),Mock();rss.public.return_value={'feeds':[]}
+    data=dict(id='t',name='Tracker',status='ok',updated_at=1000,
+              stats={'ratio':3.25,'uploaded':13000,'downloaded':4000},api_key='private')
+    trackers.public.return_value={'trackers':[data]}
+    row=upload_choices(rss,trackers,now=1100)['options'][0]
+    assert row['ratio']==3.25 and row['credited_downloaded']==4000
+    assert 'private' not in str(row)
+    for status,now in [('error',1100),('ok',1600),('ok',900)]:
+        trackers.public.return_value={'trackers':[dict(data,status=status)]}
+        row=upload_choices(rss,trackers,now=now)['options'][0]
+        assert row['ratio'] is None and row['credited_downloaded'] is None and row['credited_uploaded'] is None

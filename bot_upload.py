@@ -20,5 +20,7 @@ def upload_choices(rss, trackers, now=None):
         fresh = tracker.get('status') == 'ok' and updated is not None and 0 <= now - updated < 600
         choices.append({'kind': 'tracker', 'id': tracker['id'], 'name': tracker['name'],
                         'credited_uploaded': amount(tracker.get('stats', {}).get('uploaded')) if fresh else None,
+                        'credited_downloaded': amount(tracker.get('stats', {}).get('downloaded')) if fresh else None,
+                        'ratio': amount(tracker.get('stats', {}).get('ratio')) if fresh else None,
                         'estimated': False, 'updated_at': updated if fresh else None})
     return {'ok': True, 'options': choices}
