@@ -37,8 +37,9 @@ def test_activity_filtering_happens_before_list_limit(tmp_path, monkeypatch):
     monkeypatch.setenv('FJORDHUB_API_KEY', 'seed-test-secret')
     app = create_app(tmp_path, testing=True, runtime_factory=FakeRuntime)
     rows = [dict(name='Paused '+str(i),state='pausedDL',progress=.2) for i in range(501)]
+    rows += [dict(name='Waiting '+str(i),state='stalledUP',progress=1,upspeed=0) for i in range(501)]
     rows += [dict(name='Downloading',state='downloading',progress=.5),
-             dict(name='Seeding',state='stalledUP',progress=1),
+             dict(name='Seeding',state='uploading',progress=1,upspeed=2048),
              dict(name='Queued',state='queuedDL',progress=.1),
              dict(name='Stopped seed',state='stoppedUP',progress=1)]
     app.extensions['runtime'].status=lambda:dict(torrents_available=True,torrents=rows)
@@ -49,3 +50,20 @@ def test_activity_filtering_happens_before_list_limit(tmp_path, monkeypatch):
     response=client.get('/api/hub/bot/seeding?activity=seeding',headers=headers)
     assert [row['name'] for row in response.json['torrents']]==['Seeding']
     assert client.get('/api/hub/bot/seeding?activity=bad',headers=headers).status_code==400
+
+
+def test_seeding_requires_valid_positive_upload_speed_and_active_upload_state(tmp_path,monkeypatch):
+    monkeypatch.setenv('FJORDHUB_URL','http://hub')
+    monkeypatch.setenv('FJORDHUB_API_KEY','seed-test-secret')
+    app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
+    rows=[dict(name='Active',state='uploading',upspeed=1024),
+          dict(name='Forced active',state='forcedUP',upspeed=2048)]
+    rows += [dict(name='Hidden',state=state,upspeed=speed) for state,speed in [
+        ('stalledUP',0),('stalledUP',1024),('uploading',0),('forcedUP',0),
+        ('uploading',None),('uploading',-1),('uploading',True),
+        ('uploading',float('nan')),('uploading',float('inf')),
+        ('pausedUP',1024),('stoppedUP',1024),('queuedUP',1024),('downloading',1024)]]
+    app.extensions['runtime'].status=lambda:dict(torrents_available=True,torrents=rows)
+    response=app.test_client().get('/api/hub/bot/seeding?activity=seeding',headers={'X-Hub-Key':'seed-test-secret'})
+    assert response.status_code==200 and response.json['total']==2 and not response.json['more']
+    assert [r['name'] for r in response.json['torrents']]==['Active','Forced active']

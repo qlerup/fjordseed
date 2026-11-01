@@ -2,6 +2,7 @@ import base64
 import ipaddress
 import io
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -237,7 +238,9 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         if activity not in {'all', 'seeding', 'downloading'}:
             return jsonify(ok=False, error='Ugyldig aktivitet'), 400
         if activity == 'seeding':
-            rows = [row for row in rows if row.get('state') in {'uploading', 'stalledUP', 'forcedUP'}]
+            rows = [row for row in rows if row.get('state') in {'uploading', 'forcedUP'}
+                    and type(row.get('upspeed')) in (int, float)
+                    and math.isfinite(row['upspeed']) and row['upspeed'] > 0]
         elif activity == 'downloading':
             rows = [row for row in rows if row.get('state') in
                     {'downloading', 'forcedDL', 'stalledDL', 'metaDL', 'forcedMetaDL'}
