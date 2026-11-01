@@ -85,16 +85,37 @@
    if(!farm){this.line(c,[[-12,0],[-12,-53]],'#bda072',1.5);this.shape(c,[[-11,-52],[10,-48],[-11,-40]],'#894c37','#d8b77b');}
    c.restore();
   }
+  road(c,path,width){
+   c.save();c.lineCap='round';c.lineJoin='round';
+   const trace=()=>{c.beginPath();c.moveTo(path.a.x,path.a.y);c.bezierCurveTo(path.c.x,path.c.y,path.d.x,path.d.y,path.b.x,path.b.y);};
+   // Soft earthen shoulders and a worn, lighter walking surface.
+   for(const [size,color] of [[width+8,'#191b1280'],[width+4,'#555036b8'],[width,'#8b7551eb'],[width*.63,'#a18a603d']]){
+    trace();c.strokeStyle=color;c.lineWidth=size;c.stroke();
+   }
+   // Deterministic grit and broken verge stones follow the same curve as feet.
+   for(let i=1;i<180;i++){
+    const t=i/180,p=this.point(path,t),next=this.point(path,Math.min(1,t+.002));
+    const angle=Math.atan2(next.y-p.y,next.x-p.x),nx=-Math.sin(angle),ny=Math.cos(angle);
+    const scatter=Math.sin(i*127.1+path.a.x)*width*.43;
+    const edge=i%7===0,offset=edge?(i%2?1:-1)*width*.52:scatter;
+    this.ellipse(c,p.x+nx*offset,p.y+ny*offset,edge?1.8:.7,edge?1:.45,
+     edge?(i%2?'#c0b18a88':'#363c2999'):(i%3?'#d8c39344':'#433b2b55'));
+   }
+   c.restore();
+  }
   backdrop(w,h){
    const key=w+'x'+h;if(this.cacheKey===key)return;
    this.cacheKey=key;const layer=document.createElement('canvas'),dpr=Math.min(devicePixelRatio||1,2);
    layer.width=Math.round(w*dpr);layer.height=Math.round(h*dpr);const c=layer.getContext('2d');c.scale(dpr,dpr);
    const scale=w<600?.57:Math.min(1.35,w/800);
-   // Sparse grass, stones and barley mark the landscape without drawing lines.
+   // Sparse grass, stones and barley surround the village roads.
    for(let i=0;i<115;i++){
     const x=18+(i*137.51%(w-36)),y=30+(i*79.31%(h-60));
     if(i%4===0)this.ellipse(c,x,y,2.5,1.2,'#baab7940');
     else {this.line(c,[[x-3,y],[x-1,y-5],[x,y],[x+3,y-4]],'#98a16c30',1);}
+   }
+   for(let direction=0;direction<2;direction++)for(let link=0;link<2;link++){
+    this.road(c,this.route(direction,link,w,h),w<600?13:22);
    }
    this.village(c,w*.12,h*.51,scale);
    this.village(c,w*.5,h*.51,scale*1.08,true);
