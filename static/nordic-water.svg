@@ -1,7 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="28" viewBox="0 0 256 28" fill="none">
- <defs><linearGradient id="sea" x2="0" y2="28" gradientUnits="userSpaceOnUse"><stop stop-color="#397a9a" stop-opacity=".85"/><stop offset=".55" stop-color="#164f70" stop-opacity=".75"/><stop offset="1" stop-color="#123853" stop-opacity="0"/></linearGradient></defs>
- <path d="M0 8Q16 0 32 8T64 8T96 8T128 8T160 8T192 8T224 8T256 8V28H0Z" fill="url(#sea)"/>
- <path d="M0 8Q16 0 32 8T64 8T96 8T128 8T160 8T192 8T224 8T256 8" stroke="#9ad9e7" stroke-opacity=".8" stroke-width="1.2"/>
- <path d="M0 17Q16 9 32 17T64 17T96 17T128 17T160 17T192 17T224 17T256 17" stroke="#5caac9" stroke-opacity=".7"/>
- <path d="M10 12q7-4 14 0m50 0q7-4 14 0m50 0q7-4 14 0m50 0q7-4 14 0" stroke="#c9edf0" stroke-opacity=".65" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="768" height="96" viewBox="0 0 768 96" preserveAspectRatio="none">
+ <defs>
+  <linearGradient id="depth" x2="0" y2="1">
+   <stop stop-color="#537c80"/><stop offset=".24" stop-color="#315d66"/><stop offset=".62" stop-color="#183d4a"/><stop offset="1" stop-color="#0c2838" stop-opacity=".15"/>
+  </linearGradient>
+  <linearGradient id="glint" x2="0" y2="1"><stop stop-color="#c7d6ca" stop-opacity=".55"/><stop offset="1" stop-color="#789fa1" stop-opacity=".05"/></linearGradient>
+  <linearGradient id="shore-fade" x2="0" y2="1"><stop offset="0" stop-color="white"/><stop offset=".68" stop-color="white"/><stop offset="1" stop-color="black"/></linearGradient>
+  <mask id="fade"><path fill="url(#shore-fade)" d="M0 0H768V96H0Z"/></mask>
+  <clipPath id="surface"><path d="M0 26C24 20 36 33 65 28S105 13 143 23 187 35 223 25 263 18 299 26 345 34 383 24 426 18 461 27 512 33 549 23 592 19 629 27 684 31 715 25 744 32 768 26V96H0Z"/></clipPath>
+  <filter id="ripples" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+   <feTurbulence type="fractalNoise" baseFrequency=".027 .28" numOctaves="3" seed="18" stitchTiles="stitch" result="noise"/>
+   <feDiffuseLighting in="noise" surfaceScale="1.7" diffuseConstant=".65" lighting-color="#adc6be" result="lit"><feDistantLight azimuth="230" elevation="32"/></feDiffuseLighting>
+   <feBlend in="SourceGraphic" in2="lit" mode="soft-light"/>
+  </filter>
+ </defs>
+ <g clip-path="url(#surface)" mask="url(#fade)">
+  <path fill="url(#depth)" d="M0 0H768V96H0Z" filter="url(#ripples)"/>
+  <g fill="none" stroke="url(#glint)" stroke-linecap="round">
+   <path d="M-12 31C24 19 38 38 70 30S113 19 149 29 192 37 226 29 267 21 302 30 349 37 386 28 429 22 463 31 513 36 552 28 596 23 633 31 685 36 719 29 750 36 780 29" stroke-width="1.4"/>
+   <path d="M-20 49Q8 43 32 47T93 46M116 43q22-6 48 0m18 11q27-7 65-1m17-9q25-7 53-1m18 8q23-5 49-2m22-7q32-5 61 1m22 9q25-8 60-2m26-6q28-6 55 0m22 9q20-5 51-2m16-9q32-4 65 0m20 7q22-4 43-1" stroke-width="1"/>
+   <path d="M9 65q27-4 51 0m22 7q24-5 62-2m20-9q35-5 62 0m23 12q21-4 46-1m26-8q25-5 59-1m22 8q26-4 49 0m26-10q22-4 53-1m23 10q35-5 63-1m26-7q24-4 48-1m25 9q24-5 58-1m21-7q20-3 46 0" stroke-width=".8"/>
+  </g>
+ </g>
 </svg>

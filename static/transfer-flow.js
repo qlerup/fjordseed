@@ -9,7 +9,7 @@
    this.ctx=this.canvas.getContext('2d');
    this.ready=false;this.rates=[0,0];this.energy=[0,0];this.frame=null;
    this.visible=false;this.width=0;this.height=0;this.points=[];this.paths=[];
-   this.packets=[];
+   this.packets=[];this.caravan=new window.FjordNordicCaravan();
    this.core=root.querySelector('.flow-core-shell');this.pulse=null;
    this.lanes=Array.from({length:6},(_,index)=>({direction:Math.floor(index/3),strand:index%3,wait:Math.random()*.8}));
    this.motion=matchMedia('(prefers-reduced-motion: reduce)');
@@ -30,6 +30,7 @@
    this.rates=[download,upload].map(rate=>this.ready&&Number.isFinite(rate)&&rate>0?rate:0);
    const levels=this.rates.map(rate=>rate?clamp(Math.log2(1+rate/16384)/14,.08,1):0);
    this.target=levels;
+   if(document.documentElement.dataset.theme==='nordic')this.caravan.advance(0,this.rates,this.ready);
    this.root.dataset.traffic=this.rates.some(Boolean)?'moving':'idle';
    this.root.style.setProperty('--flow-energy',Math.max(...levels).toFixed(3));
    this.sync();
@@ -75,7 +76,8 @@
    this.frame=null;
    const delta=Math.min((now-this.last)/1000,.1);this.last=now;
    this.energy=this.energy.map((level,i)=>level+((this.target?.[i]||0)-level)*Math.min(1,delta*4));
-   if(document.documentElement.dataset.theme!=='nordic')this.advance(delta);
+   if(document.documentElement.dataset.theme==='nordic')this.caravan.advance(delta,this.rates,this.ready);
+   else this.advance(delta);
    this.draw(now/1000);
 
    this.frame=requestAnimationFrame(this.tick);
@@ -168,27 +170,10 @@
     c.lineWidth=1;c.beginPath();c.arc(p.x,p.y,34+phase*22,0,TAU);c.stroke();
    }
   }
-  // Calm directional currents. The shield is a fixed landmark, never a pulse.
+  // Villages and persistent walking parties replace the Nordic circuit.
   drawNordic(time){
-   const c=this.ctx;
-   if(this.motion.matches||!this.ready||document.documentElement.dataset.animation==='false')time=0;
-   c.lineCap='round';
-   for(const path of this.paths){
-    if(path.strand!==1)continue;
-    const active=this.ready&&this.rates[path.direction]>0;
-    const color=path.direction?'#8bbbd4':'#82bea8';
-    this.stroke(path,0,1,this.ready?'#8c806044':'#6f777233',1.2);
-    if(!active)continue;
-    // One continuous stream per route, ordered from sender to receiver.
-    // The absolute clock keeps its pace through status/rate updates.
-    c.save();c.setLineDash([8,20]);c.lineDashOffset=-time*24;
-    this.stroke(path,0,1,color,1.6);c.restore();
-    // A quiet arrow makes the direction readable even with motion disabled.
-    const at=.65,p=this.point(path,at),next=this.point(path,at+.01);
-    c.save();c.translate(p.x,p.y);c.rotate(Math.atan2(next.y-p.y,next.x-p.x));
-    c.strokeStyle=color;c.lineWidth=1.5;c.beginPath();
-    c.moveTo(-5,-3);c.lineTo(0,0);c.lineTo(-5,3);c.stroke();c.restore();
-   }
+   const still=this.motion.matches||!this.ready||!this.rates.some(Boolean)||document.documentElement.dataset.animation==='false';
+   this.caravan.draw(this.ctx,this.width,this.height,still?0:time,this.ready,this.rates,still);
   }
  }
  window.FjordTransferFlow=TransferFlow;
