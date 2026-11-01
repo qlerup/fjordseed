@@ -79,7 +79,7 @@ with tempfile.TemporaryDirectory() as folder:
                     transferFlow.resize();transferFlow.draw(4);
                 }''')
                 assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), width
-                assert page.locator('.flow-stage').bounding_box()['height'] >= 480
+                assert page.locator('.flow-stage').bounding_box()['height'] == (430 if width <= 600 else 390)
                 for label in ('.flow-computer>strong', '.flow-tracker>strong', '.flow-peers>strong', '#flow-vpn-label'):
                     expect(page.locator(label)).to_be_visible()
                 page.locator('#traffic-flow').screenshot(path=str(root / f'test-results/nordic-caravan-{width}.png'))

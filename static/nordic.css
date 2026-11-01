@@ -363,13 +363,13 @@ html[data-theme=nordic][data-animation=false] #download-summary>div::after{anima
 html[data-theme=nordic] .theme-preview-nordic{background:#0a1218 url('/static/nordic-rune-field.svg') center/500px 400px;box-shadow:inset 0 0 90px #050b11}
 
 /* A broad village journey, with separate upper and lower walking routes. */
-html[data-theme=nordic] .flow-stage{height:500px;min-width:0}
+html[data-theme=nordic] .flow-stage{height:390px;min-width:0}
 html[data-theme=nordic] .flow-route{position:absolute;inset:0;display:block;pointer-events:none}
 html[data-theme=nordic] .flow-node{position:absolute;display:flex;flex-direction:column;gap:4px;width:140px;max-width:24%;padding-top:38px;transform:translateX(-50%);text-shadow:0 1px 3px #090705,0 0 7px #090705}
-html[data-theme=nordic] .flow-computer{left:12%;top:51%}
-html[data-theme=nordic] .flow-vpn{left:50%;top:51%}
+html[data-theme=nordic] .flow-computer{left:12%;top:48%}
+html[data-theme=nordic] .flow-vpn{left:50%;top:48%}
 html[data-theme=nordic] .flow-tracker{left:88%;top:23%}
-html[data-theme=nordic] .flow-peers{left:88%;top:82%}
+html[data-theme=nordic] .flow-peers{left:88%;top:80%}
 html[data-theme=nordic] .flow-node:not(.flow-vpn) .flow-icon{display:none}
 html[data-theme=nordic] .flow-core-shell{position:absolute;top:0;left:50%;width:0;height:0;transform:none}
 html[data-theme=nordic] .flow-core-shell::before{display:none}
@@ -382,5 +382,5 @@ html[data-theme=nordic] .flow-node>span{font-size:10px;line-height:1.4;max-width
 html[data-theme=nordic] .flow-rates{align-self:center}
 html[data-theme=nordic] .flow-rate{grid-template-columns:30px minmax(0,1fr)}
 @media(max-width:1100px){html[data-theme=nordic] #traffic-flow{grid-template-columns:minmax(0,1fr)}html[data-theme=nordic] .flow-stage{grid-column:1;grid-row:2}html[data-theme=nordic] .flow-rates{grid-column:1;grid-row:3;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}html[data-theme=nordic] .flow-note{grid-column:1;grid-row:4}}
-@media(max-width:600px){html[data-theme=nordic] .flow-stage{height:500px}html[data-theme=nordic] .flow-node{padding-top:27px;gap:4px}html[data-theme=nordic] .flow-node>strong{font-size:11px}html[data-theme=nordic] .flow-node>span{font-size:9px}html[data-theme=nordic] .flow-node:not(.flow-vpn)>span{display:none}html[data-theme=nordic] .flow-vpn .flow-icon{top:3px}html[data-theme=nordic] .flow-core-check{top:10px}html[data-theme=nordic] .flow-rate{grid-template-columns:24px minmax(0,1fr)}}
+@media(max-width:600px){html[data-theme=nordic] .flow-stage{height:430px}html[data-theme=nordic] .flow-node{padding-top:27px;gap:4px}html[data-theme=nordic] .flow-node>strong{font-size:11px}html[data-theme=nordic] .flow-node>span{font-size:9px}html[data-theme=nordic] .flow-node:not(.flow-vpn)>span{display:none}html[data-theme=nordic] .flow-vpn .flow-icon{top:3px}html[data-theme=nordic] .flow-core-check{top:10px}html[data-theme=nordic] .flow-rate{grid-template-columns:24px minmax(0,1fr)}}
 @media(max-width:380px){html[data-theme=nordic] .flow-rate{grid-template-columns:minmax(0,1fr)}}

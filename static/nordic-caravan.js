@@ -26,10 +26,10 @@
    this.parties.push({direction,progress,id,cargo:this.loot(id)});
   }
   route(direction,link,w,h){
-   const town={seed:{x:w*.12,y:h*.51},vpn:{x:w*.5,y:h*.51},torrent:{x:w*.88,y:h*.23},peers:{x:w*.88,y:h*.82}};
+   const town={seed:{x:w*.12,y:h*.48},vpn:{x:w*.5,y:h*.48},torrent:{x:w*.88,y:h*.23},peers:{x:w*.88,y:h*.80}};
    const a=direction?(link?town.vpn:town.seed):(link?town.vpn:town.torrent);
    const b=direction?(link?town.peers:town.vpn):(link?town.seed:town.vpn);
-   const bend=(direction?1:-1)*h*.32;
+   const bend=(direction?1:-1)*h*.30;
    return {a,b,c:{x:a.x+(b.x-a.x)*.22,y:a.y+bend},d:{x:b.x-(b.x-a.x)*.22,y:b.y+bend}};
   }
   point(path,t){const q=1-t;return {x:q*q*q*path.a.x+3*q*q*t*path.c.x+3*q*t*t*path.d.x+t*t*t*path.b.x,y:q*q*q*path.a.y+3*q*q*t*path.c.y+3*q*t*t*path.d.y+t*t*t*path.b.y};}
@@ -117,10 +117,10 @@
    for(let direction=0;direction<2;direction++)for(let link=0;link<2;link++){
     this.road(c,this.route(direction,link,w,h),w<600?13:22);
    }
-   this.village(c,w*.12,h*.51,scale);
-   this.village(c,w*.5,h*.51,scale*1.08,true);
+   this.village(c,w*.12,h*.48,scale);
+   this.village(c,w*.5,h*.48,scale*1.08,true);
    this.village(c,w*.88,h*.23,scale);
-   this.village(c,w*.88,h*.82,scale);
+   this.village(c,w*.88,h*.80,scale);
    this.layer=layer;
   }
   person(c,x,y,s,facing,phase,variant,cargo){
@@ -183,7 +183,7 @@
     c.restore();
    }
    // Smoke drifts gently above the four settlements; no fire or combat.
-   for(const [x,y] of [[.12,.51],[.5,.51],[.88,.23],[.88,.82]])for(let i=0;i<3;i++){
+   for(const [x,y] of [[.12,.48],[.5,.48],[.88,.23],[.88,.80]])for(let i=0;i<3;i++){
     const phase=((still?0:time*.18)+i/3)%1;
     this.ellipse(c,w*x+14+Math.sin(phase*4)*4,h*y-39-phase*24,2+phase*4,3+phase*5,`rgba(206,196,162,${(1-phase)*.15})`);
    }
