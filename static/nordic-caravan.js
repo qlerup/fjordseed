@@ -79,8 +79,6 @@
   }
   village(c,x,y,scale,farm=false){
    c.save();c.translate(x,y);c.scale(scale,scale);
-   const glow=c.createRadialGradient(0,-15,6,0,-15,88);glow.addColorStop(0,'#b6a36922');glow.addColorStop(1,'#6a754500');c.fillStyle=glow;c.fillRect(-90,-90,180,130);
-   this.ellipse(c,0,5,70,21,'#333c2c88');this.ellipse(c,0,6,60,14,'#85724b36');
    if(farm){
     this.shape(c,[[-65,14],[-31,5],[-5,24],[-39,34]],'#6e6036','#a99556');
     for(let i=0;i<6;i++)this.line(c,[[-58+i*5,15-i],[-36+i*5,30-i]],'#c3a660',1);
@@ -96,13 +94,25 @@
    if(!farm){this.line(c,[[-12,0],[-12,-53]],'#bda072',1.5);this.shape(c,[[-11,-52],[10,-48],[-11,-40]],'#894c37','#d8b77b');}
    c.restore();
   }
-  road(c,path,width){
-   c.save();c.lineCap='round';c.lineJoin='round';
-   const trace=()=>{c.beginPath();c.moveTo(path.a.x,path.a.y);for(const section of path.segments||[path])c.bezierCurveTo(section.c.x,section.c.y,section.d.x,section.d.y,section.b.x,section.b.y);};
-   // Soft earthen shoulders and a worn, lighter walking surface.
-   for(const [size,color] of [[width+8,'#191b1280'],[width+4,'#555036b8'],[width,'#8b7551eb'],[width*.63,'#a18a603d']]){
-    trace();c.strokeStyle=color;c.lineWidth=size;c.stroke();
+  terrain(c,w,h,towns,paths,width,dpr){
+   // Union roads and village plots before tinting each material layer, so
+   // translucent shoulders never leave seams across a village entrance.
+   const mask=document.createElement('canvas');mask.width=c.canvas.width;mask.height=c.canvas.height;
+   const m=mask.getContext('2d');m.scale(dpr,dpr);m.lineCap='round';m.lineJoin='round';
+   for(const [size,inset,color] of [[width+8,4,'#191b1280'],[width+4,2,'#555036b8'],[width,0,'#8b7551eb'],[width*.63,-3,'#a18a603d']]){
+    m.clearRect(0,0,w,h);m.fillStyle='#fff';m.strokeStyle='#fff';m.lineWidth=size;
+    for(const path of paths){
+     m.beginPath();m.moveTo(path.a.x,path.a.y);
+     for(const section of path.segments)m.bezierCurveTo(section.c.x,section.c.y,section.d.x,section.d.y,section.b.x,section.b.y);
+     m.stroke();
+    }
+    for(const [x,y,scale] of towns)this.ellipse(m,x,y+4*scale,80*scale+inset,40*scale+inset,'#fff');
+    m.globalCompositeOperation='source-in';m.fillStyle=color;m.fillRect(0,0,w,h);
+    c.drawImage(mask,0,0,w,h);m.globalCompositeOperation='source-over';
    }
+  }
+  road(c,path,width){
+   c.save();
    // Deterministic grit and broken verge stones follow the same curve as feet.
    for(let i=1;i<180;i++){
     const t=i/180,p=this.point(path,t),next=this.point(path,Math.min(1,t+.002));
@@ -125,13 +135,12 @@
     if(i%4===0)this.ellipse(c,x,y,2.5,1.2,'#baab7940');
     else {this.line(c,[[x-3,y],[x-1,y-5],[x,y],[x+3,y-4]],'#98a16c30',1);}
    }
-   for(let direction=0;direction<2;direction++)for(let link=0;link<2;link++){
-    this.road(c,this.route(direction,link,w,h),w<600?13:22);
-   }
-   this.village(c,w*.12,h*.48,scale);
-   this.village(c,w*.5,h*.48,scale*1.08,true);
-   this.village(c,w*.88,h*.23,scale);
-   this.village(c,w*.88,h*.78,scale);
+   const towns=[[w*.12,h*.48,scale],[w*.5,h*.48,scale*1.08,true],[w*.88,h*.23,scale],[w*.88,h*.78,scale]];
+   const paths=[];const roadWidth=w<600?13:22;
+   for(let direction=0;direction<2;direction++)for(let link=0;link<2;link++)paths.push(this.route(direction,link,w,h));
+   this.terrain(c,w,h,towns,paths,roadWidth,dpr);
+   for(const path of paths)this.road(c,path,roadWidth);
+   for(const town of towns)this.village(c,...town);
    this.layer=layer;
   }
   person(c,x,y,s,facing,phase,variant,cargo){
