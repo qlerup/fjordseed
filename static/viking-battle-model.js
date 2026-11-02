@@ -166,7 +166,18 @@
    u.state='running';
    if(u.houseId!==undefined&&distance<=step+3){u.x=tx;u.y=ty;u.state='hiding';u.jumpAt=-10;}
   }
-  houseEncounters(){
+  // The porch and threshold share the house's foot anchor in the SVG.
+  doorPoint(house,width,height,inside=false){
+   const scale=(width<700?.42:.85)*(house.variant===1?1.15:house.variant===2?.8:1);
+   return {x:house.x,y:house.y+(inside?-6*scale:28*scale)/height};
+  }
+  passDoor(u,house,entering,width,height){
+   const from=entering?{x:u.x,y:u.y}:this.doorPoint(house,width,height,true);
+   const to=this.doorPoint(house,width,height,entering);
+   u.doorPassage={house:house.id,entering,at:this.time,duration:1,from,to};
+   u.x=from.x;u.y=from.y;u.jumpAt=-10;u.attackAt=-10;u.shotAt=-10;
+  }
+  houseEncounters(width,height){
    for(const house of this.settlement){
     const encounter=house.encounter;if(!encounter||this.time<encounter.until)continue;
     const resident=this.units[encounter.resident],visitor=this.units[encounter.visitor];
@@ -175,17 +186,23 @@
      else this.kill(resident.id);
     }
     house.encounter=null;
-    if(visitor.deadAt===null){visitor.state='running';visitor.enemyId=null;visitor.visitingHouse=null;visitor.x=house.x+.025;visitor.y=Math.min(house.y+.012,.95);visitor.decisionAt=0;}
+    if(visitor.deadAt===null){visitor.state='running';visitor.enemyId=null;visitor.visitingHouse=null;this.passDoor(visitor,house,false,width,height);visitor.decisionAt=0;}
    }
   }
   enterHouse(u,enemy,dt,width,height){
-   const house=this.settlement[enemy.houseId],y=Math.min(house.y,.95);
+   const house=this.settlement[enemy.houseId],porch=this.doorPoint(house,width,height);
    if(house.encounter){u.state='guarding';u.enemyId=null;u.decisionAt=0;return;}
-   const dx=(house.x-u.x)*width,dy=(y-u.y)*height;
-   if(Math.hypot(dx,dy)>9){u.facing=dx<0?-1:1;this.move(u,dx,dy,dt,width,height);return;}
+   const dx=(porch.x-u.x)*width,dy=(porch.y-u.y)*height;
+   const distance=Math.hypot(dx,dy);
+   if(distance>3){
+    u.facing=dx<0?-1:1;
+    if(distance>60)this.move(u,dx,dy,dt,width,height);
+    else{const step=Math.min(distance,dt*u.speed*(u.lostLeg?.35:1));u.x+=dx/distance*step/width;u.y+=dy/distance*step/height;u.state='running';}
+    return;
+   }
    const until=this.time+this.range(4.5,6),type=this.signalHouse(house,until+1.5);
    house.encounter={resident:enemy.id,visitor:u.id,type,until};
-   u.x=house.x;u.y=y;u.state='inside';u.visitingHouse=house.id;u.attackAt=-10;u.shotAt=-10;
+   u.state='inside';u.visitingHouse=house.id;this.passDoor(u,house,true,width,height);
   }
   signalHouse(house,until,type=null){
    house.symbolType=type??(this.houseEncounterId++%2===0?'hearts':'skulls');
@@ -243,7 +260,7 @@
    if(this.village&&this.returnStart===null&&(this.phase==='boarding'||this.phase==='retreat'&&this.units.some(u=>u.team===1&&u.deadAt===null&&!u.withdrawing))){this.returnStart=this.time;this.arrows=[];this.rocks=[];}
    const resetAt=this.returnStart!==null?(this.departureEnd??Infinity):(this.exitStart===null?Battle.DURATION:this.exitStart+13);
    if(this.time>=resetAt){this.reset();return;}
-   this.houseEncounters();this.checkVictory();
+   this.houseEncounters(width,height);this.checkVictory();
    this.effects=this.effects.filter(e=>this.time-e.at<4);
    this.trails=this.trails.filter(e=>this.time-e.at<18);
    width=Math.max(320,width);height=Math.max(320,height);
@@ -302,6 +319,12 @@
    for(const u of this.units){
     if(u.deadAt!==null)continue;
     if(u.capturedBy!=null)continue;
+    if(u.doorPassage){
+     const door=u.doorPassage,p=clamp((this.time-door.at)/door.duration,0,1);
+     u.x=door.from.x+(door.to.x-door.from.x)*p;u.y=door.from.y+(door.to.y-door.from.y)*p;
+     if(p<1)continue;
+     u.doorPassage=null;
+    }
     if(u.civilian){
      this.panic(u,dt,width,height);
      continue;
@@ -334,13 +357,14 @@
      if(boat&&this.time-start<dt)u.jumpAt=this.time;
     }else if(this.phase==='raid'&&u.team===1&&!u.withdrawing){
      if(u.raidHouse===undefined){if(this.village)this.returnToBoat(u,width,height);else u.state='guarding';continue;}
-     const house=this.settlement[u.raidHouse],age=this.time-this.raidStart-u.raidDelay;
+     const house=this.settlement[u.raidHouse],porch=this.doorPoint(house,width,height),age=this.time-this.raidStart-u.raidDelay;
      if(age<0){u.state='guarding';continue;}
      if(age<u.raidDuration){
-      const p=clamp(age/u.raidDuration,0,1);u.x=u.raidFromX+(house.x-u.raidFromX)*p;u.y=u.raidFromY+(house.y-u.raidFromY)*p;
+      const p=clamp(age/u.raidDuration,0,1);u.x=u.raidFromX+(porch.x-u.raidFromX)*p;u.y=u.raidFromY+(porch.y-u.raidFromY)*p;
       u.facing=house.x<u.raidFromX?-1:1;u.state='running';
      }else if(age<u.raidDuration+2.2){
-      u.x=house.x;u.y=house.y;u.state='inside';
+      u.state='inside';
+      if(!u.raidEntered){u.raidEntered=true;this.passDoor(u,house,true,width,height);}
       if(!u.raidSignaled){
        const peaceful=this.units.some(resident=>resident.civilian&&resident.deadAt===null&&resident.sheltered&&resident.houseId===house.id);
        this.signalHouse(house,this.time+5.5,peaceful?'hearts':null);u.raidSignaled=true;
@@ -348,6 +372,7 @@
      }
      else{
       u.loot=true;
+      if(!u.raidExited){u.raidExited=true;u.state='running';this.passDoor(u,house,false,width,height);continue;}
       if(this.village){this.returnToBoat(u,width,height);continue;}
       const p=clamp((age-u.raidDuration-2.2)/2,0,1);u.state=p<1?'running':'guarding';u.facing=1;u.x=house.x+.04*p;u.y=house.y+.012*p;
      }

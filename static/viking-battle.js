@@ -133,7 +133,13 @@
   battle.units.forEach((u,i)=>{
    const el=actors[i],dead=u.deadAt!==null,age=dead?battle.time-u.deadAt:0;
    const boat=['sailing','aboard'].includes(u.state)?battle.boats[u.boat]:null;
-   const scale=boat?boat.scale*(innerWidth<700?.65:1)*.95:(innerWidth<700?.7:.86)+(u.y-.7)*.65;
+   const baseScale=boat?boat.scale*(innerWidth<700?.65:1)*.95:(innerWidth<700?.7:.86)+(u.y-.7)*.65;
+   const door=u.doorPassage,doorHouse=door?battle.settlement[door.house]:null;
+   const doorProgress=door?Math.min(1,Math.max(0,(battle.time-door.at)/door.duration)):0;
+   const houseScale=doorHouse?(innerWidth<700?.42:.85)*(doorHouse.variant===1?1.15:doorHouse.variant===2?.8:1):1;
+   // Fit within the doorway, keeping the feet anchored as perspective changes.
+   const doorwayScale=houseScale*.29,depth=door?(door.entering?doorProgress:1-doorProgress):0;
+   const scale=baseScale+(doorwayScale-baseScale)*depth;
    const jumpDuration=['landing','boarding'].includes(u.state)?1.2:.65;
    const jumpAge=battle.time-u.jumpAt,jump=motion&&jumpAge>=0&&jumpAge<jumpDuration?Math.sin(jumpAge/jumpDuration*Math.PI)*u.jumpHeight:0;
    const attackAge=battle.time-u.attackAt;
@@ -151,15 +157,15 @@
    el.classList.toggle('has-loot',!!u.loot);
    el.classList.toggle('is-shooting',u.archer&&battle.time-u.shotAt<.25);
    el.body.style.transform=`translateX(${dead?0:lunge*3}px) rotate(${!dead&&battle.time-u.hitAt<.22?-10:dead?0:lunge*(u.attackStyle==='sweep'?9:4)}deg)`;
-   el.style.zIndex=String(Math.round(u.y*1000));
+   el.style.zIndex=String(doorHouse?Math.round(doorHouse.y*1000)+1:Math.round(u.y*1000));
    const crawling=!dead&&u.lostLeg,crawl=motion&&crawling?Math.sin(battle.time*4+u.id):0;
    el.style.transform=`translate(${u.x*innerWidth-38}px,${u.y*innerHeight-90-jump+(crawling?crawl:0)}px) scale(${scale}) rotate(${dead?(motion?Math.min(1,age/.45):1)*u.facing*85:crawling?u.facing*(78+crawl*3):0}deg)`;
    el.style.opacity=dead?String(motion?Math.max(0,1-Math.max(0,age-1.8)/2):0):'1';
    el.style.setProperty('--facing',u.facing);
-   el.classList.toggle('is-fallen',dead);el.classList.toggle('is-running',!dead&&['running','captive'].includes(u.state));el.classList.toggle('is-fighting',!dead&&u.state==='fighting');
+   el.classList.toggle('is-fallen',dead);el.classList.toggle('is-running',!dead&&(!!door||['running','captive'].includes(u.state)));el.classList.toggle('is-fighting',!dead&&u.state==='fighting');
    el.classList.toggle('is-captive',!dead&&u.capturedBy!=null);
    el.disabled=dead||u.civilian;el.tabIndex=dead||u.civilian||u.x<0||u.x>1?-1:0;
-   el.hidden=dead&&(!motion||age>4)||u.state==='offscreen'||u.state==='inside'||u.state==='hiding'||u.diedInside||(boat&&!boat.visible);
+   el.hidden=dead&&(!motion||age>4)||u.state==='offscreen'||u.state==='inside'&&!door||u.state==='hiding'||u.diedInside||(boat&&!boat.visible);
   });
   const chained=new Set();
   for(const captive of battle.units.filter(u=>u.capturedBy!=null&&u.deadAt===null)){
