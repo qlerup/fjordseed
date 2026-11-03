@@ -1,0 +1,25 @@
+name: Torrent search
+on:
+  push:
+    paths:
+      - 'torrent_search.py'
+      - 'search_routes.py'
+      - 'qbit_rpc.py'
+      - 'qbit_worker.py'
+      - 'runtime.py'
+      - 'tests/test_search_session.py'
+      - 'tests/test_torrent_search.py'
+      - '.github/workflows/torrent-search.yml'
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -r requirements.txt pytest
+      - run: python -m pytest -q tests/test_search_session.py tests/test_torrent_search.py tests/test_worker.py tests/test_runtime.py tests/test_docker_context.py

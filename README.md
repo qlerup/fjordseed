@@ -32,6 +32,11 @@ Search jobs are session-owned, replaced on the next search and expire after ten
 minutes. Refreshing the app or restarting it requires a new search. The container
 image must be rebuilt to include the new search modules.
 
+The native qBittorrent WebUI session is retained server-side for each search;
+its cookies are never returned to the browser. Search start, provider installation
+and metadata retrieval check fresh VPN health before proceeding. These actions
+run inside the VPN container namespace and do not fall back to the app's network.
+
 The **Seeding og filer** dialog shows the internal torrent title immediately
 after reading its metadata, then the verified tracker title and cached cover
 when available. Each file in a batch gets its own title and cover. Covers load

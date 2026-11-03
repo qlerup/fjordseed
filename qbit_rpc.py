@@ -1,5 +1,6 @@
 """Allowlisted qBittorrent RPC executed inside the VPN network namespace."""
 import base64
+from contextlib import nullcontext
 import io
 import json
 import math
@@ -226,9 +227,9 @@ def share_policy(data, *, manual=False):
     return {'ratio_limit':ratio, 'ratio_action':action}
 
 
-def call(path, data=None, files=None):
+def call(path, data=None, files=None, *, client=None):
     try:
-        with requests.Session() as client:
+        with (nullcontext(client) if client is not None else requests.Session()) as client:
             client.trust_env = False
             response = client.request('POST' if data is not None or files else 'GET', BASE + path,
                 data=data, files=files, headers={'Referer':'http://127.0.0.1:8080/'}, timeout=5,
@@ -247,7 +248,20 @@ def execute(action, data):
         raise RuntimeError('Unsafe qBittorrent network settings')
     if action in ('search-plugins', 'search-install', 'search-start', 'search-results', 'search-stop', 'search-delete', 'search-resolve'):
         from torrent_search import execute as search_execute
-        return search_execute(action, data, call)
+        if action in ('search-start', 'search-install', 'search-resolve'):
+            from qbit_worker import ready
+            try:
+                ready()
+            except (ValueError, KeyError, TypeError, OSError):
+                raise ValueError('VPN-forbindelsen er ikke klar. Søgning og hentning er blokeret, indtil VPN er aktiv igen.') from None
+        # qBittorrent owns search jobs per WebUI session. Keep this job's
+        # cookies across both API calls and subsequent isolated RPC processes.
+        with requests.Session() as search_client:
+            search_client.trust_env = False
+            search_client.cookies.update(data.get('_search_session', {}))
+            result = search_execute(action, data, lambda path, payload=None:
+                                    call(path, payload, client=search_client))
+            return {**result, '_search_session': search_client.cookies.get_dict()}
     if action in ('rss_prepare','rss_resolve'):
         from rss_gate import gate_rpc
         from qbit_worker import ready

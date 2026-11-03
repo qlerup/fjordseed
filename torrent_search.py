@@ -84,7 +84,12 @@ def execute(action, data, api):
         return {'ok': True}
     offset = integer(data.get('offset', 0))
     limit = 1 if action == 'search-resolve' else 50
-    result = api('search/results?' + urlencode({'id': ident, 'offset': offset, 'limit': limit})).json()
+    try:
+        result = api('search/results?' + urlencode({'id': ident, 'offset': offset, 'limit': limit})).json()
+    except requests.HTTPError as exc:
+        if exc.response is not None and exc.response.status_code == 404:
+            raise ValueError('Søgningen er udløbet, eller qBittorrent er genstartet. Start en ny søgning.') from None
+        raise
     if action == 'search-results':
         return result
     if action == 'search-resolve':

@@ -31,13 +31,19 @@ def register(app, state, runtime):
             raise ValueError('Ugyldig søgeanmodning.')
         return data
 
+    def public(result):
+        return {k: v for k, v in result.items() if k != '_search_session'}
+
+    def job_data(job, **extra):
+        return {'id': job['id'], **({'_search_session': job['session']} if job.get('session') else {}), **extra}
+
     @bp.get('/plugins')
     def plugins():
-        return jsonify(rpc('search-plugins', {}))
+        return jsonify(public(rpc('search-plugins', {})))
 
     @bp.post('/plugins')
     def install():
-        return jsonify(rpc('search-install', body()))
+        return jsonify(public(rpc('search-install', {'name': body().get('name')})))
 
     @bp.post('')
     def start():
@@ -48,13 +54,14 @@ def register(app, state, runtime):
             # native five-search limit or leak results to another session.
             for token, job in list(jobs.items()):
                 if job['owner'] == owner or time.monotonic() - job['created'] > 600:
-                    rpc('search-delete', {'id': job['id']})
+                    rpc('search-delete', job_data(job))
                     del jobs[token]
             if len(jobs) >= 5:
                 raise ValueError('Der er allerede fem søgninger. Prøv igen om lidt.')
-            result = rpc('search-start', data)
+            result = rpc('search-start', {'pattern': data.get('pattern'), 'plugin': data.get('plugin', 'enabled')})
             token = secrets.token_hex(16)
-            jobs[token] = {'id': result['id'], 'owner': owner, 'created': time.monotonic()}
+            jobs[token] = {'id': result['id'], 'owner': owner, 'created': time.monotonic(),
+                           'session': result.get('_search_session', {})}
         return jsonify(token=token)
 
     @bp.route('/<token>', methods=['GET', 'POST'])
@@ -72,12 +79,14 @@ def register(app, state, runtime):
             except ValueError:
                 raise ValueError('Ugyldig side.') from None
             if time.monotonic() - job['created'] > 600 and action != 'delete':
-                rpc('search-delete', {'id': job['id']})
+                rpc('search-delete', job_data(job))
                 del jobs[token]
                 raise ValueError('Søgningen er udløbet. Søg igen.')
-            result = rpc('search-' + action, {'id': job['id'], 'offset': offset})
+            result = rpc('search-' + action, job_data(job, offset=offset))
+            if result.get('_search_session'):
+                job['session'] = result['_search_session']
             if action == 'delete':
                 del jobs[token]
-            return jsonify(result)
+            return jsonify(public(result))
 
     app.register_blueprint(bp)
