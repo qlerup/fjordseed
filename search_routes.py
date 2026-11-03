@@ -76,13 +76,17 @@ def register(app, state, runtime):
                 raise ValueError('Ugyldig søgehandling.')
             try:
                 offset = int(request.args.get('offset', 0)) if request.method == 'GET' else data.get('offset', 0)
+                minimum = int(request.args.get('min_seeders', 0)) if request.method == 'GET' else 0
             except ValueError:
-                raise ValueError('Ugyldig side.') from None
+                raise ValueError('Ugyldig side eller minimum for seeders.') from None
+            if not 0 <= minimum <= 1000000:
+                raise ValueError('Minimum seeders skal være et helt tal mellem 0 og 1000000.')
             if time.monotonic() - job['created'] > 600 and action != 'delete':
                 rpc('search-delete', job_data(job))
                 del jobs[token]
                 raise ValueError('Søgningen er udløbet. Søg igen.')
-            result = rpc('search-' + action, job_data(job, offset=offset))
+            result = rpc('search-' + action, job_data(job, offset=offset,
+                         **({'min_seeders': minimum} if minimum else {})))
             if result.get('_search_session'):
                 job['session'] = result['_search_session']
             if action == 'delete':

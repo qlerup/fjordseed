@@ -1,10 +1,12 @@
 (() => {
  'use strict';
  let token=null,offset=0,timer=null,generation=0,pollSequence=0,loading=false,loaded=false,installing=false;
+ const PAGE_SIZE=10;
  const message=text=>{$('#search-status').textContent=text;};
  const fail=e=>error('#search-error',e);
  const post=(url,data)=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
- function running(value){$('#search-stop').hidden=!value;}
+ function thinking(value){$('#search-thinking').hidden=!value;$('#search-results').setAttribute('aria-busy',String(value));}
+ function running(value){$('#search-stop').hidden=!value;thinking(value);}
  async function engines(){
   const data=await api('/api/search/plugins');
   const select=$('#search-engine'),selected=select.value;
@@ -28,7 +30,7 @@
     (result.nbSeeders>=0?result.nbSeeders:'?')+' seeders',(result.nbLeechers>=0?result.nbLeechers:'?')+' leechers',result.engineName||result.siteUrl||'Ukendt kilde'])meta.append(node('span','',text));
    info.append(meta);const button=node('button','secondary','Hent');button.type='button';
    button.setAttribute('aria-label','Hent '+(result.fileName||'torrent'));
-   const job=token,resultOffset=offset+index;
+   const job=token,resultOffset=Number.isInteger(result.result_index)?result.result_index:offset+index;
    button.onclick=async()=>{
     button.disabled=true;$('#search-error').hidden=true;
     try{const source=await post('/api/search/'+job,{action:'resolve',offset:resultOffset});openSearchTorrent(source);}
@@ -38,16 +40,19 @@
   }
   const total=Number(data.total)||0,isRunning=data.status==='Running';
   running(isRunning);
-  message(isRunning?'Søger… '+total+' resultater fundet.':total?total+' resultater fundet.':'Ingen resultater. Prøv et andet navn eller en anden søgemaskine.');
-  $('#search-prev').hidden=offset===0;$('#search-next').hidden=offset+50>=total;
-  $('#search-page').textContent=total?'Side '+(offset/50+1)+' af '+Math.ceil(total/50):'';
+  const count=data.min_seeders?`${total} af ${Number(data.unfiltered_total)||0} resultater har mindst ${data.min_seeders} seeders.`:`${total} resultater fundet.`;
+  message(isRunning?'Søger… '+count:total?count:data.min_seeders?'Ingen resultater opfylder minimum for seeders. Sænk minimum, eller prøv en ny søgning.':'Ingen resultater. Prøv et andet navn eller en anden søgemaskine.');
+  $('#search-prev').hidden=offset===0;$('#search-next').hidden=offset+PAGE_SIZE>=total;
+  $('#search-page').textContent=total?'Side '+(offset/PAGE_SIZE+1)+' af '+Math.ceil(total/PAGE_SIZE):'';
   return isRunning;
  }
  async function poll(version=generation){
   clearTimeout(timer);
   if(!token||version!==generation)return;
   const sequence=++pollSequence;
-  try{const data=await api('/api/search/'+token+'?offset='+offset);if(version!==generation||sequence!==pollSequence)return;
+  const minimum=Number($('#search-min-seeders').value);
+  if(!$('#search-min-seeders').checkValidity()){$('#search-min-seeders').reportValidity();return;}
+  try{const data=await api('/api/search/'+token+'?offset='+offset+'&min_seeders='+minimum);if(version!==generation||sequence!==pollSequence)return;
    if(render(data))timer=setTimeout(()=>poll(version),2000);
   }catch(e){if(version===generation&&sequence===pollSequence){running(false);message('Søgningen kunne ikke opdateres.');fail(e);}}
  }
@@ -77,14 +82,15 @@
  $('#search-install-all').onclick=()=>install('all');
  $('#search-form').onsubmit=async event=>{
   event.preventDefault();if(loading||installing)return;loading=true;$('#search-submit').disabled=true;$('#search-error').hidden=true;
-  const version=++generation;clearTimeout(timer);token=null;offset=0;running(false);
+  const version=++generation;clearTimeout(timer);token=null;offset=0;running(false);thinking(true);
   $('#search-results').replaceChildren();$('#search-prev').hidden=true;$('#search-next').hidden=true;$('#search-page').textContent='';message('Starter søgning…');
   try{const data=await post('/api/search',{pattern:$('#search-query').value,plugin:$('#search-engine').value});token=data.token;await poll(version);}
-  catch(e){fail(e);message('Søgningen kunne ikke startes.');}finally{loading=false;$('#search-submit').disabled=false;}
+  catch(e){running(false);fail(e);message('Søgningen kunne ikke startes.');}finally{loading=false;$('#search-submit').disabled=false;}
  };
  $('#search-stop').onclick=async()=>{const job=token;$('#search-stop').disabled=true;try{await post('/api/search/'+job,{action:'stop'});await poll();}catch(e){fail(e);}finally{$('#search-stop').disabled=false;}};
- $('#search-prev').onclick=()=>{offset=Math.max(0,offset-50);poll();};
- $('#search-next').onclick=()=>{offset+=50;poll();};
+ $('#search-prev').onclick=()=>{offset=Math.max(0,offset-PAGE_SIZE);poll();};
+ $('#search-next').onclick=()=>{offset+=PAGE_SIZE;poll();};
+ $('#search-min-seeders').onchange=()=>{if(!$('#search-min-seeders').checkValidity()){$('#search-min-seeders').reportValidity();return;}offset=0;if(token)poll();};
  function enter(){if(location.hash==='#search'&&!loaded)engines().catch(fail);}
  window.addEventListener('hashchange',enter);enter();
 })();

@@ -11,10 +11,12 @@
   <form id="search-form" class="search-controls">
     <label class="search-query">Hvad vil du hente?<input id="search-query" type="search" minlength="2" maxlength="200" placeholder="Søg efter navn…" required></label>
     <label>Søg i<select id="search-engine"><option value="enabled">Alle søgemaskiner på én gang</option></select></label>
+    <label class="search-minimum">Minimum seeders<input id="search-min-seeders" type="number" min="0" max="1000000" step="1" value="0" inputmode="numeric" aria-describedby="search-minimum-help"></label>
     <button class="primary" id="search-submit">Søg</button><button type="button" class="secondary" id="search-stop" hidden>Stop søgning</button>
   </form>
+  <p id="search-minimum-help" class="muted small">0 viser alle resultater. Et højere minimum skjuler resultater med færre eller ukendt antal seeders.</p>
   <p id="search-error" class="error" role="alert" hidden></p>
-  <p id="search-status" class="muted small" role="status" aria-live="polite">Skriv et navn for at finde torrents.</p>
-  <div id="search-results" class="search-results"></div>
+  <div class="search-progress"><span id="search-thinking" class="search-thinking" aria-hidden="true" hidden><i></i><i></i><i></i></span><p id="search-status" class="muted small" role="status" aria-live="polite">Skriv et navn for at finde torrents.</p></div>
+  <div id="search-results" class="search-results" aria-busy="false"></div>
   <div class="search-pagination"><button type="button" class="secondary" id="search-prev" hidden>Forrige</button><span id="search-page" class="muted small"></span><button type="button" class="secondary" id="search-next" hidden>Næste</button></div>
 </section>

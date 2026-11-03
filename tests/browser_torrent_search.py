@@ -10,6 +10,9 @@ from werkzeug.serving import make_server
 from app import create_app
 from test_app import FakeRuntime
 from torrent_search import ENGINES
+from torrent_search import execute as search_execute
+from urllib.parse import parse_qs, urlsplit
+from unittest.mock import Mock
 
 
 class Demo(FakeRuntime):
@@ -45,11 +48,15 @@ class Demo(FakeRuntime):
         if action == 'search-results':
             if self.pattern == 'empty': return {'results': [], 'total': 0, 'status': 'Stopped'}
             if self.pattern == 'error': raise ValueError('Test: søgemaskinen er utilgængelig.')
-            offset = data['offset']
-            return {'results': [{'fileName': '<img src=x onerror=alert(1)> Ubuntu '+str(offset+i)+' '+('Long.title.'*12),
-                                 'fileSize': 2147483648, 'nbSeeders': 15, 'nbLeechers': 2, 'engineName': 'Torrents.csv' if i % 2 else 'EZTV'}
-                                for i in range(min(50, 51-offset))], 'total': 51,
-                    'status': 'Running' if self.running else 'Stopped'}
+            rows = [{'fileName': '<img src=x onerror=alert(1)> Ubuntu '+str(i)+' '+('Long.title.'*12),
+                     'fileSize': 2147483648, 'nbSeeders': i if i else -1, 'nbLeechers': 2,
+                     'engineName': 'Torrents.csv' if i % 2 else 'EZTV'} for i in range(51)]
+            def native(path):
+                params = parse_qs(urlsplit(path).query)
+                offset, limit = int(params['offset'][0]), int(params['limit'][0])
+                return Mock(json=lambda: {'results': rows[offset:offset+limit] if limit else rows[offset:],
+                    'total': len(rows), 'status': 'Running' if self.running else 'Stopped'})
+            return search_execute(action, data, native)
         if action == 'search-resolve':
             return {'magnet': 'magnet:?xt=urn:btih:'+'a'*40, 'name': 'Ubuntu '+str(data['offset'])}
         if action == 'add': self.added.append(data)
@@ -84,12 +91,25 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#search-engines-toggle').click()
             page.locator('#search-query').fill('Ubuntu')
             page.locator('#search-submit').click()
-            expect(page.locator('.search-result')).to_have_count(50)
+            expect(page.locator('.search-result')).to_have_count(10)
+            expect(page.locator('#search-page')).to_have_text('Side 1 af 6')
+            expect(page.locator('#search-thinking')).to_be_visible()
+            expect(page.locator('#search-results')).to_have_attribute('aria-busy', 'true')
             expect(page.locator('.search-result').nth(0)).to_contain_text('EZTV')
             expect(page.locator('.search-result').nth(1)).to_contain_text('Torrents.csv')
             assert page.locator('#search-results img').count() == 0
+            page.emulate_media(reduced_motion='reduce')
+            assert page.locator('#search-thinking i').first.evaluate('e=>getComputedStyle(e).animationName') == 'none'
+            page.emulate_media(reduced_motion='no-preference')
+            page.locator('#search-min-seeders').fill('40')
+            page.locator('#search-min-seeders').press('Tab')
+            expect(page.locator('.search-result').first).to_contain_text('Ubuntu 40 ')
+            expect(page.locator('.search-result')).to_have_count(10)
+            expect(page.locator('#search-status')).to_contain_text('11 af 51')
             page.locator('#search-stop').click()
             expect(page.locator('#search-stop')).to_be_hidden()
+            expect(page.locator('#search-thinking')).to_be_hidden()
+            expect(page.locator('#search-results')).to_have_attribute('aria-busy', 'false')
             page.locator('#search-next').click()
             expect(page.locator('.search-result')).to_have_count(1)
             expect(page.locator('#search-page')).to_have_text('Side 2 af 2')
@@ -104,7 +124,9 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#ratio-dialog')).not_to_be_visible()
             assert len(runtime.added) == 1 and runtime.added[0]['magnet'].startswith('magnet:')
             page.locator('#search-prev').click()
-            expect(page.locator('.search-result')).to_have_count(50)
+            expect(page.locator('.search-result')).to_have_count(10)
+            page.locator('#search-submit').click()
+            expect(page.locator('#search-thinking')).to_be_visible()
             output = Path(__file__).resolve().parents[1]/'test-results'
             output.mkdir(exist_ok=True)
             for width, theme in [(w, t) for t in ('fjord', 'viking', 'nordic') for w in (1440, 390)]:
@@ -112,12 +134,24 @@ with tempfile.TemporaryDirectory() as folder:
                 page.evaluate('(theme)=>document.documentElement.dataset.theme=theme', theme)
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (width, theme)
                 page.screenshot(path=str(output/f'torrent-search-{theme}-{width}.png'))
+            page.locator('#search-stop').click()
+            expect(page.locator('#search-thinking')).to_be_hidden()
+            page.locator('#search-min-seeders').fill('100')
+            page.locator('#search-min-seeders').press('Tab')
+            expect(page.locator('.search-result')).to_have_count(0)
+            expect(page.locator('#search-status')).to_contain_text('Ingen resultater opfylder minimum')
+            page.locator('#search-min-seeders').fill('0')
+            page.locator('#search-min-seeders').press('Tab')
+            expect(page.locator('.search-result')).to_have_count(10)
+            expect(page.locator('.search-result').first).to_contain_text('? seeders')
             page.locator('#search-query').fill('empty')
             page.locator('#search-submit').click()
             expect(page.locator('#search-status')).to_contain_text('Ingen resultater')
+            expect(page.locator('#search-thinking')).to_be_hidden()
             page.locator('#search-query').fill('error')
             page.locator('#search-submit').click()
             expect(page.locator('#search-error')).to_contain_text('utilgængelig')
+            expect(page.locator('#search-thinking')).to_be_hidden()
             assert not errors, errors
             browser.close()
             print('Search UI passed: desktop/mobile, themes, install, pagination, safe names, stop, policy dialog, add, empty/error.')

@@ -23,7 +23,11 @@ availability depends on the site and plugin. Existing tracker accounts and RSS
 feeds are not automatically search providers; private trackers need a separately
 configured plugin (for example an existing Jackett integration).
 
-Results show size, seeders, leechers and source with 50 results per page.
+Results show size, seeders, leechers and source with 10 results per page.
+**Minimum seeders** filters the complete result set before pagination and can
+be changed during or after a search. Zero includes unknown seeder counts;
+positive thresholds exclude them. Animated dots indicate an active search,
+with a static indicator when reduced motion is requested.
 **Hent** resolves only the selected torrent's metadata inside the VPN container
 and opens the usual seeding/conversion dialog. The content download begins when
 that dialog is submitted, using the existing queue, storage and seeding policies.

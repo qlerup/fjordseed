@@ -12,6 +12,7 @@ import requests
 ENGINES = {'eztv': 'EZTV', 'limetorrents': 'LimeTorrents', 'piratebay': 'The Pirate Bay',
            'solidtorrents': 'Solid Torrents', 'torlock': 'Torlock',
            'torrentproject': 'TorrentProject', 'torrentscsv': 'Torrents.csv'}
+PAGE_SIZE = 10
 
 
 def plugin_metadata(row, root=Path('/config/qBittorrent/data/nova3')):
@@ -83,15 +84,27 @@ def execute(action, data, api):
                 raise
         return {'ok': True}
     offset = integer(data.get('offset', 0))
-    limit = 1 if action == 'search-resolve' else 50
+    minimum = integer(data.get('min_seeders', 0), 1000000) if action == 'search-results' else 0
+    # Filtering precedes pagination. Preserve each native result's index so
+    # selecting a filtered row still resolves the exact original torrent.
+    limit = 1 if action == 'search-resolve' else 0 if minimum else PAGE_SIZE
+    native_offset = 0 if minimum else offset
     try:
-        result = api('search/results?' + urlencode({'id': ident, 'offset': offset, 'limit': limit})).json()
+        result = api('search/results?' + urlencode({'id': ident, 'offset': native_offset, 'limit': limit})).json()
     except requests.HTTPError as exc:
         if exc.response is not None and exc.response.status_code == 404:
             raise ValueError('Søgningen er udløbet, eller qBittorrent er genstartet. Start en ny søgning.') from None
         raise
     if action == 'search-results':
-        return result
+        if minimum:
+            matches = [(index, row) for index, row in enumerate(result.get('results', []))
+                       if type(row.get('nbSeeders')) is int and row['nbSeeders'] >= minimum]
+            rows = [{**row, 'result_index': index} for index, row in matches[offset:offset + PAGE_SIZE]]
+            return {**result, 'results': rows, 'total': len(matches),
+                    'unfiltered_total': result.get('total', 0), 'min_seeders': minimum}
+        rows = [{**row, 'result_index': offset + index}
+                for index, row in enumerate(result.get('results', [])[:PAGE_SIZE])]
+        return {**result, 'results': rows, 'unfiltered_total': result.get('total', 0), 'min_seeders': 0}
     if action == 'search-resolve':
         rows = result.get('results', [])
         if not rows:

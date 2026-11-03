@@ -75,8 +75,9 @@ def test_engine_and_query_allowlist_and_pagination():
     assert api.call_args.args == ('search/installPlugin', {'sources': 'https://raw.githubusercontent.com/qbittorrent/search-plugins/master/nova3/engines/torrentscsv.py'})
     execute('search-start', {'pattern': ' Ubuntu ', 'plugin': 'piratebay'}, api)
     assert api.call_args.args == ('search/start', {'pattern': 'Ubuntu', 'plugins': 'piratebay', 'category': 'all'})
+    api.return_value = Mock(json=lambda: {'results': [], 'total': 0, 'status': 'Stopped'})
     execute('search-results', {'id': 123, 'offset': 50}, api)
-    assert parse_qs(urlsplit(api.call_args.args[0]).query) == {'id': ['123'], 'offset': ['50'], 'limit': ['50']}
+    assert parse_qs(urlsplit(api.call_args.args[0]).query) == {'id': ['123'], 'offset': ['50'], 'limit': ['10']}
     for value in (-1, True, '50', 2147483648):
         with pytest.raises(ValueError): execute('search-results', {'id': 123, 'offset': value}, api)
 
@@ -139,3 +140,37 @@ def test_custom_plugin_metadata_is_bounded_and_validated(tmp_path, monkeypatch):
     row = {'engineName': 'example', 'fileUrl': 'https://example.test/details/1'}
     assert 'torrent' in plugin_metadata(row, tmp_path)
     with pytest.raises(ValueError): plugin_metadata({**row, 'engineName': '../evil'}, tmp_path)
+
+
+def test_seeders_filter_precedes_pagination_and_keeps_native_result_indices():
+    rows = [{'fileName': f'Fixture {i}', 'nbSeeders': -1 if i == 0 else i} for i in range(35)]
+    api = Mock(return_value=Mock(json=lambda: {'results': rows, 'total': 35, 'status': 'Running'}))
+    result = execute('search-results', {'id': 123, 'offset': 10, 'min_seeders': 15}, api)
+    assert parse_qs(urlsplit(api.call_args.args[0]).query) == {'id': ['123'], 'offset': ['0'], 'limit': ['0']}
+    assert result['total'] == 20 and result['unfiltered_total'] == 35
+    assert result['status'] == 'Running' and result['min_seeders'] == 15
+    assert [r['result_index'] for r in result['results']] == list(range(25, 35))
+    assert all(r['nbSeeders'] >= 15 for r in result['results'])
+    result = execute('search-results', {'id': 123, 'offset': 0, 'min_seeders': 40}, api)
+    assert result['total'] == 0 and result['results'] == []
+    for minimum in (-1, True, '5', 1000001, 1.5):
+        with pytest.raises(ValueError):
+            execute('search-results', {'id': 123, 'min_seeders': minimum}, api)
+
+
+def test_unfiltered_results_keep_unknown_seeders_and_their_download_index():
+    api = Mock(return_value=Mock(json=lambda: {
+        'results': [{'nbSeeders': -1}, {'nbSeeders': 0}], 'total': 12, 'status': 'Stopped'}))
+    result = execute('search-results', {'id': 123, 'offset': 10}, api)
+    assert [r['result_index'] for r in result['results']] == [10, 11]
+    assert result['total'] == 12 and result['min_seeders'] == 0
+
+
+def test_minimum_seeders_route_validation_and_filter_forwarding(setup):
+    _, client, headers, runtime = setup
+    token = client.post('/api/search', headers=headers, json={'pattern': 'Ubuntu'}).json['token']
+    response = client.get('/api/search/'+token+'?offset=10&min_seeders=5')
+    assert response.status_code == 200
+    runtime.rpc.assert_called_with('search-results', {'id': 123, 'offset': 10, 'min_seeders': 5})
+    for value in ('-1', '1.5', 'abc', '1000001'):
+        assert client.get('/api/search/'+token+'?min_seeders='+value).status_code == 409
