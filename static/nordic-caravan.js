@@ -3,20 +3,14 @@
  'use strict';
  const TAU=Math.PI*2;
  class NordicCaravan {
-  constructor(){this.parties=[];this.wait=[0,0];this.serial=[0,0];this.started=[false,false];}
+  constructor(){this.parties=[];this.wait=[0,0];this.serial=[0,0];}
   loot(index){return [2,5,8].includes(index%10)?'captive':'gold';}
   advance(delta,rates,ready){
-   if(!ready){this.parties=[];this.started=[false,false];return;}
+   if(!ready){this.parties=[];return;}
    for(const party of this.parties)party.progress+=delta/12;
-   this.parties=this.parties.filter(p=>p.progress<2);
+   this.parties=this.parties.filter(p=>p.progress<2.085);
    for(let direction=0;direction<2;direction++){
     if(!rates[direction])continue;
-    // Populate the long route on first activity; each traveller then keeps its
-    // identity and cargo through polls, rate changes and the VPN crossing.
-    if(!this.started[direction]){
-     this.started[direction]=true;
-     for(const progress of [.08,.53,1.08,1.58])this.launch(direction,progress);
-    }
     this.wait[direction]-=delta;
     if(this.wait[direction]<=0){this.launch(direction,0);this.wait[direction]=3.6;}
    }
@@ -45,11 +39,25 @@
    const q=1-t;return {x:q*q*q*path.a.x+3*q*q*t*path.c.x+3*q*t*t*path.d.x+t*t*t*path.b.x,y:q*q*q*path.a.y+3*q*q*t*path.c.y+3*q*t*t*path.d.y+t*t*t*path.b.y};
   }
   position(party,w,h,offset=0){
-   const progress=Math.max(0,Math.min(1.9999,party.progress+offset)),link=Math.floor(progress);
-   const path=this.route(party.direction,link,w,h),t=progress-link,p=this.point(path,t);
-   const next=this.point(path,Math.min(1,t+.001));
-   return {...p,facing:next.x>=p.x?1:-1};
+   const progress=party.progress+offset,link=Math.max(0,Math.min(1,Math.floor(progress)));
+   const path=this.route(party.direction,link,w,h),t=Math.max(0,Math.min(1,progress-link));
+   // The main hall's door is at local (0,6); the road gate remains at (0,24).
+   const townScale=this.villageScale(w)*(link===0?1:1.08);
+   const endScale=this.villageScale(w)*(link===0?1.08:1);
+   const door=(gate,scale)=>({x:gate.x,y:gate.y-18*scale});
+   const startDoor=door(path.a,townScale),endDoor=door(path.b,endScale);
+   const transition=.09;
+   let p,size;
+   if(t<transition){
+    const u=t/transition;
+    p={x:startDoor.x+(path.a.x-startDoor.x)*u,y:startDoor.y+(path.a.y-startDoor.y)*u};size=u;
+   }else if(t>1-transition){
+    const u=(1-t)/transition;
+    p={x:endDoor.x+(path.b.x-endDoor.x)*u,y:endDoor.y+(path.b.y-endDoor.y)*u};size=u;
+   }else {p=this.point(path,(t-transition)/(1-2*transition));size=1;}
+   return {...p,link,scale:progress<0||progress>=2?0:size,facing:path.b.x>=path.a.x?1:-1};
   }
+
   shape(c,points,fill,stroke='#241b13',width=1){
    c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();
    c.fillStyle=fill;c.fill();if(stroke){c.strokeStyle=stroke;c.lineWidth=width;c.stroke();}
@@ -225,24 +233,32 @@
    const scale=w<600?.72:1.05;
    for(const party of [...this.parties].sort((a,b)=>this.position(a,w,h).y-this.position(b,w,h).y)){
     const p=this.position(party,w,h),loaded=party.progress>=1;
-    // Fade at gates and hide the instantaneous cargo change inside the VPN town.
-    const gateDistance=Math.min(party.progress,Math.abs(party.progress-1),2-party.progress);
-    c.save();c.globalAlpha=Math.min(1,gateDistance*18);
     const gait=still?0:time*8+party.id*1.9;
     const follower=this.position(party,w,h,-.045);
+    const drawPerson=(position,phase,variant,cargo,size=1)=>{
+     if(position.scale>0)this.person(c,position.x,position.y,scale*position.scale*size,position.facing,phase,variant,cargo);
+    };
     if(loaded&&party.cargo==='captive'){
      const captive=this.position(party,w,h,-.085);
-     c.save();c.setLineDash([2,2]);this.line(c,[[p.x-6*p.facing,p.y-15*scale],[captive.x+8*captive.facing*scale,captive.y-18*scale]],'#c4b287',.9);c.restore();
-     this.person(c,captive.x,captive.y,scale*.94,captive.facing,gait-.9,'captive');
+     if(follower.link===0)drawPerson(follower,gait+1.8,party.id+1,null,.92);
+     // The captive joins at the VPN door, after the leader has emerged.
+     if(captive.link===1&&captive.scale>0){
+      if(p.scale>0){
+       c.save();c.setLineDash([2,2]);this.line(c,[[p.x-6*p.facing*scale*p.scale,p.y-15*scale*p.scale],[captive.x+8*captive.facing*scale*captive.scale,captive.y-18*scale*captive.scale]],'#c4b287',.9);c.restore();
+      }
+      drawPerson(captive,gait-.9,'captive',null,.94);
+     }
     }else if(loaded&&party.cargo==='gold'&&party.id%2===1){
-     // Both carriers keep the same gait and hold one shared chest between them.
-     this.person(c,follower.x,follower.y,scale,follower.facing,gait,party.id+1,'chest');
-     this.person(c,p.x,p.y,scale,p.facing,gait,party.id,'chest');
-     this.chest(c,p,follower,scale,gait);c.restore();continue;
-    }else this.person(c,follower.x,follower.y+4,scale*.92,follower.facing,gait+1.8,party.id+1,null);
-    this.person(c,p.x,p.y,scale,p.facing,gait,party.id,loaded&&party.cargo==='gold'?'gold':null);
-    c.restore();
+     // Keep carriers and their shared chest together while crossing the doorway.
+     const shared=follower.link===1&&p.scale>0&&follower.scale>0;
+     drawPerson(follower,gait,party.id+1,follower.link===1?(shared?'chest':'gold'):null);
+     drawPerson(p,gait,party.id,shared?'chest':'gold');
+     if(shared)this.chest(c,p,follower,scale*Math.min(p.scale,follower.scale),gait);
+     continue;
+    }else drawPerson(follower,gait+1.8,party.id+1,null,.92);
+    drawPerson(p,gait,party.id,loaded&&party.cargo==='gold'?'gold':null);
    }
+
    // Smoke drifts gently above the four settlements; no fire or combat.
    for(const [x,y] of [[.12,.48],[.5,.48],[.88,.23],[.88,.78]])for(let i=0;i<3;i++){
     const phase=((still?0:time*.18)+i/3)%1;
