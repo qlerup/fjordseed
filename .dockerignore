@@ -2,6 +2,8 @@
 !requirements.txt
 !app.py
 !manual_package.py
+!torrent_search.py
+!search_routes.py
 !event_notifier.py
 !hub_email.py
 !hub.py

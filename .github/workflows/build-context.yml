@@ -1,0 +1,21 @@
+name: Docker build context
+on:
+  push:
+    paths:
+      - '.dockerignore'
+      - 'Dockerfile'
+      - 'tests/test_docker_context.py'
+      - '.github/workflows/build-context.yml'
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  context:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install pytest
+      - run: python -m pytest -q tests/test_docker_context.py
