@@ -59,6 +59,7 @@
   for(const controller of context.requests)controller.abort();context=null;
  }
  function resetView(){
+  $('#ratio-identity').hidden=false;
   stopPreviews();reviewing=false;items=[];packageOptions={};dialog.classList.remove('is-batch');
   $('#torrent-batch-review').hidden=true;$('#torrent-batch-list').replaceChildren();
   for(const id of ['single-benefit-tracker','preview-benefits','preview-ratio'])$('#'+id).hidden=false;
@@ -94,6 +95,7 @@
  }
  function drawResult(item){
   const result=item.result||{status:'pending',message:'Venter på trackeropslag…'};
+  renderTorrentIdentity(item.identity,result,item.file.name,'h4');
   item.benefits.replaceChildren(benefitView(result));renderRatioPreview(result,item.ratio);
   const estimates=result.ratio_estimates||[];
   item.ratioTitle.textContent=estimates.length?estimates.map(e=>e.status==='ok'?`${e.tracker_name}: forventet ratio ${e.infinite?'∞':Number(e.projected_ratio).toLocaleString('da-DK',{maximumFractionDigits:4})}`:`${e.tracker_name}: ratio ukendt`).join(' · '):result.status==='pending'?'Beregner forventet tracker-ratio…':'Forventet ratio er ukendt';
@@ -111,7 +113,7 @@
  function build(file){
   const item={file,id:++serial,version:0,nextAt:0,attempts:0,started:0,invalid:false,removed:false,added:false,controller:null};
   const el=node('article','torrent-batch-item');el.dataset.fileName=file.name;
-  const head=node('div','batch-item-heading'),title=node('h4','',file.name),remove=node('button','quiet','Fjern');remove.type='button';remove.setAttribute('aria-label','Fjern '+file.name);head.append(title,remove);
+  const head=node('div','batch-item-heading'),identity=node('div','torrent-identity'),remove=node('button','quiet','Fjern');remove.type='button';remove.setAttribute('aria-label','Fjern '+file.name);head.append(identity,remove);
   const state=node('p','batch-item-status');state.setAttribute('role','status');
   const label=node('label','','Tracker'),select=node('select');select.id=`batch-tracker-${item.id}`;select.setAttribute('aria-label','Tracker for '+file.name);
   const auto=node('option','','Find automatisk');auto.value='';select.append(auto);
@@ -120,7 +122,7 @@
   const benefits=node('div','batch-item-benefits'),detail=node('details','batch-ratio-detail'),ratioTitle=node('summary'),ratio=node('div');detail.append(ratioTitle,ratio);
   const retry=node('button','quiet batch-item-retry','Hent oplysninger igen');retry.type='button';
   el.append(head,state,label,benefits,detail,retry);
-  Object.assign(item,{el,state,select,remove,benefits,ratio,ratioTitle,retry});
+  Object.assign(item,{el,state,select,remove,benefits,ratio,ratioTitle,retry,identity});
   select.onchange=()=>queue(item);retry.onclick=()=>queue(item);
   remove.onclick=async()=>{
    if(submitting)return;item.removing=true;remove.disabled=true;summary();
@@ -142,7 +144,7 @@
    const body=new FormData();body.set('torrent',item.file);body.set('tracker_id',item.select.value);
    request('/api/torrents/preview',body,controller,20000).then(result=>{
     if(ctx!==context||ctx.cancelled||item.removed||item.version!==version)return;
-    const pending=result.status==='pending'||result.ratio_estimates?.some(e=>e.status==='pending');
+    const pending=result.status==='pending'||result.ratio_estimates?.some(e=>e.status==='pending')||result.torrent?.cover_pending;
     item.result=pending&&Date.now()-item.started>180000?{status:'unknown',message:'Trackeropslaget er endnu ikke klart. Du kan hente oplysningerne igen.'}:result;
     item.nextAt=pending&&Date.now()-item.started<=180000?Date.now()+(++item.attempts<=4?750:2500):Infinity;
    }).catch(error=>{
@@ -160,6 +162,7 @@
  }
  function open(fileList,options={}){
   resetView();packageOptions=options;reviewing=true;dialog.classList.add('is-batch');$('#torrent-batch-review').hidden=false;
+  $('#ratio-identity').hidden=true;
   if(options.ids)$('#ratio-back').textContent='Luk pakken';
   for(const id of ['single-benefit-tracker','preview-benefits','preview-ratio'])$('#'+id).hidden=true;
   items=fileList.map(build);$('#torrent-batch-list').replaceChildren(...items.map(item=>item.el));

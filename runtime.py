@@ -291,7 +291,7 @@ class Runtime:
             if result.exit_code:
                 try:
                     failure=json.loads(result.output)
-                    if action.startswith('library-'):
+                    if action.startswith(('library-', 'search-')):
                         raise ValueError(failure['error'])
                     if failure.get('code')=='seeding_requirement':
                         raise ValueError(failure['error'])

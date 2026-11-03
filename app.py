@@ -56,6 +56,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     rss = Rss(state.root)
     rss_gate = RssGate(rss,runtime,state,trackers.benefits)
     app.extensions.update(state=state, runtime=runtime, stop=stop, hub=hub, trackers=trackers, rss=rss, covers=covers, event_notifier=notifier)
+    from search_routes import register as register_search
+    register_search(app, state, runtime)
     failures, auth_lock = {}, threading.Lock()
     allowed_hosts = {'localhost','127.0.0.1'} | set(filter(None, os.environ.get('UI_ALLOWED_HOSTS','').split(',')))
 
@@ -279,7 +281,14 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                 matches=[{'tracker_id':selected,'tracker_name':accounts[selected]['name'],'freeleech':None}]
             estimates=[ratio_estimate(m,accounts.get(m.get('tracker_id')),
                 meta.get('size') if meta.get('size') is not None else m.get('size')) for m in matches]
-            return jsonify({**result,'ratio_estimates':estimates})
+            from covers import poster_url
+            poster = next((m.get('poster') for m in result.get('matches', []) if poster_url(m.get('poster'))), None)
+            cover = covers.request(poster)
+            title = next((m['title'] for m in result.get('matches', [])
+                          if isinstance(m.get('title'), str) and m['title'].strip()), meta.get('name', ''))
+            return jsonify({**result, 'ratio_estimates': estimates,
+                            'torrent': {'title': title[:500], 'cover': cover,
+                                        'cover_pending': bool(poster and not cover)}})
         except ValueError as exc:
             return jsonify(error=str(exc)),400
 

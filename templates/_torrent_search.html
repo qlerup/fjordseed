@@ -1,0 +1,18 @@
+<section id="search-view" hidden aria-labelledby="search-heading">
+  <div class="section-heading"><h2 id="search-heading">Søg efter torrents</h2><button type="button" class="secondary" id="search-engines-toggle" aria-expanded="false" aria-controls="search-engines">Søgemaskiner</button></div>
+  <p class="muted">Søg gennem qBittorrents søgemaskiner, og vælg det, du vil hente. Søgningen går gennem din VPN.</p>
+  <div id="search-engines" class="search-engines" hidden>
+    <h3>Dine søgemaskiner</h3><p id="search-engine-status" class="muted small" role="status"></p>
+    <div class="search-controls"><label>Tilføj søgemaskine<select id="search-install-engine"></select></label><button type="button" class="secondary" id="search-install">Tilføj</button><button type="button" class="quiet" id="search-reload">Opdatér listen</button></div>
+    <p class="muted small">Søgemaskiner hentes fra qBittorrents officielle pluginarkiv. Private trackere kræver deres egen søgeopsætning; dine trackerkonti og RSS-feeds tilføjes ikke automatisk.</p>
+  </div>
+  <form id="search-form" class="search-controls">
+    <label class="search-query">Hvad vil du hente?<input id="search-query" type="search" minlength="2" maxlength="200" placeholder="Søg efter navn…" required></label>
+    <label>Søgemaskine<select id="search-engine"><option value="enabled">Alle aktive søgemaskiner</option></select></label>
+    <button class="primary" id="search-submit">Søg</button><button type="button" class="secondary" id="search-stop" hidden>Stop søgning</button>
+  </form>
+  <p id="search-error" class="error" role="alert" hidden></p>
+  <p id="search-status" class="muted small" role="status" aria-live="polite">Skriv et navn for at finde torrents.</p>
+  <div id="search-results" class="search-results"></div>
+  <div class="search-pagination"><button type="button" class="secondary" id="search-prev" hidden>Forrige</button><span id="search-page" class="muted small"></span><button type="button" class="secondary" id="search-next" hidden>Næste</button></div>
+</section>

@@ -6,6 +6,23 @@ function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;clear
 function error(selector,e){$(selector).textContent=e.message;$(selector).hidden=false;}
 async function api(url, options={}){const r=await fetch(url,{...options,headers:{'X-CSRF-Token':csrf,...options.headers}});if(r.status===401){location.href='/login';throw Error('Log ind igen.');}const d=await r.json();if(!r.ok)throw Error(d.error||'Handlingen kunne ikke udføres.');return d;}
 function size(n,precise=false){n=Number(n)||0;const units=precise?['B','KiB','MiB','GiB','TiB']:['B','KB','MB','GB','TB'];for(const unit of units){if(n<1024||unit===units[4])return n.toFixed(precise?(unit==='B'?0:2):(n<10?1:0))+' '+unit;n/=1024;}}
+function renderTorrentIdentity(target,data={},fallback='',heading='h3'){
+ const media=data.torrent||{},title=media.title||fallback||'Afventer torrentens titel';
+ const cover=node('div','torrent-identity-cover'),info=node('div','torrent-identity-info');
+ const placeholder=()=>cover.replaceChildren(node('span','',media.cover_pending||data.status==='pending'?'Henter cover…':'Intet cover'));
+ placeholder();
+ if(typeof media.cover==='string'&&/^\/api\/covers\/[a-f0-9]{64}$/.test(media.cover)){
+  const image=node('img');image.src=media.cover;image.alt='Cover til '+title;image.width=80;image.height=120;image.decoding='async';
+  image.onerror=()=>{cover.replaceChildren(node('span','','Intet cover'));};cover.replaceChildren(image);
+ }
+ info.append(node(heading,'torrent-identity-title',title));
+ target.replaceChildren(cover,info);return info;
+}
+function renderSingleTorrentIdentity(data={}){
+ const source=$('#ratio-source'),fallback=source.textContent;
+ const info=renderTorrentIdentity($('#ratio-identity'),data,fallback);
+ info.append(source);source.hidden=!!data.torrent?.title&&data.torrent.title===fallback;
+}
 function benefitView(data){
  const wrap=node('div','torrent-benefits');
  if(!data||data.status!=='matched'){wrap.append(node('span','muted small',data?.message||'Trackerfordele ukendte'));return wrap;}
@@ -409,8 +426,22 @@ $('#new-torrent').onclick=()=>{
  $('#add-dialog').showModal();$('#torrent-file').focus();
 };
 document.querySelectorAll('.close').forEach(b=>b.onclick=()=>b.closest('dialog').close());
-let pendingTorrent;
+let pendingTorrent,searchTorrent=false;
+function openSearchTorrent(source){
+ searchTorrent=true;
+ window.TorrentBatch?.reset();
+ pendingTorrent=new FormData();
+ if(source.magnet)pendingTorrent.set('magnet',source.magnet);
+ else if(source.torrent){
+  const bytes=Uint8Array.from(atob(source.torrent),c=>c.charCodeAt(0));
+  pendingTorrent.set('torrent',new Blob([bytes],{type:'application/x-bittorrent'}),'search.torrent');
+ }else throw Error('Søgeresultatet kunne ikke hentes.');
+ $('#ratio-form').reset();$('#ratio-error').hidden=true;$('#ratio-delete-notice').hidden=true;
+ window.TorrentBatch?.resetView();$('#ratio-source').textContent=source.name||'Torrent fra søgning';
+ $('#ratio-dialog').showModal();prepareBenefits();updateSeedingFields('ratio');$('#ratio-action').focus();
+}
 $('#add-form').onsubmit=e=>{
+ searchTorrent=false;
  e.preventDefault();$('#add-error').hidden=true;
  try{
   if(addMethod==='file'&&window.TorrentBatch?.selecting)throw Error('Vent et øjeblik, mens torrentfilerne læses.');
@@ -434,13 +465,14 @@ $('#add-form').onsubmit=e=>{
 };
 let previewTimer,previewGeneration=0;
 function prepareBenefits(){
+ renderSingleTorrentIdentity({status:'pending'});
  const select=$('#benefit-tracker');select.replaceChildren(node('option','','Find automatisk blandt mine trackere'));select.firstChild.value='';
  for(const tracker of typeof trackerData==='undefined'?[]:trackerData){const option=node('option','',tracker.name);option.value=tracker.id;select.append(option);}
  loadPreviewBenefits();
 }
 async function loadPreviewBenefits(){
  clearTimeout(previewTimer);const generation=++previewGeneration;
- let pendingChecks=0;
+ let pendingChecks=0,coverChecks=0;
  $('#preview-benefits').replaceChildren(benefitView({status:'pending',message:'Slår trackerfordele op...'}));
  renderRatioPreview({status:'pending'});
  async function check(){
@@ -449,8 +481,9 @@ async function loadPreviewBenefits(){
    const result=await api('/api/torrents/preview',{method:'POST',body});
    if(generation!==previewGeneration||!$('#ratio-dialog').open)return;
    $('#preview-benefits').replaceChildren(benefitView(result));
+   renderSingleTorrentIdentity(result);
    renderRatioPreview(result);
-   if(result.status==='pending'||result.ratio_estimates?.some(e=>e.status==='pending'))previewTimer=setTimeout(check,++pendingChecks<=12?500:1500);
+   if(result.status==='pending'||result.ratio_estimates?.some(e=>e.status==='pending')||(result.torrent?.cover_pending&&++coverChecks<=20))previewTimer=setTimeout(check,++pendingChecks<=12?500:1500);
   }catch(e){if(generation===previewGeneration){$('#preview-benefits').replaceChildren(benefitView({status:'unknown',message:'Trackerfordele ukendte — '+e.message}));renderRatioPreview({status:'unknown'});}}
  }
  await check();
@@ -483,7 +516,7 @@ function updateSeedingFields(prefix){
 $('#ratio-action').onchange=()=>updateSeedingFields('ratio');
 updateSeedingFields('ratio');
 $('#ratio-dialog').addEventListener('cancel',e=>{if(window.TorrentBatch?.active?window.TorrentBatch.submitting:$('#ratio-save').disabled)e.preventDefault();});
-$('#ratio-back').onclick=()=>{$('#ratio-dialog').close();if(!window.TorrentBatch?.packaged)$('#add-dialog').showModal();};
+$('#ratio-back').onclick=()=>{$('#ratio-dialog').close();if(!searchTorrent&&!window.TorrentBatch?.packaged)$('#add-dialog').showModal();};
 $('#ratio-form').onsubmit=async e=>{e.preventDefault();if(window.TorrentBatch?.active){await window.TorrentBatch.submit();return;}if(!pendingTorrent)return;$('#ratio-save').disabled=true;$('#ratio-back').disabled=true;$('#ratio-dialog .close').disabled=true;$('#ratio-error').hidden=true;try{pendingTorrent.set('convert',String($('#ratio-convert').checked));pendingTorrent.set('ratio_limit',$('#ratio-limit').value);pendingTorrent.set('ratio_action',$('#ratio-action').value);pendingTorrent.set('seed_minutes',$('#ratio-seed-minutes').value);await api('/api/torrents',{method:'POST',body:pendingTorrent});pendingTorrent=null;$('#ratio-dialog').close();toast('Torrent tilføjet');await refresh();}catch(e){error('#ratio-error',e);}finally{$('#ratio-save').disabled=false;$('#ratio-back').disabled=false;$('#ratio-dialog .close').disabled=false;}};
 function openDeleteEditor(t){
  deleting=t;$('#delete-form').reset();$('#delete-name').textContent=t.name;
@@ -514,7 +547,8 @@ $('#delete-form').onsubmit=async e=>{
 let downloadFilter='all';
 function showView(focus=false){
  const requested=location.hash==='#settings'?'connection':location.hash.slice(1);
- const view=['overview','torrents','streaming','storage','connection','trackers','rss','conversion','appearance'].includes(requested)?requested:'overview';
+ const view=['overview','torrents','search','streaming','storage','connection','trackers','rss','conversion','appearance'].includes(requested)?requested:'overview';
+ $('#search-view').hidden=view!=='search';
  const downloads=view==='torrents'||view==='rss';
  const settings=['connection','streaming','storage','trackers','conversion','appearance'].includes(view);
  $('#settings-tabs').hidden=!settings;
@@ -539,6 +573,7 @@ function showView(focus=false){
  $('#page-description').textContent=storage?'Fra buffer til dit mediebibliotek.':vpn?'Vælg VPN-profil, og se seedboxens forbindelse og beskyttelse.':trackers?'Forbind dine trackerkonti, og saml statistikken i FjordSeed.':rss?'Automatiske downloads med dine egne regler for mapper og seeding.':'qBittorrent samlet ét sted, med trafik gennem din VPN.';
  if(streaming){$('#breadcrumb').textContent='Seedbox / Streaming';$('#page-title').textContent='Streaming';$('#page-description').textContent='Vælg buffer og forbind dine færdige downloads til FjordFlix.';}
  if(overview){$('#breadcrumb').textContent='Seedbox / Oversigt';$('#page-title').textContent='Din seedbox i overblik';$('#page-description').textContent='Følg din VPN-forbindelse, dine trackerkonti og din udvikling over tid.';}
+ if(view==='search'){$('#breadcrumb').textContent='Seedbox / Søg';$('#page-title').textContent='Find dit næste download';$('#page-description').textContent='Søg, vælg og hent direkte i FjordSeed.';}
  document.querySelectorAll('.nav').forEach(link=>{const active=link.hash==='#'+(settings?'settings':downloads?'torrents':view);link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');});
  if(settings){$('#breadcrumb').textContent='Seedbox / Indstillinger / '+({connection:'VPN-forbindelse',streaming:'Streaming',storage:'Lager og mapper',trackers:'Trackere',conversion:'Konvertering',appearance:'Tema'}[view]);$('#page-title').textContent='Indstillinger';}
  if(view==='appearance')$('#page-description').textContent='Dit tema, din stemning. Vælg udseende og bevægelse.';

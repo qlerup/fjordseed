@@ -245,6 +245,9 @@ def execute(action, data):
     prefs = call('app/preferences').json()
     if prefs.get('current_network_interface') != 'tun0' or prefs.get('upnp') is not False:
         raise RuntimeError('Unsafe qBittorrent network settings')
+    if action in ('search-plugins', 'search-install', 'search-start', 'search-results', 'search-stop', 'search-delete', 'search-resolve'):
+        from torrent_search import execute as search_execute
+        return search_execute(action, data, call)
     if action in ('rss_prepare','rss_resolve'):
         from rss_gate import gate_rpc
         from qbit_worker import ready
@@ -420,7 +423,7 @@ if __name__ == '__main__':
         print(json.dumps({'error':str(exc),'code':'seeding_requirement'}))
         sys.exit(1)
     except ValueError as exc:
-        message=str(exc) if job.get('action','').startswith('library-') else 'qBittorrent kunne ikke udføre handlingen. Kontrollér VPN-status og torrentfilen.'
+        message=str(exc) if job.get('action','').startswith(('library-', 'search-')) else 'qBittorrent kunne ikke udføre handlingen. Kontrollér VPN-status og torrentfilen.'
         print(json.dumps({'error':message}))
         sys.exit(1)
     except Exception:

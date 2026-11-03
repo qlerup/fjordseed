@@ -11,6 +11,30 @@ server GPU and remains disabled until explicitly enabled.
 
 A separate FjordHub seedbox with bundled qBittorrent. FjordVPN manages Proton profiles; installation starts no torrents. The interface currently uses Danish labels.
 
+## Torrent search
+
+Open **Søg** to search qBittorrent's enabled search plugins through the VPN.
+On first use, open **Søgemaskiner**, add a provider from qBittorrent's official
+plugin repository, then refresh the list once installation finishes. Provider
+availability depends on the site and plugin. Existing tracker accounts and RSS
+feeds are not automatically search providers; private trackers need a separately
+configured plugin (for example an existing Jackett integration).
+
+Results show size, seeders, leechers and source with 50 results per page.
+**Hent** resolves only the selected torrent's metadata inside the VPN container
+and opens the usual seeding/conversion dialog. The content download begins when
+that dialog is submitted, using the existing queue, storage and seeding policies.
+Both magnet links and plugin-specific torrent download methods are supported.
+Search jobs are session-owned, replaced on the next search and expire after ten
+minutes. Refreshing the app or restarting it requires a new search. The container
+image must be rebuilt to include the new search modules.
+
+The **Seeding og filer** dialog shows the internal torrent title immediately
+after reading its metadata, then the verified tracker title and cached cover
+when available. Each file in a batch gets its own title and cover. Covers load
+asynchronously through the existing local cache; a missing cover does not block
+downloads. This preview is shared by the Fjord, Viking and Nordic themes.
+
 ## Optional GPU conversion before library publication
 
 During installation, enable **Installer NVIDIA GPU-konvertering** in FjordHub's

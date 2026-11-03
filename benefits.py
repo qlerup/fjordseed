@@ -395,6 +395,7 @@ class Benefits:
                             ident=a.get('info_hash','')
                             if isinstance(ident,str) and ident.lower() in hashes:
                                 match={'tracker_id':entry['id'],'tracker_name':entry['name'],
+                                       'title':a.get('name','')[:500] if isinstance(a.get('name'),str) else '',
                                        'tracker_provider':entry.get('provider','nordicbytes'),'created_at':a.get('created_at'),
                                        'poster':poster_url(a.get('meta',{}).get('poster')) if isinstance(a.get('meta'),dict) else None,
                                        'size':byte_size(a.get('size')),'leechers':byte_size(a.get('leechers')),**self.flags(a)}
