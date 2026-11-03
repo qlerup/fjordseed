@@ -14,8 +14,11 @@ A separate FjordHub seedbox with bundled qBittorrent. FjordVPN manages Proton pr
 ## Torrent search
 
 Open **Søg** to search qBittorrent's enabled search plugins through the VPN.
-On first use, open **Søgemaskiner**, add a provider from qBittorrent's official
-plugin repository, then refresh the list once installation finishes. Provider
+On first use, open **Søgemaskiner** and select **Tilføj alle søgemaskiner** to
+install all seven catalog providers at once. Missing providers are installed and
+disabled catalog providers are enabled. The list updates automatically while
+installation finishes. Searches default to all enabled providers together;
+the **Søg i** selector can still limit a search to one provider. Provider
 availability depends on the site and plugin. Existing tracker accounts and RSS
 feeds are not automatically search providers; private trackers need a separately
 configured plugin (for example an existing Jackett integration).

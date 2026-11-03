@@ -6,7 +6,7 @@ import requests
 
 from app import create_app
 from test_app import FakeRuntime, login
-from torrent_search import execute, plugin_metadata
+from torrent_search import ENGINES, execute, plugin_metadata
 import qbit_rpc
 
 
@@ -94,6 +94,27 @@ def test_only_selected_native_result_can_supply_metadata(monkeypatch):
     monkeypatch.setattr('torrent_search.plugin_metadata', Mock(side_effect=ValueError('secret')))
     with pytest.raises(ValueError, match='Torrentlinket kunne ikke hentes'):
         execute('search-resolve', {'id': 1}, api)
+
+
+def test_bulk_install_adds_missing_and_enables_disabled_catalog_engines_only():
+    installed = [{'name': 'eztv', 'enabled': True}, {'name': 'piratebay', 'enabled': False},
+                 {'name': 'private_tracker', 'enabled': False}]
+    api = Mock(return_value=Mock(json=lambda: installed))
+    result = execute('search-install', {'name': 'all'}, api)
+    assert result == {'ok': True, 'requested': list(ENGINES)}
+    api.assert_any_call('search/enablePlugin', {'names': 'piratebay', 'enable': 'true'})
+    sources = api.call_args.args[1]['sources'].split('|')
+    expected = [n for n in ENGINES if n not in ('eztv', 'piratebay')]
+    assert sources == [f'https://raw.githubusercontent.com/qbittorrent/search-plugins/master/nova3/engines/{n}.py' for n in expected]
+    assert all('private_tracker' not in str(c) for c in api.call_args_list)
+
+
+def test_bulk_install_is_idempotent_and_default_search_uses_all_enabled_engines():
+    api = Mock(return_value=Mock(json=lambda: [{'name': n, 'enabled': True} for n in ENGINES]))
+    execute('search-install', {'name': 'all'}, api)
+    assert api.call_count == 1 and api.call_args.args == ('search/plugins',)
+    execute('search-start', {'pattern': 'Ubuntu'}, api)
+    assert api.call_args.args == ('search/start', {'pattern': 'Ubuntu', 'plugins': 'enabled', 'category': 'all'})
 
 
 def test_vpn_binding_checked_before_search(monkeypatch):

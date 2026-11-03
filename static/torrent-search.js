@@ -1,6 +1,6 @@
 (() => {
  'use strict';
- let token=null,offset=0,timer=null,generation=0,pollSequence=0,loading=false,loaded=false;
+ let token=null,offset=0,timer=null,generation=0,pollSequence=0,loading=false,loaded=false,installing=false;
  const message=text=>{$('#search-status').textContent=text;};
  const fail=e=>error('#search-error',e);
  const post=(url,data)=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
@@ -8,15 +8,16 @@
  async function engines(){
   const data=await api('/api/search/plugins');
   const select=$('#search-engine'),selected=select.value;
-  select.replaceChildren(new Option('Alle aktive søgemaskiner','enabled'));
+  select.replaceChildren(new Option('Alle søgemaskiner på én gang','enabled'));
   const active=(data.plugins||[]).filter(p=>p.enabled);
   for(const p of active)select.append(new Option(p.fullName||p.name,p.name));
   if([...select.options].some(p=>p.value===selected))select.value=selected;
-  $('#search-engine-status').textContent=active.length?active.map(p=>p.fullName||p.name).join(' · '):'Ingen aktive søgemaskiner endnu. Tilføj en nedenfor, og opdatér listen efter et øjeblik.';
+  $('#search-engine-status').textContent=active.length?active.map(p=>p.fullName||p.name).join(' · '):'Ingen aktive søgemaskiner endnu. Vælg “Tilføj alle søgemaskiner” for at komme i gang.';
   const catalog=$('#search-install-engine');catalog.replaceChildren();
   for(const [name,label] of Object.entries(data.catalog||{}))catalog.append(new Option(label,name));
   if(!active.length){$('#search-engines').hidden=false;$('#search-engines-toggle').setAttribute('aria-expanded','true');}
   loaded=true;
+  return data;
  }
  function render(data){
   const target=$('#search-results');target.replaceChildren();
@@ -52,13 +53,30 @@
  }
  $('#search-engines-toggle').onclick=()=>{const panel=$('#search-engines');panel.hidden=!panel.hidden;$('#search-engines-toggle').setAttribute('aria-expanded',String(!panel.hidden));if(!loaded)engines().catch(fail);};
  $('#search-reload').onclick=()=>engines().catch(fail);
- $('#search-install').onclick=async()=>{
-  const button=$('#search-install');button.disabled=true;$('#search-error').hidden=true;
-  try{await post('/api/search/plugins',{name:$('#search-install-engine').value});message('Søgemaskinen bliver tilføjet. Opdatér listen efter et øjeblik.');await engines();}
-  catch(e){fail(e);}finally{button.disabled=false;}
- };
+ async function install(name){
+  if(installing||loading)return;installing=true;$('#search-error').hidden=true;
+  for(const id of ['search-install','search-install-all','search-submit','search-reload','search-engine','search-install-engine'])$('#'+id).disabled=true;
+  try{
+   const result=await post('/api/search/plugins',{name});
+   const requested=result.requested||[name];
+   if(name==='all')$('#search-engine').value='enabled';
+   let missing=requested;
+   for(let attempt=0;attempt<20;attempt++){
+    const data=await engines(),ready=new Set((data.plugins||[]).filter(p=>p.enabled).map(p=>p.name));
+    missing=requested.filter(n=>!ready.has(n));
+    message(missing.length?`Tilføjer søgemaskiner… ${requested.length-missing.length} af ${requested.length} klar.`:name==='all'?'Alle søgemaskiner er klar. Din næste søgning søger i dem alle.':'Søgemaskinen er klar.');
+    if(!missing.length)break;
+    await new Promise(resolve=>setTimeout(resolve,1000));
+   }
+   if(missing.length)throw Error('Disse søgemaskiner er endnu ikke klar: '+missing.join(', ')+'. Opdatér listen, eller prøv at tilføje dem igen.');
+  }catch(e){fail(e);}finally{
+   installing=false;for(const id of ['search-install','search-install-all','search-submit','search-reload','search-engine','search-install-engine'])$('#'+id).disabled=false;
+  }
+ }
+ $('#search-install').onclick=()=>install($('#search-install-engine').value);
+ $('#search-install-all').onclick=()=>install('all');
  $('#search-form').onsubmit=async event=>{
-  event.preventDefault();if(loading)return;loading=true;$('#search-submit').disabled=true;$('#search-error').hidden=true;
+  event.preventDefault();if(loading||installing)return;loading=true;$('#search-submit').disabled=true;$('#search-error').hidden=true;
   const version=++generation;clearTimeout(timer);token=null;offset=0;running(false);
   $('#search-results').replaceChildren();$('#search-prev').hidden=true;$('#search-next').hidden=true;$('#search-page').textContent='';message('Starter søgning…');
   try{const data=await post('/api/search',{pattern:$('#search-query').value,plugin:$('#search-engine').value});token=data.token;await poll(version);}

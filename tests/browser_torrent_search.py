@@ -9,6 +9,7 @@ from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 from app import create_app
 from test_app import FakeRuntime
+from torrent_search import ENGINES
 
 
 class Demo(FakeRuntime):
@@ -21,16 +22,22 @@ class Demo(FakeRuntime):
         self.pattern = ''
         self.added = []
         self.installed = False
+        self.install_polls = 0
 
     def status(self):
         return {**super().status(), 'ready': True, 'enabled': True}
 
     def search_rpc(self, action, data):
         if action == 'search-plugins':
-            return {'plugins': [{'name': 'torrentscsv', 'fullName': 'Torrents.csv', 'enabled': True}] if self.installed else [],
-                    'catalog': {'torrentscsv': 'Torrents.csv'}}
-        if action == 'search-install': self.installed = True
+            self.install_polls += 1
+            names = list(ENGINES) if self.installed and self.install_polls > 2 else ['eztv'] if self.installed else []
+            return {'plugins': [{'name': name, 'fullName': ENGINES[name], 'enabled': True} for name in names], 'catalog': ENGINES}
+        if action == 'search-install':
+            self.installed = True
+            self.install_polls = 0
+            return {'ok': True, 'requested': list(ENGINES) if data['name'] == 'all' else [data['name']]}
         if action == 'search-start':
+            assert data['plugin'] == 'enabled'
             self.running = True
             self.pattern = data['pattern']
             return {'id': 123}
@@ -40,7 +47,7 @@ class Demo(FakeRuntime):
             if self.pattern == 'error': raise ValueError('Test: søgemaskinen er utilgængelig.')
             offset = data['offset']
             return {'results': [{'fileName': '<img src=x onerror=alert(1)> Ubuntu '+str(offset+i)+' '+('Long.title.'*12),
-                                 'fileSize': 2147483648, 'nbSeeders': 15, 'nbLeechers': 2, 'engineName': 'Torrents.csv'}
+                                 'fileSize': 2147483648, 'nbSeeders': 15, 'nbLeechers': 2, 'engineName': 'Torrents.csv' if i % 2 else 'EZTV'}
                                 for i in range(min(50, 51-offset))], 'total': 51,
                     'status': 'Running' if self.running else 'Stopped'}
         if action == 'search-resolve':
@@ -68,12 +75,18 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('.nav[href="#search"]').click()
             expect(page.locator('#search-view')).to_be_visible()
             expect(page.locator('#search-engines')).to_be_visible()
-            page.locator('#search-install').click()
-            expect(page.locator('#search-engine-status')).to_have_text('Torrents.csv')
+            page.locator('#search-install-all').click()
+            expect(page.locator('#search-submit')).to_be_disabled()
+            expect(page.locator('#search-status')).to_contain_text('Alle søgemaskiner er klar')
+            expect(page.locator('#search-engine')).to_have_value('enabled')
+            for label in ENGINES.values():
+                expect(page.locator('#search-engine-status')).to_contain_text(label)
             page.locator('#search-engines-toggle').click()
             page.locator('#search-query').fill('Ubuntu')
             page.locator('#search-submit').click()
             expect(page.locator('.search-result')).to_have_count(50)
+            expect(page.locator('.search-result').nth(0)).to_contain_text('EZTV')
+            expect(page.locator('.search-result').nth(1)).to_contain_text('Torrents.csv')
             assert page.locator('#search-results img').count() == 0
             page.locator('#search-stop').click()
             expect(page.locator('#search-stop')).to_be_hidden()
@@ -94,7 +107,7 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('.search-result')).to_have_count(50)
             output = Path(__file__).resolve().parents[1]/'test-results'
             output.mkdir(exist_ok=True)
-            for width, theme in [(1440, 'aurora'), (390, 'aurora'), (1440, 'nordic'), (390, 'nordic')]:
+            for width, theme in [(w, t) for t in ('fjord', 'viking', 'nordic') for w in (1440, 390)]:
                 page.set_viewport_size({'width': width, 'height': 1000})
                 page.evaluate('(theme)=>document.documentElement.dataset.theme=theme', theme)
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (width, theme)

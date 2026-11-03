@@ -46,11 +46,22 @@ def execute(action, data, api):
         return {'plugins': api('search/plugins').json(), 'catalog': ENGINES}
     if action == 'search-install':
         name = data.get('name')
-        if name not in ENGINES:
+        if not isinstance(name, str) or name not in (*ENGINES, 'all'):
             raise ValueError('Vælg en søgemaskine fra listen.')
-        api('search/installPlugin', {'sources':
-            f'https://raw.githubusercontent.com/qbittorrent/search-plugins/master/nova3/engines/{name}.py'})
-        return {'ok': True}
+        names = list(ENGINES) if name == 'all' else [name]
+        if name == 'all':
+            installed = {p['name']: p for p in api('search/plugins').json()}
+            missing = [n for n in names if n not in installed]
+            disabled = [n for n in names if n in installed and not installed[n].get('enabled')]
+            if disabled:
+                api('search/enablePlugin', {'names': '|'.join(disabled), 'enable': 'true'})
+        else:
+            missing = names
+        if missing:
+            api('search/installPlugin', {'sources': '|'.join(
+                f'https://raw.githubusercontent.com/qbittorrent/search-plugins/master/nova3/engines/{n}.py'
+                for n in missing)})
+        return {'ok': True, 'requested': names}
     if action == 'search-start':
         pattern = data.get('pattern')
         if not isinstance(pattern, str) or not 2 <= len(pattern.strip()) <= 200:

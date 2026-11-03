@@ -3,12 +3,14 @@
   <p class="muted">Søg gennem qBittorrents søgemaskiner, og vælg det, du vil hente. Søgningen går gennem din VPN.</p>
   <div id="search-engines" class="search-engines" hidden>
     <h3>Dine søgemaskiner</h3><p id="search-engine-status" class="muted small" role="status"></p>
-    <div class="search-controls"><label>Tilføj søgemaskine<select id="search-install-engine"></select></label><button type="button" class="secondary" id="search-install">Tilføj</button><button type="button" class="quiet" id="search-reload">Opdatér listen</button></div>
+    <button type="button" class="primary" id="search-install-all">Tilføj alle søgemaskiner</button>
+    <p class="muted small">Tilføj alle søgemaskiner på listen på én gang. Søgningen søger som standard i dem alle.</p>
+    <div class="search-controls"><label>Tilføj én søgemaskine<select id="search-install-engine"></select></label><button type="button" class="secondary" id="search-install">Tilføj</button><button type="button" class="quiet" id="search-reload">Opdatér listen</button></div>
     <p class="muted small">Søgemaskiner hentes fra qBittorrents officielle pluginarkiv. Private trackere kræver deres egen søgeopsætning; dine trackerkonti og RSS-feeds tilføjes ikke automatisk.</p>
   </div>
   <form id="search-form" class="search-controls">
     <label class="search-query">Hvad vil du hente?<input id="search-query" type="search" minlength="2" maxlength="200" placeholder="Søg efter navn…" required></label>
-    <label>Søgemaskine<select id="search-engine"><option value="enabled">Alle aktive søgemaskiner</option></select></label>
+    <label>Søg i<select id="search-engine"><option value="enabled">Alle søgemaskiner på én gang</option></select></label>
     <button class="primary" id="search-submit">Søg</button><button type="button" class="secondary" id="search-stop" hidden>Stop søgning</button>
   </form>
   <p id="search-error" class="error" role="alert" hidden></p>
