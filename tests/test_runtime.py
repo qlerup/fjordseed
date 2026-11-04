@@ -26,6 +26,8 @@ def test_status_distinguishes_unavailable_torrents_from_confirmed_empty(runtime,
 @pytest.fixture
 def runtime(tmp_path,monkeypatch):
     monkeypatch.setattr('runtime.Storage.ensure_seeder',Mock())
+    # The Docker host owns this operation in production; CI runs unprivileged.
+    monkeypatch.setattr('rss.os.chown',Mock(),raising=False)
     r=Runtime.__new__(Runtime)
     r.state=State(tmp_path)
     (tmp_path/'vpn').mkdir()
@@ -47,6 +49,8 @@ def runtime(tmp_path,monkeypatch):
 
 def test_child_has_only_vpn_network_and_no_keys_or_host_ports(runtime):
     runtime.reconcile()
+    import rss
+    rss.os.chown.assert_any_call(runtime.state.root/'qbit/fjord-rss.json',1000,1000)
     args=runtime.client.containers.create.call_args.kwargs
     assert args['network_mode']=='container:vpn-id'
     assert 'ports' not in args and 'devices' not in args
