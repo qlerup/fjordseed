@@ -426,22 +426,8 @@ $('#new-torrent').onclick=()=>{
  $('#add-dialog').showModal();$('#torrent-file').focus();
 };
 document.querySelectorAll('.close').forEach(b=>b.onclick=()=>b.closest('dialog').close());
-let pendingTorrent,searchTorrent=false;
-function openSearchTorrent(source){
- searchTorrent=true;
- window.TorrentBatch?.reset();
- pendingTorrent=new FormData();
- if(source.magnet)pendingTorrent.set('magnet',source.magnet);
- else if(source.torrent){
-  const bytes=Uint8Array.from(atob(source.torrent),c=>c.charCodeAt(0));
-  pendingTorrent.set('torrent',new Blob([bytes],{type:'application/x-bittorrent'}),'search.torrent');
- }else throw Error('Søgeresultatet kunne ikke hentes.');
- $('#ratio-form').reset();$('#ratio-error').hidden=true;$('#ratio-delete-notice').hidden=true;
- window.TorrentBatch?.resetView();$('#ratio-source').textContent=source.name||'Torrent fra søgning';
- $('#ratio-dialog').showModal();prepareBenefits();updateSeedingFields('ratio');$('#ratio-action').focus();
-}
+let pendingTorrent;
 $('#add-form').onsubmit=e=>{
- searchTorrent=false;
  e.preventDefault();$('#add-error').hidden=true;
  try{
   if(addMethod==='file'&&window.TorrentBatch?.selecting)throw Error('Vent et øjeblik, mens torrentfilerne læses.');
@@ -516,7 +502,7 @@ function updateSeedingFields(prefix){
 $('#ratio-action').onchange=()=>updateSeedingFields('ratio');
 updateSeedingFields('ratio');
 $('#ratio-dialog').addEventListener('cancel',e=>{if(window.TorrentBatch?.active?window.TorrentBatch.submitting:$('#ratio-save').disabled)e.preventDefault();});
-$('#ratio-back').onclick=()=>{$('#ratio-dialog').close();if(!searchTorrent&&!window.TorrentBatch?.packaged)$('#add-dialog').showModal();};
+$('#ratio-back').onclick=()=>{$('#ratio-dialog').close();if(!window.TorrentBatch?.packaged)$('#add-dialog').showModal();};
 $('#ratio-form').onsubmit=async e=>{e.preventDefault();if(window.TorrentBatch?.active){await window.TorrentBatch.submit();return;}if(!pendingTorrent)return;$('#ratio-save').disabled=true;$('#ratio-back').disabled=true;$('#ratio-dialog .close').disabled=true;$('#ratio-error').hidden=true;try{pendingTorrent.set('convert',String($('#ratio-convert').checked));pendingTorrent.set('ratio_limit',$('#ratio-limit').value);pendingTorrent.set('ratio_action',$('#ratio-action').value);pendingTorrent.set('seed_minutes',$('#ratio-seed-minutes').value);await api('/api/torrents',{method:'POST',body:pendingTorrent});pendingTorrent=null;$('#ratio-dialog').close();toast('Torrent tilføjet');await refresh();}catch(e){error('#ratio-error',e);}finally{$('#ratio-save').disabled=false;$('#ratio-back').disabled=false;$('#ratio-dialog .close').disabled=false;}};
 function openDeleteEditor(t){
  deleting=t;$('#delete-form').reset();$('#delete-name').textContent=t.name;

@@ -72,7 +72,7 @@ def register(app, state, runtime):
                 return jsonify(error='Søgningen findes ikke. Start en ny søgning.'), 404
             data = body() if request.method == 'POST' else {}
             action = data.get('action', 'results')
-            if action not in ('results', 'stop', 'resolve', 'delete') or (request.method == 'GET' and action != 'results'):
+            if action not in ('results', 'stop', 'resolve', 'download', 'delete') or (request.method == 'GET' and action != 'results'):
                 raise ValueError('Ugyldig søgehandling.')
             try:
                 offset = int(request.args.get('offset', 0)) if request.method == 'GET' else data.get('offset', 0)
@@ -85,6 +85,24 @@ def register(app, state, runtime):
                 rpc('search-delete', job_data(job))
                 del jobs[token]
                 raise ValueError('Søgningen er udløbet. Søg igen.')
+            if action == 'download':
+                from torrent_search import integer
+                selected = integer(offset)
+                downloads = job.setdefault('downloads', {})
+                if selected in downloads:
+                    return jsonify({**downloads[selected], 'already_added': True})
+                source = rpc('search-resolve', job_data(job, offset=selected))
+                if source.get('_search_session'):
+                    job['session'] = source['_search_session']
+                payload = {key: source[key] for key in ('magnet', 'torrent') if source.get(key)}
+                if len(payload) != 1:
+                    raise ValueError('Søgeresultatet kunne ikke hentes.')
+                # Search downloads always stop after completion and retain
+                # their files. Browser-supplied seeding/conversion is ignored.
+                result = rpc('add', {**payload, 'ratio_action': 'stop_keep', 'ratio_limit': 1.0, 'convert': False})
+                response = {**public(result), 'name': source.get('name', '')}
+                downloads[selected] = response
+                return jsonify(response)
             result = rpc('search-' + action, job_data(job, offset=offset,
                          **({'min_seeders': minimum} if minimum else {})))
             if result.get('_search_session'):

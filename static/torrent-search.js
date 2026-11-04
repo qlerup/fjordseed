@@ -2,11 +2,13 @@
  'use strict';
  let token=null,offset=0,timer=null,generation=0,pollSequence=0,loading=false,loaded=false,installing=false;
  const PAGE_SIZE=10;
+ const downloads=new Map();
  const message=text=>{$('#search-status').textContent=text;};
  const fail=e=>error('#search-error',e);
  const post=(url,data)=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
  function thinking(value){$('#search-thinking').hidden=!value;$('#search-results').setAttribute('aria-busy',String(value));}
  function running(value){$('#search-stop').hidden=!value;thinking(value);}
+ function updateDownloadButton(button){const status=downloads.get(button.dataset.downloadKey);button.disabled=!!status;button.textContent=status==='added'?'Tilføjet':status==='pending'?'Henter…':'Hent';}
  async function engines(){
   const data=await api('/api/search/plugins');
   const select=$('#search-engine'),selected=select.value;
@@ -31,10 +33,13 @@
    info.append(meta);const button=node('button','secondary','Hent');button.type='button';
    button.setAttribute('aria-label','Hent '+(result.fileName||'torrent'));
    const job=token,resultOffset=Number.isInteger(result.result_index)?result.result_index:offset+index;
+   const downloadKey=job+':'+resultOffset;
+   button.dataset.downloadKey=downloadKey;updateDownloadButton(button);
    button.onclick=async()=>{
-    button.disabled=true;$('#search-error').hidden=true;
-    try{const source=await post('/api/search/'+job,{action:'resolve',offset:resultOffset});openSearchTorrent(source);}
-    catch(e){fail(e);}finally{button.disabled=false;}
+    if(downloads.has(downloadKey))return;
+    downloads.set(downloadKey,'pending');updateDownloadButton(button);$('#search-error').hidden=true;
+    try{await post('/api/search/'+job,{action:'download',offset:resultOffset});downloads.set(downloadKey,'added');toast('Download tilføjet. Seeding stopper efter download, og filerne beholdes.');refresh().catch(e=>toast('Download tilføjet, men status kunne ikke opdateres: '+e.message));}
+    catch(e){downloads.delete(downloadKey);fail(e);}finally{$('#search-results').querySelectorAll('button[data-download-key]').forEach(updateDownloadButton);}
    };
    row.append(info,button);target.append(row);
   }
@@ -82,7 +87,7 @@
  $('#search-install-all').onclick=()=>install('all');
  $('#search-form').onsubmit=async event=>{
   event.preventDefault();if(loading||installing)return;loading=true;$('#search-submit').disabled=true;$('#search-error').hidden=true;
-  const version=++generation;clearTimeout(timer);token=null;offset=0;running(false);thinking(true);
+  const version=++generation;clearTimeout(timer);token=null;offset=0;downloads.clear();running(false);thinking(true);
   $('#search-results').replaceChildren();$('#search-prev').hidden=true;$('#search-next').hidden=true;$('#search-page').textContent='';message('Starter søgning…');
   try{const data=await post('/api/search',{pattern:$('#search-query').value,plugin:$('#search-engine').value});token=data.token;await poll(version);}
   catch(e){running(false);fail(e);message('Søgningen kunne ikke startes.');}finally{loading=false;$('#search-submit').disabled=false;}

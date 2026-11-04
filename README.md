@@ -29,8 +29,15 @@ be changed during or after a search. Zero includes unknown seeder counts;
 positive thresholds exclude them. Animated dots indicate an active search,
 with a static indicator when reduced motion is requested.
 **Hent** resolves only the selected torrent's metadata inside the VPN container
-and opens the usual seeding/conversion dialog. The content download begins when
-that dialog is submitted, using the existing queue, storage and seeding policies.
+and adds it directly to the normal download queue. Search downloads always stop
+seeding after completion and retain the files, without a seeding/conversion
+dialog or conversion. Upload can occur while the download is in progress.
+The configured download destination is captured when the torrent is added.
+After completion the existing storage publisher moves the retained files out
+of the buffer into that destination, including the shared FjordFlix/Plex folder
+when selected. The destination stays hidden from indexing until the move is complete.
+The server enforces this policy and remembers successful additions within each
+search so repeated requests do not add the same result twice.
 Both magnet links and plugin-specific torrent download methods are supported.
 Search jobs are session-owned, replaced on the next search and expire after ten
 minutes. Refreshing the app or restarting it requires a new search. The container

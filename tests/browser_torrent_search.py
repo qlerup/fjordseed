@@ -114,15 +114,13 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('.search-result')).to_have_count(1)
             expect(page.locator('#search-page')).to_have_text('Side 2 af 2')
             page.locator('.search-result button').click()
-            expect(page.locator('#ratio-dialog')).to_be_visible()
-            expect(page.locator('#ratio-source')).to_have_text('Ubuntu 50')
-            assert not runtime.added
-            page.locator('#ratio-back').click()
-            expect(page.locator('#add-dialog')).not_to_be_visible()
-            page.locator('.search-result button').click()
-            page.locator('#ratio-save').click()
+            expect(page.locator('.search-result button')).to_have_text('Tilføjet')
+            expect(page.locator('.search-result button')).to_be_disabled()
             expect(page.locator('#ratio-dialog')).not_to_be_visible()
-            assert len(runtime.added) == 1 and runtime.added[0]['magnet'].startswith('magnet:')
+            expect(page.locator('#add-dialog')).not_to_be_visible()
+            assert runtime.added == [{'magnet': 'magnet:?xt=urn:btih:'+'a'*40,
+                                     'ratio_action': 'stop_keep', 'ratio_limit': 1.0, 'convert': False}]
+            runtime.rpc.assert_any_call('search-resolve', {'id': 123, 'offset': 50})
             page.locator('#search-prev').click()
             expect(page.locator('.search-result')).to_have_count(10)
             page.locator('#search-submit').click()
@@ -154,6 +152,6 @@ with tempfile.TemporaryDirectory() as folder:
             expect(page.locator('#search-thinking')).to_be_hidden()
             assert not errors, errors
             browser.close()
-            print('Search UI passed: desktop/mobile, themes, install, pagination, safe names, stop, policy dialog, add, empty/error.')
+            print('Search UI passed: desktop/mobile, themes, install, pagination, safe names, stop, direct stop-and-keep download, empty/error.')
     finally:
         server.shutdown()
