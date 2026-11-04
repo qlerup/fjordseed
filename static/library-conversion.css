@@ -49,3 +49,21 @@
 #library-conversion-jobs:not(:empty){margin:16px 0;border:1px solid var(--border);border-radius:10px;padding:0 14px;background:#0b163544}
 #library-conversion-jobs .library-film:first-child{border-top:0}
 @media(max-width:600px){.library-film{align-items:flex-start;flex-direction:column;gap:10px}.library-film button{align-self:flex-end}}
+
+/* Conversion choices inherit the palette of every appearance theme. */
+.conversion-plan{margin:24px 0;padding:20px;border:1px solid var(--border);border-radius:12px;background:var(--panel);color:var(--text)}
+.conversion-plan .tracker-fields{margin:16px 0}.conversion-plan p{margin-top:10px;line-height:1.6}
+.conversion-estimates{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.conversion-estimate{padding:10px;border:1px solid var(--border);border-radius:8px;min-width:0;color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+.conversion-estimate strong{display:block;margin-top:5px;color:var(--text);font-size:13px;font-variant-numeric:tabular-nums}
+.conversion-estimate.is-selected{border-color:var(--green);box-shadow:inset 0 0 0 1px var(--green)}
+.conversion-estimate-note,.conversion-audio-summary{margin-top:8px;font-size:11px;color:var(--muted);line-height:1.6;overflow-wrap:anywhere}
+.conversion-audio-estimate{grid-template-columns:minmax(0,1fr)}
+.conversion-audio-tracks{min-width:0;margin:12px 0 0;padding:10px;border:1px solid var(--border);border-radius:8px;color:var(--text)}
+.conversion-audio-tracks legend{font-size:12px;padding:0 4px}
+.conversion-audio-track{display:flex;align-items:flex-start;gap:10px;padding:9px 0;cursor:pointer;min-width:0}
+.conversion-audio-track input[type=checkbox]{flex:none;width:18px;height:18px;margin:2px 0;accent-color:var(--green)}
+.conversion-audio-track>span{min-width:0;overflow-wrap:anywhere;font-size:12px;line-height:1.6}
+.conversion-audio-track strong,.conversion-audio-track>span>span{display:block}.conversion-audio-track>span>span{color:var(--muted);font-size:11px;font-weight:400}
+.conversion-audio-track:focus-within{outline:2px solid var(--green);outline-offset:2px;border-radius:4px}
+@media(max-width:600px){.conversion-plan{padding:14px}.conversion-estimates{gap:5px}.conversion-estimate{padding:8px 6px}.conversion-estimate strong{font-size:12px}}

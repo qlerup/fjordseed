@@ -63,7 +63,10 @@ def owned(ident,device):
 
 
 def queue(api,data):
-    from conversion_media import dolby_mode
+    from conversion_media import dolby_mode, conversion_mode, checked_audio_selection
+    selected_mode=conversion_mode(data.get('conversion_mode','video'))
+    selection=checked_audio_selection(data.get('selected_audio_tracks'))
+    if selected_mode!='audio' and selection is not None:raise ValueError('Vælg kun lyd for at fravælge lydspor.')
     mode=dolby_mode(data.get('dolby_vision_mode','separate'))
     executor=data.get('executor','pc')
     if executor not in ('pc','server'):raise ValueError('Ukendt konverteringsmaskine.')
@@ -74,6 +77,8 @@ def queue(api,data):
         previous=next((j for j in jobs.values() if j.get('shared',{}).get('device')==data.get('device') and
             j['shared']['media_folder']==data.get('media_folder') and j['shared']['name']==name and j['phase']=='queued'),None)
         if previous:
+            if previous.get('selected_audio_tracks')!=selection:raise ValueError('Jobbet har et andet lydsporvalg. Afbryd det først.')
+            if previous.get('conversion_mode','video')!=selected_mode:raise ValueError('Jobbet har en anden konverteringstype. Afbryd det først.')
             if previous.get('dolby_vision_mode','separate')!=mode:
                 raise ValueError('Jobbet har et andet Dolby Vision-valg. Afbryd det først.')
             if previous['shared'].get('executor','pc')!=executor:
@@ -98,7 +103,7 @@ def queue(api,data):
     server_root=Path(item['_path']).parents[len(Path(name).parts)-1]
     shared={'server_root':str(server_root),'media_folder':data['media_folder'],
             'name':name,'device':data['device'],'source_signature':source_signature(item['_path']),'executor':executor}
-    queued=library.queue(api,item['id'],data.get('bitrate'),shared=shared,dolby_vision_mode=mode)
+    queued=library.queue(api,item['id'],data.get('bitrate'),shared=shared,dolby_vision_mode=mode,conversion_mode=selected_mode,selected_audio_tracks=selection)
     job=owned(queued['id'],data['device'])
     if executor=='server':
         fallback(api,job['id'],data['device'])
@@ -135,7 +140,7 @@ def fallback(api,ident,device):
         if library.fingerprint(target)!=library.fingerprint(source):raise ValueError('Arbejdskopien matcher ikke originalen.')
         job['shared']['executor']='server';jobs[ident]=job;library.save(jobs)
         atomic(work/'request.json',json.dumps({'version':1,'id':ident,'executor':'server',
-            'shared':True,'bitrate':job['bitrate'],'dolby_vision_mode':job.get('dolby_vision_mode','separate'),'files':[{'name':job['selected'],'size':source.stat().st_size}]}),mode=0o644)
+            'shared':True,'conversion_mode':job.get('conversion_mode','video'),'selected_audio_tracks':job.get('selected_audio_tracks'),'bitrate':job['bitrate'],'dolby_vision_mode':job.get('dolby_vision_mode','separate'),'files':[{'name':job['selected'],'size':source.stat().st_size}]}),mode=0o644)
         return command(job)
 
 
@@ -166,8 +171,8 @@ def complete(api,ident,device):
         if state.get('state')=='ready':return command(job)
         output=checked(work/'result'/job['output'])
         report=storage.read(checked(output.with_suffix('.json')), {})
-        if (report.get('verified') is not True or report.get('video_mbps_target')!=job['bitrate'] or
-                not str(report.get('gpu_encoder','')).startswith('NVEncC ')):
+        if (report.get('verified') is not True or report.get('video_mbps_target')!=job['bitrate'] or report.get('conversion_mode','video')!=job.get('conversion_mode','video') or report.get('selected_audio_tracks')!=job.get('selected_audio_tracks') or
+                not str(report.get('gpu_encoder','')).startswith('FFmpeg ' if job.get('conversion_mode')=='audio' else 'NVEncC ')):
             raise ValueError('Den verificerede rapport fra pc’en mangler.')
         library.verify_sources(job,Path(job['seed'] if job.get('reuse_seeding') else job['original']))
         expected=next(f['fingerprint'] for f in job['files'] if f['name']==job['selected'])
@@ -180,9 +185,9 @@ def complete(api,ident,device):
         original=probe(job['source'])
         if dovi(original):
             # Normalize older Windows outputs to the job-selected policy.
-            prepare_output(original,output,mode=job.get('dolby_vision_mode','separate'))
+            prepare_output(original,output,mode=job.get('dolby_vision_mode','separate'),conversion_mode=job.get('conversion_mode','video'),selected_audio_tracks=job.get('selected_audio_tracks'))
             before=library.fingerprint(output)
-        validate_file(original,output,mode=job.get('dolby_vision_mode','separate'))
+        validate_file(original,output,mode=job.get('dolby_vision_mode','separate'),conversion_mode=job.get('conversion_mode','video'),selected_audio_tracks=job.get('selected_audio_tracks'))
         if library.fingerprint(output)!=before:raise ValueError('Resultatet er ændret under kontrollen.')
         # Preserve loose companions even when not listed in the torrent.
         # Restrict discovery to torrent-owned subdirectories, never the whole library.

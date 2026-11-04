@@ -41,6 +41,16 @@
    <label>Forbindelseskode · vises kun nu<input id="conversion-token-secret" readonly spellcheck="false" autocomplete="off"></label>
    <p class="muted small">Indsæt forbindelseskoden under FjordSeed i pc-programmet. Adressen følger automatisk med koden. Tokenet giver kun adgang til tildelte konverteringsjobs. Fjern forbindelsen nedenfor for at tilbagekalde adgangen.</p>
   </div>
+  <div class="conversion-plan" aria-labelledby="conversion-plan-title">
+   <p class="eyebrow">BIBLIOTEKETS KØ</p><h3 id="conversion-plan-title">Vælg resultat før du sætter filer i kø</h3>
+   <div class="tracker-fields">
+    <label>Konvertér<select id="library-conversion-mode"><option value="video">Video · behold alle lydspor</option><option value="audio">Kun lyd · behold videoen</option></select></label>
+    <label id="library-conversion-bitrate-field">Videobitrate<select id="library-conversion-bitrate"><option value="20">20 Mbps · spar plads</option><option value="30" selected>30 Mbps · balance</option><option value="40">40 Mbps · høj kvalitet</option></select></label>
+   </div>
+   <p class="muted small" id="library-conversion-policy" role="status"></p>
+   <p class="muted small">Ved kun lyd scannes filens lydspor, så du kan vælge hvilke spor og sprog du vil beholde. Sporets beskrivelse vises, når den findes i filen. Alle spor er valgt fra start. Valgte spor bruger tabsfri lyd (FLAC) med samme antal kanaler og kanalopsætning. Blandt andet TrueHD, E-AC-3 og DTS kopieres i originalformat for at bevare mulig Atmos og DTS:X.</p>
+   <p class="muted small">Pladsestimater vises ved hver fil før start. Videoestimater er omtrentlige og inkluderer de originale lydspor; den færdige størrelse kan afvige. Original og resultat optager begge plads under konverteringen.</p>
+  </div>
   <div class="conversion-connected-heading"><h3>Tilsluttede pc’er</h3><p class="muted small">Pc først · serveren som fallback</p></div><div id="conversion-devices" aria-live="polite"></div>
  </div>
  <div class="connection" id="dolby-vision-panel">

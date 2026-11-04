@@ -5,7 +5,7 @@ ROOT=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else P
 FFPROBE=ROOT/'ffmpeg'/'bin'/'ffprobe.exe'
 if not FFPROBE.exists():
     FFPROBE=ROOT/'ffmpeg-master-latest-win64-gpl'/'bin'/'ffprobe.exe'
-TOOLS={'nvencc':ROOT/'NVEncC64.exe','ffprobe':FFPROBE,'mkvpropedit':ROOT/'mkvtoolnix'/'mkvpropedit.exe'}
+TOOLS={'ffmpeg':FFPROBE.with_name('ffmpeg.exe'),'nvencc':ROOT/'NVEncC64.exe','ffprobe':FFPROBE,'mkvpropedit':ROOT/'mkvtoolnix'/'mkvpropedit.exe'}
 class ProcessTools:
     @staticmethod
     def run(args,**kwargs):
@@ -33,5 +33,5 @@ def restore_flags(original,target):
 from conversion_media import publish_output
 from conversion_media import prepare_output as _prepare_output
 
-def prepare_output(original,target,mode='separate'):
-    return _prepare_output(original,target,run=subprocess.run,mode=mode)
+def prepare_output(original,target,mode='separate',conversion_mode='video',selected_audio_tracks=None):
+    return _prepare_output(original,target,run=subprocess.run,mode=mode,conversion_mode=conversion_mode,selected_audio_tracks=selected_audio_tracks)

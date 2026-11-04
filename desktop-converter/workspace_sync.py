@@ -120,7 +120,7 @@ class WorkspaceSync:
             self.changed.clear()
             try:
                 receipt=self.runner.receipt if self.runner and self.runner.receipt else self.receipt
-                folder=sync_folder(self.connection_path,self.preferences_path,receipt,self.receive,1 if self.runner else 0)
+                folder=sync_folder(self.connection_path,self.preferences_path,receipt,self.receive,3 if self.runner else 0)
                 self.messages.put(('ok',folder))
             except (OSError,ValueError,KeyError,WorkerError):
                 self.messages.put(('error','Mappevalget er gemt på pc’en. Venter på forbindelse til FjordSeed.'))

@@ -39,12 +39,12 @@ def test_windows_finalization_uses_shared_policy(monkeypatch):
     call=Mock(return_value={'streams':[]})
     monkeypatch.setattr(desktop,'_prepare_output',call)
     assert desktop.prepare_output({'streams':[]},Path('film.mkv'))=={'streams':[]}
-    call.assert_called_once_with({'streams':[]},Path('film.mkv'),run=desktop.subprocess.run,mode='separate')
+    call.assert_called_once_with({'streams':[]},Path('film.mkv'),run=desktop.subprocess.run,mode='separate',conversion_mode='video',selected_audio_tracks=None)
     assert desktop.publish_output is shared.publish_output
 
 
 def test_windows_preserve_mode_reaches_shared_policy(monkeypatch):
     call=Mock(return_value={'streams':[]})
     monkeypatch.setattr(desktop,'_prepare_output',call)
-    desktop.prepare_output({'streams':[]},Path('film.mkv'),mode='preserve')
-    call.assert_called_once_with({'streams':[]},Path('film.mkv'),run=desktop.subprocess.run,mode='preserve')
+    desktop.prepare_output({'streams':[]},Path('film.mkv'),mode='preserve',conversion_mode='video',selected_audio_tracks=None)
+    call.assert_called_once_with({'streams':[]},Path('film.mkv'),run=desktop.subprocess.run,mode='preserve',conversion_mode='video',selected_audio_tracks=None)

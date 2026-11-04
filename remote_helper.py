@@ -143,6 +143,7 @@ def dispatch(data):
         return {'ready':True}
     if action == 'claim':
         for work, request in requests():
+            if request.get('conversion_mode')=='audio' and data.get('conversion_version')!=3:continue
             try:
                 with locked(work):
                     state = read(work / 'status.json', {})
@@ -168,7 +169,7 @@ def dispatch(data):
                         target = uploaded(work, lease, f['index'])
                         f['uploaded'] = target.stat().st_size if target.exists() else 0
                         f['verified'] = str(f['index']) in lease['done']
-                    return dict(id=request['id'], lease=lease['lease'], bitrate=request['bitrate'], dolby_vision_mode=request.get('dolby_vision_mode','separate'), files=files, upload_chunk_size=UPLOAD_CHUNK)
+                    return dict(id=request['id'], lease=lease['lease'], bitrate=request['bitrate'], dolby_vision_mode=request.get('dolby_vision_mode','separate'), conversion_mode=request.get('conversion_mode','video'), selected_audio_tracks=request.get('selected_audio_tracks'), files=files, upload_chunk_size=UPLOAD_CHUNK)
             except BlockingIOError:
                 continue
             except ValueError as exc:
@@ -198,7 +199,7 @@ def dispatch(data):
             if entry['video']:
                 original = probe(source)
                 from conversion_media import prepare_output
-                prepare_output(original, target, mode=request.get('dolby_vision_mode','separate'))
+                prepare_output(original, target, mode=request.get('dolby_vision_mode','separate'),conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks'))
             elif target.stat().st_size != entry['size'] or digest(source) != digest(target):
                 raise ValueError('En ledsagefil blev ændret.')
             with locked(work):

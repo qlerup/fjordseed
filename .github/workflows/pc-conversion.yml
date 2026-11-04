@@ -6,6 +6,7 @@ on:
       - 'remote_*.py'
       - 'converter_worker.py'
       - 'conversion_media.py'
+      - 'media_bitrates.py'
       - 'dolby_*.py'
       - 'tests/test_dolby*'
       - 'conversion_decoder.py'
@@ -13,6 +14,8 @@ on:
       - 'desktop-converter/**'
       - 'tests/test_remote*'
       - 'tests/test_conversion.py'
+      - 'tests/test_conversion_audio.py'
+      - 'tests/test_conversion_queue.py'
       - 'tests/test_library_conversion.py'
       - 'tests/test_library_qbit_native.py'
       - '.github/workflows/pc-conversion.yml'
@@ -28,4 +31,8 @@ jobs:
         with:
           python-version: '3.13'
       - run: pip install -r requirements.txt pytest
-      - run: python -m pytest -q tests/test_dolby_backup.py tests/test_dolby_jobs.py tests/test_dolby_mode.py tests/test_media_bitrates.py tests/test_streaming.py tests/test_remote_conversion.py tests/test_remote_upload_transport.py tests/test_remote_helper.py tests/test_conversion.py tests/test_conversion_phases.py tests/test_bitrate_gate.py tests/test_library_conversion.py tests/test_moved_content.py tests/test_worker.py tests/test_shared_library.py tests/test_benefits_lock_order.py desktop-converter/test_parity.py desktop-converter/test_nvidia_decoder.py desktop-converter/test_shared_runner.py desktop-converter/test_remote_agent.py desktop-converter/test_drive_ui.py desktop-converter/test_installer.py
+      - name: Install FFmpeg for media integration tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ffmpeg
+      - run: python -m pytest -q tests/test_dolby_backup.py tests/test_dolby_jobs.py tests/test_dolby_mode.py tests/test_media_bitrates.py tests/test_streaming.py tests/test_remote_conversion.py tests/test_remote_upload_transport.py tests/test_remote_helper.py tests/test_conversion.py tests/test_conversion_audio.py tests/test_conversion_queue.py tests/test_conversion_phases.py tests/test_bitrate_gate.py tests/test_library_conversion.py tests/test_moved_content.py tests/test_worker.py tests/test_shared_library.py tests/test_benefits_lock_order.py desktop-converter/test_parity.py desktop-converter/test_nvidia_decoder.py desktop-converter/test_shared_runner.py desktop-converter/test_remote_agent.py desktop-converter/test_drive_ui.py desktop-converter/test_installer.py

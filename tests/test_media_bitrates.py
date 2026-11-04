@@ -10,10 +10,10 @@ def test_header_probe_uses_video_bps_and_keeps_total_bitrate_separate(tmp_path,m
     run=Mock(return_value=Mock(stdout=json.dumps({'streams':[{'tags':{'BPS':'65000000'}}],
         'format':{'bit_rate':'68000000','duration':'100'}})))
     monkeypatch.setattr(metadata.subprocess,'run',run)
-    assert metadata.probe(path)=={'state':'ready','video_bps':65000000,'total_bps':68000000,'dolby_vision':False,'dolby_vision_profile':None,'dolby_vision_supported':None}
+    assert {k:v for k,v in metadata.probe(path).items() if k not in ('duration_seconds','audio_tracks','audio_error','estimates')}=={'state':'ready','video_bps':65000000,'total_bps':68000000,'dolby_vision':False,'dolby_vision_profile':None,'dolby_vision_supported':None}
     assert run.call_args.kwargs['timeout']==2
     run.return_value.stdout=json.dumps({'streams':[{}],'format':{'bit_rate':'12000000'}})
-    assert metadata.probe(path)=={'state':'ready','video_bps':None,'total_bps':12000000,'dolby_vision':False,'dolby_vision_profile':None,'dolby_vision_supported':None}
+    assert {k:v for k,v in metadata.probe(path).items() if k not in ('duration_seconds','audio_tracks','audio_error','estimates')}=={'state':'ready','video_bps':None,'total_bps':12000000,'dolby_vision':False,'dolby_vision_profile':None,'dolby_vision_supported':None}
 
 
 def test_scan_is_bounded_cached_and_refreshes_when_file_changes(tmp_path,monkeypatch):

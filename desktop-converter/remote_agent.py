@@ -149,8 +149,8 @@ class Agent:
         if state.get('files')!=job['files']:
             # Server offsets change between claims; source identity is immutable.
             identity=[{k:f[k] for k in ('name','size','output','video','index')} for f in job['files']]
-            if state.get('identity')!=identity or state.get('bitrate')!=job['bitrate'] or state.get('dolby_vision_mode','separate')!=job.get('dolby_vision_mode','separate'):
-                state={'identity':identity,'bitrate':job['bitrate'],'dolby_vision_mode':job.get('dolby_vision_mode','separate'),'outputs':{}}
+            if state.get('selected_audio_tracks')!=job.get('selected_audio_tracks') or state.get('conversion_mode','video')!=job.get('conversion_mode','video') or state.get('identity')!=identity or state.get('bitrate')!=job['bitrate'] or state.get('dolby_vision_mode','separate')!=job.get('dolby_vision_mode','separate'):
+                state={'identity':identity,'selected_audio_tracks':job.get('selected_audio_tracks'),'conversion_mode':job.get('conversion_mode','video'),'bitrate':job['bitrate'],'dolby_vision_mode':job.get('dolby_vision_mode','separate'),'outputs':{}}
                 atomic(state_path,state)
         self.job=job;self.job_stop.clear();self.busy=True
         finished=threading.Event()
@@ -204,7 +204,7 @@ class Agent:
                                 self.progress=(i+.25+value[0]/100*.5)/len(files)*100
                                 self.notify('progress',self.progress)
                                 self.notify('metrics',value)
-                        target=self.convert(source,filedir,job['bitrate'],progress,self.job_stop,dolby_vision_mode=job.get('dolby_vision_mode','separate'))
+                        target=self.convert(source,filedir,job['bitrate'],progress,self.job_stop,dolby_vision_mode=job.get('dolby_vision_mode','separate'), **({'conversion_mode':'audio','selected_audio_tracks':job.get('selected_audio_tracks')} if job.get('conversion_mode')=='audio' else {}))
                         # Legacy HTTP transports one media file; archive on the server.
                         from dolby_backup import sidecar, restore
                         if sidecar(target).exists():restore(target)

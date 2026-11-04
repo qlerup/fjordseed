@@ -34,7 +34,125 @@ def video(data):
 def dovi(data):
     return next((s for s in video(data).get('side_data_list',[]) if s.get('side_data_type')=='DOVI configuration record'),{})
 
-def command(source,target,bitrate,data,reader="avsw"):
+def checked_conversion_mode(value='video'):
+    if value not in ('video', 'audio'):
+        raise ValueError('Vælg video og lyd eller kun lyd.')
+    return value
+
+
+conversion_mode = checked_conversion_mode
+
+
+def checked_audio_selection(value):
+    if value is None:return None
+    if (not isinstance(value,list) or not 1 <= len(value) <= 128 or
+            any(type(i) is not int or not 0 <= i < 10000 for i in value) or len(set(value))!=len(value)):
+        raise ValueError('Vælg mindst ét lydspor; hvert spor må kun vælges én gang.')
+    return sorted(value)
+
+
+def selected_audio_reference(data,selection=None):
+    selection=checked_audio_selection(selection)
+    streams=[s for s in data['streams'] if s['codec_type']=='audio']
+    if selection is not None and any(i>=len(streams) for i in selection):
+        raise ValueError('Lydsporet findes ikke længere. Scan filen igen.')
+    kept=set(range(len(streams)) if selection is None else selection)
+    index=-1;result=[]
+    for stream in data['streams']:
+        if stream['codec_type']=='audio':
+            index+=1
+            if index not in kept:continue
+        result.append(stream)
+    return {**data,'streams':result}
+
+
+def audio_description(stream):
+    tags={str(key).lower():value for key,value in stream.get('tags',{}).items()}
+    return next((str(tags[key]) for key in ('title','description','comment','handler_name') if tags.get(key)), '')
+
+
+def audio_plan(data,selected_audio_tracks=None):
+    """Copy potential object audio; never infer absence of Atmos from channels."""
+    selected_audio_reference(data,selected_audio_tracks)  # Validate actual track bounds.
+    selection=checked_audio_selection(selected_audio_tracks)
+    tracks=[]
+    for index,stream in enumerate(s for s in data.get('streams',[]) if s.get('codec_type')=='audio'):
+        if selection is not None and index not in selection:continue
+        codec=stream.get('codec_name')
+        protected=codec in ('truehd','eac3','dts','ac4','mlp')
+        channels=stream.get('channels')
+        layout=stream.get('channel_layout')
+        # Unknown layouts/codecs must never be guessed or downmixed.
+        if not protected and (type(channels) is not int or not 1 <= channels <= 8 or not layout or not codec):
+            raise ValueError('Lydsporets kanalopsætning understøttes ikke sikkert; originalen beholdes.')
+        tracks.append({'index':index,'stream_index':stream.get('index'),'description':audio_description(stream),'profile':stream.get('profile'),'codec':codec,'output_codec':codec if protected else 'flac',
+            'action':'copy' if protected or codec=='flac' else 'convert',
+            'channels':channels,'channel_layout':layout,'language':stream.get('tags',{}).get('language','und'),
+            'title':stream.get('tags',{}).get('title',''),
+            'reason':'Mulig Atmos/DTS:X bevares uændret' if protected else ''})
+    return tracks
+
+
+def output_reserve(data,source_size,selected_audio_tracks=None):
+    duration=float(data['format']['duration'])
+    if not 0 < duration < 10**9:raise ValueError('Filens varighed er ugyldig.')
+    reserve=source_size
+    for stream,track in zip((s for s in selected_audio_reference(data,selected_audio_tracks)['streams'] if s['codec_type']=='audio'),audio_plan(data,selected_audio_tracks)):
+        if track['action']=='convert':
+            rate=int(stream.get('sample_rate',0))
+            if not 0 < rate <= 768000:raise ValueError('Lydsporets samplerate er ugyldig.')
+            reserve+=int(duration*rate*track['channels']*4*1.01)
+    return reserve+1024**3
+
+
+def audio_command(source,target,data,selected_audio_tracks=None):
+    plan=audio_plan(data,selected_audio_tracks)
+    if not plan:raise ValueError('Filen har ingen lydspor at konvertere.')
+    args=['ffmpeg','-nostdin','-n','-i',str(source),'-map','0','-map_metadata','0','-map_chapters','0','-c','copy']
+    args += ['-map','-0:a']
+    for track in plan:args += ['-map',f"0:a:{track['index']}"]
+    for index,track in enumerate(plan):
+        if track['action']=='convert':
+            args += [f'-c:a:{index}',track['output_codec']]
+            # Never set -ac: FFmpeg would infer a default layout from its count.
+    return args+['-progress','pipe:1','-nostats',str(target)]
+
+
+def validate_audio(original,result,selected_audio_tracks=None):
+    from copy import deepcopy
+    plan=audio_plan(original,selected_audio_tracks)
+    original=selected_audio_reference(original,selected_audio_tracks)
+    old=[s for s in original['streams'] if s['codec_type']=='audio']
+    new=[s for s in result['streams'] if s['codec_type']=='audio']
+    if len(old)!=len(new):raise ValueError('Kontrol fejlede: lydspor mangler.')
+    reference=deepcopy(original)
+    for a,b,track,r in zip(old,new,plan,(s for s in reference['streams'] if s['codec_type']=='audio')):
+        if b.get('codec_name')!=track['output_codec']:
+            raise ValueError('Kontrol fejlede: lydformatet matcher ikke jobbet.')
+        for field in ('channels','channel_layout','sample_rate'):
+            if a.get(field)!=b.get(field):raise ValueError('Kontrol fejlede: lydens '+field+' blev ændret.')
+        if track['action']=='copy' and a.get('profile')!=b.get('profile'):
+            raise ValueError('Kontrol fejlede: lydprofilen blev ændret.')
+        r['codec_name']=b.get('codec_name')
+        r['profile']=b.get('profile')
+    for field in ('codec_name','profile','level'):
+        if video(original).get(field)!=video(result).get(field):
+            raise ValueError('Kontrol fejlede: videoen skal kopieres ved kun lyd.')
+    if dovi(original)!=dovi(result) or bool(original.get('_rpu_frames'))!=bool(result.get('_rpu_frames')):
+        raise ValueError('Kontrol fejlede: Dolby Vision blev ændret ved kun lyd.')
+    # The ordinary validator expects re-encoded DV 8.1; audio-only retains source DV.
+    cleaned=deepcopy(result)
+    for data in (reference,cleaned):
+        video(data)['side_data_list']=[s for s in video(data).get('side_data_list',[]) if s.get('side_data_type')!='DOVI configuration record']
+    validate(reference,cleaned)
+    for a,b in zip(old,new):
+        if a.get('tags',{}).get('language','und')!=b.get('tags',{}).get('language','und') or a.get('tags',{}).get('title','')!=b.get('tags',{}).get('title',''):
+            raise ValueError('Kontrol fejlede: lydsporenes rækkefølge eller sprog blev ændret.')
+
+
+def command(source,target,bitrate,data,reader="avsw",conversion_mode='video',selected_audio_tracks=None):
+    if checked_conversion_mode(conversion_mode)=='audio':return audio_command(source,target,data,selected_audio_tracks)
+    if selected_audio_tracks is not None:raise ValueError('Lydspor kan kun fravælges ved kun lyd-konvertering.')
     v=video(data)
     dv=dovi(data)
     if dv and not (dv.get('dv_profile')==7 or (dv.get('dv_profile')==8 and dv.get('dv_bl_signal_compatibility_id')==1)):
@@ -76,7 +194,7 @@ def validate(original,result):
         raise ValueError('Kontrol fejlede: videospor er afkortet.')
     def tracks(data,kind):
         return Counter((s.get('codec_name'),s.get('tags',{}).get('language','und'),s.get('channels'),
-                        s.get('tags',{}).get('title',''),s.get('disposition',{}).get('default',0),s.get('disposition',{}).get('forced',0))
+                        s.get('tags',{}).get('title',''),s.get('channel_layout'),s.get('sample_rate'),s.get('profile'),s.get('disposition',{}).get('default',0),s.get('disposition',{}).get('forced',0))
                        for s in data['streams'] if s['codec_type']==kind)
     for kind in ('audio','subtitle','attachment'):
         if tracks(original,kind)!=tracks(result,kind):raise ValueError('Kontrol fejlede: '+kind+'-spor ændret.')
@@ -119,12 +237,15 @@ def dolby_mode(value='separate'):
     return value
 
 
-def validate_file(original, path, run=None, mode='separate'):
+def validate_file(original, path, run=None, mode='separate', conversion_mode='video', selected_audio_tracks=None):
     """Verify the job-selected DV output or HDR output with reversible archive."""
     from copy import deepcopy
     from dolby_backup import verify
     mode = dolby_mode(mode)
     result = probe(path, run=run)
+    if checked_conversion_mode(conversion_mode)=='audio':
+        validate_audio(original,result,selected_audio_tracks)
+        return result
     if mode == 'preserve':
         validate(original,result)
         return result
@@ -146,10 +267,13 @@ def validate_file(original, path, run=None, mode='separate'):
     return result
 
 
-def prepare_output(original, path, run=None, mode='separate'):
+def prepare_output(original, path, run=None, mode='separate', conversion_mode='video', selected_audio_tracks=None):
     """Same Windows/server policy: preserve DV or archive it for HDR10 playback."""
     from dolby_backup import suspend, sidecar, restore
     mode = dolby_mode(mode)
+    if checked_conversion_mode(conversion_mode)=='audio':
+        restore_flags(selected_audio_reference(original,selected_audio_tracks),path,run=run)
+        return validate_file(original,path,run=run,mode=mode,conversion_mode='audio',selected_audio_tracks=selected_audio_tracks)
     if sidecar(path).exists():
         if mode == 'preserve':
             restore(path)

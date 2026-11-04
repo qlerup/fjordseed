@@ -4,6 +4,7 @@ on:
     paths:
       - '.dockerignore'
       - 'Dockerfile'
+      - 'converter/Dockerfile'
       - 'tests/test_docker_context.py'
       - '.github/workflows/build-context.yml'
   pull_request:

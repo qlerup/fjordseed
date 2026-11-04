@@ -22,13 +22,17 @@ CONFIG = ROOT / 'preferences.json'
 class Cancelled(Exception):
     pass
 
-def convert(source, folder, bitrate, notify, stop, target_name=None, dolby_vision_mode='separate'):
+def convert(source, folder, bitrate, notify, stop, target_name=None, dolby_vision_mode='separate', conversion_mode='video', selected_audio_tracks=None):
     source, folder = Path(source), Path(folder)
     if not source.is_file():
         raise ValueError('Kildefilen findes ikke.')
     if not folder.is_dir():
         raise ValueError('Vælg en eksisterende mappe til resultatet.')
-    from conversion_media import dolby_mode
+    from conversion_media import dolby_mode, conversion_mode as checked_mode
+    conversion_mode=checked_mode(conversion_mode)
+    from conversion_media import checked_audio_selection
+    selected_audio_tracks=checked_audio_selection(selected_audio_tracks)
+    if conversion_mode!='audio' and selected_audio_tracks is not None:raise ValueError('Vælg kun lyd for at fravælge lydspor.')
     dolby_mode(dolby_vision_mode)
     if bitrate not in (10, 15, 20, 25, 30, 40):
         raise ValueError('Ugyldig bitrate.')
@@ -51,16 +55,20 @@ def convert(source, folder, bitrate, notify, stop, target_name=None, dolby_visio
     with logfile.open('x', encoding='utf-8') as log:
         try:
             original = core.probe(source)
+            if conversion_mode=='audio':
+                from conversion_media import output_reserve
+                if shutil.disk_usage(folder).free < output_reserve(original,source.stat().st_size,selected_audio_tracks):
+                    raise ValueError('Der mangler plads til tabsfri flerkanalslyd; originalen beholdes.')
             if stop.is_set():
                 raise Cancelled()
             from nvidia_decoder import select as select_decoder
-            reader=select_decoder(core.video(original),core.TOOLS['nvencc'])
-            args = core.command(source, partial, bitrate, original, reader=reader)
-            args[0] = str(core.TOOLS['nvencc'])
+            reader=select_decoder(core.video(original),core.TOOLS['nvencc']) if conversion_mode=='video' else 'copy'
+            args = core.command(source, partial, bitrate, original, reader=reader, conversion_mode=conversion_mode,selected_audio_tracks=selected_audio_tracks)
+            args[0] = str(core.TOOLS[args[0]])
             expected = float(original['format']['duration']) * float(Fraction(core.video(original)['avg_frame_rate']))
             log.write(json.dumps(args, ensure_ascii=False) + '\n')
-            notify('status', 'Konverterer med NVIDIA NVDEC og NVENC …' if reader=='avhw' else 'Konverterer på NVIDIA-GPU …')
-            notify('phase', {'stage':'encoding','detail':'Konverterer på NVIDIA-GPU …','phase_progress':0})
+            notify('status', 'Konverterer lyd; video kopieres …' if conversion_mode=='audio' else 'Konverterer med NVIDIA NVDEC og NVENC …' if reader=='avhw' else 'Konverterer på NVIDIA-GPU …')
+            notify('phase', {'stage':'encoding','detail':'Konverterer lyd; video kopieres …' if conversion_mode=='audio' else 'Konverterer på NVIDIA-GPU …','phase_progress':0})
             process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                        text=True, encoding='utf-8', errors='replace',
                                        creationflags=subprocess.CREATE_NO_WINDOW)
@@ -76,13 +84,17 @@ def convert(source, folder, bitrate, notify, stop, target_name=None, dolby_visio
                 for line in process.stdout:
                     log.write(line)
                     log.flush()
+                    if conversion_mode=='audio' and line.startswith('out_time_us='):
+                        try:percent=max(0,min(99,float(line.split('=',1)[1])/1_000_000/float(original['format']['duration'])*100))
+                        except ValueError:continue
+                        notify('progress',(percent,0,0))
                     match = re.search(r'(\d+) frames:\s*([\d.]+) fps', line)
                     if match:
                         frames, fps = int(match[1]), float(match[2])
                         remaining = max(0, (expected - frames) / max(fps, .01))
                         notify('progress', (min(99, frames / max(expected, 1) * 100), fps, remaining))
                 code = process.wait()
-                log.write(f'NVEncC exit: {code} (0x{code & 0xffffffff:08X})\n')
+                log.write(f'{Path(args[0]).stem} exit: {code} (0x{code & 0xffffffff:08X})\n')
                 log.flush()
             finally:
                 finished.set()
@@ -94,18 +106,18 @@ def convert(source, folder, bitrate, notify, stop, target_name=None, dolby_visio
                 raise Cancelled()
             if code:
                 detail='crashede' if code & 0xffffffff==0xc0000005 else 'stoppede med en fejl'
-                raise RuntimeError(f'NVEncC {detail} (0x{code & 0xffffffff:08X}). Originalerne er bevaret. Se jobbets log.')
+                raise RuntimeError(f'{Path(args[0]).stem} {detail} (0x{code & 0xffffffff:08X}). Originalerne er bevaret. Se jobbets log.')
             notify('status', 'Behandler Dolby Vision-valget og kontrollerer HDR, lyd og kapitler …')
-            notify('phase', {'stage':'metadata','detail':'Bevarer Dolby Vision i filmen' if dolby_vision_mode=='preserve' else 'Gemmer Dolby Vision separat og bevarer HDR10 og lyd · dette kan tage flere minutter'})
-            result = core.prepare_output(original, partial, mode=dolby_vision_mode)
+            notify('phase', {'stage':'metadata','detail':'Bevarer video, HDR og valgte lydspor' if conversion_mode=='audio' else 'Bevarer Dolby Vision i filmen' if dolby_vision_mode=='preserve' else 'Gemmer Dolby Vision separat og bevarer HDR10 og lyd · dette kan tage flere minutter'})
+            result = core.prepare_output(original, partial, mode=dolby_vision_mode, conversion_mode=conversion_mode,selected_audio_tracks=selected_audio_tracks)
             notify('phase', {'stage':'verifying','detail':'Kontrollerer den færdige fil, alle spor og kapitler · kodningen er færdig'})
             if stop.is_set():
                 raise Cancelled()
             core.publish_output(partial,target)
             seconds = time.monotonic() - started
             report = {'source': str(source), 'output': str(target), 'seconds': round(seconds, 2),
-                      'video_mbps_target': bitrate, 'dolby_vision_mode':dolby_vision_mode, 'gpu_encoder': 'NVEncC 9.39 HEVC quality',
-                      'video_decoder':'NVDEC' if reader=='avhw' else 'FFmpeg software',
+                      'video_mbps_target': bitrate, 'conversion_mode':conversion_mode,'selected_audio_tracks':selected_audio_tracks, 'dolby_vision_mode':dolby_vision_mode, 'gpu_encoder': 'FFmpeg FLAC audio' if conversion_mode=='audio' else 'NVEncC 9.39 HEVC quality',
+                      'video_decoder':'copy' if conversion_mode=='audio' else 'NVDEC' if reader=='avhw' else 'FFmpeg software',
                       'audio_tracks': sum(s['codec_type']=='audio' for s in result['streams']),
                       'subtitle_tracks': sum(s['codec_type']=='subtitle' for s in result['streams']),
                       'dolby_vision': core.dovi(result), 'verified': True}

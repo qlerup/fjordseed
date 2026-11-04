@@ -2,7 +2,7 @@
   #error PayloadDir must point to a clean, verified payload directory
 #endif
 #ifndef MyAppVersion
-  #define MyAppVersion "0.4.0"
+  #define MyAppVersion "0.5.7"
 #endif
 
 [Setup]

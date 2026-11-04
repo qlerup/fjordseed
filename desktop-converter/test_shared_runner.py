@@ -94,3 +94,22 @@ def test_move_error_reaches_ui_without_encoding_again(tmp_path):
     while not messages.empty():events.append(messages.get_nowait())
     assert ('job_error','Originalfilerne er ændret.') in events
     assert any(kind=='job_phase' for kind,_ in events)
+
+
+def test_audio_mode_reaches_encoder_and_legacy_result_is_not_reused(tmp_path):
+    source,command,work,prefs=fixture(tmp_path)
+    command['conversion_mode']='audio'
+    convert=Mock()
+    messages=queue.SimpleQueue()
+    runner=SharedRunner(tmp_path/'connection.json',prefs,convert,Cancelled,messages,threading.Event())
+    runner.request=Mock(side_effect=[command,{**command,'state':'completed'}])
+    runner.run(command,str(tmp_path))
+    assert convert.call_args.kwargs['conversion_mode']=='audio'
+    assert source.read_bytes()==b'original'
+    # A pre-existing video-mode output must not satisfy an audio-mode retry.
+    target=work/'result'/'film.mkv';target.write_bytes(b'wrong mode')
+    target.with_suffix('.json').write_text(json.dumps({'verified':True,'video_mbps_target':30}))
+    convert.reset_mock();runner.request=Mock(return_value=command)
+    runner.run(command,str(tmp_path))
+    convert.assert_not_called()
+    assert runner.receipt['state']=='error'

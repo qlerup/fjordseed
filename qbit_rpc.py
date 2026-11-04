@@ -319,7 +319,7 @@ def execute(action, data):
     if action in ('library-list','library-convert','library-retry','library-cancel'):
         from library_conversion import listing, queue, retry, cancel
         if action == 'library-list':return listing(call)
-        if action == 'library-convert':return queue(call,data.get('id'),data.get('bitrate'))
+        if action == 'library-convert':return queue(call,data.get('id'),data.get('bitrate'),conversion_mode=data.get('conversion_mode','video'),selected_audio_tracks=data.get('selected_audio_tracks'))
         if action == 'library-cancel':cancel(data.get('id'));return {'ok':True}
         retry(data.get('id'));return {'ok':True}
     if action == 'conversion-retry':

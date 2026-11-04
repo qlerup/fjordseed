@@ -97,7 +97,7 @@ def converted(path):
         return data
     report_path = checked(path.with_suffix('.json'))
     report = storage.read(report_path, {})
-    if (report.get('verified') is True and str(report.get('gpu_encoder', '')).startswith('NVEncC ')
+    if (report.get('verified') is True and str(report.get('gpu_encoder', '')).startswith('FFmpeg ' if report.get('conversion_mode')=='audio' else 'NVEncC ')
             and str(report.get('output', '')).replace('\\', '/').rsplit('/', 1)[-1] == path.name
             and type(report.get('video_mbps_target')) is int):
         return {'bitrate': report['video_mbps_target'], 'converted_at': report_path.stat().st_mtime}
@@ -175,6 +175,7 @@ def public_job(job):
     work = Path(job['stage']) / DIRECTORY
     result = storage.read(checked(work / 'status.json'), {})
     return {'id': job['id'], 'bitrate': job['bitrate'], 'phase': job['phase'],
+            'conversion_mode':job.get('conversion_mode','video'),'selected_audio_tracks':job.get('selected_audio_tracks'),
             'dolby_vision_mode':job.get('dolby_vision_mode','separate'),
             'state': 'error' if job.get('error') else result.get('state', job['phase']),
             'detail': job.get('error') or result.get('detail', ''),
@@ -193,8 +194,11 @@ def listing(api):
     return result
 
 
-def queue(api, ident, bitrate, shared=None, dolby_vision_mode=None):
-    from conversion_media import dolby_mode
+def queue(api, ident, bitrate, shared=None, dolby_vision_mode=None, conversion_mode='video', selected_audio_tracks=None):
+    from conversion_media import dolby_mode, conversion_mode as checked_mode, checked_audio_selection
+    conversion_mode=checked_mode(conversion_mode)
+    selected_audio_tracks=checked_audio_selection(selected_audio_tracks)
+    if conversion_mode!='audio' and selected_audio_tracks is not None:raise ValueError('Vælg kun lyd for at fravælge lydspor.')
     if dolby_vision_mode is None:
         dolby_vision_mode=storage.read(storage.SETTINGS,{}).get('conversion_dolby_vision','separate')
     dolby_vision_mode=dolby_mode(dolby_vision_mode)
@@ -253,7 +257,7 @@ def queue(api, ident, bitrate, shared=None, dolby_vision_mode=None):
         job = {'id': jobid, 'hash': row['hash'], 'root': str(root), 'original': str(current),
                'source': item['_path'], 'selected': selected, 'output': output, 'files': files,
                'stage': str(stage), 'seed': str(torrent_base if prior else storage.seeding_root() / (storage.download_name(row.get('name','Film'))[:100] + '-' + jobid[:8])),
-               'bitrate': bitrate, 'dolby_vision_mode':dolby_vision_mode, 'phase': 'preparing', 'created_at': time.time()}
+               'bitrate': bitrate, 'conversion_mode':conversion_mode, 'selected_audio_tracks':selected_audio_tracks, 'dolby_vision_mode':dolby_vision_mode, 'phase': 'preparing', 'created_at': time.time()}
         if shared:job['shared']={**shared,'attempt':uuid.uuid4().hex}
         if prior:job['reuse_seeding']=True
         jobs[jobid] = job
@@ -271,7 +275,7 @@ def queue(api, ident, bitrate, shared=None, dolby_vision_mode=None):
                     snapshot(source, target)
             work = checked(stage / DIRECTORY)
             work.mkdir()
-            request = {'version': 1, 'id': jobid, 'executor': 'pc', 'bitrate': bitrate, 'dolby_vision_mode':dolby_vision_mode,
+            request = {'version': 1, 'id': jobid, 'executor': 'pc', 'bitrate': bitrate, 'conversion_mode':conversion_mode, 'selected_audio_tracks':selected_audio_tracks, 'dolby_vision_mode':dolby_vision_mode,
                        'files': [{'name': selected, 'size': Path(item['_path']).stat().st_size}]}
             if not shared:atomic(work / 'request.json', json.dumps(request), mode=0o644)
             else:

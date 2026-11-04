@@ -3,9 +3,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'New installer version (for example 0.4.1)'
+        description: 'New installer version (for example 0.5.7)'
         required: true
-        default: '0.4.0'
+        default: '0.5.7'
+      publish:
+        description: 'Publish the tested installer as the latest release'
+        type: boolean
+        required: true
+        default: false
 permissions:
   contents: write
 jobs:
@@ -45,7 +50,17 @@ jobs:
           if ($env:APP_VERSION -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid version.' }
           python desktop-converter/build_installer.py --compiler "$env:RUNNER_TEMP/FjordInstallerCompiler/ISCC.exe" --archives "$env:RUNNER_TEMP/fjord-tool-archives" --output-dir dist --version $env:APP_VERSION
           if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
+      - name: Upload installer for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: fjord-converter-windows-${{ inputs.version }}
+          path: |
+            dist/Fjord-konvertering-Setup.exe
+            dist/Fjord-konvertering-Setup.exe.sha256
+          if-no-files-found: error
+          retention-days: 14
       - name: Publish installer
+        if: ${{ inputs.publish }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

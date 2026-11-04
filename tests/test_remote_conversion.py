@@ -208,13 +208,13 @@ def test_invalid_quality_choices_are_rejected(setup,rate):
 def test_library_conversion_endpoints_are_session_and_csrf_protected(setup):
     app,manager,client,h=setup
     assert app.test_client().get('/api/conversion/library').status_code==401
-    assert client.post('/api/conversion/library',json={'id':'a'*64,'bitrate':40}).status_code==403
+    assert client.post('/api/conversion/library',json={'id':'a'*64,'bitrate':40,'conversion_mode':'video'}).status_code==403
     runtime=app.extensions['runtime']
     runtime.rpc.return_value={'items':[],'jobs':[],'truncated':False}
     assert client.get('/api/conversion/library').json['items']==[]
     runtime.rpc.assert_called_with('library-list',{})
-    assert client.post('/api/conversion/library',headers=h,json={'id':'a'*64,'bitrate':40}).status_code==202
-    runtime.rpc.assert_called_with('library-convert',{'id':'a'*64,'bitrate':40})
+    assert client.post('/api/conversion/library',headers=h,json={'id':'a'*64,'bitrate':40,'conversion_mode':'video'}).status_code==202
+    runtime.rpc.assert_called_with('library-convert',{'id':'a'*64,'bitrate':40,'conversion_mode':'video','selected_audio_tracks':None})
     assert client.post('/api/conversion/library/'+'b'*32+'/retry',headers=h).status_code==200
     runtime.rpc.assert_called_with('library-retry',{'id':'b'*32})
     assert client.post('/api/conversion/library/'+'b'*32+'/cancel',headers=h).status_code==200

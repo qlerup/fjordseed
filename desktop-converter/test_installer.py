@@ -2,7 +2,18 @@ import hashlib
 
 import pytest
 
-from build_installer import archive_for, validate_payload
+from build_installer import archive_for, validate_payload, validate_version
+
+
+@pytest.mark.parametrize('version', ['0.5.7', '1.20.300'])
+def test_installer_accepts_numeric_release_versions(version):
+    validate_version(version)
+
+
+@pytest.mark.parametrize('version', ['0.5', 'v0.5.7', '0.5.7\n', '0.5.7;echo unexpected'])
+def test_installer_rejects_invalid_release_versions(version):
+    with pytest.raises(ValueError, match='three-part numeric'):
+        validate_version(version)
 
 
 def test_changed_cached_vendor_archive_is_not_executed_or_accepted(tmp_path):

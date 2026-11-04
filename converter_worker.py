@@ -47,7 +47,8 @@ def run_job(work):
     ident=request.get('id','')
     if not re.fullmatch('[a-f0-9]{32}',ident):raise ValueError('Invalid job identity')
     try:
-        from conversion_media import dolby_mode
+        from conversion_media import dolby_mode, conversion_mode
+        conversion_mode(request.get('conversion_mode','video'))
         dolby_mode(request.get('dolby_vision_mode','separate'))
         if request.get('version')!=1 or type(request.get('bitrate')) is not int or request['bitrate'] not in (10,15,20,25,30,40):
             raise ValueError('Ugyldige konverteringsindstillinger.')
@@ -76,18 +77,22 @@ def run_job(work):
             if source.suffix.lower() in VIDEO and entry.get('convert',True):
                 report(work,ident,'probing','Undersøger video, HDR, lyd og undertekster: '+entry['name'])
                 original=probe(source)
+                if request.get('conversion_mode')=='audio':
+                    from conversion_media import output_reserve
+                    if shutil.disk_usage(work).free < output_reserve(original,entry['size'],request.get('selected_audio_tracks')):
+                        report(work,ident,'waiting_space','Venter på plads til flerkanalslyd. Originalen beholdes.');return
                 if target.exists():
-                    if dovi(original) and dovi(probe(target)):prepare_output(original,target,mode=request.get('dolby_vision_mode','separate'))
-                    validate_file(original,target,mode=request.get('dolby_vision_mode','separate'));continue
+                    if dovi(original) and dovi(probe(target)):prepare_output(original,target,mode=request.get('dolby_vision_mode','separate'),conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks'))
+                    validate_file(original,target,mode=request.get('dolby_vision_mode','separate'),conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks'));continue
                 scratch=checked(work/'scratch');scratch.mkdir(exist_ok=True)
                 partial=checked(scratch/(str(index)+'.mkv'))
                 partial.unlink(missing_ok=True)
                 from dolby_backup import sidecar
                 sidecar(partial).unlink(missing_ok=True)
-                report(work,ident,'encoding','GPU-konvertering: '+entry['name'],0)
+                report(work,ident,'encoding',('Konverterer lyd: ' if request.get('conversion_mode')=='audio' else 'GPU-konvertering: ')+entry['name'],0)
                 expected=max(1,float(original['format']['duration'])*float(Fraction(video(original)['avg_frame_rate'])))
                 with log.open('a',encoding='utf-8') as handle:
-                    process=subprocess.Popen(command(source,partial,request['bitrate'],original,reader=select_decoder(video(original),'nvencc')),
+                    process=subprocess.Popen(command(source,partial,request['bitrate'],original,reader=select_decoder(video(original),'nvencc') if request.get('conversion_mode','video')=='video' else 'avsw',conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks')),
                         stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors='replace',start_new_session=True)
                     def cancel():
                         while process.poll() is None:
@@ -99,17 +104,21 @@ def run_job(work):
                     for line in process.stdout:
                         line=re.sub(r'\x1b\[[0-9;]*[A-Za-z]','',line)
                         handle.write(line);handle.flush()
+                        if request.get('conversion_mode')=='audio' and line.startswith('out_time_us='):
+                            try:percent=max(0,min(99,float(line.split('=',1)[1])/1_000_000/float(original['format']['duration'])*100))
+                            except ValueError:continue
+                            report(work,ident,'encoding','Konverterer lyd: '+entry['name'],percent)
                         match=re.search(r'\b(\d+)(?:/\d+)? frames:',line)
                         if match:
                             percent=min(99,int(match[1])/expected*100)
                             report(work,ident,'encoding','GPU-konvertering: '+entry['name'],percent)
                     code=process.wait()
                 if STOP.is_set():return
-                if code:raise ValueError('GPU-konverteringen fejlede (kode '+str(code)+'). Se encoder.log; originalen beholdes.')
+                if code:raise ValueError('Konverteringen fejlede (kode '+str(code)+'). Se encoder.log; originalen beholdes.')
                 report(work,ident,'metadata','Bevarer HDR og skriver sporoplysninger · dette kan tage flere minutter')
-                prepare_output(original,partial,mode=request.get('dolby_vision_mode','separate'))
+                prepare_output(original,partial,mode=request.get('dolby_vision_mode','separate'),conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks'))
                 report(work,ident,'verifying','Kontrollerer den færdige video, lyd, undertekster, HDR og kapitler')
-                validate_file(original,partial,mode=request.get('dolby_vision_mode','separate'))
+                validate_file(original,partial,mode=request.get('dolby_vision_mode','separate'),conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks'))
                 if source.stat().st_size!=entry['size']:raise ValueError('Originalfilen ændrede sig under konverteringen.')
                 publish_output(partial,target)
             elif not target.exists():
@@ -121,7 +130,7 @@ def run_job(work):
         if request.get('shared'):
             for name in outputs:
                 atomic((result/name).with_suffix('.json'),json.dumps({'verified':True,
-                    'video_mbps_target':request['bitrate'],'dolby_vision_mode':request.get('dolby_vision_mode','separate'),'gpu_encoder':'NVEncC server'}),mode=0o644)
+                    'video_mbps_target':request['bitrate'],'conversion_mode':request.get('conversion_mode','video'),'selected_audio_tracks':request.get('selected_audio_tracks'),'dolby_vision_mode':request.get('dolby_vision_mode','separate'),'gpu_encoder':'FFmpeg FLAC audio' if request.get('conversion_mode')=='audio' else 'NVEncC server'}),mode=0o644)
         report(work,ident,'encoded' if request.get('shared') else 'ready','Kontrolleret · klar til biblioteket',100)
     except Exception as exc:
         LOG.exception('Conversion failed for %s',ident)

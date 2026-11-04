@@ -2,7 +2,17 @@
  let last,renderedSignature;
  const folderOpen=new Set(),searches=new Map();
  const views=new Map(),bitrateCache=new Map(),bitrateBusy=new Set();
+ const audioSelections=new Map();
  const scope=d=>d.id+'\0'+d.media_folder;
+ const audioKey=(device,file)=>scope(device)+'\0'+file.name+'\0'+file.size;
+ const validTracks=info=>Array.isArray(info?.audio_tracks)&&info.audio_tracks.length>0&&info.audio_tracks.every(t=>Number.isInteger(t.index)&&t.index>=0)&&new Set(info.audio_tracks.map(t=>t.index)).size===info.audio_tracks.length;
+ function selectedTracks(device,file,info){
+  if(!validTracks(info))return [];
+  const saved=audioSelections.get(audioKey(device,file));
+  return info.audio_tracks.filter(t=>!saved||saved.has(t.index)).map(t=>t.index);
+ }
+ const libraryOptions=()=>({conversion_mode:$('#library-conversion-mode').value,bitrate:Number($('#library-conversion-bitrate').value)});
+ const sizeLabel=n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:2}).format(n/1024**3)+' GiB';
  const fmt=n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(n/1000000)+' Mbps';
  function updatePhaseTimes(){
   document.querySelectorAll('[data-phase-start]').forEach(el=>{
@@ -42,10 +52,55 @@
    if(again)setTimeout(()=>{const d=last?.devices.find(d=>scope(d)===key);if(d)fetchBitrates(d);},500);
   }
  }
+ function fileEstimates(info,file,cached,device,onSelection){
+  const options=libraryOptions(),audio=options.conversion_mode==='audio';
+  const box=node('div','conversion-estimates'+(audio?' conversion-audio-estimate':''));
+  box.setAttribute('aria-label','Estimeret størrelse efter konvertering');
+  for(const rate of audio?['audio']:['20','30','40']){
+   const estimate=info?.estimates?.[rate],bytes=estimate?.estimated_bytes;
+   const known=typeof bytes==='number'&&Number.isFinite(bytes)&&bytes>=0;
+   const pending=!cached?.error&&(!info||info.state==='pending');
+   const card=node('div','conversion-estimate'+(audio||Number(rate)===options.bitrate?' is-selected':''));
+   card.append(node('span','',audio?'Kun lyd · tabsfri lyd (FLAC)':rate+' Mbps'),node('strong','',known?'Ca. '+sizeLabel(bytes):pending?'Beregner…':'Størrelse ukendt'));
+   if(known&&Number.isFinite(file.size)&&file.size>0){
+    const difference=file.size-bytes;
+    card.append(node('span','',difference>=0?'Spar ca. '+sizeLabel(difference):'Ca. '+sizeLabel(-difference)+' større'));
+   }
+   box.append(card);
+  }
+  const result=node('div','conversion-result');result.append(box);
+  if(audio)result.append(node('p','conversion-estimate-note','Størrelsen med tabsfri lyd (FLAC) afhænger af lydindholdet og kan ikke estimeres sikkert. Videoen kopieres.'));
+  else if(info?.estimates?.[String(options.bitrate)]?.reason)result.append(node('p','conversion-estimate-note',info.estimates[String(options.bitrate)].reason));
+  else if(!info?.estimates&&!(!cached?.error&&(!info||info.state==='pending')))result.append(node('p','conversion-estimate-note','Estimat mangler. Filens varighed og lydspor skal kunne analyseres først.'));
+  if(Array.isArray(info?.audio_tracks)&&info.audio_tracks.length){
+   const describe=t=>[t.language||'Ukendt sprog',audio&&t.output_codec?(t.codec===t.output_codec?t.codec+' · beholdes':t.codec+' → '+t.output_codec):t.codec||t.codec_name,t.profile,t.channels?t.channels+' kanaler':null,t.channel_layout,t.reason,t.error].filter(Boolean).join(' · ');
+   if(audio&&validTracks(info)){
+    const group=node('fieldset','conversion-audio-tracks'),legend=node('legend','','Vælg lydspor der skal beholdes');
+    const status=node('p','conversion-estimate-note');status.setAttribute('role','status');
+    const update=()=>{const selected=selectedTracks(device,file,info),unsupported=info.audio_tracks.some(t=>selected.includes(t.index)&&(t.error||t.action==='unsupported'));status.textContent=selected.length+' af '+info.audio_tracks.length+' lydspor valgt'+(!selected.length?'. Vælg mindst ét lydspor.':unsupported?'. Fravælg spor der ikke understøttes, før du sætter filen i kø.':'');onSelection();};
+    group.append(legend);
+    for(const [position,track] of info.audio_tracks.entries()){
+     const label=node('label','conversion-audio-track'),checkbox=node('input'),copy=node('span');
+     checkbox.type='checkbox';checkbox.checked=selectedTracks(device,file,info).includes(track.index);
+     checkbox.dataset.audioTrack=audioKey(device,file)+'\0'+track.index;
+     copy.append(node('strong','',track.title||track.description||'Lydspor '+(position+1)),node('span','',describe(track)));
+     checkbox.onchange=()=>{const next=new Set(selectedTracks(device,file,info));if(checkbox.checked)next.add(track.index);else next.delete(track.index);audioSelections.set(audioKey(device,file),next);update();};
+     label.append(checkbox,copy);group.append(label);
+    }
+    group.append(status);result.append(group);update();
+   }else result.append(node('p','conversion-audio-summary',info.audio_tracks.length+' lydspor · '+info.audio_tracks.map(t=>[t.title||t.description,describe(t)].filter(Boolean).join(' · ')).join(' / ')));
+  }
+  if(audio&&!validTracks(info)&&!info?.audio_error&&(!Array.isArray(info?.audio_tracks)||info.audio_tracks.length))result.append(node('p','conversion-estimate-note',info?.audio_tracks?.length?'Sporvalg er ikke tilgængeligt. Opdatér programmet og scan filen igen.':cached?.error||info?.state==='unavailable'?'Lydspor kunne ikke scannes. Prøv igen, før filen sættes i kø.':'Afventer scanning af lydspor.'));
+  if(audio&&info?.audio_error)result.append(node('p','conversion-estimate-note',info.audio_error));
+  if(audio&&Array.isArray(info?.audio_tracks)&&!info.audio_tracks.length&&!info.audio_error)result.append(node('p','conversion-estimate-note','Ingen lydspor fundet.'));
+  return result;
+ }
  function workspace(device,container){
   if(!device.media_folder){container.append(node('p','muted small','Afventer valgt lokaltion i programmet'));return;}
   if(!device.files_updated_at){container.append(node('p','muted small','Afventer filoversigt fra programmet.'));return;}
-  if(device.conversion_version!==1)container.append(node('p','muted small','Opdatér Windows-programmet for at starte konvertering direkte fra netværksmappen.'));
+  const audioOnly=libraryOptions().conversion_mode==='audio';
+  const compatible=Number(device.conversion_version)>=(audioOnly?3:1);
+  if(!compatible)container.append(node('p','muted small',audioOnly?'Opdatér Windows-programmet for at konvertere kun lyd med alle spor og kanaler bevaret.':'Opdatér Windows-programmet for at starte konvertering direkte fra netværksmappen.'));
   const selected=device.selection;
   const active=selected?.action==='convert'&&!['completed','error','cancelled'].includes(selected.state);
   if(selected){
@@ -81,7 +136,7 @@
    for(const [index,task] of queued.entries()){
     const row=node('div','workspace-queue-row'),copy=node('div');
     const name=node('strong','',task.name.split('/').at(-1));name.title=task.name;
-    copy.append(name,node('p','muted small',task.bitrate+' Mbps'+(task.detail?' · '+task.detail:'')));
+    copy.append(name,node('p','muted small',(task.conversion_mode==='audio'?'Kun lyd':task.bitrate+' Mbps')+' · '+(task.conversion_mode==='audio'?'FLAC / beskyttede originalspor':'Original lyd')+(task.detail?' · '+task.detail:'')));
     const remove=node('button','quiet','Fjern fra kø');remove.type='button';remove.setAttribute('aria-label','Fjern '+task.name+' fra kø');
     remove.onclick=async()=>{remove.disabled=true;try{await api('/api/conversion/devices/'+device.id+'/queue/'+task.id+'/cancel',{method:'POST'});await load(false);}catch(e){error('#conversion-settings-error',e);remove.disabled=false;}};
     row.append(node('span','workspace-queue-position',String(index+1)),copy,remove);queue.append(row);
@@ -175,11 +230,15 @@
      if(file.skipped)label.append(node('span','workspace-skipped','Sprunget over'));
      const current=selected?.name===file.name&&selected?.media_folder===device.media_folder;
      const queuedIndex=queued.findIndex(q=>q.name===file.name&&q.media_folder===device.media_folder);
-     const send=node('button','primary workspace-send',queuedIndex>=0?'I kø · '+(queuedIndex+1):current&&active?(selected.state==='queued'?'Afventer GPU…':'Konvertering i gang'):current&&selected.state==='error'?'Prøv igen':'Sæt i kø');send.type='button';send.disabled=device.conversion_version!==1||(current&&!!active)||queuedIndex>=0||file.skipped;
+     const send=node('button','primary workspace-send',queuedIndex>=0?'I kø · '+(queuedIndex+1):current&&active?(selected.state==='queued'?'Afventer GPU…':'Konvertering i gang'):current&&selected.state==='error'?'Prøv igen':'Sæt i kø');send.type='button';
+     const updateSend=()=>{const chosen=selectedTracks(device,file,info);send.disabled=!compatible||(audioOnly&&!!(info?.audio_error||!chosen.length||info.audio_tracks.some(t=>chosen.includes(t.index)&&(t.error||t.action==='unsupported'))))||(current&&!!active)||queuedIndex>=0||file.skipped;};
+     label.append(fileEstimates(info,file,cached,device,updateSend));updateSend();
      send.onclick=async()=>{
       send.disabled=true;$('#conversion-settings-error').hidden=true;
       try{
-       await api('/api/conversion/devices/'+device.id+'/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({media_folder:device.media_folder,name:file.name,bitrate:Number($('#conversion-bitrate').value)})});
+       const options=libraryOptions();
+       if(options.conversion_mode==='audio'){options.selected_audio_tracks=selectedTracks(device,file,info);if(!options.selected_audio_tracks.length)throw new Error('Vælg mindst ét lydspor.');}
+       await api('/api/conversion/devices/'+device.id+'/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({media_folder:device.media_folder,name:file.name,...options})});
        toast('Konverteringen er sat i kø. Pc’en foretrækkes, ellers bruges serverens GPU.');await load(false);
       }catch(e){error('#conversion-settings-error',e);send.disabled=false;}
      };
@@ -198,12 +257,12 @@
  function devices(data){
   last=data;seriesNames.clear();
   for(const d of data.devices)for(const f of d.files||[])if(f.series_key)seriesNames.set(f.name.toLocaleLowerCase('da'),f.series_key);
-  const signature=JSON.stringify([data.devices,[...bitrateCache].map(([key,c])=>[key,c.error,[...c.files]])]);
+  const signature=JSON.stringify([libraryOptions(),data.devices,[...bitrateCache].map(([key,c])=>[key,c.error,[...c.files]])]);
   if(signature===renderedSignature){workerStatus();updatePhaseTimes();return;}
   renderedSignature=signature;
   const scrolls=new Map([...document.querySelectorAll('.workspace-files')].map(el=>[el.dataset.workspaceScope,{top:el.scrollTop,left:el.scrollLeft}]));
   const pageScroll={top:window.scrollY,left:window.scrollX};
-  const active=document.activeElement,focusId=active?.dataset.workspaceDevice,selection=active?.selectionStart;
+   const active=document.activeElement,focusId=active?.dataset.workspaceDevice,selection=active?.selectionStart,focusTrack=active?.dataset.audioTrack;
   const list=$('#conversion-devices');list.replaceChildren();
   if(!data.devices.length)list.append(node('p','muted small','Ingen pc’er forbundet endnu.'));
   for(const device of data.devices){
@@ -220,6 +279,7 @@
   }
   for(const files of list.querySelectorAll('.workspace-files')){const saved=scrolls.get(files.dataset.workspaceScope);if(saved){files.scrollTop=saved.top;files.scrollLeft=saved.left;}}
   if(focusId){const search=[...list.querySelectorAll('.workspace-search')].find(s=>s.dataset.workspaceDevice===focusId);if(search){search.focus({preventScroll:true});if(selection!=null)search.setSelectionRange(selection,selection);}}
+  if(focusTrack)[...list.querySelectorAll('[data-audio-track]')].find(el=>el.dataset.audioTrack===focusTrack)?.focus({preventScroll:true});
   window.scrollTo(pageScroll.left,pageScroll.top);
   workerStatus();
  }
@@ -232,11 +292,19 @@
   if(location.hash!=='#conversion')return;
   try{
    const data=await api('/api/conversion');
-   if(form){$('#conversion-enabled').checked=!!data.conversion_enabled;const rate=String(data.conversion_bitrate||30);const rates=$('#conversion-bitrate');rates.querySelectorAll('[data-legacy]').forEach(option=>option.remove());if(![...rates.options].some(option=>option.value===rate)){const option=new Option(rate+' Mbps – tidligere valg',rate);option.dataset.legacy='true';rates.add(option);}rates.value=rate;$('#conversion-target').value=data.conversion_target||'server';$('#conversion-dolby-vision').value=data.conversion_dolby_vision||'separate';}
+   if(form){$('#conversion-enabled').checked=!!data.conversion_enabled;const rate=String(data.conversion_bitrate||30);const rates=$('#conversion-bitrate');rates.querySelectorAll('[data-legacy]').forEach(option=>option.remove());if(![...rates.options].some(option=>option.value===rate)){const option=new Option(rate+' Mbps – tidligere valg',rate);option.dataset.legacy='true';rates.add(option);}rates.value=rate;const libraryRates=$('#library-conversion-bitrate');if(![...libraryRates.options].some(option=>option.value===rate))libraryRates.add(new Option(rate+' Mbps – tidligere valg',rate));libraryRates.value=rate;$('#conversion-target').value=data.conversion_target||'server';$('#conversion-dolby-vision').value=data.conversion_dolby_vision||'separate';}
    devices(data);
    for(const device of data.devices)fetchBitrates(device);
   }catch(e){error('#conversion-settings-error',e);}
  }
+ function updateLibraryOptions(){
+  const mode=$('#library-conversion-mode').value;
+  $('#library-conversion-bitrate-field').hidden=mode==='audio';
+  $('#library-conversion-policy').textContent=mode==='audio'?'Vælg lydspor ved hver fil. Valgte spor konverteres til tabsfri lyd (FLAC), og beskyttede originalspor kopieres. Fravalgte lydspor fjernes fra resultatet. Video, HDR og Dolby Vision kopieres uændret. Størrelsen med tabsfri lyd kan først måles efter konvertering.':'Video konverteres til HEVC/MKV ved den valgte bitrate. Alle originale lydspor kopieres uændret.';
+  if(last)devices(last);
+ }
+ for(const id of ['library-conversion-mode','library-conversion-bitrate'])$('#'+id).addEventListener('change',updateLibraryOptions);
+ updateLibraryOptions();
  $('#conversion-target').onchange=workerStatus;
  $('#conversion-settings-form').onsubmit=async e=>{
   e.preventDefault();const button=$('#conversion-settings-save');button.disabled=true;$('#conversion-settings-error').hidden=true;

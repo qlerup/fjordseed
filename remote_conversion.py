@@ -157,7 +157,11 @@ class RemoteConversion:
                     d['last_seen']=time.time();d['gpu_ready_at']=d['last_seen'];self.write(devices);return
         raise ValueError('Pc-forbindelsen er fjernet.')
 
-    def select_file(self, ident, folder, name, bitrate=None):
+    def select_file(self, ident, folder, name, bitrate=None, conversion_mode='video', selected_audio_tracks=None):
+        from conversion_media import conversion_mode as checked_mode, checked_audio_selection
+        conversion_mode=checked_mode(conversion_mode)
+        selected_audio_tracks=checked_audio_selection(selected_audio_tracks)
+        if conversion_mode!='audio' and selected_audio_tracks is not None:raise ValueError('Vælg kun lyd for at fravælge lydspor.')
         with self.state.lock:
             devices=self.devices()
             d=next((d for d in devices if d['id']==ident),None)
@@ -168,7 +172,9 @@ class RemoteConversion:
             if entry is None:raise ValueError('Filen findes ikke i pc’ens filoversigt.')
             rules=self.rules().get(ident,{}).get(str(PureWindowsPath(folder)).lower(),[])
             if skipped(name,rules):raise ValueError('Filen er sprunget over. Medtag den igen før konvertering.')
-            if d.get('conversion_version')!=1:raise ValueError('Opdatér pc-programmet for at konvertere direkte fra netværksmappen.')
+            if d.get('conversion_version') not in (1,2,3):raise ValueError('Opdatér pc-programmet for at konvertere direkte fra netværksmappen.')
+            if conversion_mode=='audio' and d.get('conversion_version')!=3:
+                raise ValueError('Opdatér pc-programmet for kun lyd-konvertering.')
             bitrate=bitrate if bitrate is not None else self.state.get().get('streaming',{}).get('conversion_bitrate',30)
             if type(bitrate) is not int or bitrate not in (20,30,40):raise ValueError('Vælg 20, 30 eller 40 Mbps.')
             waiting=d.setdefault('queue',[])
@@ -184,7 +190,7 @@ class RemoteConversion:
             if sum(q['state'] in ('queued','running') for q in waiting)>=500:
                 raise ValueError('Køen kan højst indeholde 500 filer.')
             task={'id':uuid.uuid4().hex,'media_folder':folder,'name':name,'size':entry['size'],
-                  'bitrate':bitrate,'dolby_vision_mode':self.state.get().get('streaming',{}).get('conversion_dolby_vision','separate'),'state':'queued','created_at':time.time()}
+                  'bitrate':bitrate,'conversion_mode':conversion_mode,'selected_audio_tracks':selected_audio_tracks,'dolby_vision_mode':self.state.get().get('streaming',{}).get('conversion_dolby_vision','separate'),'state':'queued','created_at':time.time()}
             waiting.append(task)
             d['queue']=[q for q in waiting if q['state'] in ('queued','running')]+[q for q in waiting if q['state'] not in ('queued','running')][-20:]
             self.write(devices)  # Persist the request before any external work starts.
@@ -202,12 +208,14 @@ class RemoteConversion:
                 task['state']=selected['state']
         task=next((q for q in device.get('queue',[]) if q['state']=='queued'),None)
         if not task:return
+        if executor=='pc' and task.get('conversion_mode')=='audio' and device.get('conversion_version')!=3:
+            task['detail']='Opdatér pc-programmet for kun lyd-konvertering.';return
         if task['media_folder']!=device.get('media_folder'):
             task.update(state='cancelled',detail='Pc’ens mappe er ændret.');return
         try:
             selection=self.runtime.rpc('library-shared-queue',{'device':device['id'],
                 **{k:task[k] for k in ('media_folder','name','size','bitrate')},
-                'dolby_vision_mode':task.get('dolby_vision_mode','separate'),'executor':executor})
+                'dolby_vision_mode':task.get('dolby_vision_mode','separate'),'conversion_mode':task.get('conversion_mode','video'),'selected_audio_tracks':task.get('selected_audio_tracks'),'executor':executor})
         except ValueError as exc:
             task['detail']=str(exc);return
         task.update(state='running',job_id=selection['id'],executor=executor);task.pop('detail',None)
@@ -287,7 +295,7 @@ class RemoteConversion:
                         for key in ('files','files_updated_at','files_truncated'):d.pop(key,None)
                         if d.get('selection'):
                             d['selection'].update(state='cancelled',detail='Mappen er ændret i pc-programmet.')
-                    if conversion_version not in (0,1):raise ValueError('Ukendt konverteringsversion.')
+                    if type(conversion_version) is not int or conversion_version not in (0,1,2,3):raise ValueError('Ukendt konverteringsversion.')
                     d.update(media_folder=folder,last_seen=time.time(),conversion_version=conversion_version)
                     if files is not None:
                         d.update(files=clean,files_updated_at=time.time(),files_truncated=truncated)
@@ -462,7 +470,7 @@ def register(app, state, runtime):
 
     @worker.post('/claim')
     def claim():
-        return jsonify(job=invoke('claim'))
+        return jsonify(job=invoke('claim',{'conversion_version':device().get('conversion_version',0)}))
 
     @worker.get('/jobs/<ident>/files/<int:index>')
     def download(ident,index):
@@ -529,7 +537,7 @@ def register(app, state, runtime):
     def convert_library_file():
         try:
             data=body()
-            return jsonify(runtime.rpc('library-convert',{'id':data.get('id'),'bitrate':data.get('bitrate')})),202
+            return jsonify(runtime.rpc('library-convert',{'id':data.get('id'),'bitrate':data.get('bitrate'),'conversion_mode':data.get('conversion_mode','video'),'selected_audio_tracks':data.get('selected_audio_tracks')})),202
         except ValueError as exc:return jsonify(error=str(exc)),400
 
     @app.post('/api/conversion/library/<ident>/retry')
@@ -556,7 +564,7 @@ def register(app, state, runtime):
     def select_workspace_file(ident):
         try:
             data=body()
-            return jsonify(selection=manager.select_file(ident,data.get('media_folder'),data.get('name'),data.get('bitrate'))),202
+            return jsonify(selection=manager.select_file(ident,data.get('media_folder'),data.get('name'),data.get('bitrate'),data.get('conversion_mode','video'),data.get('selected_audio_tracks'))),202
         except ValueError as exc:return jsonify(error=str(exc)),400
 
     @app.post('/api/conversion/devices/<ident>/skip')

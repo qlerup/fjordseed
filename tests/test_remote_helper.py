@@ -99,3 +99,16 @@ def test_claim_advertises_larger_uploads_and_read_accepts_bounded_batch(job):
     with pytest.raises(ValueError):
         helper.dispatch({**data,'action':'prepare_upload','part':'d'*32,
             'offset':0,'size':32*1024**2+1,'sha256':'e'*64})
+
+
+
+def test_old_transfer_worker_cannot_claim_audio_selection_job(job):
+    work,claim,data=job
+    lease=helper.read(helper.lease_path(work));lease['expires']=0;helper.save_lease(work,lease)
+    request=helper.read(work/'request.json')
+    request.update(conversion_mode='audio',selected_audio_tracks=[0])
+    (work/'request.json').write_text(json.dumps(request))
+    assert helper.dispatch({'action':'claim','worker':'old'}) is None
+    assert helper.dispatch({'action':'claim','worker':'old','conversion_version':2}) is None
+    current=helper.dispatch({'action':'claim','worker':'new','conversion_version':3})
+    assert current['conversion_mode']=='audio' and current['selected_audio_tracks']==[0]

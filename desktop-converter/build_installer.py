@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import urllib.request
 
-VERSION = '0.5.6'
+VERSION = '0.5.7'
 ROOT = Path(__file__).resolve().parent
 FORBIDDEN = {'worker-settings.json', 'preferences.json', 'client-state.json'}
 
@@ -51,11 +51,15 @@ def validate_payload(payload):
             raise ValueError('User settings or links must never be included in the installer')
 
 
+def validate_version(version):
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
+        raise ValueError('Use a three-part numeric app version.')
+
+
 def build(compiler, archives, output, executable=None, version=VERSION):
+    validate_version(version)
     if os.name != 'nt':
         raise RuntimeError('The installer is built on Windows.')
-    if not re.fullmatch(r'\d+\.\d+\.\d+', version):
-        raise ValueError('Use a three-part numeric app version.')
     compiler = Path(compiler).resolve()
     if not compiler.is_file():
         raise ValueError('Pass the path to the Inno Setup ISCC.exe compiler.')

@@ -84,6 +84,8 @@ class SharedRunner:
         if key==self.key:return
         from conversion_media import dolby_mode
         dolby_mode(command.get('dolby_vision_mode','separate'))
+        from conversion_media import conversion_mode
+        conversion_mode(command.get('conversion_mode','video'))
         if command.get('bitrate') not in (20,30,40):raise ValueError('Ugyldig videokvalitet.')
         self.key=key;self.command=command;self.stop.clear()
         self.thread=threading.Thread(target=self.run,args=(command,folder),daemon=True)
@@ -135,7 +137,7 @@ class SharedRunner:
             if kind=='progress':
                 percent,fps,remaining=value
                 if phase!='encoding':phase,phase_started='encoding',time.time()
-                self.receipt={'id':ident,'state':'converting','progress':round(percent,1),'detail':'Konverterer på pc’ens NVIDIA-GPU',
+                self.receipt={'id':ident,'state':'converting','progress':round(percent,1),'detail':'Konverterer lyd på pc’en' if command.get('conversion_mode')=='audio' else 'Konverterer på pc’ens NVIDIA-GPU',
                               'stage':phase,'stage_started_at':phase_started,'at':time.time(),'phase_progress':round(percent,1)}
                 self.messages.put(('job_progress',value))
                 if work and time.monotonic()-last_write>1:
@@ -163,10 +165,10 @@ class SharedRunner:
                     # Only disposable outputs in this server-created job are removed on retry.
                     target.with_suffix('.partial.mkv').unlink(missing_ok=True)
                     target.with_suffix('.log').unlink(missing_ok=True)
-                    self.convert(source,target.parent,command['bitrate'],notify,self.stop,target_name=target.name, dolby_vision_mode=command.get('dolby_vision_mode','separate'))
+                    self.convert(source,target.parent,command['bitrate'],notify,self.stop,target_name=target.name, dolby_vision_mode=command.get('dolby_vision_mode','separate'), **({'conversion_mode':'audio','selected_audio_tracks':command.get('selected_audio_tracks')} if command.get('conversion_mode')=='audio' else {}))
                 else:
                     report=json.loads(target.with_suffix('.json').read_text(encoding='utf-8'))
-                    if report.get('verified') is not True or report.get('video_mbps_target')!=command['bitrate'] or report.get('dolby_vision_mode','separate')!=command.get('dolby_vision_mode','separate'):
+                    if report.get('selected_audio_tracks')!=command.get('selected_audio_tracks') or report.get('conversion_mode','video')!=command.get('conversion_mode','video') or report.get('verified') is not True or report.get('video_mbps_target')!=command['bitrate'] or report.get('dolby_vision_mode','separate')!=command.get('dolby_vision_mode','separate'):
                         raise ValueError('En eksisterende resultatfil kan ikke genbruges.')
                 if self.stop.is_set():raise self.cancelled()
                 atomic(work/'status.json',{'id':ident,'state':'encoded','progress':100,'detail':'Pc-konvertering kontrolleret · afventer FjordSeed'})

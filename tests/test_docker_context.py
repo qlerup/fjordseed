@@ -3,12 +3,15 @@ from fnmatch import fnmatchcase
 from pathlib import Path
 import shlex
 
+import pytest
 
-def test_local_copy_sources_are_present_in_docker_build_context():
+
+@pytest.mark.parametrize('dockerfile', ['Dockerfile', 'converter/Dockerfile'])
+def test_local_copy_sources_are_present_in_docker_build_context(dockerfile):
     root = Path(__file__).resolve().parents[1]
     rules = [line.strip() for line in (root/'.dockerignore').read_text().splitlines()
              if line.strip() and not line.lstrip().startswith('#')]
-    for line in (root/'Dockerfile').read_text().splitlines():
+    for line in (root/dockerfile).read_text().splitlines():
         if not line.startswith('COPY '):
             continue
         words = shlex.split(line)
