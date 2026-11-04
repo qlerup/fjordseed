@@ -96,7 +96,7 @@
  function drawResult(item){
   const result=item.result||{status:'pending',message:'Venter på trackeropslag…'};
   renderTorrentIdentity(item.identity,result,item.file.name,'h4');
-  item.benefits.replaceChildren(benefitView(result));renderRatioPreview(result,item.ratio);
+  item.benefits.replaceChildren(benefitView(result,true));renderRatioPreview(result,item.ratio);
   const estimates=result.ratio_estimates||[];
   item.ratioTitle.textContent=estimates.length?estimates.map(e=>e.status==='ok'?`${e.tracker_name}: forventet ratio ${e.infinite?'∞':Number(e.projected_ratio).toLocaleString('da-DK',{maximumFractionDigits:4})}`:`${e.tracker_name}: ratio ukendt`).join(' · '):result.status==='pending'?'Beregner forventet tracker-ratio…':'Forventet ratio er ukendt';
   item.state.textContent=item.added?'Tilføjet til downloads':item.addError|| (item.invalid?'Ugyldig torrentfil – fjern filen for at fortsætte.':size(item.file.size)+' · torrentfil');

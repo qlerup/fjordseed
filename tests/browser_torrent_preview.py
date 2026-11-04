@@ -33,7 +33,8 @@ with tempfile.TemporaryDirectory() as folder:
     def benefits(meta, selected):
         if 'No cover' in meta.get('name', ''): return {'status': 'unknown', 'matches': []}
         return {'status': 'matched', 'matches': [{'tracker_name': 'Fixture',
-            'title': 'The Actual Film (2026) '+('Long release title '*8), 'poster': poster}]}
+            'title': 'The Actual Film (2026) '+('Long release title '*8), 'poster': poster,
+            'seeders': 7 if meta.get('name','').startswith('Second') else 0}]}
     app.extensions['trackers'].benefits.request = benefits
     server = make_server('127.0.0.1', 0, app, threaded=True)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -59,6 +60,8 @@ with tempfile.TemporaryDirectory() as folder:
                 page.locator('#add-save').click()
                 expect(page.locator('#ratio-identity .torrent-identity-title')).to_contain_text('The Actual Film (2026)')
                 expect(page.locator('#ratio-source')).to_have_text('NordicBytes-171773.torrent')
+                expect(page.locator('#preview-benefits .seeders-warning')).to_contain_text('0 seeders')
+                expect(page.locator('#ratio-save')).to_be_enabled()
                 expect(page.locator('#ratio-identity img')).to_be_visible()
                 assert page.locator('#ratio-identity img').evaluate('img=>img.complete&&img.naturalWidth>0')
                 for width in (1440, 390):
@@ -74,6 +77,7 @@ with tempfile.TemporaryDirectory() as folder:
                 expect(page.locator('#ratio-identity .torrent-identity-title')).to_have_text('No cover Film')
                 expect(page.locator('#ratio-identity .torrent-identity-cover')).to_have_text('Intet cover')
                 expect(page.locator('#ratio-identity img')).to_have_count(0)
+                expect(page.locator('#preview-benefits .seeders-warning')).to_have_count(0)
                 page.locator('#ratio-dialog .close').click()
                 page.locator('#new-torrent').click()
                 page.locator('#torrent-file').set_input_files([
@@ -86,6 +90,9 @@ with tempfile.TemporaryDirectory() as folder:
                 expect(page.locator('.torrent-batch-item .torrent-identity-cover img')).to_have_count(2)
                 expect(page.locator('#ratio-identity')).to_be_hidden()
                 expect(page.locator('.torrent-batch-item .torrent-identity-title').first).to_contain_text('The Actual Film')
+                expect(page.locator('.torrent-batch-item .seeders-warning')).to_have_count(1)
+                expect(page.locator('.torrent-batch-item').nth(1)).to_contain_text('7 seeders')
+                expect(page.locator('#ratio-save')).to_be_enabled()
                 page.locator('#ratio-dialog .close').click()
             assert not app.extensions['runtime'].rpc.called
             assert not errors, errors

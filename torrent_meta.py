@@ -2,7 +2,7 @@
 import base64
 import hashlib
 import re
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlsplit, urlencode
 
 
 def magnet_meta(magnet):
@@ -24,7 +24,7 @@ def magnet_meta(magnet):
     return {'hashes':list(dict.fromkeys(hashes)), 'name':params.get('dn',[''])[0][:200]}
 
 
-def torrent_meta(raw, *, include_info=False):
+def torrent_meta(raw, *, include_info=False, include_trackers=False):
     if not raw or len(raw)>4*1024*1024:
         raise ValueError('Torrentfilen er ugyldig eller for stor.')
     pos=0
@@ -110,4 +110,29 @@ def torrent_meta(raw, *, include_info=False):
     result = {'hashes':hashes,'name':name.decode('utf-8',errors='replace')[:200],'size':size}
     if include_info:
         result['info'] = info
+    if include_trackers:
+        urls=[data.get(b'announce')]
+        tiers=data.get(b'announce-list',[])
+        if isinstance(tiers,list):
+            urls.extend(url for tier in tiers if isinstance(tier,list) for url in tier)
+        trackers=[]
+        for value in urls:
+            if not isinstance(value,bytes):continue
+            try:
+                url=value.decode('utf-8')
+                parsed=urlsplit(url)
+                if parsed.scheme not in ('http','https','udp') or not parsed.hostname or any(c in url for c in '\r\n'):continue
+            except (UnicodeError,ValueError):continue
+            if url not in trackers:trackers.append(url)
+        result['trackers']=trackers
     return result
+
+
+def torrent_magnet(raw):
+    meta=torrent_meta(raw,include_trackers=True)
+    params=[('xt',('urn:btih:' if len(h)==40 else 'urn:btmh:1220')+h) for h in meta['hashes']]
+    params.append(('dn',meta['name']))
+    params.extend(('tr',url) for url in meta['trackers'])
+    magnet='magnet:?'+urlencode(params)
+    magnet_meta(magnet)
+    return magnet

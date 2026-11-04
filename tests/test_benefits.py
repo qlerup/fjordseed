@@ -1,5 +1,6 @@
 import io
 import threading
+import pytest
 from unittest.mock import Mock
 
 from app import create_app
@@ -14,16 +15,27 @@ def row(ident=HASH,**flags):
     return {'attributes':{'info_hash':ident,'freeleech':'100%','double_upload':True,**flags}}
 
 
+@pytest.mark.parametrize('value,expected', [(0,0), ('0',0), (12,12), ('12',12),
+    (None,None), (-1,None), (True,None), ('unknown',None)])
+def test_seeders_are_read_from_exact_tracker_match_without_inventing_zero(tmp_path,value,expected):
+    trackers=Trackers(tmp_path)
+    trackers.save(CONFIG)
+    trackers.read_json=Mock(return_value={'data':[row('b'*40,seeders=0),row(seeders=value)]})
+    found=trackers.benefits.lookup((HASH,),'Example release',trackers.entries())
+    assert found['matches'][0]['seeders']==expected
+
+
 def test_exact_hash_match_no_false_name_match_and_pagination(tmp_path):
     trackers=Trackers(tmp_path)
     trackers.save(CONFIG)
     trackers.read_json=Mock(side_effect=[{'data':[row('b'*40)],'meta':{'next_cursor':'cursor'}},
-                                        {'data':[row(leechers=50)]}])
+                                        {'data':[row(leechers=50,seeders=0)]}])
     found=trackers.benefits.lookup((HASH,),'same name',trackers.entries())
     assert found['status']=='matched'
     assert found['matches'][0]['freeleech']==100
     assert found['matches'][0]['double_upload'] is True
     assert found['matches'][0]['leechers']==50
+    assert found['matches'][0]['seeders']==0
     assert trackers.read_json.call_args.args[2]['cursor']=='cursor'
     assert 'download_link' not in str(found)
     trackers.read_json=Mock(return_value={'data':[row('b'*40)]})

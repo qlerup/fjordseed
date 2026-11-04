@@ -1,4 +1,5 @@
 from unittest.mock import Mock
+import base64
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -52,6 +53,27 @@ def test_replaces_old_job_and_resolves_without_starting_download(setup):
     assert not any(c.args[0] == 'add' for c in runtime.rpc.call_args_list)
     assert client.post('/api/search/'+second, headers=headers, json={'action': 'delete'}).status_code == 200
     assert client.get('/api/search/'+second).status_code == 404
+
+
+@pytest.mark.parametrize('as_file',[False,True])
+def test_copy_magnet_resolves_exact_result_without_starting_download(setup,as_file):
+    _,client,headers,runtime=setup
+    token=client.post('/api/search',headers=headers,json={'pattern':'Ubuntu'}).json['token']
+    magnet='magnet:?xt=urn:btih:'+'a'*40+'&dn=Ubuntu'
+    raw=b'd8:announce32:https://tracker.example/announce4:infod6:lengthi1e4:name6:Ubuntu12:piece lengthi16384e6:pieces20:aaaaaaaaaaaaaaaaaaaaee'
+    source={'torrent':base64.b64encode(raw).decode()} if as_file else {'magnet':magnet}
+    runtime.rpc.side_effect=lambda action,data:{**source,'_search_session':{'SID':'private-fixture'}}
+    response=client.post('/api/search/'+token,headers=headers,json={'action':'magnet','offset':40})
+    assert response.status_code==200
+    params=parse_qs(urlsplit(response.json['magnet']).query)
+    assert params['dn']==['Ubuntu']
+    if as_file:
+        assert params['tr']==['https://tracker.example/announce']
+        assert params['xt'][0].startswith('urn:btih:')
+    else:assert response.json=={'magnet':magnet}
+    assert 'private-fixture' not in str(response.json)
+    runtime.rpc.assert_called_with('search-resolve',{'id':123,'offset':40})
+    assert not any(c.args[0]=='add' for c in runtime.rpc.call_args_list)
 
 
 def test_expiry_and_restart_cleanup(setup, monkeypatch):

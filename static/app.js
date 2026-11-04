@@ -23,11 +23,19 @@ function renderSingleTorrentIdentity(data={}){
  const info=renderTorrentIdentity($('#ratio-identity'),data,fallback);
  info.append(source);source.hidden=!!data.torrent?.title&&data.torrent.title===fallback;
 }
-function benefitView(data){
+function benefitView(data,showSeeders=false){
  const wrap=node('div','torrent-benefits');
  if(!data||data.status!=='matched'){wrap.append(node('span','muted small',data?.message||'Trackerfordele ukendte'));return wrap;}
  for(const match of data.matches||[]){
   const group=node('div','benefit-group');group.append(node('span','benefit-tracker',match.tracker_name));
+  if(showSeeders){
+   const seeders=Number.isSafeInteger(match.seeders)&&match.seeders>=0?match.seeders:null;
+   group.append(node('span','muted small',seeders===null?'Antal seeders ukendt':seeders+' seeders'));
+   if(seeders===0){
+    const warning=node('p','error seeders-warning','Advarsel: Trackeren melder 0 seeders. Downloaden kan gå i stå eller vente, til en seeder kommer online. Du kan stadig starte den.');
+    warning.setAttribute('role','status');group.append(warning);
+   }
+  }
   if(match.freeleech>0)group.append(node('span','benefit-badge',match.freeleech+' % Freeleech'));
   if(match.global_freeleech===true){
    const until=new Date(match.global_freeleech_ends_at);
@@ -466,7 +474,7 @@ async function loadPreviewBenefits(){
   try{const body=new FormData();for(const [key,value] of pendingTorrent)if(key==='magnet'||key==='torrent')body.append(key,value);body.set('tracker_id',$('#benefit-tracker').value);
    const result=await api('/api/torrents/preview',{method:'POST',body});
    if(generation!==previewGeneration||!$('#ratio-dialog').open)return;
-   $('#preview-benefits').replaceChildren(benefitView(result));
+   $('#preview-benefits').replaceChildren(benefitView(result,true));
    renderSingleTorrentIdentity(result);
    renderRatioPreview(result);
    if(result.status==='pending'||result.ratio_estimates?.some(e=>e.status==='pending')||(result.torrent?.cover_pending&&++coverChecks<=20))previewTimer=setTimeout(check,++pendingChecks<=12?500:1500);

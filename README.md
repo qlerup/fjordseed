@@ -24,6 +24,15 @@ feeds are not automatically search providers; private trackers need a separately
 configured plugin (for example an existing Jackett integration).
 
 Results show size, seeders, leechers and source with 10 results per page.
+Each result has **Kopi?r magnetlink**, which resolves only its metadata through
+the VPN and copies the link without starting a download. Torrent-file results
+are converted using their original info hashes and tracker URLs. If clipboard
+access is unavailable, a selected text field allows manual copying.
+
+Manual download previews (including extension handoffs and packages) show the
+seeder count from the exact-hash tracker API match. Zero seeders produces an
+advisory warning; unavailable counts remain unknown and downloads stay allowed.
+
 **Minimum seeders** filters the complete result set before pagination and can
 be changed during or after a search. Zero includes unknown seeder counts;
 positive thresholds exclude them. Animated dots indicate an active search,

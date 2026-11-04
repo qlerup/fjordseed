@@ -72,7 +72,7 @@ def register(app, state, runtime):
                 return jsonify(error='Søgningen findes ikke. Start en ny søgning.'), 404
             data = body() if request.method == 'POST' else {}
             action = data.get('action', 'results')
-            if action not in ('results', 'stop', 'resolve', 'download', 'delete') or (request.method == 'GET' and action != 'results'):
+            if action not in ('results', 'stop', 'resolve', 'magnet', 'download', 'delete') or (request.method == 'GET' and action != 'results'):
                 raise ValueError('Ugyldig søgehandling.')
             try:
                 offset = int(request.args.get('offset', 0)) if request.method == 'GET' else data.get('offset', 0)
@@ -103,10 +103,21 @@ def register(app, state, runtime):
                 response = {**public(result), 'name': source.get('name', '')}
                 downloads[selected] = response
                 return jsonify(response)
-            result = rpc('search-' + action, job_data(job, offset=offset,
+            result = rpc('search-' + ('resolve' if action=='magnet' else action), job_data(job, offset=offset,
                          **({'min_seeders': minimum} if minimum else {})))
             if result.get('_search_session'):
                 job['session'] = result['_search_session']
+            if action=='magnet':
+                import base64
+                from torrent_meta import magnet_meta, torrent_magnet
+                magnet=result.get('magnet')
+                if magnet:
+                    magnet_meta(magnet)
+                elif result.get('torrent'):
+                    magnet=torrent_magnet(base64.b64decode(result['torrent'],validate=True))
+                else:
+                    raise ValueError('Dette søgeresultat har ikke et magnetlink.')
+                return jsonify(magnet=magnet)
             if action == 'delete':
                 del jobs[token]
             return jsonify(public(result))

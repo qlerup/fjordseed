@@ -398,7 +398,8 @@ class Benefits:
                                        'title':a.get('name','')[:500] if isinstance(a.get('name'),str) else '',
                                        'tracker_provider':entry.get('provider','nordicbytes'),'created_at':a.get('created_at'),
                                        'poster':poster_url(a.get('meta',{}).get('poster')) if isinstance(a.get('meta'),dict) else None,
-                                       'size':byte_size(a.get('size')),'leechers':byte_size(a.get('leechers')),**self.flags(a)}
+                                       'size':byte_size(a.get('size')),'seeders':byte_size(a.get('seeders')),
+                                       'leechers':byte_size(a.get('leechers')),**self.flags(a)}
                                 with self.trackers.lock:
                                     username=self.trackers.cache.get(entry['id'],{}).get('username')
                                 match['own_upload']=bool(username and a.get('uploader')==username)

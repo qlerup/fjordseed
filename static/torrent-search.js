@@ -41,7 +41,29 @@
     try{await post('/api/search/'+job,{action:'download',offset:resultOffset});downloads.set(downloadKey,'added');toast('Download tilføjet. Seeding stopper efter download, og filerne beholdes.');refresh().catch(e=>toast('Download tilføjet, men status kunne ikke opdateres: '+e.message));}
     catch(e){downloads.delete(downloadKey);fail(e);}finally{$('#search-results').querySelectorAll('button[data-download-key]').forEach(updateDownloadButton);}
    };
-   row.append(info,button);target.append(row);
+   const copy=node('button','secondary','Kopiér magnetlink');copy.type='button';
+   copy.setAttribute('aria-label','Kopiér magnetlink til '+(result.fileName||'torrent'));
+   copy.onclick=async()=>{
+    copy.disabled=true;copy.textContent='Henter link…';$('#search-error').hidden=true;
+    try{
+     const data=await post('/api/search/'+job,{action:'magnet',offset:resultOffset});
+     if(typeof data.magnet!=='string'||!data.magnet.startsWith('magnet:?'))throw Error('Magnetlinket kunne ikke hentes.');
+     $('#search-copy-fallback')?.remove();
+     try{if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');await navigator.clipboard.writeText(data.magnet);}
+     catch(_){
+      const field=node('textarea','search-magnet-fallback');field.value=data.magnet;field.readOnly=true;
+      const label='Magnetlink til '+(result.fileName||'torrent');field.setAttribute('aria-label',label);
+      const holder=node('div','search-copy-fallback');holder.id='search-copy-fallback';holder.append(node('p','small',label),field);
+      $('#search-results').before(holder);field.focus();field.select();
+      let copied=false;try{copied=document.execCommand('copy');}catch(_){}
+      if(!copied){toast('Markér og kopiér magnetlinket fra feltet.');return;}
+      holder.remove();
+     }
+     toast('Magnetlink kopieret');
+    }catch(e){fail(e);}finally{copy.disabled=false;copy.textContent='Kopiér magnetlink';}
+   };
+   const actions=node('div','search-result-actions');actions.append(copy,button);
+   row.append(info,actions);target.append(row);
   }
   const total=Number(data.total)||0,isRunning=data.status==='Running';
   running(isRunning);
@@ -88,6 +110,7 @@
  $('#search-form').onsubmit=async event=>{
   event.preventDefault();if(loading||installing)return;loading=true;$('#search-submit').disabled=true;$('#search-error').hidden=true;
   const version=++generation;clearTimeout(timer);token=null;offset=0;downloads.clear();running(false);thinking(true);
+  $('#search-copy-fallback')?.remove();
   $('#search-results').replaceChildren();$('#search-prev').hidden=true;$('#search-next').hidden=true;$('#search-page').textContent='';message('Starter søgning…');
   try{const data=await post('/api/search',{pattern:$('#search-query').value,plugin:$('#search-engine').value});token=data.token;await poll(version);}
   catch(e){running(false);fail(e);message('Søgningen kunne ikke startes.');}finally{loading=false;$('#search-submit').disabled=false;}

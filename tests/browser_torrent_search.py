@@ -113,9 +113,19 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('#search-next').click()
             expect(page.locator('.search-result')).to_have_count(1)
             expect(page.locator('#search-page')).to_have_text('Side 2 af 2')
-            page.locator('.search-result button').click()
-            expect(page.locator('.search-result button')).to_have_text('Tilføjet')
-            expect(page.locator('.search-result button')).to_be_disabled()
+            page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copiedMagnet=text;}}})")
+            page.get_by_role('button',name='Kopiér magnetlink til ').click()
+            expect(page.locator('#toast')).to_have_text('Magnetlink kopieret')
+            assert page.evaluate('window.copiedMagnet')=='magnet:?xt=urn:btih:'+'a'*40
+            assert not runtime.added
+            runtime.rpc.assert_any_call('search-resolve', {'id':123,'offset':50})
+            page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:undefined});document.execCommand=()=>false")
+            page.get_by_role('button',name='Kopiér magnetlink til ').click()
+            expect(page.locator('.search-magnet-fallback')).to_have_value('magnet:?xt=urn:btih:'+'a'*40)
+            assert not runtime.added
+            page.locator('.search-result button[data-download-key]').click()
+            expect(page.locator('.search-result button[data-download-key]')).to_have_text('Tilføjet')
+            expect(page.locator('.search-result button[data-download-key]')).to_be_disabled()
             expect(page.locator('#ratio-dialog')).not_to_be_visible()
             expect(page.locator('#add-dialog')).not_to_be_visible()
             assert runtime.added == [{'magnet': 'magnet:?xt=urn:btih:'+'a'*40,
