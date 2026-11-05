@@ -88,10 +88,28 @@ with tempfile.TemporaryDirectory() as folder:
    page.set_viewport_size({'width':1920,'height':1000})
    expect(page.locator('#cw-selection')).to_be_hidden()
    expect(page.locator('.cw-film').first).to_have_attribute('data-file-id','1')
-   page.locator('.cw-film input[type=checkbox]').nth(0).check();page.locator('.cw-film input[type=checkbox]').nth(1).check()
+   def film_layout():
+    return page.locator('.cw-film').evaluate_all('(films)=>films.map(f=>[f,...f.children].map(e=>{const r=e.getBoundingClientRect();return [r.x+scrollX,r.y+scrollY,r.width,r.height]}))')
+   before_selection=film_layout()
+   page.locator('.cw-film input[type=checkbox]').nth(0).check()
+   # The overlay may cover part of a row; keyboard selection stays available.
+   page.locator('.cw-film input[type=checkbox]').nth(1).focus()
+   page.locator('.cw-film input[type=checkbox]').nth(1).press('Space')
    expect(page.locator('#cw-selection')).to_be_visible()
-   assert page.locator('#cw-selection').bounding_box()['x']+page.locator('#cw-selection').bounding_box()['width']<=page.locator('.cw-film').first.bounding_box()['x']
    page.wait_for_function("()=>getComputedStyle(document.querySelector('#cw-selection')).opacity==='1'")
+   assert film_layout()==before_selection, 'Selecting films must not move or resize rows or their contents'
+   assert page.locator('#cw-selection').bounding_box()['x']==0
+   for width in (1440,2560):
+    page.set_viewport_size({'width':width,'height':1000})
+    selected_layout=film_layout()
+    page.locator('#cw-clear-selected').click()
+    expect(page.locator('#cw-selection')).to_be_hidden()
+    assert film_layout()==selected_layout, f'Clearing selection moved the layout at {width}px'
+    page.locator('.cw-film input[type=checkbox]').nth(0).check()
+    page.locator('.cw-film input[type=checkbox]').nth(1).focus()
+    page.locator('.cw-film input[type=checkbox]').nth(1).press('Space')
+    assert film_layout()==selected_layout, f'Selecting films moved the layout at {width}px'
+   page.set_viewport_size({'width':1920,'height':1000})
    page.screenshot(path=str(artifacts/f'{theme}-selection-desktop.png'))
    for width in (1440,1280,1024,390,320):
     page.set_viewport_size({'width':width,'height':1000})
