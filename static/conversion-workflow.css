@@ -11,3 +11,7 @@
 .cw-film.cw-completed{border-style:dashed;background:var(--surface);}.cw-completed .cw-cover{opacity:.65}
 
 @media(max-width:600px){.cw-film-info{grid-column:1/-1;grid-row:2}.cw-film>button{grid-column:3;grid-row:1;justify-self:end}.cw-estimates{grid-template-columns:1fr;max-width:none}.cw-estimate{padding:10px 12px}}
+
+/* Keep conversion estimates on the same opaque oak as the Nordic panels. */
+html[data-theme=nordic] .cw-film .cw-estimate{background:linear-gradient(115deg,#21160ebd,#130d09df),url('/static/nordic-sign-oak.png') center/900px auto repeat;border-color:var(--border);box-shadow:inset 0 1px #e0b77d24}
+html[data-theme=nordic] .cw-job{background:linear-gradient(115deg,#21160e91,#130d09b8),url('/static/nordic-sign-oak.png') center/1100px auto repeat;border:1px solid var(--border);border-radius:8px;padding:14px;margin:8px 0}

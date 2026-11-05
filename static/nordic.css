@@ -60,7 +60,7 @@ html[data-theme=nordic] .text-link{color:#e3c385;text-underline-offset:3px}
 html[data-theme=nordic] .section-heading h2{font:700 24px Georgia,serif;color:#eee0c5;letter-spacing:0;text-shadow:0 2px 4px #000}
 html[data-theme=nordic] .section-heading h2::before{background:#c6a46b;width:8px;height:8px;border:1px solid #ffe2a4;transform:rotate(45deg);box-shadow:0 0 10px #e5b35544}
 /* Fill beneath the fittings: no transparent seam between frame and surface. */
-html[data-theme=nordic] body :is(.connection,#traffic-flow,#tracker-insights,.download-toolbar,#download-summary,#settings-tabs,dialog),html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){border:12px solid transparent;border-image:url('/static/nordic-bronze-frame.svg') 36 / 18px / 0 stretch;border-radius:5px;background:linear-gradient(115deg,#21160e91,#130d09b8),url('/static/nordic-sign-oak.png') center/1100px auto repeat;box-shadow:0 12px 28px #0005,inset 0 1px #e0b77d38;background-clip:border-box}
+html[data-theme=nordic] body :is(.connection,.cw-film,.cw-card,.cw-selection,.cw-live,#traffic-flow,#tracker-insights,.download-toolbar,#download-summary,#settings-tabs,dialog),html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){border:12px solid transparent;border-image:url('/static/nordic-bronze-frame.svg') 36 / 18px / 0 stretch;border-radius:5px;background:linear-gradient(115deg,#21160e91,#130d09b8),url('/static/nordic-sign-oak.png') center/1100px auto repeat;box-shadow:0 12px 28px #0005,inset 0 1px #e0b77d38;background-clip:border-box}
 html[data-theme=nordic] .theme-group{border:0;border-top:1px solid #b4925655;border-image:none;border-radius:0;background:none;box-shadow:none}
 html[data-theme=nordic] .theme-group>legend{padding:0 12px 0 0;color:#e7d5b3}
 html[data-theme=nordic] :is(.connection,.download-toolbar){padding:18px}
@@ -312,7 +312,7 @@ html[data-theme=nordic] footer{margin:24px 0;padding:14px 6px;color:#b0c2c8;bord
  html[data-theme=nordic] .torrent-summary{gap:10px;flex-wrap:wrap}
  html[data-theme=nordic] .settings-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:8px}
  html[data-theme=nordic] .settings-tabs a{padding:8px;font-size:11px;text-align:center}
- html[data-theme=nordic] body :is(.connection,#traffic-flow,#tracker-insights,.download-toolbar,#download-summary,#settings-tabs,dialog),html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){border-width:9px;border-image-width:15px}
+ html[data-theme=nordic] body :is(.connection,.cw-film,.cw-card,.cw-selection,.cw-live,#traffic-flow,#tracker-insights,.download-toolbar,#download-summary,#settings-tabs,dialog),html[data-theme=nordic] .downloads-page :is(#downloads-view,#rss-view){border-width:9px;border-image-width:15px}
 }
 @media(max-width:380px){html[data-theme=nordic] main{padding:0 12px}html[data-theme=nordic] .heading h1{font-size:26px}html[data-theme=nordic] .flow-rate{grid-template-columns:minmax(0,1fr)}html[data-theme=nordic] .flow-rate-icon{display:none}html[data-theme=nordic] .flow-core-shell::before{inset:4px -10px}html[data-theme=nordic] .nav{font-size:11px;gap:5px}}
 html[data-theme=nordic][data-animation=false] body aside{animation:none}
