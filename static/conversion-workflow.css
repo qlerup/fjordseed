@@ -16,6 +16,26 @@
 html[data-theme=nordic] .cw-film .cw-estimate{background:linear-gradient(115deg,#21160ebd,#130d09df),url('/static/nordic-sign-oak.png') center/900px auto repeat;border-color:var(--border);box-shadow:inset 0 1px #e0b77d24}
 html[data-theme=nordic] .cw-job{background:linear-gradient(115deg,#21160e91,#130d09b8),url('/static/nordic-sign-oak.png') center/1100px auto repeat;border:1px solid var(--border);border-radius:8px;padding:14px;margin:8px 0}
 
+/* The selection shield slides in rather than swinging like the navigation sign. */
+.cw-selection{position:fixed;left:12px;right:12px;bottom:12px;z-index:8;gap:10px;padding:14px;box-shadow:0 8px 28px #0008;animation:cw-voyage-arrive .28s ease-out both}
+.cw-selection[hidden]{display:none!important}
+.cw-selection-heading{display:flex;align-items:center;gap:10px;min-width:0}
+.cw-selection-heading svg{width:28px;height:34px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;color:var(--accent-violet,#a8c7e8)}
+.cw-selection-heading .eyebrow{display:block;margin:0;font-size:9px;letter-spacing:1.5px}
+.cw-selection-heading strong{display:block;font-size:14px;white-space:nowrap}
+.cw-selection button{white-space:normal;font-size:13px;padding:10px 8px;line-height:1.4}
+@keyframes cw-voyage-arrive{from{opacity:0;transform:translateX(-26px) rotate(-2deg)}to{opacity:1;transform:none}}
+@media(min-width:1440px){
+ #cw-library.has-selection{padding-left:220px}
+ .cw-selection{left:246px;right:auto;bottom:auto;top:clamp(160px,28vh,300px);width:210px;display:flex;flex-direction:column;align-items:stretch;max-height:calc(100dvh - 180px);overflow:auto}
+ .cw-selection-heading{margin-bottom:8px}
+ #cw-library.has-selection .cw-film{grid-template-columns:20px 48px minmax(180px,1fr) minmax(310px,.95fr) auto;column-gap:10px}
+ html[data-theme=nordic] .cw-selection{left:max(18px,calc((100vw - 1740px)/2));border-radius:3px 3px 28px 28px}
+}
+@media(max-width:1439px){.cw-selection{flex-wrap:wrap;justify-content:flex-start}.cw-selection-heading{flex:1 1 100%}.cw-selection button{flex:1 1 auto}#cw-library.has-selection{padding-bottom:180px}}
+@media(max-width:600px){.cw-selection{gap:6px;padding:10px}.cw-selection button{width:auto;padding:8px;font-size:12px}.cw-selection-heading svg{width:20px;height:25px}.cw-selection-heading .eyebrow{display:none}.cw-selection-heading strong{font-size:12px}}
+@media(prefers-reduced-motion:reduce){.cw-selection{animation:none}}
+
 /* Compact film comparisons; wide screens put estimates beside the metadata. */
 .cw-film{column-gap:14px;row-gap:8px;padding:12px 14px}
 .cw-film>input{grid-column:1;grid-row:1}

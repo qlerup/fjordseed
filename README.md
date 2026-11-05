@@ -161,6 +161,15 @@ and back up the data directory before updating.
 
 ## Installation
 
+The conversion workflow also accepts manually added video files without a torrent.
+These conversions keep the original in place and publish a separate
+`<name>.converted-<mode>.mkv` file; torrent seeding and deletion policies do not
+apply. Estimated savings compare the two files individually, so both occupy
+space until the owner chooses to remove one. The list orders films by estimated
+absolute savings at 20 Mbps (or the current audio defaults in audio mode).
+Selecting films reveals actions to configure conversion, skip the selected
+films in the current mode, or clear the selection.
+
 1. Install/update FjordVPN on the same Docker host.
 2. Install FjordSeed from the catalog. Choose app/download directories with Hub's storage picker and UID/GID that can write the downloads.
 3. Choose a dedicated Proton NAT-PMP profile with **TCP forwarding disabled**, or an existing shared VPN gateway. Update both apps to use shared gateways.

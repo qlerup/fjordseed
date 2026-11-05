@@ -256,13 +256,92 @@ def test_manual_discovery_and_fingerprint_scoped_skip(film):
     ident = library.key(path)
     item = next(i for i in workflow.listing(film[-1])['items'] if i['id'] == ident)
     assert item['source'] == 'manual' and item['reviewed_modes'] == []
-    assert not item['eligible']  # No qBittorrent ownership to move this original.
+    assert item['eligible']  # The file can be converted without moving its original.
     workflow.skip(film[-1], {'id':ident, 'mode':'audio', 'skip':True})
     item = next(i for i in workflow.listing(film[-1])['items'] if i['id'] == ident)
     assert item['skipped_modes'] == ['audio'] and item['reviewed_modes'] == ['audio']
     path.write_bytes(b'a replacement movie')
     item = next(i for i in workflow.listing(film[-1])['items'] if i['id'] == ident)
     assert item['skipped_modes'] == []
+
+
+def manual_choice(film, media, monkeypatch):
+    monkeypatch.setattr(workflow, 'media_info', lambda _: deepcopy(media))
+    source = film[0]/'Manual.mkv'; source.write_bytes(b'manual original')
+    return source, {'id':library.key(source),'fingerprint':library.fingerprint(source),
+        'options':{'mode':'full','bitrate':20,'audio_codec':'copy'},'policy':{'ratio_action':'keep'}}
+
+
+def prepare_manual(film, choice):
+    workflow.enqueue(film[-1], {'items':[choice]})
+    workflow.tick(film[-1], film[3])
+    workflow.tick(film[-1], film[3])
+    return next(j for j in storage.read(library.ledger(), {}).values() if j.get('manual'))
+
+
+def test_manual_conversion_publishes_separately_preserves_source_and_skips_seeding(film, media, monkeypatch):
+    source, choice = manual_choice(film, media, monkeypatch)
+    job = prepare_manual(film, choice)
+    assert job['phase'] == 'queued'
+    request = storage.read(Path(job['stage'])/DIRECTORY/'request.json', {})
+    assert request['executor'] == 'server' and request['options']['mode'] == 'full'
+    ready(job)
+    assert library.reconcile(film[-1], film[3]) == []
+    workflow.tick(film[-1], film[3])
+    assert source.read_bytes() == b'manual original'
+    target = Path(job['destination']); assert target.read_bytes() == b'converted'
+    assert library.converted(target)['conversion_mode'] == 'full'
+    assert workflow.read()['jobs'][0]['state'] == 'done'
+    item = next(i for i in workflow.listing(film[-1])['items'] if i['id'] == choice['id'])
+    assert item['completed_modes'] == ['audio','full','video']
+    assert not any(c.args[0] in ('torrents/setLocation','torrents/stop','torrents/start') for c in film[-1].call_args_list)
+    assert library.reconcile(film[-1], film[3]) == []  # Restart cleanup retains both files.
+    assert source.exists() and target.exists()
+
+
+@pytest.mark.parametrize('failure', ['changed_source','destination_exists','bad_receipt'])
+def test_manual_publish_fails_without_overwriting_any_files(film, media, monkeypatch, failure):
+    source, choice = manual_choice(film, media, monkeypatch)
+    job = prepare_manual(film, choice); ready(job)
+    target = Path(job['destination'])
+    if failure == 'changed_source': source.write_bytes(b'new user file')
+    if failure == 'destination_exists': target.write_bytes(b'existing user result')
+    if failure == 'bad_receipt': (Path(job['stage'])/DIRECTORY/'result'/'.fjordseed-converted.json').write_text('{}')
+    assert library.reconcile(film[-1], film[3])
+    assert source.read_bytes() == (b'new user file' if failure == 'changed_source' else b'manual original')
+    if failure == 'destination_exists': assert target.read_bytes() == b'existing user result'
+    else: assert not target.exists()
+
+
+def test_manual_files_reject_deletion_policy_and_existing_output_before_enqueue(film, media, monkeypatch):
+    source, choice = manual_choice(film, media, monkeypatch)
+    with pytest.raises(ValueError, match='beholde originalen'):
+        workflow.enqueue(film[-1], {'items':[{**choice,'policy':{'ratio_action':'delete_ratio','ratio_limit':2}}]})
+    source.with_name('Manual.converted-full.mkv').write_bytes(b'existing')
+    with pytest.raises(ValueError, match='allerede'):
+        workflow.enqueue(film[-1], {'items':[choice]})
+    assert not workflow.read()['jobs']
+
+
+def test_batch_skip_validates_all_ids_before_changing_any_status(film):
+    source=film[0]/'Manual.mkv';source.write_bytes(b'manual')
+    ids=[library.key(source),library.key(film[1]/'film.mp4')]
+    with pytest.raises(ValueError): workflow.skip(film[-1],{'ids':ids+['missing'],'mode':'video','skip':True})
+    assert not workflow.read()['skipped']
+    workflow.skip(film[-1], {'ids':ids,'mode':'video','skip':True})
+    assert set(workflow.read()['skipped']['video']) == set(ids)
+    assert 'audio' not in workflow.read()['skipped']
+
+
+def test_ambiguous_torrent_ownership_still_allows_a_separate_conversion(film, media, monkeypatch):
+    monkeypatch.setattr(workflow, 'media_info', lambda _: deepcopy(media))
+    film[3].append({**film[2], 'hash':'b'*40})
+    source=film[1]/'film.mp4'
+    item=next(i for i in workflow.listing(film[-1])['items'] if i['id']==library.key(source))
+    assert item['eligible'] and item['torrent_status']=='ambiguous'
+    choice={'id':item['id'],'fingerprint':library.fingerprint(source),'options':{'mode':'video'},'policy':{'ratio_action':'keep'}}
+    job=prepare_manual(film, choice)
+    assert job['manual'] and Path(job['destination'])!=source
 
 
 @pytest.mark.parametrize('mode,expected', [('full',['full','video','audio']),('video',['video']),('audio',['audio'])])

@@ -1,4 +1,4 @@
-"""Durable, sequential library review queue. Original media stays qBittorrent-owned."""
+"""Sequential library review queue; preserve originals with or without torrents."""
 import json
 import os
 from pathlib import Path
@@ -85,6 +85,14 @@ def listing(api):
         item['skipped_modes'] = skipped_modes(state, item['id'], stamp)
         item['completed_modes'] = completed_modes(item['converted'], library_jobs)
         item['source'] = 'converted' if item['converted'] else 'torrent' if row else 'manual'
+        if item.get('manual_eligible'):
+            item['eligible'] = True
+            item['reason'] = 'Originalen bevares. Konverteringen gemmes som en separat fil.'
+        for job in library_jobs.values():
+            if (job.get('manual') and job.get('phase') == 'published' and job.get('source') == str(path)
+                    and job.get('source_fingerprint') == stamp):
+                item['completed_modes'] = sorted(set(item['completed_modes'] + completed_modes(
+                    {'conversion_mode':job['options']['mode']}, {})))
         item['reviewed_modes'] = sorted(set(item['skipped_modes'] + item['completed_modes']))
         cache = storage.read(storage.CONFIG/'conversion-media'/(item['id']+'.json'), {})
         if cache.get('fingerprint') == library.fingerprint(path): item['media'] = cache['media']
@@ -95,19 +103,22 @@ def listing(api):
 
 
 def skip(api, data):
-    mode, ident = data.get('mode'), data.get('id')
-    if mode not in MODES or type(data.get('skip')) is not bool: raise ValueError('Ugyldigt spring over-valg.')
-    item = next((i for i in library.inventory(api)['items'] if i['id'] == ident), None)
-    if not item: raise ValueError('Filmen findes ikke.')
-    stamp = library.fingerprint(Path(item['_path']))
+    mode = data.get('mode')
+    identities = data.get('ids', [data.get('id')])
+    if (mode not in MODES or type(data.get('skip')) is not bool or not isinstance(identities, list)
+            or not 1 <= len(identities) <= 5000 or any(not isinstance(i, str) for i in identities)
+            or len(set(identities)) != len(identities)):
+        raise ValueError('Ugyldigt spring over-valg.')
+    inventory = {i['id']:i for i in library.inventory(api)['items']}
+    if any(i not in inventory for i in identities): raise ValueError('En valgt film findes ikke længere.')
+    fingerprints = {i:library.fingerprint(Path(inventory[i]['_path'])) for i in identities}
     with storage.transaction():
         state = read(); ids = set(state['skipped'].get(mode, []))
-        if data['skip']: ids.add(ident)
-        else: ids.discard(ident)
-        state['skipped'][mode] = sorted(ids)
         stamps = state.setdefault('skip_fingerprints', {}).setdefault(mode, {})
-        if data['skip']: stamps[ident] = stamp
-        else: stamps.pop(ident, None)
+        for ident, stamp in fingerprints.items():
+            if data['skip']: ids.add(ident); stamps[ident] = stamp
+            else: ids.discard(ident); stamps.pop(ident, None)
+        state['skipped'][mode] = sorted(ids)
         save(state)
     return {'ok': True}
 
@@ -123,14 +134,18 @@ def enqueue(api, data):
     for choice in choices:
         if not isinstance(choice, dict): raise ValueError('Ugyldigt filmvalg.')
         item = inventory.get(choice.get('id'))
-        if not item or not item['eligible']: raise ValueError((item or {}).get('reason') or 'Filmen findes ikke.')
+        if not item or not (item['eligible'] or item.get('manual_eligible')): raise ValueError((item or {}).get('reason') or 'Filmen findes ikke.')
         path = Path(item['_path'])
         options = normalize(choice.get('options'), media_info(path))
+        if item.get('manual_eligible') and path.with_name(path.stem + '.converted-' + options['mode'] + '.mkv').exists():
+            raise ValueError('En separat konverteret fil findes allerede. Ingen filer overskrives.')
         if choice.get('fingerprint') != library.fingerprint(path): raise ValueError('Filmen er ændret. Genåbn filmvalget.')
         policy = share_policy(choice.get('policy', {}), manual=True)
+        if item.get('manual_eligible') and policy['ratio_action'] != 'keep':
+            raise ValueError('Film uden torrent skal beholde originalen; seeding og automatisk sletning kan ikke vælges.')
         if policy['ratio_action'] not in ('keep', 'stop_keep') and policy['ratio_limit'] < 1:
             raise ValueError('Målratio skal være mindst 1.')
-        prepared.append({'id': uuid.uuid4().hex, 'file_id': item['id'], 'hash': item['_row']['hash'],
+        prepared.append({'id': uuid.uuid4().hex, 'file_id': item['id'], 'hash': (item['_row'] or {}).get('hash'),
                          'name': item['name'], 'options': options, 'policy': policy,
                          'fingerprint': library.fingerprint(path), 'state': 'queued', 'created_at': time.time()})
     with storage.transaction():
@@ -138,11 +153,11 @@ def enqueue(api, data):
         if sum(j['state'] not in ('done', 'cancelled') for j in state['jobs']) + len(prepared) > 500:
             raise ValueError('Køen kan højst indeholde 500 ventende film.')
         hashes = {j['file_id'] for j in state['jobs'] if j['state'] not in ('done', 'cancelled')}
-        policies = {j['hash']: j['policy'] for j in state['jobs'] if j['state'] not in ('done', 'cancelled')}
+        policies = {j['hash']: j['policy'] for j in state['jobs'] if j.get('hash') and j['state'] not in ('done', 'cancelled')}
         for job in prepared:
-            if job['hash'] in policies and policies[job['hash']] != job['policy']:
+            if job.get('hash') and job['hash'] in policies and policies[job['hash']] != job['policy']:
                 raise ValueError('Film i samme torrent skal have samme seedingvalg. qBittorrent flytter og rydder op i hele torrenten.')
-            policies[job['hash']] = job['policy']
+            if job.get('hash'): policies[job['hash']] = job['policy']
             if job['file_id'] in hashes: raise ValueError('Filmen er allerede valgt eller i kø.')
             if job['options']['mode'] in skipped_modes(state, job['file_id'], job['fingerprint']): raise ValueError('Filmen er sprunget over. Gendan den først.')
             hashes.add(job['file_id'])
@@ -181,6 +196,15 @@ def tick(api, rows, credit=None):
             public = library.public_job(current)
             job.update(progress=public['progress'], detail=public['detail'], phase=public['state'])
             if current.get('phase') == 'published':
+                if current.get('manual'):
+                    job.update(state='done', phase='published', progress=100,
+                        detail='Færdig · separat konverteret fil gemt; originalen er bevaret')
+                    with storage.transaction():
+                        latest = read()
+                        for i, other in enumerate(latest['jobs']):
+                            if other['id'] == job['id']: latest['jobs'][i] = job
+                        save(latest)
+                    return
                 if credit is None:
                     from green_credit import CreditLedger
                     with CreditLedger().transaction() as locked_credit:

@@ -19,7 +19,9 @@ media={'format':{'duration':'7200'},'streams':[
  {'index':2,'codec_type':'audio','codec_name':'aac','channels':2,'bit_rate':'192000','tags':{'language':'dan'}},
  {'index':3,'codec_type':'subtitle','codec_name':'subrip','tags':{'language':'dan'}}]}
 items=[{'id':str(i),'name':f'Film-{i}.mkv','title':f'Film {i} · En rejse gennem fjorden','size':50*1024**3,'eligible':True,'skipped_modes':[],'cover':None} for i in range(1,4)]
+items[2]['size']=512*1024**2
 items[1]['size']=1024**3  # Conversion grows this file; the first film saves space.
+items.reverse()  # Deliberately unsorted: largest saving must be shown first.
 class Demo(FakeRuntime):
  host_downloads=PurePosixPath('/downloads')
  def status(self):return {**super().status(),'enabled':True,'ready':True}
@@ -41,7 +43,7 @@ with tempfile.TemporaryDirectory() as folder:
    def skip(route):
     data=route.request.post_data_json
     for item in items:
-     if item['id']==data['id']:item['skipped_modes']=[data['mode']] if data['skip'] else []
+     if item['id'] in data.get('ids',[data.get('id')]):item['skipped_modes']=[data['mode']] if data['skip'] else []
     route.fulfill(json={'ok':True})
    page.route('**/api/conversion/workflow/skip',skip)
    page.goto(f'http://127.0.0.1:{server.server_port}')
@@ -83,7 +85,21 @@ with tempfile.TemporaryDirectory() as folder:
      film.evaluate("e=>e.scrollIntoView({block:'start'})")
      film.screenshot(path=str(artifacts/f'{theme}-{kind}-{width}.png'))
     print(f'PASS {theme} {width}px: savings + growth estimates, no page/card overflow',flush=True)
-   page.locator('.cw-film input[type=checkbox]').nth(0).check();page.locator('.cw-film input[type=checkbox]').nth(1).check();page.locator('#cw-configure').click()
+   page.set_viewport_size({'width':1920,'height':1000})
+   expect(page.locator('#cw-selection')).to_be_hidden()
+   expect(page.locator('.cw-film').first).to_have_attribute('data-file-id','1')
+   page.locator('.cw-film input[type=checkbox]').nth(0).check();page.locator('.cw-film input[type=checkbox]').nth(1).check()
+   expect(page.locator('#cw-selection')).to_be_visible()
+   assert page.locator('#cw-selection').bounding_box()['x']+page.locator('#cw-selection').bounding_box()['width']<=page.locator('.cw-film').first.bounding_box()['x']
+   page.wait_for_function("()=>getComputedStyle(document.querySelector('#cw-selection')).opacity==='1'")
+   page.screenshot(path=str(artifacts/f'{theme}-selection-desktop.png'))
+   for width in (1440,1280,1024,390,320):
+    page.set_viewport_size({'width':width,'height':1000})
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), f'selection overflow at {width}'
+    assert page.locator('#cw-selection').evaluate('(e)=>e.scrollWidth<=e.clientWidth')
+   page.screenshot(path=str(artifacts/f'{theme}-selection-mobile.png'))
+
+   page.locator('#cw-configure').click()
    expect(page.locator('#cw-step')).to_contain_text('FILM 1 AF 2')
    page.locator('#cw-fields select').first.select_option('20',force=True)
    expect(page.locator('.cw-live')).to_contain_text('GiB')
@@ -124,7 +140,7 @@ with tempfile.TemporaryDirectory() as folder:
    # Wizard skip persists only in video; converted/manual films remain discoverable.
    page.locator('#cw-show-skipped').uncheck()
    expect(page.locator('.cw-film')).to_have_count(2)
-   items.append({'id':'4','name':'Manual.mkv','title':'Manuel film','size':1000,'eligible':False,'source':'manual','skipped_modes':[]})
+   items.append({'id':'4','name':'Manual.mkv','title':'Manuel film','size':1000,'eligible':True,'source':'manual','skipped_modes':[]})
    items.append({'id':'5','name':'Converted.mkv','title':'Konverteret film','size':1000,'eligible':False,'converted':True,'completed_modes':['video'],'skipped_modes':[]})
    page.locator('#cw-refresh').click();expect(page.locator('.cw-film')).to_have_count(3)
    expect(page.locator('#cw-films')).to_contain_text('Manuelt tilføjet')
@@ -134,6 +150,15 @@ with tempfile.TemporaryDirectory() as folder:
    page.locator('#cw-back').click();page.locator('[data-mode=audio]').click()
    expect(page.locator('.cw-film')).to_have_count(5)
    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+   manual=page.locator('.cw-film[data-file-id="4"] input[type=checkbox]')
+   expect(manual).to_be_enabled();manual.check();page.locator('#cw-configure').click()
+   expect(page.locator('#cw-fields')).to_contain_text('Originalen bevares')
+   expect(page.locator('#cw-fields')).not_to_contain_text('Seeding og oprydning')
+   page.locator('#cw-close').click();page.locator('#cw-clear-selected').click()
+   expect(page.locator('#cw-selection')).to_be_hidden()
+   for ident in ('1','2'):page.locator(f'.cw-film[data-file-id="{ident}"] input[type=checkbox]').check()
+   page.locator('#cw-skip-selected').click();expect(page.locator('.cw-film')).to_have_count(3)
+   page.locator('#cw-show-skipped').check();expect(page.locator('.cw-film')).to_have_count(5)
    assert not errors,errors
    print('PASS: cards, responsive 1440/390/320, per-film settings, estimates, queue submission, skip/restore, audio/video boundaries; no JS errors')
    browser.close()

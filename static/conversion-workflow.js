@@ -26,15 +26,25 @@
   card.append(node('span',difference===0?'Uændret størrelse':(difference>0?'Spar ':'Ekstra plads: ')+saved+percent,'cw-estimate-change'));
   return card;
  }
- function visible(){const q=$('cw-search').value.toLocaleLowerCase();return items.filter(f=>(!f.completed_modes?.includes(mode)||$('cw-show-completed').checked)&&(!f.skipped_modes?.includes(mode)||$('cw-show-skipped').checked)&&(!q||(f.title+' '+f.name).toLocaleLowerCase().includes(q)));}
- function selection(){ $('cw-count').textContent=selected.size?selected.size+' film valgt':'Ingen film valgt';$('cw-configure').disabled=!selected.size; }
+ function savings(file){
+  if(!(cache.get(file.id)?.media||file.media))return null;
+  const options=defaults(file);if(mode!=='audio')options.bitrate=20;
+  const bytes=estimate(file,options);return bytes===null?null:Math.round(file.size-bytes);
+ }
+ function compareSavings(a,b){const x=savings(a),y=savings(b);return x===null&&y!==null?1:y===null&&x!==null?-1:x!==null&&y!==null&&x!==y?y-x:(a.title||a.name).localeCompare(b.title||b.name,'da')||a.id.localeCompare(b.id);}
+ function visible(){const q=$('cw-search').value.toLocaleLowerCase();return items.filter(f=>(!f.completed_modes?.includes(mode)||$('cw-show-completed').checked)&&(!f.skipped_modes?.includes(mode)||$('cw-show-skipped').checked)&&(!q||(f.title+' '+f.name).toLocaleLowerCase().includes(q))).sort(compareSavings);}
+ function selection(){
+  const count=selected.size,menu=$('cw-selection');menu.hidden=!count;$('cw-library').classList.toggle('has-selection',!!count);
+  $('cw-count').textContent=count+' film valgt';for(const id of['cw-configure','cw-skip-selected','cw-clear-selected'])$(id).disabled=!count||busy;
+ }
+
  async function media(file){
   if(cache.has(file.id))return cache.get(file.id);
   const data=await api('/api/conversion/workflow/'+file.id+'/media');cache.set(file.id,data);failed.delete(file.id);return data;
  }
  async function probeVisible(){
   if(activeProbe||!mode)return;activeProbe=true;
-  try{for(const file of visible().slice(0,limit)){
+  try{for(const file of visible()){
    if(!mode||location.hash!=='#conversion')break;
    if(cache.has(file.id)||failed.has(file.id))continue;
    try{await media(file);}catch(e){failed.add(file.id);}
@@ -43,15 +53,15 @@
  }
  function renderFilms(){
   const list=$('cw-films');list.replaceChildren();
-  const found=visible();$('cw-status').textContent=found.length+' film · '+labels[mode];
+  const found=visible();$('cw-status').textContent=found.length+' film · '+labels[mode]+' · Største besparelse først'+(mode==='audio'?'':' (20 Mbps)');
   if(!found.length)list.append(node('p','Ingen film matcher dette valg. Prøv søgningen eller vis oversprungne og konverterede film.','muted'));
   for(const file of found.slice(0,limit)){
-   const row=node('article',null,'cw-film'),check=node('input');check.type='checkbox';check.checked=selected.has(file.id);check.disabled=!file.eligible||file.skipped_modes?.includes(mode);check.setAttribute('aria-label','Vælg '+file.title);check.onchange=()=>{check.checked?selected.add(file.id):selected.delete(file.id);selection();};
+   const row=node('article',null,'cw-film'),check=node('input');row.dataset.fileId=file.id;check.type='checkbox';check.checked=selected.has(file.id);check.disabled=busy||!file.eligible||file.skipped_modes?.includes(mode)||file.completed_modes?.includes(mode);check.title=file.completed_modes?.includes(mode)?'Allerede behandlet i denne liste':file.skipped_modes?.includes(mode)?'Sprunget over i denne liste':!file.eligible?(file.reason||'Kan ikke v\u00e6lges lige nu'):'';check.setAttribute('aria-label','Vælg '+file.title);check.onchange=()=>{check.checked?selected.add(file.id):selected.delete(file.id);selection();};
    const cover=file.cover?node('img'):node('span','▣');cover.className='cw-cover';if(file.cover){cover.src=file.cover;cover.alt='';cover.loading='lazy';}
    const info=node('div',null,'cw-film-info');info.append(node('h3',file.title),node('p',size(file.size)+' · '+file.name,'muted small'));
    const tags=node('p',null,'muted small');
    const completed=file.completed_modes||[];
-   tags.textContent=[file.source==='manual'?'Manuelt tilføjet · uden tilknyttet torrent':'',completed.includes('full')?'Video og lyd gennemgået':completed.map(m=>labels[m]+' konverteret').join(' · '),file.skipped_modes?.includes(mode)?'Sprunget over i denne liste':!completed.includes(mode)?'Ikke gennemgået i denne liste':''].filter(Boolean).join(' · ');info.append(tags);
+   tags.textContent=[file.source==='manual'?(file.torrent_status==='ambiguous'?'Flere mulige torrents \u00b7 originalen bevares':'Manuelt tilf\u00f8jet \u00b7 uden tilknyttet torrent'):'',completed.includes('full')?'Video og lyd gennemgået':completed.map(m=>labels[m]+' konverteret').join(' · '),file.skipped_modes?.includes(mode)?'Sprunget over i denne liste':!completed.includes(mode)?'Ikke gennemgået i denne liste':''].filter(Boolean).join(' · ');info.append(tags);
    if(completed.includes(mode))row.classList.add('cw-completed');
    const estimatePanel=node('div',null,'cw-film-estimates');
    const data=cache.get(file.id)?.media||file.media;
@@ -63,7 +73,7 @@
     estimatePanel.append(node('p','Estimat efter konvertering · Original: '+size(file.size),'cw-estimates-heading'),estimates);
    }else estimatePanel.append(node('p',failed.has(file.id)?'Medieoplysninger kunne ikke læses.':'Læser formater og størrelsesestimater …','muted small'));
    if(failed.has(file.id))info.append(button('Prøv medieoplysninger igen',()=>{failed.delete(file.id);probeVisible();},'quiet'));
-   if(!file.eligible)info.append(node('p',file.reason,'muted small'));
+   if(!file.eligible||file.source==='manual')info.append(node('p',file.reason||'Originalen bevares; konverteringen gemmes som en separat fil.','muted small'));
    const skipped=file.skipped_modes?.includes(mode),skip=button(skipped?'Gendan':'Spring over',async()=>{
     skip.disabled=true;try{await post('skip',{id:file.id,mode,skip:!skipped});file.skipped_modes=(file.skipped_modes||[]).filter(m=>m!==mode);if(!skipped)file.skipped_modes.push(mode);selected.delete(file.id);renderFilms();}catch(e){error('cw-error',e.message);skip.disabled=false;}
    },'quiet');row.append(check,cover,info,estimatePanel,skip);list.append(row);
@@ -85,7 +95,7 @@
  async function act(action,id){try{await post(action,{id});await load();}catch(e){error('cw-error',e.message);}}
  async function load(){
   if(loading)return;loading=true;error('cw-error','');
-  try{const data=await api('/api/conversion/workflow');items=data.items||[];jobs=data.jobs||[];for(const file of items){if(file.fingerprint&&JSON.stringify(cache.get(file.id)?.fingerprint)!==JSON.stringify(file.fingerprint))cache.delete(file.id);}for(const id of selected)if(!items.some(i=>i.id===id&&i.eligible))selected.delete(id);if(mode){renderFilms();probeVisible();}renderJobs();}
+  try{const data=await api('/api/conversion/workflow');items=data.items||[];jobs=data.jobs||[];for(const file of items){if(file.fingerprint&&JSON.stringify(cache.get(file.id)?.fingerprint)!==JSON.stringify(file.fingerprint))cache.delete(file.id);}for(const id of selected)if(!items.some(i=>i.id===id&&i.eligible&&!i.completed_modes?.includes(mode)&&!i.skipped_modes?.includes(mode)))selected.delete(id);if(mode){renderFilms();probeVisible();}renderJobs();}
   catch(e){error('cw-error',e.message);$('cw-jobs').textContent='Køen kunne ikke indlæses: '+e.message;}
   finally{loading=false;}
  }
@@ -97,13 +107,13 @@
   error('cw-dialog-error','');const fields=$('cw-fields');fields.replaceChildren();$('cw-prev').disabled=step===0;$('cw-skip-film').hidden=step===review.length;
   if(step===review.length){
    $('cw-step').textContent='KLAR TIL START';$('cw-dialog-title').textContent='Gennemse din konverteringskø';$('cw-next').textContent='Start kø · '+review.length+' film';$('cw-next').disabled=!review.length;
-   review.forEach((r,i)=>{const div=node('div',null,'cw-review-item');div.append(node('strong',r.file.title),node('p',labels[mode]+(mode==='audio'?'':' · '+r.options.bitrate+' Mbps')+(mode==='video'?'':' · '+r.options.audio_codec.toUpperCase())),estimateCard(r.file,r.options,'Original: '+size(r.file.size)),node('p',actions.find(a=>a[0]===r.policy.ratio_action)[1],'muted small'),button('Ret indstillinger',()=>{step=i;showStep();},'quiet'));fields.append(div);});
-   fields.append(node('p','Filmene behandles én ad gangen på serveren. Efter kontrol flyttes originalen gennem qBittorrent til Seeder. Seedtid tæller ikke under flytningen. Allerede optjent ratio og aktiv seedtid bevares.','muted small'));return;
+   review.forEach((r,i)=>{const div=node('div',null,'cw-review-item');div.append(node('strong',r.file.title),node('p',labels[mode]+(mode==='audio'?'':' · '+r.options.bitrate+' Mbps')+(mode==='video'?'':' · '+r.options.audio_codec.toUpperCase())),estimateCard(r.file,r.options,'Original: '+size(r.file.size)),node('p',r.file.source==='manual'?'Separat resultatfil \u00b7 originalen bevares':actions.find(a=>a[0]===r.policy.ratio_action)[1],'muted small'),button('Ret indstillinger',()=>{step=i;showStep();},'quiet'));fields.append(div);});
+   fields.append(node('p','Filmene behandles én ad gangen på serveren. Film uden torrent får en separat resultatfil, og originalen bevares. Torrentoriginaler flyttes efter kontrol gennem qBittorrent til Seeder med optjent ratio og seedtid bevaret.','muted small'));return;
   }
   const current=review[step],file=current.file,o=current.options,p=current.policy;
   $('cw-step').textContent=labels[mode]+' · FILM '+(step+1)+' AF '+review.length;$('cw-dialog-title').textContent=file.title;$('cw-next').textContent=step===review.length-1?'Gennemse kø →':'Næste film →';$('cw-next').disabled=false;
   const live=node('div',null,'cw-live');live.setAttribute('aria-live','polite');
-  function update(){live.replaceChildren(estimateCard(file,o,(mode==='audio'?'Lydvalg':o.bitrate+' Mbps')+' · Original: '+size(file.size)),node('small','Originalen bevares i Seeder. Estimatet er ikke en garanti og omfatter ikke originalens ekstra plads.'));}
+  function update(){live.replaceChildren(estimateCard(file,o,(mode==='audio'?'Lydvalg':o.bitrate+' Mbps')+' · Original: '+size(file.size)),node('small',file.source==='manual'?'Originalen bevares p\u00e5 sin nuv\u00e6rende plads. Resultatet gemmes separat som .converted-'+mode+'.mkv. Besparelsen g\u00e6lder selve resultatfilen; begge filer optager plads.':'Originalen bevares i Seeder. Estimatet er ikke en garanti og omfatter ikke originalens ekstra plads.'));}
   if(mode!=='audio'){
    const video=fieldset('Video'),grid=node('div',null,'cw-field-grid');grid.append(select('Videobitrate',[[20,'20 Mbps'],[30,'30 Mbps'],[40,'40 Mbps']],o.bitrate,v=>{o.bitrate=Number(v);update();}),select('Dolby Vision', [['separate','Fjern fra filmen · gem separat (HDR10)'],['preserve','Behold · profil 8.1']],o.dolby_vision_mode,v=>{o.dolby_vision_mode=v;update();}));video.append(grid,node('p','Profil 7 og 8.1 kan behandles. Profil 7 bliver 8.1; det ekstra billedlag følger kun med originalen. Filer uden Dolby Vision påvirkes ikke.','muted small'));fields.append(video);
   }
@@ -112,6 +122,7 @@
    const toggle=node('label',null,'check-label'),check=node('input');check.type='checkbox';check.checked=o.audio_codec!=='copy';const codec=select('Kompatibelt lydformat',[['eac3','E-AC3 (Dolby Digital Plus)'],['ac3','AC3 (Dolby Digital)']],o.audio_codec==='copy'?'eac3':o.audio_codec,v=>{o.audio_codec=v;update();});codec.hidden=!check.checked;check.onchange=()=>{o.audio_codec=check.checked?codec.querySelector('select').value:'copy';codec.hidden=!check.checked;update();};toggle.append(check,node('span','Tilføj kompatibel lyd · behold de valgte originalspor'));audio.append(toggle,codec,node('p','Kanalantal bevares, herunder 5.1. Spor over 5.1 kan beholdes som original lyd, men får ikke en AC3/E-AC3-kopi i denne version.','muted small'));fields.append(audio);
   }
   if(mode==='full'){const subs=fieldset('Undertekster');trackChoices(file,'subtitle',o,subs,update);if(!streams(file,'subtitle').length)subs.append(node('p','Ingen indbyggede undertekster.','muted'));fields.append(subs);}
+  if(file.source==='manual'){const original=fieldset('Originalen bevares');original.append(node('p','Denne film har ingen tilknyttet torrent. Der gemmes en separat konverteret fil; originalen flyttes eller slettes ikke.','muted small'));fields.append(original);fields.prepend(live);update();return;}
   const original=fieldset('Originalen efter konvertering'),extra=node('div');
   function policyFields(){extra.replaceChildren();if(!['keep','stop_keep'].includes(p.ratio_action)){
    const timed=p.ratio_action==='delete_time',label=node('label',timed?'Aktiv seedtid i minutter':'Målratio'),input=node('input');input.type='number';input.min=1;input.max=timed?525600:10000;input.step=timed?'1':'any';input.required=true;input.value=timed?p.seed_minutes:p.ratio_limit;input.oninput=()=>{p[timed?'seed_minutes':'ratio_limit']=Number(input.value);};label.append(input);extra.append(label,node('p',timed?'Når målet er nået, slettes original og torrent, også ved aktive downloadere. Optjent aktiv seedtid tæller med.':'Målene bruger reel upload og aktiv seedtid. Pauser og flytning tæller ikke. Oprydning venter på aktive downloadere.','muted small'));}}
@@ -120,12 +131,18 @@
  function validCurrent(){if(step>=review.length)return true;const r=review[step],o=r.options;if(mode!=='video'&&streams(r.file,'audio').length&&!o.audio.length){error('cw-dialog-error','Vælg mindst ét lydspor.');return false;}if(o.audio_codec!=='copy'&&streams(r.file,'audio').some(s=>o.audio.includes(s.index)&&s.codec_name!==o.audio_codec&&(!s.channels||s.channels>6))){error('cw-dialog-error','Et valgt spor har mere end 5.1 eller ukendt kanalantal. Behold original lyd, eller fravælg sporet.');return false;}return true;}
  $('cw-configure').onclick=async()=>{
   if(busy)return;busy=true;$('cw-configure').disabled=true;error('cw-error','');
-  try{review=[];for(const file of items.filter(f=>selected.has(f.id))){const data=await media(file);review.push({file,fingerprint:data.fingerprint,options:defaults(file),policy:{ratio_action:'keep',ratio_limit:1,seed_minutes:60}});}step=0;showStep();$('cw-dialog').showModal();}
+  try{review=[];for(const file of items.filter(f=>selected.has(f.id)).sort(compareSavings)){const data=await media(file);review.push({file,fingerprint:data.fingerprint,options:defaults(file),policy:{ratio_action:'keep',ratio_limit:1,seed_minutes:60}});}step=0;showStep();$('cw-dialog').showModal();}
   catch(e){error('cw-error',e.message);}finally{busy=false;selection();}
  };
  $('cw-form').onsubmit=async e=>{e.preventDefault();if(busy||!validCurrent())return;if(step<review.length){step++;showStep();return;}busy=true;$('cw-next').disabled=true;
   try{await post('queue',{items:review.map(r=>({id:r.file.id,options:r.options,policy:r.policy,fingerprint:r.fingerprint}))});$('cw-dialog').close();selected.clear();await load();}
   catch(e){error('cw-dialog-error',e.message);}finally{busy=false;$('cw-next').disabled=false;}
+ };
+ $('cw-clear-selected').onclick=()=>{selected.clear();renderFilms();$('cw-search').focus();};
+ $('cw-skip-selected').onclick=async()=>{
+  if(busy||!selected.size)return;busy=true;renderFilms();error('cw-error','');
+  const ids=[...selected];try{await post('skip',{ids,mode,skip:true});for(const file of items.filter(f=>ids.includes(f.id))){file.skipped_modes=[...new Set([...(file.skipped_modes||[]),mode])];}selected.clear();}
+  catch(e){error('cw-error',e.message);}finally{busy=false;renderFilms();}
  };
  $('cw-prev').onclick=()=>{if(step>0){step--;showStep();}};
  $('cw-skip-film').onclick=async()=>{if(busy)return;busy=true;const file=review[step].file;try{await post('skip',{id:file.id,mode,skip:true});file.skipped_modes=[...(file.skipped_modes||[]).filter(m=>m!==mode),mode];selected.delete(file.id);review.splice(step,1);showStep();renderFilms();}catch(e){error('cw-dialog-error',e.message);}finally{busy=false;}};
@@ -135,6 +152,6 @@
  $('cw-search').oninput=()=>{limit=40;renderFilms();probeVisible();};$('cw-show-completed').onchange=()=>{renderFilms();probeVisible();};$('cw-show-skipped').onchange=()=>{renderFilms();probeVisible();};
  $('cw-refresh').onclick=()=>{failed.clear();cache.clear();load();};$('cw-queue-refresh').onclick=load;
  window.addEventListener('hashchange',()=>{if(location.hash==='#conversion')load();});
- setInterval(()=>{if(location.hash==='#conversion'&&!document.hidden&&!$('cw-dialog').open)load();},15000);
+ setInterval(()=>{if(location.hash==='#conversion'&&!document.hidden&&!$('cw-dialog').open&&!busy)load();},15000);
  if(location.hash==='#conversion')load();
 })();

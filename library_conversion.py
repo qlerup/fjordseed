@@ -1,4 +1,4 @@
-"""Convert retained library files, with qBittorrent-owned original relocation."""
+"""Convert retained files; relocate originals only when qBittorrent owns them."""
 import hashlib
 import errno
 import json
@@ -164,6 +164,8 @@ def inventory(api):
                 reason = 'Der er allerede et konverteringsjob til filen.'
             items.append({'id': key(path), 'name': path.relative_to(root).as_posix(),
                           'size': path.stat().st_size, 'converted': flag,
+                          'manual_eligible': len(matches) != 1 and not flag and not job,
+                          'torrent_status': 'linked' if len(matches) == 1 else 'missing' if not matches else 'ambiguous',
                           'eligible': not reason, 'reason': reason,
                           'job': public_job(job) if job else None,
                           '_row': matches[0] if len(matches) == 1 else None, '_path': str(path),'_prior':priors.get(str(path))})
@@ -207,6 +209,8 @@ def queue(api, ident, bitrate, shared=None, dolby_vision_mode=None, conversion_m
         raise ValueError('Vælg 20, 30 eller 40 Mbps.')
     with storage.transaction() as entries:
         item = next((i for i in inventory(api)['items'] if i['id'] == ident), None)
+        if item and item.get('manual_eligible') and options is not None and not shared:
+            return queue_manual(item, bitrate, options, workflow_id)
         if not item or not item['eligible']:
             raise ValueError(item['reason'] if item else 'Filen findes ikke i Behold.')
         row = item['_row']
@@ -302,6 +306,68 @@ def queue(api, ident, bitrate, shared=None, dolby_vision_mode=None, conversion_m
                 raise
             return public_job(job)
     return prepare_review_job(job, torrent_base)
+
+
+def queue_manual(item, bitrate, options, workflow_id):
+    """Convert an unowned file without moving, replacing or deleting its original."""
+    from conversion_workflow import media_info
+    from conversion_options import normalize
+    source = checked(item['_path'])
+    options = normalize(options, media_info(source))
+    target = checked(source.with_name(source.stem + '.converted-' + options['mode'] + '.mkv'))
+    if target.exists() or marker(target).exists():
+        raise ValueError('En separat konverteret fil findes allerede. Ingen filer overskrives.')
+    ident = uuid.uuid4().hex
+    stage = checked(storage.download_root()/storage.BUFFER/('library-' + ident))
+    stage.mkdir(parents=True, exist_ok=False)
+    stamp = fingerprint(source)
+    job = {'id':ident, 'hash':None, 'manual':True, 'root':str(storage.download_root()),
+           'original':str(source.parent), 'source':str(source), 'selected':source.name,
+           'output':source.with_suffix('.mkv').name, 'destination':str(target),
+           'files':[{'name':source.name,'size':stamp[0],'fingerprint':stamp}],
+           'source_fingerprint':stamp, 'stage':str(stage), 'bitrate':bitrate,
+           'conversion_mode':options['mode'], 'dolby_vision_mode':options['dolby_vision_mode'],
+           'options':options, 'phase':'preparing', 'created_at':time.time(), 'workflow_id':workflow_id}
+    jobs = storage.read(ledger(), {}); jobs[ident] = job; save(jobs)
+    # Preparation normally runs outside the storage transaction. The workflow
+    # tick also recovers this persisted preparing state after a restart.
+    return public_job(job)
+
+
+def advance_manual(jobs, job):
+    stage = checked(job['stage'])
+    if job['phase'] in ('published', 'cancelled'):
+        if job['phase'] == 'published':
+            target = checked(job['destination'])
+            scratch(job, target).unlink(missing_ok=True)
+        if stage.is_dir(): shutil.rmtree(stage)
+        return
+    if job['phase'] == 'preparing': return
+    work = checked(stage/DIRECTORY)
+    status = storage.read(work/'status.json', {})
+    if status.get('state') != 'ready': return
+    result = checked(work/'result')
+    receipt = storage.read(result/'.fjordseed-converted.json', {})
+    if status.get('id') != job['id'] or receipt.get('id') != job['id'] or receipt.get('files') != [job['output']]:
+        raise ValueError('Konverteringskvitteringen matcher ikke filmen. Originalen er bevaret.')
+    verify_sources(job, checked(job['original']))
+    source = checked(result/job['output']); stamp = fingerprint(source)
+    if job.get('verified_result') is not None and job['verified_result'] != stamp:
+        raise ValueError('Den kontrollerede konvertering er ændret. Originalen er bevaret.')
+    job['verified_result'] = stamp; save(jobs)
+    target = checked(job['destination'])
+    if target == checked(job['source']): raise ValueError('Originalen må ikke overskrives.')
+    publish_file(job, source, target)
+    from dolby_backup import sidecar
+    backup = checked(sidecar(source))
+    if backup.exists(): publish_file(job, backup, checked(sidecar(target)))
+    if marker(target).exists() and storage.read(marker(target), {}).get('id') != job['id']:
+        raise ValueError('Der findes andre konverteringsoplysninger til resultatfilen.')
+    atomic(marker(target), json.dumps({'version':1,'id':job['id'],'bitrate':job['bitrate'],
+        'converted_at':time.time(),'original_size':job['source_fingerprint'][0],
+        'output_size':target.stat().st_size,'output_fingerprint':fingerprint(target),
+        'conversion_mode':job['options']['mode']}), mode=0o644)
+    job['phase'] = 'published'; save(jobs)
 
 
 def prepare_review_job(job, source_base):
@@ -504,6 +570,8 @@ def resume_original(api, rows, jobs, job):
 
 
 def advance(api, rows, entries, jobs, job):
+    if job.get('manual'):
+        return advance_manual(jobs, job)
     stage = checked(job['stage'])
     if job['phase'] in ('published', 'cancelled'):
         if job['phase']=='published':resume_original(api,rows,jobs,job)

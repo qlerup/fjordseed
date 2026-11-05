@@ -22,3 +22,8 @@ assert.match(content(card),/50 GiB.*Uændret størrelse/);
 card=context.card({...file,size:0},options,'20 Mbps');
 assert.doesNotMatch(content(card),/Infinity|NaN|%/);
 console.log('PASS: estimate values, savings and percentage, growth, missing metadata, unchanged audio and zero source size');
+
+vm.runInContext('mode="video"; globalThis.compare=compareSavings;',context);
+const ranked=[{...file,id:'growth',title:'A',size:GiB},{...file,id:'large',title:'Z',size:80*GiB},{...file,id:'unknown',title:'B',media:{...file.media,format:{}}},file].sort(context.compare);
+assert.deepEqual(ranked.map(f=>f.id),['large','film','growth','unknown']);
+console.log('PASS: savings sorted by absolute bytes, green savings before growth, unknown metadata last');
