@@ -33,8 +33,24 @@
  }
  function compareSavings(a,b){const x=savings(a),y=savings(b);return x===null&&y!==null?1:y===null&&x!==null?-1:x!==null&&y!==null&&x!==y?y-x:(a.title||a.name).localeCompare(b.title||b.name,'da')||a.id.localeCompare(b.id);}
  function visible(){const q=$('cw-search').value.toLocaleLowerCase();return items.filter(f=>(!f.completed_modes?.includes(mode)||$('cw-show-completed').checked)&&(!f.skipped_modes?.includes(mode)||$('cw-show-skipped').checked)&&(!q||(f.title+' '+f.name).toLocaleLowerCase().includes(q))).sort(compareSavings);}
+ let selectionExit=null;
+ function selectionVisibility(show){
+  const menu=$('cw-selection'),library=$('cw-library');menu.inert=!show;
+  if(show){
+   if(selectionExit){selectionExit.reverse();selectionExit=null;}
+   menu.hidden=false;library.classList.add('has-selection');return;
+  }
+  if(menu.hidden||selectionExit)return;
+  const animation=menu.getAnimations().find(a=>a.effect?.target===menu);
+  const hide=()=>{menu.hidden=true;library.classList.remove('has-selection');};
+  if(!animation){hide();return;}
+  // Reverse from the current position, including when selection changes mid-drop.
+  selectionExit=animation;animation.reverse();
+  const finish=()=>{if(selectionExit===animation){selectionExit=null;hide();}};
+  animation.finished.then(finish,finish);
+ }
  function selection(){
-  const count=selected.size,menu=$('cw-selection');menu.hidden=!count;$('cw-library').classList.toggle('has-selection',!!count);
+  const count=selected.size;selectionVisibility(!!count);
   $('cw-count').textContent=count+' film valgt';for(const id of['cw-configure','cw-skip-selected','cw-clear-selected'])$(id).disabled=!count||busy;
  }
 
