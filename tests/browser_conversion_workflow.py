@@ -1,11 +1,17 @@
 """Exercise the per-film wizard without modifying torrents or library files."""
 from pathlib import Path, PurePosixPath
-import copy, json, sys, tempfile, threading
+import argparse, copy, json, sys, tempfile, threading
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
 from app import create_app
 from test_app import FakeRuntime
+
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--theme',choices=('fjord','nordic'),default='nordic')
+theme=parser.parse_args().theme
+artifacts=Path(__file__).resolve().parents[1]/'test-results'/'conversion-workflow'
+artifacts.mkdir(parents=True,exist_ok=True)
 
 media={'format':{'duration':'7200'},'streams':[
  {'index':0,'codec_type':'video','codec_name':'hevc','width':3840,'height':2160},
@@ -13,13 +19,16 @@ media={'format':{'duration':'7200'},'streams':[
  {'index':2,'codec_type':'audio','codec_name':'aac','channels':2,'bit_rate':'192000','tags':{'language':'dan'}},
  {'index':3,'codec_type':'subtitle','codec_name':'subrip','tags':{'language':'dan'}}]}
 items=[{'id':str(i),'name':f'Film-{i}.mkv','title':f'Film {i} · En rejse gennem fjorden','size':50*1024**3,'eligible':True,'skipped_modes':[],'cover':None} for i in range(1,4)]
+items[1]['size']=1024**3  # Conversion grows this file; the first film saves space.
 class Demo(FakeRuntime):
  host_downloads=PurePosixPath('/downloads')
  def status(self):return {**super().status(),'enabled':True,'ready':True}
 
 with tempfile.TemporaryDirectory() as folder:
  app=create_app(folder,testing=True,runtime_factory=Demo)
- server=make_server('127.0.0.1',0,app,threaded=True)
+ # These mocked requests are short; serialize them to keep the browser check
+ # usable in CI containers with a small process/thread allowance.
+ server=make_server('127.0.0.1',0,app,threaded=False)
  threading.Thread(target=server.serve_forever,daemon=True).start()
  try:
   with sync_playwright() as p:
@@ -37,24 +46,61 @@ with tempfile.TemporaryDirectory() as folder:
    page.route('**/api/conversion/workflow/skip',skip)
    page.goto(f'http://127.0.0.1:{server.server_port}')
    page.locator('[name=username]').fill('admin');page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip());page.get_by_role('button',name='Log ind',exact=True).click()
+   page.goto(f'http://127.0.0.1:{server.server_port}/#appearance')
+   page.locator(f'[name=theme][value={theme}]').check()
+   page.locator('#appearance-save').click()
+   expect(page.locator('#appearance-status')).to_contain_text('er gemt')
+   page.reload()
+   expect(page.locator('html')).to_have_attribute('data-theme',theme)
    page.goto(f'http://127.0.0.1:{server.server_port}/#conversion')
    for width in (1440,390,320):
     page.set_viewport_size({'width':width,'height':1000});expect(page.locator('#cw-cards')).to_be_visible()
     assert page.locator('.cw-card').count()==4
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-    page.screenshot(path=f'/tmp/fjordseed-conversion-cards-{width}.png',full_page=True)
+    page.screenshot(path=str(artifacts/f'{theme}-cards-{width}.png'),full_page=True)
    page.locator('[data-mode=full]').click();expect(page.locator('.cw-film')).to_have_count(3)
    expect(page.locator('.cw-film').first).to_contain_text('20 Mbps')
+   expect(page.locator('.cw-film').first.locator('.cw-estimate')).to_have_count(3)
+   expect(page.locator('.cw-film').first.locator('.cw-estimate').first).to_contain_text('Forventet slutstørrelse')
+   expect(page.locator('.cw-film').first.locator('.cw-estimate').first).to_contain_text('Spar ')
+   expect(page.locator('.cw-film').nth(1).locator('.cw-estimate').first).to_contain_text('Ekstra plads: ')
+   for width in (1440,390,320):
+    page.set_viewport_size({'width':width,'height':1000})
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    for card in page.locator('.cw-estimate').all():
+     assert card.evaluate('(e)=>e.scrollWidth<=e.clientWidth')
+    if width<=600:
+     assert page.locator('.cw-estimates').first.bounding_box()['width']>=width-100
+    page.screenshot(path=str(artifacts/f'{theme}-estimates-{width}.png'),full_page=True)
+    # Focused captures keep the sticky selection toolbar outside each film,
+    # making every estimate readable in the saved review evidence.
+    for index,kind in ((0,'saving'),(1,'growth')):
+     film=page.locator('.cw-film').nth(index)
+     film.evaluate("e=>e.scrollIntoView({block:'start'})")
+     film.screenshot(path=str(artifacts/f'{theme}-{kind}-{width}.png'))
+    print(f'PASS {theme} {width}px: savings + growth estimates, no page/card overflow',flush=True)
    page.locator('.cw-film input[type=checkbox]').nth(0).check();page.locator('.cw-film input[type=checkbox]').nth(1).check();page.locator('#cw-configure').click()
    expect(page.locator('#cw-step')).to_contain_text('FILM 1 AF 2')
    page.locator('#cw-fields select').first.select_option('20',force=True)
    expect(page.locator('.cw-live')).to_contain_text('GiB')
+   expect(page.locator('.cw-live')).to_contain_text('Spar ')
    for width in (1440,390,320):
     page.set_viewport_size({'width':width,'height':1000});assert page.locator('#cw-dialog').evaluate('(e)=>e.scrollWidth<=e.clientWidth')
-    page.screenshot(path=f'/tmp/fjordseed-conversion-modal-{width}.png')
+    expect(page.locator('.cw-live .cw-estimate')).to_be_visible()
+    assert page.locator('.cw-live').evaluate('(e)=>e.scrollWidth<=e.clientWidth')
+    page.screenshot(path=str(artifacts/f'{theme}-modal-{width}.png'))
+    print(f'PASS {theme} {width}px: conversion dialog + live savings, no overflow',flush=True)
    page.locator('#cw-next').click();expect(page.locator('#cw-step')).to_contain_text('FILM 2 AF 2')
    page.locator('#cw-fields select').first.select_option('40',force=True)
+   expect(page.locator('.cw-live')).to_contain_text('Ekstra plads: ')
    page.locator('#cw-next').click();expect(page.locator('#cw-dialog-title')).to_have_text('Gennemse din konverteringskø')
+   for width in (1440,390,320):
+    page.set_viewport_size({'width':width,'height':1000})
+    assert page.locator('#cw-dialog').evaluate('(e)=>e.scrollWidth<=e.clientWidth')
+    expect(page.locator('#cw-fields')).to_contain_text('Spar ')
+    expect(page.locator('#cw-fields')).to_contain_text('Ekstra plads: ')
+    page.screenshot(path=str(artifacts/f'{theme}-review-{width}.png'))
+    print(f'PASS {theme} {width}px: queue review savings + growth, no overflow',flush=True)
    page.locator('#cw-next').click();expect(page.locator('#cw-dialog')).not_to_be_visible()
    assert [i['options']['bitrate'] for i in submitted[0]['items']]==[20,40]
    page.locator('#cw-back').click();page.locator('[data-mode=audio]').click()
