@@ -64,13 +64,17 @@ with tempfile.TemporaryDirectory() as folder:
    expect(page.locator('.cw-film').first.locator('.cw-estimate').first).to_contain_text('Forventet slutstørrelse')
    expect(page.locator('.cw-film').first.locator('.cw-estimate').first).to_contain_text('Spar ')
    expect(page.locator('.cw-film').nth(1).locator('.cw-estimate').first).to_contain_text('Ekstra plads: ')
-   for width in (1440,390,320):
+   for width in (1920,1440,1024,390,320):
     page.set_viewport_size({'width':width,'height':1000})
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
     for card in page.locator('.cw-estimate').all():
      assert card.evaluate('(e)=>e.scrollWidth<=e.clientWidth')
     if width<=600:
      assert page.locator('.cw-estimates').first.bounding_box()['width']>=width-100
+    if width>=1200:
+     info=page.locator('.cw-film-info').first.bounding_box(); estimates=page.locator('.cw-film-estimates').first.bounding_box()
+     assert estimates['x']>=info['x']+info['width'], 'desktop estimates must use the space beside metadata'
+     assert page.locator('.cw-film').first.bounding_box()['height']<220, 'film rows should remain compact'
     page.screenshot(path=str(artifacts/f'{theme}-estimates-{width}.png'),full_page=True)
     # Focused captures keep the sticky selection toolbar outside each film,
     # making every estimate readable in the saved review evidence.

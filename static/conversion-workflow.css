@@ -15,3 +15,35 @@
 /* Keep conversion estimates on the same opaque oak as the Nordic panels. */
 html[data-theme=nordic] .cw-film .cw-estimate{background:linear-gradient(115deg,#21160ebd,#130d09df),url('/static/nordic-sign-oak.png') center/900px auto repeat;border-color:var(--border);box-shadow:inset 0 1px #e0b77d24}
 html[data-theme=nordic] .cw-job{background:linear-gradient(115deg,#21160e91,#130d09b8),url('/static/nordic-sign-oak.png') center/1100px auto repeat;border:1px solid var(--border);border-radius:8px;padding:14px;margin:8px 0}
+
+/* Compact film comparisons; wide screens put estimates beside the metadata. */
+.cw-film{column-gap:14px;row-gap:8px;padding:12px 14px}
+.cw-film>input{grid-column:1;grid-row:1}
+.cw-film>.cw-cover{grid-column:2;grid-row:1}
+.cw-film-info{grid-column:3;grid-row:1}
+.cw-film-estimates{grid-column:3;grid-row:2;min-width:0;max-width:520px}
+.cw-film>button{grid-column:4;grid-row:1}
+.cw-film .cw-estimates-heading{margin:0 0 5px;font-size:.78rem}
+.cw-film .cw-estimates{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:0;max-width:none}
+.cw-film .cw-estimate{position:relative;padding:8px 10px;gap:3px;line-height:1.35}
+.cw-film .cw-estimate-label{font-size:.8rem;margin:0}
+.cw-film .cw-estimate-size{font-size:1rem;line-height:1.3}
+.cw-film .cw-estimate-change{font-size:.78rem}
+.cw-film .cw-estimate-caption{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+@media(min-width:1200px){
+ .cw-film{grid-template-columns:20px 56px minmax(240px,1fr) minmax(390px,.95fr) auto;align-items:center}
+ .cw-film>.cw-cover{width:56px;height:84px}
+ .cw-film-estimates{grid-column:4;grid-row:1;max-width:none}
+ .cw-film>button{grid-column:5}
+ .cw-film h3{font-size:1rem;margin-bottom:4px}
+ .cw-film p{margin:3px 0}
+}
+@media(max-width:600px){
+ .cw-film{padding:10px;gap:8px 10px}
+ .cw-film-info{grid-column:1/-1;grid-row:2}
+ .cw-film-estimates{grid-column:1/-1;grid-row:3;max-width:none}
+ .cw-film>button{grid-column:3;grid-row:1}
+ .cw-film .cw-estimates{grid-template-columns:1fr}
+ .cw-film .cw-estimate{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;padding:7px 10px}
+ .cw-film .cw-estimate-change{grid-column:1/-1}
+}
