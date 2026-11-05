@@ -16,7 +16,7 @@
   let rate=audio.filter(s=>options.audio.includes(s.index)).reduce((sum,s)=>sum+bps(s)+(options.audio_codec!=='copy'&&s.codec_name!==options.audio_codec?(s.channels>2?640000:192000):0),0);
   return options.mode==='audio'?Math.max(0,file.size-audio.reduce((sum,s)=>sum+bps(s),0)*duration/8+rate*duration/8):(options.bitrate*1e6+rate)*duration/8*1.01;
  }
- function visible(){const q=$('cw-search').value.toLocaleLowerCase();return items.filter(f=>!f.converted&&(!f.skipped_modes?.includes(mode)||$('cw-show-skipped').checked)&&(!q||(f.title+' '+f.name).toLocaleLowerCase().includes(q)));}
+ function visible(){const q=$('cw-search').value.toLocaleLowerCase();return items.filter(f=>(!f.completed_modes?.includes(mode)||$('cw-show-completed').checked)&&(!f.skipped_modes?.includes(mode)||$('cw-show-skipped').checked)&&(!q||(f.title+' '+f.name).toLocaleLowerCase().includes(q)));}
  function selection(){ $('cw-count').textContent=selected.size?selected.size+' film valgt':'Ingen film valgt';$('cw-configure').disabled=!selected.size; }
  async function media(file){
   if(cache.has(file.id))return cache.get(file.id);
@@ -34,11 +34,15 @@
  function renderFilms(){
   const list=$('cw-films');list.replaceChildren();
   const found=visible();$('cw-status').textContent=found.length+' film · '+labels[mode];
-  if(!found.length)list.append(node('p','Ingen film matcher dette valg. Prøv søgningen eller vis oversprungne film.','muted'));
+  if(!found.length)list.append(node('p','Ingen film matcher dette valg. Prøv søgningen eller vis oversprungne og konverterede film.','muted'));
   for(const file of found.slice(0,limit)){
    const row=node('article',null,'cw-film'),check=node('input');check.type='checkbox';check.checked=selected.has(file.id);check.disabled=!file.eligible||file.skipped_modes?.includes(mode);check.setAttribute('aria-label','Vælg '+file.title);check.onchange=()=>{check.checked?selected.add(file.id):selected.delete(file.id);selection();};
    const cover=file.cover?node('img'):node('span','▣');cover.className='cw-cover';if(file.cover){cover.src=file.cover;cover.alt='';cover.loading='lazy';}
    const info=node('div');info.append(node('h3',file.title),node('p',size(file.size)+' · '+file.name,'muted small'));
+   const tags=node('p',null,'muted small');
+   const completed=file.completed_modes||[];
+   tags.textContent=[file.source==='manual'?'Manuelt tilføjet · uden tilknyttet torrent':'',completed.includes('full')?'Video og lyd gennemgået':completed.map(m=>labels[m]+' konverteret').join(' · '),file.skipped_modes?.includes(mode)?'Sprunget over i denne liste':!completed.includes(mode)?'Ikke gennemgået i denne liste':''].filter(Boolean).join(' · ');info.append(tags);
+   if(completed.includes(mode))row.classList.add('cw-completed');
    const data=cache.get(file.id)?.media||file.media;
    if(data){
     if(mode!=='audio'){const v=streams(file,'video')[0]||{},dv=v.side_data_list?.find(s=>s.side_data_type==='DOVI configuration record');info.append(node('p',[v.codec_name?.toUpperCase(),v.width&&v.width+' × '+v.height,dv?'Dolby Vision '+dv.dv_profile+(dv.dv_profile===8?'.'+dv.dv_bl_signal_compatibility_id:''):'Ingen Dolby Vision'].filter(Boolean).join(' · '),'small'));}
@@ -70,7 +74,7 @@
  async function act(action,id){try{await post(action,{id});await load();}catch(e){error('cw-error',e.message);}}
  async function load(){
   if(loading)return;loading=true;error('cw-error','');
-  try{const data=await api('/api/conversion/workflow');items=data.items||[];jobs=data.jobs||[];for(const id of selected)if(!items.some(i=>i.id===id&&i.eligible))selected.delete(id);if(mode){renderFilms();probeVisible();}renderJobs();}
+  try{const data=await api('/api/conversion/workflow');items=data.items||[];jobs=data.jobs||[];for(const file of items){if(file.fingerprint&&JSON.stringify(cache.get(file.id)?.fingerprint)!==JSON.stringify(file.fingerprint))cache.delete(file.id);}for(const id of selected)if(!items.some(i=>i.id===id&&i.eligible))selected.delete(id);if(mode){renderFilms();probeVisible();}renderJobs();}
   catch(e){error('cw-error',e.message);$('cw-jobs').textContent='Køen kunne ikke indlæses: '+e.message;}
   finally{loading=false;}
  }
@@ -113,11 +117,11 @@
   catch(e){error('cw-dialog-error',e.message);}finally{busy=false;$('cw-next').disabled=false;}
  };
  $('cw-prev').onclick=()=>{if(step>0){step--;showStep();}};
- $('cw-skip-film').onclick=()=>{selected.delete(review[step].file.id);review.splice(step,1);showStep();selection();};
+ $('cw-skip-film').onclick=async()=>{if(busy)return;busy=true;const file=review[step].file;try{await post('skip',{id:file.id,mode,skip:true});file.skipped_modes=[...(file.skipped_modes||[]).filter(m=>m!==mode),mode];selected.delete(file.id);review.splice(step,1);showStep();renderFilms();}catch(e){error('cw-dialog-error',e.message);}finally{busy=false;}};
  $('cw-close').onclick=()=>{if(!busy)$('cw-dialog').close();};$('cw-dialog').addEventListener('cancel',e=>{if(busy)e.preventDefault();});
  document.querySelectorAll('#cw-cards [data-mode]').forEach(card=>card.onclick=()=>{mode=card.dataset.mode;selected.clear();limit=40;$('cw-cards').hidden=true;$('cw-library').hidden=false;$('cw-title').textContent=labels[mode];renderFilms();load();});
  $('cw-back').onclick=()=>{mode=null;selected.clear();$('cw-cards').hidden=false;$('cw-library').hidden=true;};
- $('cw-search').oninput=()=>{limit=40;renderFilms();probeVisible();};$('cw-show-skipped').onchange=()=>{renderFilms();probeVisible();};
+ $('cw-search').oninput=()=>{limit=40;renderFilms();probeVisible();};$('cw-show-completed').onchange=()=>{renderFilms();probeVisible();};$('cw-show-skipped').onchange=()=>{renderFilms();probeVisible();};
  $('cw-refresh').onclick=()=>{failed.clear();cache.clear();load();};$('cw-queue-refresh').onclick=load;
  window.addEventListener('hashchange',()=>{if(location.hash==='#conversion')load();});
  setInterval(()=>{if(location.hash==='#conversion'&&!document.hidden&&!$('cw-dialog').open)load();},15000);

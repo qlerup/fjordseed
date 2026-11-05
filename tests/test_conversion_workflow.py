@@ -248,3 +248,38 @@ def test_header_read_does_not_query_all_torrent_owners(film, prepared):
     assert result['fingerprint']==prepared['fingerprint']
     assert result['media']['streams'][0]['codec_name']=='hevc'
     api.assert_not_called()
+
+
+def test_manual_discovery_and_fingerprint_scoped_skip(film):
+    path = film[0]/'Manuelt tilføjet.mkv'
+    path.write_bytes(b'manual movie')
+    ident = library.key(path)
+    item = next(i for i in workflow.listing(film[-1])['items'] if i['id'] == ident)
+    assert item['source'] == 'manual' and item['reviewed_modes'] == []
+    assert not item['eligible']  # No qBittorrent ownership to move this original.
+    workflow.skip(film[-1], {'id':ident, 'mode':'audio', 'skip':True})
+    item = next(i for i in workflow.listing(film[-1])['items'] if i['id'] == ident)
+    assert item['skipped_modes'] == ['audio'] and item['reviewed_modes'] == ['audio']
+    path.write_bytes(b'a replacement movie')
+    item = next(i for i in workflow.listing(film[-1])['items'] if i['id'] == ident)
+    assert item['skipped_modes'] == []
+
+
+@pytest.mark.parametrize('mode,expected', [('full',['full','video','audio']),('video',['video']),('audio',['audio'])])
+def test_persistent_conversion_tags_and_replaced_file(film, mode, expected):
+    import json
+    path=film[1]/'film.mp4'
+    library.marker(path).write_text(json.dumps({'version':1, 'id':'test', 'output_size':path.stat().st_size,
+        'output_fingerprint':library.fingerprint(path), 'conversion_mode':mode}))
+    item=workflow.listing(film[-1])['items'][0]
+    assert item['completed_modes'] == expected and item['source'] == 'converted'
+    # A replacement of the same size must not inherit completed status.
+    import os
+    stat=path.stat()
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns+1000000))
+    assert workflow.listing(film[-1])['items'][0]['completed_modes'] == []
+
+
+def test_legacy_conversion_tags_recover_mode_from_job():
+    assert workflow.completed_modes({'id':'old'}, {'old':{'options':{'mode':'audio'}}}) == ['audio']
+    assert workflow.completed_modes({'bitrate':30}, {}) == ['video']

@@ -93,14 +93,15 @@ def marker(path):
 
 def converted(path):
     data = storage.read(checked(marker(path)), {})
-    if data.get('version') == 1 and data.get('output_size') == path.stat().st_size:
+    if data.get('version') == 1 and data.get('output_size') == path.stat().st_size and (
+            not data.get('output_fingerprint') or data['output_fingerprint'] == fingerprint(path)):
         return data
     report_path = checked(path.with_suffix('.json'))
     report = storage.read(report_path, {})
     if (report.get('verified') is True and str(report.get('gpu_encoder', '')).startswith('FFmpeg ' if report.get('conversion_mode')=='audio' else 'NVEncC ')
             and str(report.get('output', '')).replace('\\', '/').rsplit('/', 1)[-1] == path.name
             and type(report.get('video_mbps_target')) is int):
-        return {'bitrate': report['video_mbps_target'], 'converted_at': report_path.stat().st_mtime}
+        return {'bitrate': report['video_mbps_target'], 'converted_at': report_path.stat().st_mtime, 'conversion_mode': report.get('conversion_mode', 'video')}
     # Recognize movies published by the existing download conversion pipeline.
     for parent in (path.parent, *path.parents):
         receipt = storage.read(checked(parent / '.fjordseed-converted.json'), {})
@@ -633,7 +634,8 @@ def advance(api, rows, entries, jobs, job):
     if backup.exists():publish_file(job,backup,checked(sidecar(output)))
     flag = {'version': 1, 'id': job['id'], 'bitrate': job['bitrate'], 'converted_at': time.time(),
             'original_size': next(f['size'] for f in job['files'] if f['name'] == job['selected']),
-            'output_size': output.stat().st_size}
+            'output_size': output.stat().st_size, 'output_fingerprint': fingerprint(output),
+            'conversion_mode': job.get('options', {}).get('mode', job.get('conversion_mode', 'video'))}
     if marker(output).exists() and storage.read(checked(marker(output)), {}).get('id') != job['id']:
         raise ValueError('Der findes allerede andre konverteringsoplysninger til filmen.')
     atomic(marker(output), json.dumps(flag), mode=0o644)

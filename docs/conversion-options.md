@@ -127,3 +127,11 @@ Reference: [FFmpeg stream mapping and stream copy](https://ffmpeg.org/ffmpeg.htm
 Validation includes real FFmpeg conversion of Danish 7.1 / 5.1(side) and English
 stereo streams to FLAC, with all tracks, Danish only and English only, including descriptions and SHA-256 equality of the copied video payload.
 GPU encoding and Windows packaging require their respective runtime environments.
+
+### Filmstatus og manuelle filer
+
+Biblioteket genfinder også manuelt tilføjede videoer i downloadmappen ved opdatering. De vises som manuelt tilføjede, når ingen entydig torrent ejer dem. De kan springes over og genfindes, men kan ikke sættes i konverteringskø uden qBittorrent-ejerskab til flytning af originalen.
+
+Konverteringsmærket gemmer opgavens type og outputfilens størrelse og ændringstid. Fuld konvertering markerer video og lyd som gennemgået; kun video/lyd markerer sin egen liste. Konverterede film skjules i de gennemførte lister og kan vises med “Vis konverterede”. I øvrige lister er de synlige med status; en allerede konverteret fil kan fortsat ikke genkonverteres. Ældre mærker bruger jobbets type, når den findes, ellers video.
+
+“Spring over” gælder kun den aktuelle liste, også i filmguiden. Valget gemmes med filens størrelse og ændringstid, så en ny fil på samme sti ikke arver det. “Vis oversprungne” giver adgang til at gendanne valget. Status ændrer ikke selve videoens metadata.

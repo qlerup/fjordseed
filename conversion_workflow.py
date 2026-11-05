@@ -57,16 +57,35 @@ def details(api, ident):
     return {'media': media, 'fingerprint': library.fingerprint(found)}
 
 
+def skipped_modes(state, ident, stamp):
+    stamps = state.get('skip_fingerprints', {})
+    return [mode for mode, ids in state['skipped'].items() if ident in ids
+            and stamps.get(mode, {}).get(ident, stamp) == stamp]
+
+
+def completed_modes(flag, jobs):
+    if not flag: return []
+    job = jobs.get(flag.get('id'), {})
+    mode = flag.get('conversion_mode') or job.get('options', {}).get('mode') or job.get('conversion_mode', 'video')
+    return ['full', 'video', 'audio'] if mode == 'full' else [mode] if mode in MODES else []
+
+
 def listing(api):
     result = library.inventory(api)
     state = read()
+    library_jobs = storage.read(library.ledger(), {})
     for item in result['items']:
         row = item.pop('_row', None) or {}
         path = Path(item.pop('_path'))
         item.pop('_prior', None)
         item['hash'] = row.get('hash')
         item['title'] = row.get('name') or path.stem
-        item['skipped_modes'] = [mode for mode, ids in state['skipped'].items() if item['id'] in ids]
+        stamp = library.fingerprint(path)
+        item['fingerprint'] = stamp
+        item['skipped_modes'] = skipped_modes(state, item['id'], stamp)
+        item['completed_modes'] = completed_modes(item['converted'], library_jobs)
+        item['source'] = 'converted' if item['converted'] else 'torrent' if row else 'manual'
+        item['reviewed_modes'] = sorted(set(item['skipped_modes'] + item['completed_modes']))
         cache = storage.read(storage.CONFIG/'conversion-media'/(item['id']+'.json'), {})
         if cache.get('fingerprint') == library.fingerprint(path): item['media'] = cache['media']
     active = [j for j in state['jobs'] if j['state'] not in ('done', 'cancelled')]
@@ -78,12 +97,18 @@ def listing(api):
 def skip(api, data):
     mode, ident = data.get('mode'), data.get('id')
     if mode not in MODES or type(data.get('skip')) is not bool: raise ValueError('Ugyldigt spring over-valg.')
-    if ident not in {i['id'] for i in library.inventory(api)['items']}: raise ValueError('Filmen findes ikke.')
+    item = next((i for i in library.inventory(api)['items'] if i['id'] == ident), None)
+    if not item: raise ValueError('Filmen findes ikke.')
+    stamp = library.fingerprint(Path(item['_path']))
     with storage.transaction():
         state = read(); ids = set(state['skipped'].get(mode, []))
         if data['skip']: ids.add(ident)
         else: ids.discard(ident)
-        state['skipped'][mode] = sorted(ids); save(state)
+        state['skipped'][mode] = sorted(ids)
+        stamps = state.setdefault('skip_fingerprints', {}).setdefault(mode, {})
+        if data['skip']: stamps[ident] = stamp
+        else: stamps.pop(ident, None)
+        save(state)
     return {'ok': True}
 
 
@@ -119,7 +144,7 @@ def enqueue(api, data):
                 raise ValueError('Film i samme torrent skal have samme seedingvalg. qBittorrent flytter og rydder op i hele torrenten.')
             policies[job['hash']] = job['policy']
             if job['file_id'] in hashes: raise ValueError('Filmen er allerede valgt eller i kø.')
-            if job['file_id'] in state['skipped'].get(job['options']['mode'], []): raise ValueError('Filmen er sprunget over. Gendan den først.')
+            if job['options']['mode'] in skipped_modes(state, job['file_id'], job['fingerprint']): raise ValueError('Filmen er sprunget over. Gendan den først.')
             hashes.add(job['file_id'])
         state['jobs'].extend(prepared); save(state)
     return {'ok': True, 'jobs': [j['id'] for j in prepared]}

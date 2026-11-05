@@ -3,3 +3,5 @@
 @media(prefers-reduced-motion:reduce){.cw-card{transition:none}}
 
 .cw-live{position:sticky;top:0;z-index:2;background:var(--panel,#151e27);border:1px solid var(--border,#344450);margin:12px 0}
+
+.cw-film.cw-completed{border-style:dashed;background:var(--surface);}.cw-completed .cw-cover{opacity:.65}
