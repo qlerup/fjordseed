@@ -96,7 +96,7 @@ with tempfile.TemporaryDirectory() as folder:
    page.locator('.cw-film input[type=checkbox]').nth(1).focus()
    page.locator('.cw-film input[type=checkbox]').nth(1).press('Space')
    expect(page.locator('#cw-selection')).to_be_visible()
-   page.wait_for_function("()=>getComputedStyle(document.querySelector('#cw-selection')).opacity==='1'")
+   page.wait_for_function("()=>document.querySelector('#cw-selection').getAnimations().every(a=>a.playState==='finished')")
    assert film_layout()==before_selection, 'Selecting films must not move or resize rows or their contents'
    assert page.locator('#cw-selection').bounding_box()['x']==0
    for width in (1440,2560):
@@ -110,6 +110,12 @@ with tempfile.TemporaryDirectory() as folder:
     page.locator('.cw-film input[type=checkbox]').nth(1).press('Space')
     assert film_layout()==selected_layout, f'Selecting films moved the layout at {width}px'
    page.set_viewport_size({'width':1920,'height':1000})
+   page.wait_for_function("()=>document.querySelector('#cw-selection').getAnimations().every(a=>a.playState==='finished')")
+   expect(page.locator('.cw-selection-chain').first).to_be_visible()
+   page.emulate_media(reduced_motion='reduce')
+   assert page.locator('#cw-selection').evaluate("e=>getComputedStyle(e).animationName")=='none'
+   page.emulate_media(reduced_motion='no-preference')
+   page.wait_for_function("()=>document.querySelector('#cw-selection').getAnimations().every(a=>a.playState==='finished')")
    page.screenshot(path=str(artifacts/f'{theme}-selection-desktop.png'))
    for width in (1440,1280,1024,390,320):
     page.set_viewport_size({'width':width,'height':1000})

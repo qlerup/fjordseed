@@ -16,17 +16,22 @@
 html[data-theme=nordic] .cw-film .cw-estimate{background:linear-gradient(115deg,#21160ebd,#130d09df),url('/static/nordic-sign-oak.png') center/900px auto repeat;border-color:var(--border);box-shadow:inset 0 1px #e0b77d24}
 html[data-theme=nordic] .cw-job{background:linear-gradient(115deg,#21160e91,#130d09b8),url('/static/nordic-sign-oak.png') center/1100px auto repeat;border:1px solid var(--border);border-radius:8px;padding:14px;margin:8px 0}
 
-/* The selection shield slides in rather than swinging like the navigation sign. */
+/* A weighted sign drops on iron chains and settles as the links take its weight. */
 .cw-selection{position:fixed;left:12px;right:12px;bottom:12px;z-index:8;gap:10px;padding:14px;box-shadow:0 8px 28px #0008;animation:cw-voyage-arrive .28s ease-out both}
 .cw-selection[hidden]{display:none!important}
+.cw-selection-chain{display:none;pointer-events:none}
 .cw-selection-heading{display:flex;align-items:center;gap:10px;min-width:0}
 .cw-selection-heading svg{width:28px;height:34px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;color:var(--accent-violet,#a8c7e8)}
 .cw-selection-heading .eyebrow{display:block;margin:0;font-size:9px;letter-spacing:1.5px}
 .cw-selection-heading strong{display:block;font-size:14px;white-space:nowrap}
 .cw-selection button{white-space:normal;font-size:13px;padding:10px 8px;line-height:1.4}
 @keyframes cw-voyage-arrive{from{opacity:0;transform:translateX(-26px) rotate(-2deg)}to{opacity:1;transform:none}}
+@keyframes cw-chain-lower{0%{opacity:0;transform:translateY(calc(-100% - var(--cw-hang-top)))}18%{opacity:1}64%{transform:translateY(9px)}77%{transform:translateY(-5px)}88%{transform:translateY(3px)}100%{opacity:1;transform:none}}
 @media(min-width:1440px){
- .cw-selection{left:0;right:auto;bottom:auto;top:clamp(160px,28vh,300px);width:210px;display:flex;flex-direction:column;align-items:stretch;max-height:calc(100dvh - 180px);overflow:auto}
+ .cw-selection{--cw-hang-top:clamp(160px,28vh,300px);left:0;right:auto;bottom:auto;top:var(--cw-hang-top);width:210px;display:flex;flex-direction:column;align-items:stretch;max-height:calc(100dvh - 180px);overflow:visible;animation:cw-chain-lower .95s cubic-bezier(.32,0,.64,1) both}
+ .cw-selection-chain{display:block;position:absolute;bottom:calc(100% - 8px);height:calc(var(--cw-hang-top) + 12px);width:12px;filter:drop-shadow(2px 2px 2px #000b);background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='28' viewBox='0 0 12 28'%3E%3Crect x='2' y='1' width='8' height='16' rx='4' fill='%23171b1d' stroke='%23848a88' stroke-width='1.5'/%3E%3Crect x='4' y='12' width='4' height='16' rx='2' fill='%23252a2c' stroke='%23a0a49a' stroke-width='1.2'/%3E%3Cpath d='M4 5v7M5.5 16v7' stroke='%23c0c1ac' stroke-width='.7'/%3E%3C/svg%3E") center top/12px 28px repeat-y}
+ .cw-selection-chain-left{left:18px}.cw-selection-chain-right{right:18px}
+ .cw-selection-chain::after{content:'';position:absolute;bottom:-9px;left:-4px;width:20px;height:25px;border:2px solid #79766b;border-radius:4px;background:radial-gradient(circle at 50% 72%,#c6b58c 0 2px,#353735 3px 5px,transparent 6px),linear-gradient(100deg,#191c1d,#515650 45%,#222626);box-shadow:0 2px 3px #0009,inset 0 1px #b3ad8a}
  .cw-selection-heading{margin-bottom:8px}
  html[data-theme=nordic] .cw-selection{border-radius:3px 3px 28px 28px}
 }
