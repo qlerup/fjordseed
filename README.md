@@ -162,10 +162,13 @@ and back up the data directory before updating.
 ## Installation
 
 The conversion workflow also accepts manually added video files without a torrent.
-These conversions keep the original in place and publish a separate
-`<name>.converted-<mode>.mkv` file; torrent seeding and deletion policies do not
-apply. Estimated savings compare the two files individually, so both occupy
-space until the owner chooses to remove one. The list orders films by estimated
+These conversions publish a separate `<name>.converted-<mode>.mkv` file.
+Per-film settings choose between keeping the original in `Originals` beside
+`Seeder`, or deleting it after the verified result is durably published.
+Subdirectories are preserved and existing archive files are never overwritten.
+Files associated with torrents retain their seeding/cleanup policies; ambiguous
+ownership keeps the original in place. Estimated savings compare the files
+individually; an archived original still occupies space. The list orders films by estimated
 absolute savings at 20 Mbps (or the current audio defaults in audio mode).
 Selecting films reveals actions to configure conversion, skip the selected
 films in the current mode, or clear the selection.

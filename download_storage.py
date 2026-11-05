@@ -27,6 +27,14 @@ def seeding_root():
     return folder
 
 
+def originals_root():
+    """Non-torrent originals live beside Seeder, independently of Behold."""
+    from conversion import checked
+    folder = checked(seeding_root().parent/'Originals')
+    folder.mkdir(mode=0o775, parents=True, exist_ok=True)
+    return folder
+
+
 def file_deletion_plan(row,files,prefs):
     """Only qBittorrent-listed files beneath the worker's download mounts."""
     if row.get('state')=='moving':

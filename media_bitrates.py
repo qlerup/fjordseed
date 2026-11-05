@@ -105,7 +105,8 @@ def probe_slot():
 def listing(files):
     root=checked(storage.download_root());paths=[]
     for folder,dirs,names in os.walk(root,followlinks=False):
-        dirs[:]=[d for d in dirs if not d.startswith('.') and d!='Seeder' and not (Path(folder)/d).is_symlink()]
+        dirs[:]=[d for d in dirs if not d.startswith('.') and d!='Seeder'
+                 and not (Path(folder)==root and d=='Originals') and not (Path(folder)/d).is_symlink()]
         for name in names:
             path=Path(folder)/name
             if path.suffix.lower() not in VIDEO or path.is_symlink() or not path.is_file():continue

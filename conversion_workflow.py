@@ -42,6 +42,7 @@ def details(api, ident):
     seen = 0
     for folder, dirs, names in os.walk(root, followlinks=False):
         dirs[:] = sorted(d for d in dirs if not d.startswith('.') and d not in ('Seeder', 'seedingmappe')
+                         and not (Path(folder) == root and d == 'Originals')
                          and not (Path(folder)/d).is_symlink())
         for name in sorted(names):
             path = Path(folder)/name
@@ -87,7 +88,8 @@ def listing(api):
         item['source'] = 'converted' if item['converted'] else 'torrent' if row else 'manual'
         if item.get('manual_eligible'):
             item['eligible'] = True
-            item['reason'] = 'Originalen bevares. Konverteringen gemmes som en separat fil.'
+            item['reason'] = ('Originalen bevares på sin plads, da flere torrents kan bruge filen.'
+                if item['torrent_status'] == 'ambiguous' else 'Originalen gemmes i Originals, medmindre du vælger sletning efter konvertering.')
         for job in library_jobs.values():
             if (job.get('manual') and job.get('phase') == 'published' and job.get('source') == str(path)
                     and job.get('source_fingerprint') == stamp):
@@ -137,15 +139,18 @@ def enqueue(api, data):
         if not item or not (item['eligible'] or item.get('manual_eligible')): raise ValueError((item or {}).get('reason') or 'Filmen findes ikke.')
         path = Path(item['_path'])
         options = normalize(choice.get('options'), media_info(path))
+        if options['delete_original'] and item.get('torrent_status') != 'missing':
+            raise ValueError('Originaler knyttet til torrents skal håndteres gennem seeding og oprydning.')
         if item.get('manual_eligible') and path.with_name(path.stem + '.converted-' + options['mode'] + '.mkv').exists():
             raise ValueError('En separat konverteret fil findes allerede. Ingen filer overskrives.')
         if choice.get('fingerprint') != library.fingerprint(path): raise ValueError('Filmen er ændret. Genåbn filmvalget.')
         policy = share_policy(choice.get('policy', {}), manual=True)
         if item.get('manual_eligible') and policy['ratio_action'] != 'keep':
-            raise ValueError('Film uden torrent skal beholde originalen; seeding og automatisk sletning kan ikke vælges.')
+            raise ValueError('Film uden torrent bruger valget for originalfilen, ikke seeding og automatisk torrentoprydning.')
         if policy['ratio_action'] not in ('keep', 'stop_keep') and policy['ratio_limit'] < 1:
             raise ValueError('Målratio skal være mindst 1.')
         prepared.append({'id': uuid.uuid4().hex, 'file_id': item['id'], 'hash': (item['_row'] or {}).get('hash'),
+                         'torrent_status':item.get('torrent_status'),
                          'name': item['name'], 'options': options, 'policy': policy,
                          'fingerprint': library.fingerprint(path), 'state': 'queued', 'created_at': time.time()})
     with storage.transaction():
@@ -197,8 +202,19 @@ def tick(api, rows, credit=None):
             job.update(progress=public['progress'], detail=public['detail'], phase=public['state'])
             if current.get('phase') == 'published':
                 if current.get('manual'):
-                    job.update(state='done', phase='published', progress=100,
-                        detail='Færdig · separat konverteret fil gemt; originalen er bevaret')
+                    if current.get('result_verify_required'):
+                        library.verify_manual_result(current)
+                        current = storage.read(library.ledger(), {})[current['id']]
+                    if current.get('archive_copy_required'):
+                        library.archive_manual_original(current)
+                        current = storage.read(library.ledger(), {})[current['id']]
+                    if current.get('original_pending') or current.get('result_verify_required'):
+                        job.update(state='error' if current.get('error') else 'running',
+                            detail=current.get('error') or 'Resultatet er gemt · gemmer originalen i Originals')
+                    else:
+                        original = 'originalen er slettet' if current.get('original_deleted') else 'originalen er gemt i Originals' if current.get('original_archived') else 'originalen er bevaret'
+                        job.update(state='done', phase='published', progress=100,
+                            detail='Færdig · '+original)
                     with storage.transaction():
                         latest = read()
                         for i, other in enumerate(latest['jobs']):
@@ -230,6 +246,9 @@ def tick(api, rows, credit=None):
             item = next((i for i in library.inventory(api)['items'] if i['id'] == job['file_id']), None)
             if not item or library.fingerprint(Path(item['_path'])) != job['fingerprint']:
                 raise ValueError('Filmen er ændret efter dit valg. Originalen er bevaret.')
+            if job.get('torrent_status') and (item.get('torrent_status') != job['torrent_status']
+                    or (item.get('_row') or {}).get('hash') != job.get('hash')):
+                raise ValueError('Filmens torrentforbindelse er ændret. Genåbn filmvalget; originalen er bevaret.')
             with storage.transaction():
                 latest = read()
                 live = next(j for j in latest['jobs'] if j['id'] == job['id'])

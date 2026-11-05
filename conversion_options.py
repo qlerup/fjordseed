@@ -21,6 +21,10 @@ def normalize(value, media):
     if codec not in ('copy', 'eac3', 'ac3'):
         raise ValueError('Vælg original lyd, E-AC3 eller AC3.')
     result = dict(mode=mode, bitrate=bitrate, dolby_vision_mode=dv, audio_codec=codec)
+    delete_original = value.get('delete_original', False)
+    if type(delete_original) is not bool:
+        raise ValueError('Vælg om originalen skal beholdes eller slettes efter konvertering.')
+    result['delete_original'] = delete_original
     for kind in ('audio', 'subtitle'):
         available = [s['index'] for s in media['streams'] if s['codec_type'] == kind]
         chosen = value.get(kind, available)

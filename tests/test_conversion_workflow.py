@@ -279,7 +279,7 @@ def prepare_manual(film, choice):
     return next(j for j in storage.read(library.ledger(), {}).values() if j.get('manual'))
 
 
-def test_manual_conversion_publishes_separately_preserves_source_and_skips_seeding(film, media, monkeypatch):
+def test_manual_conversion_archives_original_beside_seeder_and_skips_seeding(film, media, monkeypatch):
     source, choice = manual_choice(film, media, monkeypatch)
     job = prepare_manual(film, choice)
     assert job['phase'] == 'queued'
@@ -288,15 +288,165 @@ def test_manual_conversion_publishes_separately_preserves_source_and_skips_seedi
     ready(job)
     assert library.reconcile(film[-1], film[3]) == []
     workflow.tick(film[-1], film[3])
-    assert source.read_bytes() == b'manual original'
+    archive = Path(job['archive'])
+    assert archive == storage.seeding_root().parent/'Originals'/'Manual.mkv'
+    assert archive.read_bytes() == b'manual original' and not source.exists()
     target = Path(job['destination']); assert target.read_bytes() == b'converted'
     assert library.converted(target)['conversion_mode'] == 'full'
     assert workflow.read()['jobs'][0]['state'] == 'done'
-    item = next(i for i in workflow.listing(film[-1])['items'] if i['id'] == choice['id'])
-    assert item['completed_modes'] == ['audio','full','video']
+    item = next(i for i in workflow.listing(film[-1])['items'] if i['id'] == library.key(target))
+    assert set(item['completed_modes']) == {'audio','full','video'}
     assert not any(c.args[0] in ('torrents/setLocation','torrents/stop','torrents/start') for c in film[-1].call_args_list)
     assert library.reconcile(film[-1], film[3]) == []  # Restart cleanup retains both files.
-    assert source.exists() and target.exists()
+    assert archive.exists() and target.exists()
+
+
+def test_manual_delete_is_opt_in_and_only_after_successful_publication(film, media, monkeypatch):
+    source, choice = manual_choice(film, media, monkeypatch)
+    choice['options']['delete_original'] = True
+    job = prepare_manual(film, choice)
+    assert source.exists() and not Path(job['destination']).exists()
+    ready(job); assert library.reconcile(film[-1], film[3]) == []
+    assert not source.exists() and not Path(job['archive']).exists()
+    target=Path(job['destination']); assert target.read_bytes()==b'converted'
+    assert library.converted(target)['id'] == job['id']
+    workflow.tick(film[-1], film[3])
+    assert workflow.read()['jobs'][0]['state']=='done'
+    assert 'slettet' in workflow.read()['jobs'][0]['detail']
+
+
+@pytest.mark.parametrize('delete', [False,True])
+def test_original_handling_recovers_a_crash_after_removing_source_path(film, media, monkeypatch, delete):
+    source, choice = manual_choice(film, media, monkeypatch)
+    choice['options']['delete_original']=delete
+    job=prepare_manual(film, choice);ready(job)
+    unlink=Path.unlink
+    def interrupt(path, *args, **kwargs):
+        result=unlink(path,*args,**kwargs)
+        if path==source:raise SystemExit('simulated process interruption')
+        return result
+    monkeypatch.setattr(Path,'unlink',interrupt)
+    with pytest.raises(SystemExit):library.reconcile(film[-1],film[3])
+    monkeypatch.setattr(Path,'unlink',unlink)
+    assert library.reconcile(film[-1],film[3])==[]
+    saved=storage.read(library.ledger(),{})[job['id']]
+    assert not saved['original_pending'] and not source.exists()
+    assert Path(job['destination']).read_bytes()==b'converted'
+    if not delete:assert Path(job['archive']).read_bytes()==b'manual original'
+
+
+@pytest.mark.parametrize('changed', ['source','result'])
+def test_deletion_rechecks_both_original_and_result_after_interruption(film, media, monkeypatch, changed):
+    source, choice=manual_choice(film,media,monkeypatch);choice['options']['delete_original']=True
+    job=prepare_manual(film,choice);ready(job)
+    finish=library.finish_manual_original
+    monkeypatch.setattr(library,'finish_manual_original',lambda *args:(_ for _ in ()).throw(OSError('interruption')))
+    assert library.reconcile(film[-1],film[3])
+    monkeypatch.setattr(library,'finish_manual_original',finish)
+    path=source if changed=='source' else Path(job['destination']);path.write_bytes(b'new user content')
+    assert library.reconcile(film[-1],film[3])
+    assert source.exists()
+    assert path.read_bytes()==b'new user content'
+
+
+def test_originals_preserves_subfolders_and_does_not_overwrite_old_archives(film, media, monkeypatch):
+    source, choice=manual_choice(film,media,monkeypatch)
+    folder=source.parent/'Special';folder.mkdir();source=source.rename(folder/source.name)
+    choice.update(id=library.key(source),fingerprint=library.fingerprint(source))
+    archived=storage.originals_root()/'Special'/'Manual.mkv';archived.parent.mkdir();archived.write_bytes(b'old archive')
+    job=prepare_manual(film,choice);ready(job)
+    assert library.reconcile(film[-1],film[3])==[]
+    assert Path(job['archive']).parent==archived.parent and Path(job['archive'])!=archived
+    assert archived.read_bytes()==b'old archive'
+    assert Path(job['archive']).read_bytes()==b'manual original'
+
+
+def test_originals_is_not_listed_for_another_conversion(film, media, monkeypatch):
+    monkeypatch.setattr(storage,'seeding_root',lambda:film[0]/'Seeder')
+    source, choice=manual_choice(film,media,monkeypatch)
+    job=prepare_manual(film,choice);ready(job)
+    assert library.reconcile(film[-1],film[3])==[]
+    assert not any(i['name'].startswith('Originals/') for i in workflow.listing(film[-1])['items'])
+
+
+def test_cross_disk_original_archive_is_verified_outside_storage_lock(film, media, monkeypatch):
+    import errno
+    import shutil
+    import os
+    source, choice=manual_choice(film,media,monkeypatch)
+    job=prepare_manual(film,choice);ready(job)
+    archive=Path(job['archive']);link=os.link;copy=shutil.copy2;copied=[]
+    def cross_disk(src,dst,*args,**kwargs):
+        if Path(src)==source and Path(dst).parent==archive.parent:raise OSError(errno.EXDEV,'cross-device link')
+        return link(src,dst,*args,**kwargs)
+    def checked_copy(src,dst,*args,**kwargs):
+        assert not storage._lock._is_owned()
+        copied.append(Path(dst));return copy(src,dst,*args,**kwargs)
+    monkeypatch.setattr(os,'link',cross_disk);monkeypatch.setattr(shutil,'copy2',checked_copy)
+    assert library.reconcile(film[-1],film[3])==[]
+    assert storage.read(library.ledger(),{})[job['id']]['archive_copy_required']
+    assert library.reconcile(film[-1],film[3])==[]
+    assert Path(job['stage']).is_dir() and source.exists()
+    workflow.tick(film[-1],film[3]);assert copied and archive.read_bytes()==b'manual original'
+    assert source.exists()  # A verified archive is required before the next publication pass.
+    assert library.reconcile(film[-1],film[3])==[]
+    workflow.tick(film[-1],film[3])
+    assert not source.exists() and archive.exists()
+    assert workflow.read()['jobs'][0]['state']=='done'
+
+
+@pytest.mark.parametrize('corrupt', [False,True])
+def test_cross_disk_result_must_match_before_original_can_be_deleted(film, media, monkeypatch, corrupt):
+    import errno
+    import os
+    source,choice=manual_choice(film,media,monkeypatch);choice['options']['delete_original']=True
+    job=prepare_manual(film,choice);ready(job)
+    result=Path(job['stage'])/DIRECTORY/'result'/job['output'];link=os.link
+    def cross_disk(src,dst,*args,**kwargs):
+        if Path(src)==result:raise OSError(errno.EXDEV,'cross-device link')
+        return link(src,dst,*args,**kwargs)
+    monkeypatch.setattr(os,'link',cross_disk)
+    assert library.reconcile(film[-1],film[3])==[]
+    assert storage.read(library.ledger(),{})[job['id']]['result_verify_required']
+    assert source.exists() and Path(job['stage']).exists()
+    if corrupt:Path(job['destination']).write_bytes(b'bad copied result')
+    workflow.tick(film[-1],film[3])
+    if corrupt:
+        assert workflow.read()['jobs'][0]['state']=='error' and source.exists()
+    else:
+        assert library.reconcile(film[-1],film[3])==[]
+        assert not source.exists() and Path(job['destination']).read_bytes()==b'converted'
+
+
+def test_new_torrent_ownership_prevents_original_deletion(film, media, monkeypatch):
+    source, choice=manual_choice(film,media,monkeypatch);choice['options']['delete_original']=True
+    job=prepare_manual(film,choice);ready(job)
+    film[3].append({**film[2],'hash':'c'*40,'save_path':str(source.parent)})
+    film[4].append({'name':source.name,'size':source.stat().st_size,'priority':1})
+    assert library.reconcile(film[-1],film[3])
+    assert source.read_bytes()==b'manual original'
+    workflow.tick(film[-1],film[3])
+    assert workflow.read()['jobs'][0]['state']=='error'
+
+
+@pytest.mark.parametrize('value', ['true',1,None])
+def test_original_deletion_choice_must_be_a_boolean(media,value):
+    with pytest.raises(ValueError):options.normalize({'mode':'video','delete_original':value},media)
+
+
+def test_torrent_original_deletion_cannot_bypass_seeding(film,prepared):
+    with pytest.raises(ValueError,match='seeding'):
+        workflow.enqueue(film[-1],{'items':[{**prepared,'options':{**prepared['options'],'delete_original':True}}]})
+
+
+def test_new_torrent_before_start_requires_review_of_original_settings(film,media,monkeypatch):
+    source,choice=manual_choice(film,media,monkeypatch);choice['options']['delete_original']=True
+    workflow.enqueue(film[-1],{'items':[choice]})
+    film[3].append({**film[2],'hash':'d'*40,'save_path':str(source.parent)})
+    film[4].append({'name':source.name,'size':source.stat().st_size,'priority':1})
+    workflow.tick(film[-1],film[3])
+    assert workflow.read()['jobs'][0]['state']=='error'
+    assert not storage.read(library.ledger(),{}) and source.exists()
 
 
 @pytest.mark.parametrize('failure', ['changed_source','destination_exists','bad_receipt'])
@@ -315,7 +465,7 @@ def test_manual_publish_fails_without_overwriting_any_files(film, media, monkeyp
 
 def test_manual_files_reject_deletion_policy_and_existing_output_before_enqueue(film, media, monkeypatch):
     source, choice = manual_choice(film, media, monkeypatch)
-    with pytest.raises(ValueError, match='beholde originalen'):
+    with pytest.raises(ValueError, match='originalfilen'):
         workflow.enqueue(film[-1], {'items':[{**choice,'policy':{'ratio_action':'delete_ratio','ratio_limit':2}}]})
     source.with_name('Manual.converted-full.mkv').write_bytes(b'existing')
     with pytest.raises(ValueError, match='allerede'):

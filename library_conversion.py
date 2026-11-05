@@ -136,11 +136,13 @@ def inventory(api):
                 if not any(r['hash']==row['hash'] for r in owners.get(str(path),[])):
                     owners.setdefault(str(path),[]).append(row)
                 priors[str(path)]=job
-    active = {j['source']: j for j in jobs.values() if j.get('phase') not in ('published', 'cancelled')}
+    active = {j['source']: j for j in jobs.values() if j.get('phase') not in ('published', 'cancelled')
+              or j.get('manual') and (j.get('original_pending') or j.get('result_verify_required'))}
     items = []
     truncated = False
     for folder, dirs, files in os.walk(root, followlinks=False):
         dirs[:] = sorted(d for d in dirs if not d.startswith('.') and d not in ('seedingmappe', 'Seeder')
+                         and not (Path(folder) == root and d == 'Originals')
                          and not (Path(folder) / d).is_symlink())
         for name in sorted(files):
             path = Path(folder) / name
@@ -314,10 +316,15 @@ def queue_manual(item, bitrate, options, workflow_id):
     from conversion_options import normalize
     source = checked(item['_path'])
     options = normalize(options, media_info(source))
+    linked = item.get('torrent_status') == 'ambiguous'
+    if linked and options['delete_original']:
+        raise ValueError('Originalen kan bruges af flere torrents. Den kan konverteres, men skal beholdes på sin plads.')
     target = checked(source.with_name(source.stem + '.converted-' + options['mode'] + '.mkv'))
     if target.exists() or marker(target).exists():
         raise ValueError('En separat konverteret fil findes allerede. Ingen filer overskrives.')
     ident = uuid.uuid4().hex
+    archive = checked(storage.originals_root()/source.relative_to(storage.download_root()))
+    if archive.exists(): archive = archive.with_name(archive.stem+'-'+ident[:8]+archive.suffix)
     stage = checked(storage.download_root()/storage.BUFFER/('library-' + ident))
     stage.mkdir(parents=True, exist_ok=False)
     stamp = fingerprint(source)
@@ -327,19 +334,118 @@ def queue_manual(item, bitrate, options, workflow_id):
            'files':[{'name':source.name,'size':stamp[0],'fingerprint':stamp}],
            'source_fingerprint':stamp, 'stage':str(stage), 'bitrate':bitrate,
            'conversion_mode':options['mode'], 'dolby_vision_mode':options['dolby_vision_mode'],
-           'options':options, 'phase':'preparing', 'created_at':time.time(), 'workflow_id':workflow_id}
+           'options':options, 'phase':'preparing', 'created_at':time.time(), 'workflow_id':workflow_id,
+           'original_disposition':'keep' if linked else 'delete' if options['delete_original'] else 'archive',
+           'archive':str(archive)}
     jobs = storage.read(ledger(), {}); jobs[ident] = job; save(jobs)
     # Preparation normally runs outside the storage transaction. The workflow
     # tick also recovers this persisted preparing state after a restart.
     return public_job(job)
 
 
-def advance_manual(jobs, job):
+def finish_manual_original(api, jobs, job):
+    """Recoverable original handling, only after a durable verified result exists."""
+    if not job.get('original_pending') or job.get('result_verify_required'): return
+    target = checked(job['destination'])
+    flag = storage.read(checked(marker(target)), {})
+    if (flag.get('id') != job['id'] or not target.is_file()
+            or fingerprint(target) != job.get('published_result')):
+        raise ValueError('Resultatfilen er ændret eller mangler. Originalen flyttes eller slettes ikke.')
+    original = checked(job['source'])
+    action = job['original_disposition']
+    archive = checked(job['archive'])
+    if original.exists():
+        if fingerprint(original) != job['source_fingerprint']:
+            raise ValueError('Originalen er ændret. Den flyttes eller slettes ikke.')
+        if action == 'archive':
+            if job.get('archive_copy_required'): return
+            archive.parent.mkdir(parents=True, exist_ok=True)
+            if archive.exists():
+                if not os.path.samefile(original, archive) and fingerprint(archive) != job.get('archived_fingerprint'):
+                    raise ValueError('Originals indeholder en anden fil. Ingen filer overskrives.')
+            else:
+                try: os.link(original, archive)
+                except OSError as exc:
+                    if exc.errno != errno.EXDEV: raise
+                    # Large cross-disk copies run through the workflow's
+                    # existing outside-lock preparation path, keeping UI/RPC
+                    # state operations responsive while copying and hashing.
+                    job['archive_copy_required'] = True; save(jobs)
+                    return
+            job['archived_fingerprint'] = fingerprint(archive); save(jobs)
+        if fingerprint(original) != job['source_fingerprint']:
+            raise ValueError('Originalen ændrede sig under kontrollen. Den er bevaret.')
+        # Recheck ownership immediately before unlinking the original pathname.
+        # A torrent might have been added since the film was selected.
+        for row in api('torrents/info').json():
+            if storage.managed_directory(row.get('save_path','')):
+                if any(Path(row['save_path'])/entry['name'] == original for entry in selected_files(api,row)):
+                    raise ValueError('En torrent bruger nu originalen. Den flyttes eller slettes ikke.')
+        if not target.is_file() or fingerprint(target) != job['published_result']:
+            raise ValueError('Resultatfilen ændrede sig under kontrollen. Originalen er bevaret.')
+        if action == 'archive' and fingerprint(archive) != job['archived_fingerprint']:
+            raise ValueError('Filen i Originals ændrede sig under kontrollen. Originalen er bevaret.')
+        original.unlink()
+    elif action == 'archive':
+        if not archive.is_file() or fingerprint(archive) != job.get('archived_fingerprint'):
+            raise ValueError('Originalens placering kunne ikke bekræftes. Kontrollér Originals.')
+    job['original_pending'] = False
+    job['original_deleted' if action == 'delete' else 'original_archived'] = True
+    save(jobs)
+
+
+def file_digest(path):
+    checksum = hashlib.sha256()
+    with path.open('rb') as handle:
+        for block in iter(lambda:handle.read(4*1024*1024), b''): checksum.update(block)
+    return checksum.digest()
+
+
+def verify_manual_result(job):
+    """Verify cross-disk output publication before any original cleanup."""
+    import fcntl
+    with checked(Path(job['stage'])/'published-copy.lock').open('a') as lock:
+        try: fcntl.flock(lock, fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError: return
+        source = checked(Path(job['stage'])/DIRECTORY/'result'/job['output'])
+        target = checked(job['destination'])
+        if (fingerprint(source) != job['verified_result'] or fingerprint(target) != job['published_result']
+                or file_digest(source) != file_digest(target)
+                or fingerprint(source) != job['verified_result'] or fingerprint(target) != job['published_result']):
+            raise ValueError('Den gemte resultatfil matcher ikke den kontrollerede konvertering. Originalen er bevaret.')
+        with storage.transaction():
+            jobs = storage.read(ledger(), {}); current = jobs[job['id']]
+            current['result_verify_required'] = False; current.pop('error', None); save(jobs)
+
+
+def archive_manual_original(job):
+    """Prepare a verified cross-disk archive without holding the storage lock."""
+    import fcntl
+    with checked(Path(job['stage'])/'original-copy.lock').open('a') as lock:
+        try: fcntl.flock(lock, fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError: return
+        source, archive = checked(job['source']), checked(job['archive'])
+        if fingerprint(source) != job['source_fingerprint']:
+            raise ValueError('Originalen er ændret. Den er ikke flyttet.')
+        publish_file(job, source, archive)
+        if file_digest(source) != file_digest(archive) or fingerprint(source) != job['source_fingerprint']:
+            raise ValueError('Kopien i Originals matcher ikke. Originalen er bevaret.')
+        with storage.transaction():
+            jobs = storage.read(ledger(), {}); current = jobs[job['id']]
+            if current.get('original_pending') and current.get('archive_copy_required'):
+                current['archived_fingerprint'] = fingerprint(archive)
+                current['archive_copy_required'] = False; current.pop('error', None); save(jobs)
+
+
+def advance_manual(api, jobs, job):
     stage = checked(job['stage'])
     if job['phase'] in ('published', 'cancelled'):
         if job['phase'] == 'published':
+            finish_manual_original(api, jobs, job)
+            if job.get('original_pending') or job.get('result_verify_required'): return
             target = checked(job['destination'])
             scratch(job, target).unlink(missing_ok=True)
+            if job.get('archive'): scratch(job, checked(job['archive'])).unlink(missing_ok=True)
         if stage.is_dir(): shutil.rmtree(stage)
         return
     if job['phase'] == 'preparing': return
@@ -367,7 +473,12 @@ def advance_manual(jobs, job):
         'converted_at':time.time(),'original_size':job['source_fingerprint'][0],
         'output_size':target.stat().st_size,'output_fingerprint':fingerprint(target),
         'conversion_mode':job['options']['mode']}), mode=0o644)
-    job['phase'] = 'published'; save(jobs)
+    job['phase'] = 'published'
+    job['published_result'] = fingerprint(target)
+    job['result_verify_required'] = not os.path.samefile(source, target)
+    job['original_pending'] = job.get('original_disposition') in ('delete','archive')
+    save(jobs)
+    finish_manual_original(api, jobs, job)
 
 
 def prepare_review_job(job, source_base):
@@ -571,7 +682,7 @@ def resume_original(api, rows, jobs, job):
 
 def advance(api, rows, entries, jobs, job):
     if job.get('manual'):
-        return advance_manual(jobs, job)
+        return advance_manual(api, jobs, job)
     stage = checked(job['stage'])
     if job['phase'] in ('published', 'cancelled'):
         if job['phase']=='published':resume_original(api,rows,jobs,job)
