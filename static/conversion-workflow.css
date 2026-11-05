@@ -27,10 +27,10 @@ html[data-theme=nordic] .cw-job{background:linear-gradient(115deg,#21160e91,#130
 @keyframes cw-voyage-arrive{from{opacity:0;transform:translateX(-26px) rotate(-2deg)}to{opacity:1;transform:none}}
 @media(min-width:1440px){
  #cw-library.has-selection{padding-left:220px}
- .cw-selection{left:246px;right:auto;bottom:auto;top:clamp(160px,28vh,300px);width:210px;display:flex;flex-direction:column;align-items:stretch;max-height:calc(100dvh - 180px);overflow:auto}
+ .cw-selection{left:0;right:auto;bottom:auto;top:clamp(160px,28vh,300px);width:210px;display:flex;flex-direction:column;align-items:stretch;max-height:calc(100dvh - 180px);overflow:auto}
  .cw-selection-heading{margin-bottom:8px}
  #cw-library.has-selection .cw-film{grid-template-columns:20px 48px minmax(180px,1fr) minmax(310px,.95fr) auto;column-gap:10px}
- html[data-theme=nordic] .cw-selection{left:max(18px,calc((100vw - 1740px)/2));border-radius:3px 3px 28px 28px}
+ html[data-theme=nordic] .cw-selection{border-radius:3px 3px 28px 28px}
 }
 @media(max-width:1439px){.cw-selection{flex-wrap:wrap;justify-content:flex-start}.cw-selection-heading{flex:1 1 100%}.cw-selection button{flex:1 1 auto}#cw-library.has-selection{padding-bottom:180px}}
 @media(max-width:600px){.cw-selection{gap:6px;padding:10px}.cw-selection button{width:auto;padding:8px;font-size:12px}.cw-selection-heading svg{width:20px;height:25px}.cw-selection-heading .eyebrow{display:none}.cw-selection-heading strong{font-size:12px}}
