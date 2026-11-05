@@ -776,6 +776,7 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             try:
                 manager=app.extensions.get('remote_conversion')
                 if manager:manager.tick()
+                if state.get().get('enabled'): runtime.rpc('library-workflow-tick', {})
             except Exception:
                 app.logger.exception('Conversion queue check failed; durable jobs remain queued.')
             if time.monotonic()-checked>10:

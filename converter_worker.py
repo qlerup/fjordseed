@@ -65,7 +65,8 @@ def run_job(work):
             if not source.is_file() or source.stat().st_size!=f['size']:raise ValueError('Originalfilen mangler eller er ændret.')
             total+=f['size']
         # Conservative reserve for a second copy; partial output is never published.
-        if shutil.disk_usage(work).free < total+1024**3:
+        reserve = total * (2 if request.get('options', {}).get('mode') in ('full', 'video') else 1)
+        if shutil.disk_usage(work).free < reserve+1024**3:
             report(work,ident,'waiting_space','Venter på plads til konverteringen. Originalen beholdes.');return
         result=checked(work/'result');result.mkdir(exist_ok=True)
         log=checked(work/'encoder.log')
@@ -81,6 +82,16 @@ def run_job(work):
                     from conversion_media import output_reserve
                     if shutil.disk_usage(work).free < output_reserve(original,entry['size'],request.get('selected_audio_tracks')):
                         report(work,ident,'waiting_space','Venter på plads til flerkanalslyd. Originalen beholdes.');return
+                options = None
+                reference = original
+                if request.get('options'):
+                    from conversion_options import normalize, reference as selected_reference, validate_audio_only, remux_command
+                    options = normalize(request['options'], original)
+                    reference = selected_reference(original, options)
+                if target.exists() and options:
+                    if options['mode'] == 'audio': validate_audio_only(reference, probe(target))
+                    else: validate_file(reference, target, mode=options['dolby_vision_mode'])
+                    continue
                 if target.exists():
                     if dovi(original) and dovi(probe(target)):prepare_output(original,target,mode=request.get('dolby_vision_mode','separate'),conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks'))
                     validate_file(original,target,mode=request.get('dolby_vision_mode','separate'),conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks'));continue
@@ -89,36 +100,56 @@ def run_job(work):
                 partial.unlink(missing_ok=True)
                 from dolby_backup import sidecar
                 sidecar(partial).unlink(missing_ok=True)
-                report(work,ident,'encoding',('Konverterer lyd: ' if request.get('conversion_mode')=='audio' else 'GPU-konvertering: ')+entry['name'],0)
-                expected=max(1,float(original['format']['duration'])*float(Fraction(video(original)['avg_frame_rate'])))
-                with log.open('a',encoding='utf-8') as handle:
-                    process=subprocess.Popen(command(source,partial,request['bitrate'],original,reader=select_decoder(video(original),'nvencc') if request.get('conversion_mode','video')=='video' else 'avsw',conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks')),
-                        stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors='replace',start_new_session=True)
-                    def cancel():
-                        while process.poll() is None:
-                            if STOP.wait(1):
-                                try:os.killpg(process.pid,signal.SIGTERM)
-                                except ProcessLookupError:pass
-                                return
-                    threading.Thread(target=cancel,daemon=True).start()
-                    for line in process.stdout:
-                        line=re.sub(r'\x1b\[[0-9;]*[A-Za-z]','',line)
-                        handle.write(line);handle.flush()
-                        if request.get('conversion_mode')=='audio' and line.startswith('out_time_us='):
-                            try:percent=max(0,min(99,float(line.split('=',1)[1])/1_000_000/float(original['format']['duration'])*100))
-                            except ValueError:continue
-                            report(work,ident,'encoding','Konverterer lyd: '+entry['name'],percent)
-                        match=re.search(r'\b(\d+)(?:/\d+)? frames:',line)
-                        if match:
-                            percent=min(99,int(match[1])/expected*100)
-                            report(work,ident,'encoding','GPU-konvertering: '+entry['name'],percent)
-                    code=process.wait()
-                if STOP.is_set():return
-                if code:raise ValueError('Konverteringen fejlede (kode '+str(code)+'). Se encoder.log; originalen beholdes.')
-                report(work,ident,'metadata','Bevarer HDR og skriver sporoplysninger · dette kan tage flere minutter')
-                prepare_output(original,partial,mode=request.get('dolby_vision_mode','separate'),conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks'))
-                report(work,ident,'verifying','Kontrollerer den færdige video, lyd, undertekster, HDR og kapitler')
-                validate_file(original,partial,mode=request.get('dolby_vision_mode','separate'),conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks'))
+                report(work,ident,'encoding','GPU-konvertering: '+entry['name'],0)
+                if not options or options['mode'] != 'audio':
+                    expected=max(1,float(original['format']['duration'])*float(Fraction(video(original)['avg_frame_rate'])))
+                    with log.open('a',encoding='utf-8') as handle:
+                        process=subprocess.Popen(command(source,partial,request['bitrate'],original,reader=select_decoder(video(original),'nvencc') if request.get('conversion_mode','video')=='video' else 'avsw',conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks')),
+                            stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors='replace',start_new_session=True)
+                        def cancel():
+                            while process.poll() is None:
+                                if STOP.wait(1):
+                                    try:os.killpg(process.pid,signal.SIGTERM)
+                                    except ProcessLookupError:pass
+                                    return
+                        threading.Thread(target=cancel,daemon=True).start()
+                        for line in process.stdout:
+                            line=re.sub(r'\x1b\[[0-9;]*[A-Za-z]','',line)
+                            handle.write(line);handle.flush()
+                            if request.get('conversion_mode')=='audio' and line.startswith('out_time_us='):
+                                try:percent=max(0,min(99,float(line.split('=',1)[1])/1_000_000/float(original['format']['duration'])*100))
+                                except ValueError:continue
+                                report(work,ident,'encoding','Konverterer lyd: '+entry['name'],percent)
+                            match=re.search(r'\b(\d+)(?:/\d+)? frames:',line)
+                            if match:
+                                percent=min(99,int(match[1])/expected*100)
+                                report(work,ident,'encoding','GPU-konvertering: '+entry['name'],percent)
+                        code=process.wait()
+                    if STOP.is_set():return
+                    if code:raise ValueError('GPU-konverteringen fejlede (kode '+str(code)+'). Se encoder.log; originalen beholdes.')
+                if options:
+                    remuxed=checked(scratch/(str(index)+'.selected.mkv'))
+                    remuxed.unlink(missing_ok=True)
+                    report(work,ident,'encoding','Tilpasser lyd og valgte spor: '+entry['name'])
+                    remux_log=log.open('a')
+                    process=subprocess.Popen(remux_command(source, partial if options['mode'] != 'audio' else None,
+                        remuxed, original, options), stdout=subprocess.DEVNULL, stderr=remux_log, start_new_session=True)
+                    remux_log.close()
+                    while process.poll() is None:
+                        if STOP.wait(1):
+                            try: os.killpg(process.pid,signal.SIGTERM)
+                            except ProcessLookupError: pass
+                            process.wait(); return
+                    if process.returncode: raise ValueError('Lydkonverteringen fejlede. Originalen beholdes.')
+                    partial.unlink(missing_ok=True)
+                    remuxed.rename(partial)
+                report(work,ident,'verifying','Kontrollerer video, valgte lydspor, kanaler, undertekster og kapitler')
+                if options and options['mode'] == 'audio':
+                    restore_flags(reference,partial)
+                    validate_audio_only(reference,probe(partial))
+                else:
+                    prepare_output(reference,partial,mode=request.get('dolby_vision_mode','separate'),conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks'))
+                    validate_file(reference,partial,mode=request.get('dolby_vision_mode','separate'),conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks'))
                 if source.stat().st_size!=entry['size']:raise ValueError('Originalfilen ændrede sig under konverteringen.')
                 publish_output(partial,target)
             elif not target.exists():
@@ -179,7 +210,7 @@ def check_gpu():
         subprocess.run(['ffmpeg','-v','error','-f','lavfi','-i','color=s=256x144:r=24:d=0.5',
                         '-c:v','ffv1',str(source)],check=True,capture_output=True,timeout=30)
         original=probe(source)
-        subprocess.run(command(source,target,20,original,reader=select_decoder(video(original),'nvencc')),check=True,capture_output=True,timeout=60)
+        subprocess.run(command(source,target,20,original,reader=select_decoder(video(original),'nvencc') if request.get('conversion_mode','video')=='video' else 'avsw',conversion_mode=request.get('conversion_mode','video'),selected_audio_tracks=request.get('selected_audio_tracks')),check=True,capture_output=True,timeout=60)
         result=probe(target)
         if video(result).get('codec_name')!='hevc':raise ValueError('GPU test failed')
     print('NVEncC HEVC GPU test passed',flush=True)

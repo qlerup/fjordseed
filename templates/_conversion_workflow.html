@@ -1,0 +1,22 @@
+<div class="cw-heading"><p class="eyebrow">DIT BIBLIOTEK · DINE VALG</p><h2>Giv filmene den rette størrelse</h2><p class="muted">Vælg en opgave, find dine film, og tilpas hver film før du starter køen.</p></div>
+<div id="cw-cards" class="cw-cards">
+ <button type="button" class="cw-card" data-mode="full"><span class="cw-card-icon" aria-hidden="true">◈</span><strong>Fuld konvertering</strong><span>Tilpas video, bitrate, Dolby Vision, lydspor og undertekster. Tilføj AC3 eller E-AC3 med originale kanaler.</span><b>Video + lyd →</b></button>
+ <button type="button" class="cw-card" data-mode="video"><span class="cw-card-icon" aria-hidden="true">▣</span><strong>Kun video</strong><span>Justér bitrate og Dolby Vision. Alle lydspor og undertekster følger uændret med.</span><b>Vælg video →</b></button>
+ <button type="button" class="cw-card" data-mode="audio"><span class="cw-card-icon" aria-hidden="true">♫</span><strong>Kun lyd</strong><span>Vælg lydsprog og tilføj AC3 eller E-AC3. Videoen kopieres uden ny komprimering.</span><b>Vælg lyd →</b></button>
+ <div class="cw-card cw-coming" aria-disabled="true"><span class="cw-card-icon" aria-hidden="true">文</span><strong>AI-oversættelse</strong><span>Oversæt filmens eksisterende undertekster til nye sprog.</span><b>Kommer senere</b></div>
+</div>
+<section id="cw-library" hidden aria-labelledby="cw-title">
+ <button type="button" id="cw-back" class="quiet">← Alle konverteringer</button>
+ <div class="cw-toolbar"><div><p class="eyebrow">VÆLG FILM</p><h2 id="cw-title"></h2></div><button type="button" id="cw-refresh" class="secondary">Opdater bibliotek</button></div>
+ <div class="cw-toolbar"><label class="cw-search">Søg i biblioteket<input type="search" id="cw-search" placeholder="Titel eller filnavn"></label><label class="check-label"><input type="checkbox" id="cw-show-skipped"> Vis oversprungne</label></div>
+ <p class="muted small">Størrelser er estimater. Originale lydspor bevares, når du tilføjer kompatibel lyd; derfor kan kun lyd give en større fil. Originalen optager fortsat plads i Seeder indtil den valgte oprydning.</p>
+ <p id="cw-status" role="status" class="muted"></p><p id="cw-error" role="alert" class="error" hidden></p>
+ <div id="cw-films" class="cw-films"></div>
+ <div class="cw-selection"><span id="cw-count">Ingen film valgt</span><button type="button" id="cw-configure" class="primary" disabled>Konverter · tilpas valgte film</button></div>
+</section>
+<section class="connection cw-queue" aria-labelledby="cw-queue-title"><div class="cw-toolbar"><div><p class="eyebrow">ÉN FILM AD GANGEN</p><h3 id="cw-queue-title">Konverteringskø</h3></div><button type="button" id="cw-queue-refresh" class="quiet">Opdater kø</button></div><p class="muted small">Serveren behandler filmene i rækkefølge. En fejl holder køen tilbage, så originalen kan kontrolleres.</p><div id="cw-jobs" aria-live="polite">Ingen film i kø.</div></section>
+<dialog id="cw-dialog" aria-labelledby="cw-dialog-title" class="cw-dialog">
+ <form id="cw-form"><div class="cw-toolbar"><p id="cw-step" class="eyebrow"></p><button type="button" id="cw-close" class="quiet" aria-label="Luk filmvalg">Luk ×</button></div><h2 id="cw-dialog-title"></h2>
+ <div id="cw-fields"></div><p id="cw-dialog-error" role="alert" class="error" hidden></p>
+ <div class="cw-dialog-actions"><button type="button" id="cw-prev" class="secondary">Tilbage</button><button type="button" id="cw-skip-film" class="quiet">Spring denne film over</button><button type="submit" id="cw-next" class="primary">Næste film →</button></div></form>
+</dialog>

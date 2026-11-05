@@ -17,6 +17,7 @@ def prepare(setup,monkeypatch,online=True,server=True):
     else:monkeypatch.delenv('FJORDSEED_CONVERTER_CONTAINER',raising=False)
     jobs={}
     def rpc(action,data):
+        if action in ('library-workflow-list','library-dolby-list'):return {'items':[],'jobs':[]}
         if action=='library-shared-capacity':return {'ready':True}
         if action=='library-shared-queue':
             ident=f'{len(jobs)+1:032x}'
@@ -114,6 +115,7 @@ def test_browser_can_queue_multiple_files_while_one_is_running(setup,monkeypatch
             page.locator('[name=password]').fill((manager.state.root/'initial-login.txt').read_text().strip())
             page.get_by_role('button',name='Log ind',exact=True).click()
             page.goto(f'http://127.0.0.1:{server.server_port}/#conversion')
+            page.locator('.cw-advanced > summary').click()
             page.locator('.workspace-file').nth(0).get_by_role('button',name='Sæt i kø',exact=True).click()
             expect(page.locator('.workspace-job-name')).to_have_text('a.mkv')
             page.locator('.workspace-file').nth(1).get_by_role('button',name='Sæt i kø',exact=True).click()

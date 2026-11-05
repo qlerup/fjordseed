@@ -126,7 +126,7 @@ def inventory(api):
     jobs = storage.read(ledger(), {})
     priors={}
     for job in jobs.values():
-        if job.get('phase')!='published' or not job.get('shared'):continue
+        if job.get('phase')!='published':continue
         row=next((r for r in rows if r['hash']==job['hash'] and r.get('save_path','').rstrip('/')==job['seed']),None)
         if not row:continue
         for entry in job['files']:
@@ -194,7 +194,7 @@ def listing(api):
     return result
 
 
-def queue(api, ident, bitrate, shared=None, dolby_vision_mode=None, conversion_mode='video', selected_audio_tracks=None):
+def queue(api, ident, bitrate, shared=None, dolby_vision_mode=None, conversion_mode='video', selected_audio_tracks=None, options=None, workflow_id=None):
     from conversion_media import dolby_mode, conversion_mode as checked_mode, checked_audio_selection
     conversion_mode=checked_mode(conversion_mode)
     selected_audio_tracks=checked_audio_selection(selected_audio_tracks)
@@ -209,13 +209,18 @@ def queue(api, ident, bitrate, shared=None, dolby_vision_mode=None, conversion_m
         if not item or not item['eligible']:
             raise ValueError(item['reason'] if item else 'Filen findes ikke i Behold.')
         row = item['_row']
+        if options is not None:
+            from conversion_workflow import media_info
+            from conversion_options import normalize
+            options = normalize(options, media_info(Path(item['_path'])))
+            dolby_vision_mode = options['dolby_vision_mode']
         jobs = storage.read(ledger(), {})
         if any(j['hash'] == row['hash'] and j['phase'] not in ('published', 'cancelled') for j in jobs.values()):
             raise ValueError('Torrenten har allerede et konverteringsjob.')
         if any(entries.get(row.get(k), {}).get('convert') for k in ('hash', 'infohash_v1', 'infohash_v2')):
             raise ValueError('Torrenten har allerede en oprindelig konverteringspolitik.')
         root = checked(storage.download_root())
-        prior=item.get('_prior') if shared else None
+        prior=item.get('_prior') if shared or options is not None else None
         torrent_base=checked(row['save_path'].rstrip('/'))
         current = checked(prior['original']) if prior else torrent_base
         if not current.is_relative_to(root):
@@ -258,41 +263,96 @@ def queue(api, ident, bitrate, shared=None, dolby_vision_mode=None, conversion_m
                'source': item['_path'], 'selected': selected, 'output': output, 'files': files,
                'stage': str(stage), 'seed': str(torrent_base if prior else storage.seeding_root() / (storage.download_name(row.get('name','Film'))[:100] + '-' + jobid[:8])),
                'bitrate': bitrate, 'conversion_mode':conversion_mode, 'selected_audio_tracks':selected_audio_tracks, 'dolby_vision_mode':dolby_vision_mode, 'phase': 'preparing', 'created_at': time.time()}
+        if options is not None:
+            job['options'] = options
+            job['source_fingerprint'] = fingerprint(Path(item['_path']))
+        if workflow_id: job['workflow_id'] = workflow_id
         if shared:job['shared']={**shared,'attempt':uuid.uuid4().hex}
         if prior:job['reuse_seeding']=True
         jobs[jobid] = job
         save(jobs)
-        try:
-            for entry in files:
-                source = checked(torrent_base / entry['name'])
-                if not source.is_file() or source.stat().st_size != entry['size']:
-                    raise ValueError('Originalfilen er ændret eller ikke færdig.')
-                entry['fingerprint'] = fingerprint(source)
-                target = checked(stage / entry['name'])
-                target.parent.mkdir(parents=True, exist_ok=True)
-                if not shared:
-                    # Same filesystem, no duplicate 4K-sized copy, no mutable symlink.
-                    snapshot(source, target)
-            work = checked(stage / DIRECTORY)
-            work.mkdir()
-            request = {'version': 1, 'id': jobid, 'executor': 'pc', 'bitrate': bitrate, 'conversion_mode':conversion_mode, 'selected_audio_tracks':selected_audio_tracks, 'dolby_vision_mode':dolby_vision_mode,
-                       'files': [{'name': selected, 'size': Path(item['_path']).stat().st_size}]}
-            if not shared:atomic(work / 'request.json', json.dumps(request), mode=0o644)
-            else:
-                (work/'result'/Path(output).parent).mkdir(parents=True,exist_ok=True)
-                atomic(work/'status.json',json.dumps({'id':jobid,'state':'queued','progress':0}),mode=0o644)
-            job['phase'] = 'queued'
-            save(jobs)
-        except Exception:
-            job['error'] = 'Jobbet kunne ikke klargøres. Originalerne er bevaret.'
-            if shared:job['phase']='cancelled'
-            save(jobs)
-            if shared and stage.is_dir():shutil.rmtree(stage)
-            raise
+        if options is None:
+            try:
+                for entry in files:
+                    source = checked(torrent_base / entry['name'])
+                    if not source.is_file() or source.stat().st_size != entry['size']:
+                        raise ValueError('Originalfilen er ændret eller ikke færdig.')
+                    entry['fingerprint'] = fingerprint(source)
+                    target = checked(stage / entry['name'])
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    if not shared:
+                        # Same filesystem, no duplicate 4K-sized copy, no mutable symlink.
+                        snapshot(source, target)
+                work = checked(stage / DIRECTORY)
+                work.mkdir()
+                request = {'version': 1, 'id': jobid, 'executor': 'pc', 'bitrate': bitrate, 'conversion_mode':conversion_mode, 'selected_audio_tracks':selected_audio_tracks, 'dolby_vision_mode':dolby_vision_mode,
+                           'files': [{'name': selected, 'size': Path(item['_path']).stat().st_size}]}
+                if not shared:atomic(work / 'request.json', json.dumps(request), mode=0o644)
+                else:
+                    (work/'result'/Path(output).parent).mkdir(parents=True,exist_ok=True)
+                    atomic(work/'status.json',json.dumps({'id':jobid,'state':'queued','progress':0}),mode=0o644)
+                job['phase'] = 'queued'
+                save(jobs)
+            except Exception:
+                job['error'] = 'Jobbet kunne ikke klargøres. Originalerne er bevaret.'
+                if shared:job['phase']='cancelled'
+                save(jobs)
+                if shared and stage.is_dir():shutil.rmtree(stage)
+                raise
+            return public_job(job)
+    return prepare_review_job(job, torrent_base)
+
+
+def prepare_review_job(job, source_base):
+    """Recover interrupted preparation; one copier, no supervisor storage lock."""
+    import fcntl
+    stage = checked(job['stage'])
+    with checked(stage/'preparing.lock').open('a') as lock:
+        try: fcntl.flock(lock, fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError: return public_job(job)
+        return copy_review_job(job, source_base)
+
+
+def copy_review_job(job, source_base):
+    stage = checked(job['stage'])
+    try:
+        for entry in job['files']:
+            source = checked(source_base/entry['name'])
+            if not source.is_file() or source.stat().st_size != entry['size']:
+                raise ValueError('Originalfilen er ændret eller ikke færdig.')
+            entry['fingerprint'] = fingerprint(source)
+            if entry['name'] == job['selected'] and entry['fingerprint'] != job['source_fingerprint']:
+                raise ValueError('Den valgte film er ændret under klargøringen. Originalen er bevaret.')
+            target = checked(stage/entry['name'])
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if target.exists() and fingerprint(target) != entry['fingerprint']:
+                target.unlink()  # Incomplete disposable work copy after interruption.
+            if not target.exists(): snapshot(source, target)
+        work = checked(stage/DIRECTORY)
+        work.mkdir(exist_ok=True)
+        request = {'version':1, 'id':job['id'], 'executor':'server', 'bitrate':job['bitrate'],
+                   'dolby_vision_mode':job['dolby_vision_mode'], 'options':job['options'],
+                   'files':[{'name':job['selected'], 'size':next(f['size'] for f in job['files'] if f['name']==job['selected'])}]}
+        with storage.transaction():
+            jobs = storage.read(ledger(), {})
+            if jobs.get(job['id'], {}).get('phase') != 'preparing':
+                raise ValueError('Klargøringen er annulleret.')
+            atomic(work/'request.json', json.dumps(request), mode=0o644)
+            job['phase'] = 'queued'; job.pop('error', None); jobs[job['id']] = job; save(jobs)
         return public_job(job)
+    except Exception:
+        with storage.transaction():
+            jobs = storage.read(ledger(), {})
+            if jobs.get(job['id'], {}).get('phase') == 'preparing':
+                jobs[job['id']]['error'] = 'Klargøringen blev afbrudt. Originalerne er bevaret.'
+                save(jobs)
+        raise
+
 
 
 def pending(ident):
+    from conversion_workflow import pending as workflow_pending
+    if workflow_pending(ident): return True
     return any(j['hash'] == ident and j['phase'] not in ('published', 'cancelled')
                for j in storage.read(ledger(), {}).values())
 
@@ -458,6 +518,7 @@ def advance(api, rows, entries, jobs, job):
     work = checked(stage / DIRECTORY)
     state = storage.read(work / 'status.json', {})
     if job['phase'] == 'preparing':
+        if job.get('options'): return
         raise ValueError('Klargøringen blev afbrudt. Originalerne er bevaret.')
     if job['phase'] == 'queued' and state.get('state') != 'ready':
         return
@@ -471,6 +532,12 @@ def advance(api, rows, entries, jobs, job):
         raise ValueError('Kvitteringen fra pc-konverteringen matcher ikke filmen.')
     if job.get('shared') and fingerprint(checked(result/job['output']))!=job.get('verified_result'):
         raise ValueError('Den kontrollerede konvertering er ændret. Originalerne flyttes ikke.')
+    if job.get('options') and not job.get('shared'):
+        stamp = fingerprint(checked(result/job['output']))
+        if job.get('verified_result') is not None and job['verified_result'] != stamp:
+            raise ValueError('Den kontrollerede konvertering er ændret. Originalerne flyttes ikke.')
+        job['verified_result'] = stamp
+        save(jobs)
     current = str(row.get('save_path', '')).rstrip('/')
     if job.get('reuse_seeding') and current==str(seed) and job['phase']=='queued':
         source_path=str(original/job['selected'])
@@ -513,6 +580,8 @@ def advance(api, rows, entries, jobs, job):
         if time.time() - job.get('move_requested_at', 0) > 30:
             job['move_requested_at'] = time.time()
             save(jobs)
+            if job.get('options'):
+                api('torrents/stop', {'hashes': row['hash']})
             if row.get('auto_tmm'):
                 api('torrents/setAutoManagement', {'hashes': row['hash'], 'enable': 'false'})
             api('torrents/setLocation', {'hashes': row['hash'], 'location': str(seed)})

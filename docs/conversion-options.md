@@ -3,6 +3,65 @@
 Authenticated session endpoints retain the existing CSRF requirements. Worker
 endpoints retain device-token ownership and job leases.
 
+## Library review workflow
+
+The conversion landing page has two cards per row: full conversion, video only,
+audio only, and an inactive subtitle-translation placeholder. Existing download,
+RSS, PC and Dolby archive settings are in the expandable settings section.
+
+- `GET /api/conversion/workflow` returns library files with available tracker
+  title/cover metadata, cached stream information, per-mode skip flags and jobs.
+- `GET /api/conversion/workflow/<file-id>/media` probes the current library file
+  and returns `media` plus a size/mtime `fingerprint` required at enqueue time.
+- `POST /api/conversion/workflow/skip` takes `{id, mode, skip: boolean}`.
+- `POST /api/conversion/workflow/queue` takes `{items: [...]}`. Each item has
+  `id`, `fingerprint`, `options`, and `policy`. A batch contains 1–100 films and
+  is validated before committing; at most 500 unfinished films may be queued.
+- `POST /api/conversion/workflow/cancel` takes a queued job `id`.
+- `POST /api/conversion/workflow/retry` takes a failed job `id`.
+
+`options` contains `mode: full | video | audio`, `bitrate: 20 | 30 | 40`,
+`dolby_vision_mode: separate | preserve`, `audio_codec: copy | ac3 | eac3`,
+`audio: [stream indices]`, and `subtitle: [stream indices]`. These are **global
+ffprobe stream indices**, unlike the PC ordinal API below. Video-only always
+copies every audio/subtitle track. Audio-only copies video and every subtitle
+track, retaining the original Dolby Vision profile. Full mode permits both
+track selections and video settings. Video processing accepts DV 7/8.1 and
+produces 8.1, optionally archived separately for HDR10 playback.
+
+Selected original audio tracks are copied. Where their codec differs from the
+chosen compatibility codec, an additional AC3/E-AC3 track is encoded at 48 kHz,
+192 kbps for mono/stereo or 640 kbps for multichannel audio. The original codec,
+object metadata and samples remain available in the copied original track.
+Compatibility encoding supports known layouts through 5.1; larger/unknown
+layouts require original audio. No channel downmix is requested. Verification
+checks the original tracks and the expected additional codec, channel count,
+layout, sample rate, language and flags. AC3's decoded surround-layout labels
+are normalized only in the reference for the new compatible track.
+
+The guide shows per-film live size estimates and a final review before starting
+one durable server queue. Estimates include retained audio and added compatible
+tracks; unavailable duration/audio bitrate yields no numeric estimate. An
+original still occupying Seeder is additional storage, not immediate savings.
+
+`policy` uses the manual download fields `ratio_action`, `ratio_limit`, and
+`seed_minutes`: keep, stop_keep, delete, automatic, delete_ratio or delete_time.
+Existing real upload and active seeding time carry over. Films in the same
+torrent must have the same policy. Pending jobs block automatic cleanup until
+all selected films have been published. After worker verification, qBittorrent
+is stopped and receives `setLocation` to move the original to Seeder. The
+existing verified active seed clock excludes the stop/move. Publication and
+original-location verification precede applying the selected cleanup policy.
+Converted library files remain outside original cleanup.
+
+Preparation runs through a maintenance RPC, outside VPN supervision. Large
+cross-volume work copies release the storage lock; a separate preparation lock
+and durable identity allow restart recovery. Jobs never accept browser paths.
+The original must have an unambiguous completed qBittorrent owner. The new
+review queue runs on the server; existing PC jobs retain the API below.
+
+## Existing PC and direct library APIs
+
 `POST /api/conversion/devices/<id>/select` accepts the existing `media_folder`,
 `name`, `bitrate` (integer 20/30/40) plus `conversion_mode: "video" | "audio"`.
 `POST /api/conversion/library` accepts `id`, `bitrate` and the same mode.

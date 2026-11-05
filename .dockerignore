@@ -57,3 +57,6 @@
 
 !dolby_backup.py
 !dolby_jobs.py
+
+!conversion_workflow.py
+!conversion_options.py

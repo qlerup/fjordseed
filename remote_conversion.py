@@ -528,6 +528,29 @@ def register(app, state, runtime):
         try:return jsonify(runtime.rpc('library-dolby-restore',{'id':ident})),202
         except ValueError as exc:return jsonify(error=str(exc)),409
 
+    @app.get('/api/conversion/workflow')
+    def workflow_files():
+        try:
+            result = runtime.rpc('library-workflow-list', {})
+            for item in result.get('items', []):
+                benefits = app.extensions['trackers'].benefits.snapshot({'hashes':[item.get('hash')], 'name':item['title']})
+                matches = benefits.get('matches', [])
+                item['cover'] = next((url for m in matches if (url := app.extensions['covers'].request(m.get('poster')))), None)
+                item['title'] = next((m['title'] for m in matches if m.get('title')), item['title'])
+            return jsonify(result)
+        except ValueError as exc: return jsonify(error=str(exc)), 400
+
+    @app.get('/api/conversion/workflow/<ident>/media')
+    def workflow_media(ident):
+        try: return jsonify(runtime.rpc('library-workflow-media', {'id':ident}))
+        except ValueError as exc: return jsonify(error=str(exc)), 400
+
+    @app.post('/api/conversion/workflow/<action>')
+    def workflow_action(action):
+        if action not in ('skip', 'queue', 'cancel', 'retry'): return jsonify(error='Ukendt handling.'), 404
+        try: return jsonify(runtime.rpc('library-workflow-'+action, body()))
+        except ValueError as exc: return jsonify(error=str(exc)), 400
+
     @app.get('/api/conversion/library')
     def library_files():
         try:return jsonify(runtime.rpc('library-list',{}))

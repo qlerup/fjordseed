@@ -316,6 +316,19 @@ def execute(action, data):
         if action=='library-shared-cancel':return shared_library.cancel(call,data.get('id'),data.get('device'))
         if action=='library-shared-error':return shared_library.failed(data.get('id'),data.get('device'),data.get('detail'))
         return shared_library.status(call,data.get('id'),data.get('device'),claim=data.get('claim') is True)
+    if action.startswith('library-workflow-'):
+        import conversion_workflow as workflow
+        kind = action.removeprefix('library-workflow-')
+        if kind == 'tick':
+            workflow.tick(call, call('torrents/info').json())
+            return {'ok':True}
+        if kind == 'list': return workflow.listing(call)
+        if kind == 'media': return workflow.details(call, data.get('id'))
+        if kind == 'skip': return workflow.skip(call, data)
+        if kind == 'queue': return workflow.enqueue(call, data)
+        if kind == 'cancel': return workflow.cancel(data.get('id'))
+        if kind == 'retry': return workflow.retry(data.get('id'))
+        raise ValueError('Ukendt konverteringshandling.')
     if action in ('library-list','library-convert','library-retry','library-cancel'):
         from library_conversion import listing, queue, retry, cancel
         if action == 'library-list':return listing(call)
