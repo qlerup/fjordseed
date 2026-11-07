@@ -31,6 +31,8 @@ RUN apk add --no-cache libtorrent-rasterbar qt6-qtbase ffmpeg mkvtoolnix tessera
 COPY --from=qbittorrent-build /out/qbittorrent-nox /usr/bin/qbittorrent-nox
 RUN qbittorrent-nox --version
 WORKDIR /app
+ARG CODEX_VERSION=0.162.1
+RUN apk add --no-cache nodejs npm && npm install --global @openai/codex@${CODEX_VERSION} && codex --version
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py deletion_events.py bot_upload.py event_notifier.py hub_email.py hub.py runtime.py state.py qbit_rpc.py qbit_worker.py torrent_port.py trackers.py benefits.py covers.py torrent_meta.py rss.py rss_gate.py green_credit.py download_storage.py storage.py storage_browser.py ./
@@ -38,6 +40,7 @@ COPY templates ./templates
 COPY streaming.py ./
 COPY conversion_workflow.py conversion_options.py conversion.py library_conversion.py shared_library.py media_bitrates.py ./
 COPY subtitle_text.py subtitle_pgs.py subtitle_media.py subtitle_auth.py subtitle_translation.py ./
+COPY subtitle_device_auth.py subtitle_codex_rpc.py ./
 COPY tools/chatgpt_login.py ./tools/chatgpt_login.py
 COPY converter_runtime.py ./
 COPY dolby_backup.py dolby_jobs.py conversion_media.py conversion_decoder.py converter_worker.py remote_conversion.py remote_helper.py ./

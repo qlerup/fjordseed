@@ -17,6 +17,13 @@ tracks=[{'id':'stream:3','language':'en','codec':'hdmv_pgs_subtitle','kind':'emb
 items=[{'id':str(i),'name':f'Film-{i}.mkv','title':f'Film {i} · Rejsen gennem fjorden','eligible':True,'size':1234,
     'tracks':tracks,'probed':True,'snapshot':'stamp','fingerprint':['1234','1'],'preferred':'stream:3'} for i in range(1,3)]
 auth={'connected':True,'enabled':True,'active':'oaiapp_test','revision':1,'accounts':[{'id':'oaiapp_test','email':'Testkonto','connected':True}]}
+empty=[dict(items[0],id='empty-'+str(i),title='A empty '+str(i),tracks=[],probed=False) for i in range(45)]
+hidden=dict(items[0],id='hidden',title='Z discovered',tracks=[],probed=False)
+library=empty+items+[hidden]
+def detail(route):
+ ident=route.request.url.rsplit('/',1)[1]
+ item=next(i for i in library if i['id']==ident)
+ route.fulfill(json=dict(item,probed=True,tracks=tracks if ident=='hidden' else item['tracks']))
 class Demo(FakeRuntime):
  host_downloads=PurePosixPath('/downloads')
  def status(self): return {**super().status(),'enabled':True,'ready':True}
@@ -28,11 +35,16 @@ with tempfile.TemporaryDirectory() as folder:
   with sync_playwright() as p:
    browser=p.chromium.launch(); page=browser.new_page(viewport={'width':1440,'height':1000}); errors=[]; submitted=[]
    page.on('pageerror',lambda e:errors.append(str(e)))
-   page.route('**/api/subtitles/library',lambda r:r.fulfill(json={'items':items,'truncated':False}))
-   page.route('**/api/subtitles/library/*',lambda r:r.fulfill(json=items[int(r.request.url.rsplit('/',1)[1])-1]))
+   page.route('**/api/subtitles/library',lambda r:r.fulfill(json={'items':library,'truncated':False}))
+   page.route('**/api/subtitles/library/*',detail)
    page.route('**/api/subtitles/jobs',lambda r:r.fulfill(json={'jobs':[],'languages':{'en':'Engelsk','da':'Dansk','sv':'Svensk','de':'Tysk'},'auth':auth}))
    page.route('**/api/subtitles/models?*',lambda r:r.fulfill(json={'models':[{'id':'test-model','name':'Testmodel'}]}))
-   page.route('**/api/subtitles/auth/begin',lambda r:r.fulfill(json={'pair':'test-pair','expires_in':600}))
+   def login(route):
+    auth['login']={'state':'waiting','user_code':'ABCD-1234','verification_url':'https://auth.openai.com/codex/device'}
+    route.fulfill(json=auth)
+   page.route('**/api/subtitles/auth/device',login)
+   page.route('https://auth.openai.com/**',lambda r:r.fulfill(body='Mock OpenAI login'))
+   page.route('**/api/subtitles/auth/cancel',lambda r:(auth.pop('login',None),r.fulfill(json={'ok':True})))
    page.route('**/api/conversion/workflow',lambda r:r.fulfill(json={'items':[],'jobs':[]}))
    def queue(route): submitted.append(route.request.post_data_json);route.fulfill(json={'ok':True})
    page.route('**/api/subtitles/queue',queue)
@@ -42,13 +54,14 @@ with tempfile.TemporaryDirectory() as folder:
    page.locator(f'[name=theme][value={theme}]').check();page.locator('#appearance-save').click()
    expect(page.locator('#appearance-status')).to_contain_text('er gemt');page.reload()
    page.goto(f'http://127.0.0.1:{server.server_port}/#conversion');page.locator('#st-open').click()
-   expect(page.locator('.st-film')).to_have_count(2)
+   expect(page.locator('.st-film')).to_have_count(3)
+   expect(page.locator('#st-films')).not_to_contain_text('A empty')
    expect(page.locator('#st-model')).to_have_value('test-model')
    for width in (1440,390,320):
     page.set_viewport_size({'width':width,'height':1000})
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),f'overflow at {width}'
     page.screenshot(path=str(artifacts/f'{theme}-library-{width}.png'),full_page=True)
-   page.locator('#st-select-visible').click();page.locator('#st-configure').click()
+   page.locator('.st-film input[type=checkbox]').nth(0).check();page.locator('.st-film input[type=checkbox]').nth(1).check();page.locator('#st-configure').click()
    expect(page.locator('#st-dialog')).to_be_visible()
    page.locator('.st-languages summary').click()
    expect(page.get_by_label('Dansk · findes allerede')).to_be_disabled()
@@ -60,7 +73,10 @@ with tempfile.TemporaryDirectory() as folder:
    assert [i['targets'] for i in submitted[0]['items']]==[['sv','de'],['de']]
    assert all(i['source']=='stream:3' for i in submitted[0]['items'])
    page.locator('#st-login').click();expect(page.locator('#st-login-guide')).to_be_visible()
+   expect(page.locator('#st-login-code')).to_have_text('ABCD-1234')
+   expect(page.locator('#st-login-link')).to_have_attribute('href','https://auth.openai.com/codex/device')
    page.wait_for_timeout(5200);expect(page.locator('#st-login-guide')).to_be_visible()
+   page.locator('#st-login-cancel').click();expect(page.locator('#st-login-guide')).to_be_hidden()
    page.locator('#st-back').click();expect(page.locator('#cw-cards')).to_be_visible()
    assert not errors,errors
    print('PASS: per-film languages, PGS/SRT, existing-language guard, login guide, 1440/390/320px, no JS errors')

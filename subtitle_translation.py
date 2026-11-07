@@ -9,7 +9,7 @@ from pathlib import Path
 
 from flask import jsonify, request, send_file, session
 from state import atomic
-from subtitle_auth import ChatGPT
+from subtitle_device_auth import ChatGPT
 from subtitle_text import LANGUAGES, render_srt
 
 LOG=logging.getLogger(__name__)
@@ -169,6 +169,12 @@ def register(app,state,runtime,stop,testing=False):
 
     @app.post('/api/subtitles/auth/begin')
     def subtitle_auth_begin(): return response(lambda:manager.auth.begin(owner(),body().get('account')))
+
+    @app.post('/api/subtitles/auth/device')
+    def subtitle_auth_device(): return response(lambda:manager.auth.device_begin(owner(),body().get('account')))
+
+    @app.post('/api/subtitles/auth/cancel')
+    def subtitle_auth_cancel(): return response(lambda:manager.auth.device_cancel(owner()))
 
     @app.post('/api/subtitles/auth/prepare')
     def subtitle_auth_prepare(): return response(lambda:manager.auth.prepare(pair(),body().get('redirect_uri')))

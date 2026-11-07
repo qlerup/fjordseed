@@ -7,12 +7,14 @@
  const name=code=>languages[code]||code||'Ukendt sprog';
  const trackLabel=t=>[name(t.language),t.codec==='hdmv_pgs_subtitle'?'PGS · OCR':t.codec.toUpperCase(),t.kind==='sidecar'?'Separat fil':'I videofilen',t.forced?'Kun tvungne undertekster':'',t.label].filter(Boolean).join(' · ');
  const detail=file=>details.get(file.id)||file;
- const visible=()=>items.filter(f=>(f.title+' '+f.name).toLocaleLowerCase().includes($('st-search').value.toLocaleLowerCase())).sort((a,b)=>a.title.localeCompare(b.title,'da'));
+ const matching=()=>items.filter(f=>(f.title+' '+f.name).toLocaleLowerCase().includes($('st-search').value.toLocaleLowerCase())).sort((a,b)=>a.title.localeCompare(b.title,'da'));
+ const visible=()=>matching().filter(f=>(detail(f).tracks||[]).length>0);
  function tracks(parent,rows){const list=node('div',null,'st-track-list');for(const t of rows)list.append(node('span',trackLabel(t),'st-track'));if(!rows.length)list.append(node('span','Ingen undertekster fundet','muted'));parent.append(list);}
  function selection(){ $('st-selection').hidden=!selected.size;$('st-count').textContent=selected.size+' film valgt';$('st-configure').disabled=busy||!selected.size; }
  function render(){
-  const list=$('st-films');list.replaceChildren();const found=visible();$('st-status').textContent=found.length+' film · SRT ved siden af filmen og indbyggede undertekster';
-  if(!found.length)list.append(node('p','Ingen film fundet. Prøv en anden søgning eller opdater biblioteket.','muted'));
+  const list=$('st-films');list.replaceChildren();const found=visible(),pending=matching().filter(f=>!detail(f).probed&&!failed.has(f.id)).length;
+  $('st-status').textContent=found.length+' film med undertekster'+(pending?' · Undersøger biblioteket …':'')+(failed.size?' · '+failed.size+' filer kunne ikke undersøges':'');
+  if(!found.length)list.append(node('p',pending?'Leder efter film med undertekster …':'Ingen film med undertekster fundet. Prøv en anden søgning eller opdater biblioteket.','muted'));
   for(const file of found.slice(0,limit)){
    const d=detail(file),row=node('article',null,'cw-film st-film'),check=node('input'),info=node('div',null,'cw-film-info');check.type='checkbox';check.checked=selected.has(file.id);check.disabled=busy||!d.eligible;check.setAttribute('aria-label','Vælg '+file.title);
    check.onchange=()=>{check.checked?selected.add(file.id):selected.delete(file.id);selection();};
@@ -27,13 +29,13 @@
  async function probe(file){
   if(details.has(file.id))return details.get(file.id);
   const current=generation,data=await api('/api/subtitles/library/'+encodeURIComponent(file.id));
-  if(current===generation){details.set(file.id,data);failed.delete(file.id);}return data;
+  if(current===generation){details.set(file.id,data);failed.delete(file.id);if(!data.tracks?.length)selected.delete(file.id);}return data;
  }
  async function probeVisible(){
   if(probing)return;probing=true;const current=generation;
-  try{for(const file of visible().slice(0,limit)){
-   if(!open||current!==generation)break;if(details.has(file.id)||failed.has(file.id))continue;
-   try{await probe(file);}catch(e){failed.set(file.id,e.message);}
+  try{while(open&&current===generation){
+   const file=matching().find(f=>!detail(f).probed&&!details.has(f.id)&&!failed.has(f.id));if(!file)break;
+   try{await probe(file);}catch(e){if(current===generation)failed.set(file.id,e.message);}
    if(!$('st-dialog').open&&current===generation)render();
   }}finally{probing=false;if(current!==generation&&open)probeVisible();}
  }
@@ -58,6 +60,7 @@
    $('st-account').value=auth.active||'';
    $('st-auth-status').textContent=auth.connected?(auth.enabled?'ChatGPT er forbundet · klar til oversættelse':'Logget ind · tillad brug af ChatGPT-abonnementet for at oversætte'):'Forbind din ChatGPT-konto for at starte oversættelser.';
    $('st-disconnect').hidden=!auth.connected;
+   renderLogin(auth.login);
    if(loginRevision!==null&&auth.connected&&auth.revision!==loginRevision){$('st-login-guide').hidden=true;loginRevision=null;modelsFor=null;}
    loadModels();const list=$('st-jobs');list.replaceChildren();
    if(!result.jobs.length)list.append(node('p','Ingen film i oversættelseskøen.','muted'));
@@ -106,9 +109,30 @@
  $('st-prev').onclick=()=>{if(!busy&&step>0){step--;showStep();}};
  $('st-remove').onclick=()=>{if(!busy&&step<review.length){selected.delete(review[step].id);review.splice(step,1);showStep();selection();}};
  $('st-close').onclick=()=>{if(!busy)$('st-dialog').close();};$('st-dialog').addEventListener('cancel',e=>{if(busy)e.preventDefault();});
- async function login(newAccount=false){try{const result=await post('auth/begin',{account:newAccount?null:auth.active});loginRevision=auth.revision||0;$('st-login-command').textContent='python fjordseed-chatgpt-login.py --server '+JSON.stringify(location.origin)+' --pair '+result.pair;$('st-login-guide').hidden=false;}catch(e){error('st-error',e.message);}}
+ let loginWindow=null,openedCode=null;
+ function renderLogin(login){
+  const active=login&&['starting','waiting'].includes(login.state);
+  $('st-login').disabled=!!active;$('st-add-account').disabled=!!active;
+  if(!login)return;
+  $('st-login-guide').hidden=login.state==='completed'||login.state==='cancelled';
+  $('st-device-details').hidden=login.state!=='waiting';
+  $('st-login-cancel').hidden=!active;
+  $('st-login-status').textContent=({starting:'Forbereder login …',waiting:'Afventer din godkendelse hos OpenAI',expired:'Koden er udløbet. Klik på Continue with ChatGPT for at prøve igen.',failed:login.error||'Login mislykkedes. Prøv igen.'})[login.state]||'';
+  if(login.state==='waiting'){
+   let url;try{url=new URL(login.verification_url);}catch{return;}
+   if(url.origin!=='https://auth.openai.com'||url.username||url.password)return;
+   $('st-login-code').textContent=login.user_code;$('st-login-link').href=url.href;
+   if(loginWindow&&!loginWindow.closed&&openedCode!==login.user_code){loginWindow.location.href=url.href;openedCode=login.user_code;loginWindow=null;}
+  }else{$('st-login-code').textContent='';$('st-login-link').removeAttribute('href');if(!active&&loginWindow&&!loginWindow.closed){loginWindow.close();loginWindow=null;}}
+ }
+ async function login(newAccount=false){
+  loginWindow=window.open('about:blank','_blank');if(loginWindow)loginWindow.opener=null;
+  try{loginRevision=auth.revision||0;const result=await post('auth/device',{account:newAccount?null:auth.active});renderLogin(result.login);}
+  catch(e){if(loginWindow&&!loginWindow.closed)loginWindow.close();loginWindow=null;error('st-error',e.message);}
+ }
  $('st-login').onclick=()=>login();$('st-add-account').onclick=()=>login(true);
- $('st-copy-command').onclick=async()=>{try{await navigator.clipboard.writeText($('st-login-command').textContent);$('st-copy-command').textContent='Kopieret';}catch{error('st-error','Markér og kopiér kommandoen manuelt.');}};
+ $('st-copy-code').onclick=async()=>{try{await navigator.clipboard.writeText($('st-login-code').textContent);$('st-copy-code').textContent='Kopieret';}catch{error('st-error','Markér og kopiér koden manuelt.');}};
+ $('st-login-cancel').onclick=async()=>{try{await post('auth/cancel');if(loginWindow&&!loginWindow.closed)loginWindow.close();loginWindow=null;loginRevision=null;$('st-login-guide').hidden=true;$('st-login-code').textContent='';$('st-login-link').removeAttribute('href');await loadJobs();}catch(e){error('st-error',e.message);}};
  $('st-account').onchange=async()=>{try{await post('auth/select',{account:$('st-account').value});modelsFor=null;await loadJobs();}catch(e){error('st-error',e.message);}};
  $('st-disconnect').onclick=async()=>{try{const result=await post('auth/disconnect');modelsFor=null;await loadJobs();$('st-auth-status').textContent=result.message;}catch(e){error('st-error',e.message);}};
  $('st-open').onclick=async()=>{open=true;$('cw-cards').hidden=true;$('st-panel').hidden=false;await loadJobs();loadLibrary();};

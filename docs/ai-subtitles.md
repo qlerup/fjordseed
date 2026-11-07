@@ -14,16 +14,20 @@ OpenAI modtager kun tekst og blok-ID'er. Tidskoder opbevares lokalt og sættes p
 
 ## ChatGPT-login
 
-Integrationen følger [Sign in with ChatGPT](https://developers.openai.com/siwc/token-sharing-open-source/sign-in) og bruger det offentlige [Responses API](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference). Den kræver adgang til ChatGPT-planbrug; et identitetslogin alene er utilstrækkeligt. Tilgængelige modeller hentes for den valgte konto.
+Standardlogin bruger den officielle Codex app-server med en enhedskode, ligesom FjordLens. Codex kører på Fjordseed-serveren. Modeller hentes for den valgte konto; listen garanterer ikke modeladgang, som først bekræftes ved en gennemført oversættelse.
 
-1. Åbn Fjordseed over HTTPS, eller gennem en SSH-tunnel på `http://127.0.0.1:8099`.
-2. Klik **Continue with ChatGPT**, hent loginhjælperen, og kør den viste kommando på browserens pc med Python 3.
-3. Hjælperen åbner en lokal loopback-listener og OpenAI-login i browseren. Godkend kontoen og planadgangen.
-4. Returkoden sendes tilbage til Fjordseed med en engangsforbindelse. Serveren udveksler koden med PKCE og validerer JWT-signatur, issuer, audience, udløb og nonce. Ingen adgangs- eller refresh-tokens gemmes i browseren eller hjælperen.
+1. Klik **Continue with ChatGPT**.
+2. Indtast den viste engangskode på OpenAI-siden, som åbnes i en ny fane. Hvis browseren blokerer fanen, brug **Åbn OpenAI-login**.
+3. Godkend forbindelsen hos OpenAI. Fjordseed opdaterer automatisk kontoen og modellisten.
+4. Login kan annulleres og udløber efter højst ti minutter. Aktiver eventuelt enhedskodelogin i ChatGPTs sikkerhedsindstillinger.
 
-Hjælperen bruger kun Pythons standardbibliotek. Den accepterer HTTPS eller localhost for forbindelsen til Fjordseed. En SSH-tunnel kan eksempelvis oprettes med `ssh -L 8099:127.0.0.1:8099 bruger@server`; tilpas serverporten til installationen. Log derefter ind i Fjordseed gennem tunneladressen før du starter ChatGPT-login.
+Ingen lokal installation eller terminalkommando er nødvendig. Loginforsøg ligger kun i serverens hukommelse og skal startes igen efter en servergenstart. Eksisterende direkte SIWC-kontoforbindelser virker fortsat gennem den tidligere adapter.
 
-Hver Fjordhub-bruger har egne kontoforbindelser og oversættelsesjobs. Den lokale admin-loginform er én fælles lokal bruger. Konto og model fastholdes i jobbet. Credentials gemmes med ejeradgang i `/data/subtitle-accounts`; denne mappe må ikke deles med andre brugere. Frakobling forsøger at tilbagekalde refresh-sessionen hos OpenAI og fjerner lokale tokens.
+Hver Fjordhub-bruger har egne kontoforbindelser og oversættelsesjobs. Den lokale admin-loginform er én fælles lokal bruger. Konto og model fastholdes i jobbet. Credentials gemmes med ejeradgang i `/data/subtitle-accounts`; denne mappe må ikke deles med andre brugere. Frakobling fjerner lokale Codex-tokens; adgangen kan også fjernes i ChatGPTs indstillinger. Tokenfornyelse må ikke genskabe en frakoblet konto.
+
+Oversættelse bruger en midlertidig Codex-session med tom arbejdsmappe, deaktiverede værktøjer, read-only-sandbox og et JSON-schema. Kun underteksttekst og blok-ID'er sendes. Resultater accepteres først efter en fuldført turn og validering af alle blokke. Serveren kører én app-proces, som ejer loginforsøg og oversættelseskø.
+
+Listen viser kun medier med fundne undertekstspor. Medier uden kendte spor undersøges i baggrunden, også når de første mange filer ikke har undertekster. Fejl tælles separat; **Opdater bibliotek** forsøger dem igen.
 
 ## Kø og drift
 
