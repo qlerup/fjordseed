@@ -282,12 +282,10 @@ def execute(action, data):
                   'ratio_limit','share_limit_action','infohash_v1','infohash_v2','completed','tags',
                   'seeding_time','seeding_time_limit','uploaded','downloaded','added_on','priority')
         torrents=[]
-        with CreditLedger().transaction() as ledger:
+        with CreditLedger().snapshot() as ledger:
             rows = call('torrents/info').json()
             credits=[ledger.update(row) for row in rows]
-            ledger.save()
             for row,credit in zip(rows,credits):
-                apply_limits(call,row)
                 if any(storage_entries.get(row.get(k),{}).get('convert') for k in ('hash','infohash_v1','infohash_v2')):
                     credit={**credit,'ratio_limit':1,'ratio_only':False,'adaptive_seeding':False,
                             'stop_on_complete':False,'extra_seed_hours':0,'seed_minutes':None}

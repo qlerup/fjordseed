@@ -209,6 +209,21 @@ def seed_time(entry, row, health=None):
 
 class CreditLedger:
     @contextmanager
+    def snapshot(self):
+        """Render live counters without waiting for conversion's writer lock.
+
+        Atomic ledger replacement gives readers a complete committed snapshot.
+        update() only changes this in-memory copy; policy workers own persistence.
+        """
+        self.entries = read(CONFIG / 'green-credit.json', {})
+        self.policies = read(POLICIES, {})
+        self.tracker_policies=read(POLICIES.with_name('tracker-credit.json'),{})
+        self.feeds = read(CONFIG / 'fjord-rss.json', [])
+        self.seed_health = seed_health()
+        self.reconcile_tracker_archives()
+        yield self
+
+    @contextmanager
     def transaction(self):
         CONFIG.mkdir(parents=True, exist_ok=True)
         with _lock, (CONFIG / 'green-credit.lock').open('a+') as handle:

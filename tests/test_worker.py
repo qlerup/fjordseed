@@ -11,6 +11,14 @@ import qbit_worker
 
 
 @pytest.fixture
+def maintenance(monkeypatch):
+    helper=Mock()
+    helper.snapshot.return_value={}
+    monkeypatch.setattr(qbit_worker,'Maintenance',Mock(return_value=helper))
+    return helper
+
+
+@pytest.fixture
 def vpn(tmp_path):
     (tmp_path/'status.json').write_text(json.dumps({'healthy':True,'checked_at':100,'public_ip':'203.0.113.5', 'relay_enabled':False,'public_port':45000}))
     return tmp_path
@@ -59,7 +67,7 @@ def test_rpc_refuses_unbound_client_and_preserves_files_by_default(monkeypatch):
     assert fake.call_args.args==('torrents/delete',{'hashes':'a'*40,'deleteFiles':'false'})
 
 
-def test_supervisor_terminates_running_client_when_vpn_fails(monkeypatch,caplog):
+def test_supervisor_terminates_running_client_when_vpn_fails(monkeypatch,caplog,maintenance):
     stop=Mock()
     stop.is_set.side_effect=[False,False,True]
     monkeypatch.setattr(qbit_worker,'STOP',stop)
@@ -88,7 +96,8 @@ def test_supervisor_terminates_running_client_when_vpn_fails(monkeypatch,caplog)
     assert 'VPN lost' not in caplog.text
 
 
-def test_policy_failure_keeps_healthy_seeders_running(monkeypatch):
+def test_policy_failure_keeps_healthy_seeders_running(monkeypatch,maintenance):
+    maintenance.snapshot.return_value={"seeding_error":"Seedingkontrol fejlede"}
     stop=Mock()
     stop.is_set.side_effect=[False,True]
     monkeypatch.setattr(qbit_worker,'STOP',stop)
@@ -116,7 +125,10 @@ def test_policy_failure_keeps_healthy_seeders_running(monkeypatch):
                for call in qbit_worker.call.call_args_list)
 
 
-def test_verification_chunks_keep_heartbeat_and_vpn_checks_running(monkeypatch):
+def test_busy_maintenance_keeps_heartbeat_and_vpn_checks_running(monkeypatch,tmp_path):
+    maintenance=qbit_worker.Maintenance(tmp_path)
+    policy_process=Mock();policy_process.poll.return_value=None
+    monkeypatch.setattr(qbit_worker,"Maintenance",Mock(return_value=maintenance))
     stop=Mock();stop.is_set.side_effect=[False,False,False,True]
     monkeypatch.setattr(qbit_worker,'STOP',stop)
     monkeypatch.setattr(qbit_worker.signal,'signal',Mock())
@@ -134,20 +146,21 @@ def test_verification_chunks_keep_heartbeat_and_vpn_checks_running(monkeypatch):
     health.get.return_value.status_code=200
     monkeypatch.setattr('requests.Session',Mock(return_value=health))
     process=Mock();process.poll.return_value=None
-    monkeypatch.setattr(qbit_worker.subprocess,'Popen',Mock(return_value=process))
+    monkeypatch.setattr(qbit_worker.subprocess,'Popen',Mock(side_effect=lambda args,**kw: policy_process if '--maintenance' in args else process))
     qbit_worker.run()
-    # Both healthy passes advance the bounded check, without waiting ten seconds.
-    assert checks.call_count==2 and health.get.call_count==2
+    # Slow policy/file work is never executed in the safety supervisor.
+    checks.assert_not_called()
+    assert health.get.call_count==2
     statuses=[json.loads(c.args[1]) for c in writes.call_args_list]
     assert statuses[0]['ready'] and statuses[1]['ready'] and not statuses[2]['ready']
     assert statuses[1]['checked_at']>=statuses[0]['checked_at']
-    assert [c.args[0] for c in stop.wait.call_args_list][:2]==[.05,.05]
+    assert [c.args[0] for c in stop.wait.call_args_list][:2]==[2,2]
     # Verification must never prevent the independent VPN kill switch.
     process.terminate.assert_called_once()
     process.wait.assert_called_once_with(10)
 
 
-def test_failure_diagnostics_survive_recovery_without_private_error_text(monkeypatch,caplog):
+def test_failure_diagnostics_survive_recovery_without_private_error_text(monkeypatch,caplog,maintenance):
     stop=Mock();stop.is_set.side_effect=[False,False,True]
     monkeypatch.setattr(qbit_worker,'STOP',stop)
     monkeypatch.setattr(qbit_worker.signal,'signal',Mock())

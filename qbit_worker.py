@@ -7,6 +7,7 @@ from pathlib import Path
 import signal
 import socket
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -95,16 +96,85 @@ def sync_resume_interval(prefs, api=None):
         (api or call)('app/setPreferences',{'json':json.dumps({'save_resume_data_interval':1})})
 
 
-def run():
-    seed_session = uuid.uuid4().hex
-    publish_seed_health(False, seed_session)
-    process = None
-    started = 0
+class Maintenance:
+    """Policy/file work may wait on locks; the VPN supervisor never waits for it."""
+    def __init__(self, root=Path('/config')):
+        self.path=root/'maintenance-status.json'
+        self.process=None
+
+    def snapshot(self):
+        try:
+            if self.process is None or self.process.poll() is not None:
+                self.path.unlink(missing_ok=True)
+                self.process=subprocess.Popen([sys.executable,str(Path(__file__).resolve()),'--maintenance'],
+                    stdout=subprocess.DEVNULL)
+            if not self.path.exists():return {}
+            status=json.loads(self.path.read_text())
+            return {key:status[key] for key in ('rss','rss_error','seeding_error') if key in status}
+        except Exception:
+            return {'seeding_error':'Seedingkontrol afventer baggrundsprocessen.'}
+
+    def stop(self):
+        stop_process(self.process)
+        self.process=None
+
+
+def run_maintenance():
     rss_content=None
     rss_last=0
     reports=[]
     share_last=0
     seeding_error=None
+    for sig in (signal.SIGTERM,signal.SIGINT):
+        signal.signal(sig,lambda *_:STOP.set())
+    while not STOP.is_set():
+        status={}
+        checking_originals=False
+        # A failed readiness check ends this generation; the supervisor restarts
+        # maintenance only after its full VPN and qBittorrent checks succeed.
+        ready()
+        from library_conversion import verification_pending
+        checking_originals=verification_pending()
+        if checking_originals or time.monotonic()-share_last>10:
+            try:
+                storage_errors=sync_share_limits()
+                seeding_error=' '.join(dict.fromkeys(storage_errors)) or None
+            except Exception:
+                # A policy/read failure must not interrupt seeders.
+                # VPN failures still reach the outer kill switch.
+                seeding_error='Seedingkontrol fejlede; automatisk stop afventer næste kontrol.'
+            share_last=time.monotonic()
+            checking_originals=verification_pending()
+        if seeding_error:
+            status['seeding_error']=seeding_error
+        try:
+            content=Path('/config/fjord-rss.json').read_text() if Path('/config/fjord-rss.json').exists() else '[]'
+            signature=content
+            if signature!=rss_content:
+                sync_snapshot()
+                rss_content=signature
+                rss_last=0
+            if time.monotonic()-rss_last>10:
+                reports=rss_report()
+                # A failed space measurement pauses new RSS only;
+                # it must never interrupt active downloads/seeders.
+                from rss_budget import admission_lock, status as budget_status
+                with admission_lock(Path('/config')):
+                    budget_status(call)
+                rss_last=time.monotonic()
+            status['rss']=reports
+        except Exception:
+            status['rss_error']=True
+        atomic('/config/maintenance-status.json',json.dumps(status),mode=0o644)
+        STOP.wait(.05 if checking_originals else 2)
+
+
+def run():
+    seed_session = uuid.uuid4().hex
+    publish_seed_health(False, seed_session)
+    process = None
+    started = 0
+    maintenance=Maintenance()
     lease=Lease()
     connection=None
     last_failure=None
@@ -112,7 +182,6 @@ def run():
         signal.signal(sig, lambda *_: STOP.set())
     try:
         while not STOP.is_set():
-            checking_originals=False
             status = {'ready':False, 'checked_at':time.time(), 'message':'Venter på beskyttet VPN-forbindelse.'}
             stage='vpn_status'
             context={}
@@ -145,19 +214,19 @@ def run():
                     publish_seed_health(False, seed_session)
                     stop_process(process,graceful=True)
                     process=None
+                    maintenance.stop()
                 exit_code=process.poll() if process is not None else None
                 if process is None or exit_code is not None:
                     seed_session = uuid.uuid4().hex
                     publish_seed_health(False, seed_session)
                     if process is not None:
                         LOG.warning('qBittorrent exited unexpectedly: returncode=%s',exit_code)
+                    maintenance.stop()
                     stage='process_start'
                     configure(private,announce_port=announce)
                     process = subprocess.Popen(['qbittorrent-nox','--profile=/config','--webui-port=8080','--confirm-legal-notice'],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     started = time.monotonic()
-                    rss_content=None
-                    share_last=0
                     connection=next_connection
                 stage='network_settings'
                 try:
@@ -187,43 +256,12 @@ def run():
                         if call('app/preferences').json().get('listen_port') != private:
                             raise ValueError('Port synchronization failed')
                     publish_seed_health(True, seed_session)
-                    from library_conversion import verification_pending
-                    checking_originals=verification_pending()
-                    if checking_originals or time.monotonic()-share_last>10:
-                        try:
-                            storage_errors=sync_share_limits()
-                            seeding_error=' '.join(dict.fromkeys(storage_errors)) or None
-                        except Exception:
-                            # A policy/read failure must not interrupt seeders.
-                            # VPN failures still reach the outer kill switch.
-                            seeding_error='Seedingkontrol fejlede; automatisk stop afventer næste kontrol.'
-                        share_last=time.monotonic()
-                        checking_originals=verification_pending()
-                    if seeding_error:
-                        status['seeding_error']=seeding_error
-                    try:
-                        content=Path('/config/fjord-rss.json').read_text() if Path('/config/fjord-rss.json').exists() else '[]'
-                        signature=content
-                        if signature!=rss_content:
-                            sync_snapshot()
-                            rss_content=signature
-                            rss_last=0
-                        if time.monotonic()-rss_last>10:
-                            reports=rss_report()
-                            # A failed space measurement pauses new RSS only;
-                            # it must never interrupt active downloads/seeders.
-                            from rss_budget import admission_lock, status as budget_status
-                            with admission_lock(Path('/config')):
-                                budget_status(call)
-                            rss_last=time.monotonic()
-                        status['rss']=reports
-                    except Exception:
-                        status['rss_error']=True
+                    status.update(maintenance.snapshot())
                     status.update(ready=True,port=public,public_torrent_port=public,internal_port=private,
                         torrent_mode='gateway' if gateway else 'dedicated',public_ip=address,country=country,
                         message='qBittorrent deler gatewayens VPN med sin egen åbne torrentport.' if gateway else 'qBittorrent kører gennem VPN.')
-                    if seeding_error:
-                        status['message']+=' '+seeding_error
+                    if status.get('seeding_error'):
+                        status['message']+=' '+status['seeding_error']
             except Exception as exc:
                 # Do not log exception text: HTTP errors can contain private URLs.
                 # Preserve the last failure after recovery so brief restarts remain diagnosable.
@@ -239,22 +277,22 @@ def run():
                 finally:
                     stop_process(process)
                 process = None
+                maintenance.stop()
                 connection=None
                 lease.close()
             if last_failure:
                 status['last_failure']=last_failure
             atomic('/config/worker-status.json', json.dumps(status), mode=0o644)
-            # Continue bounded verification chunks promptly, while still passing
-            # VPN health checks and publishing a fresh heartbeat between chunks.
-            STOP.wait(.05 if checking_originals else 2)
+            STOP.wait(2)
     finally:
         try:
             publish_seed_health(False, seed_session)
         finally:
+            maintenance.stop()
             stop_process(process, graceful=True)
             lease.close()
             atomic('/config/worker-status.json', json.dumps({'ready':False, 'checked_at':time.time(), 'message':'Seedbox stoppet.'}), mode=0o644)
 
 
 if __name__ == '__main__':
-    run()
+    run_maintenance() if '--maintenance' in sys.argv else run()
