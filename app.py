@@ -77,6 +77,10 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         # session. Their blueprint performs authentication before any work.
         if request.blueprint == 'conversion_worker':
             return
+        # These two routes use a single-use, ten-minute pairing bearer issued
+        # from an authenticated, CSRF-protected user session. No cookies trusted.
+        if request.endpoint in ('subtitle_auth_prepare', 'subtitle_auth_complete'):
+            return
         if request.method == 'POST':
             expected = session.get('csrf','')
             actual = request.headers.get('X-CSRF-Token') or request.form.get('csrf','')
@@ -816,6 +820,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
         threading.Thread(target=rss_gate.run, args=(stop,), daemon=True).start()
     from remote_conversion import register as register_remote_conversion
     register_remote_conversion(app,state,runtime)
+    from subtitle_translation import register as register_subtitles
+    register_subtitles(app,state,runtime,stop,testing)
     return app
 
 

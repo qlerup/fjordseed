@@ -60,3 +60,6 @@
 
 !conversion_workflow.py
 !conversion_options.py
+!subtitle_*.py
+!tools/
+!tools/chatgpt_login.py

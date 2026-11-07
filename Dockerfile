@@ -21,7 +21,13 @@ RUN curl --fail --location --retry 3 \
     && test "$(/out/qbittorrent-nox --version)" = "qBittorrent v${QBITTORRENT_VERSION}"
 
 FROM base
-RUN apk add --no-cache libtorrent-rasterbar qt6-qtbase ffmpeg mkvtoolnix
+RUN apk add --no-cache libtorrent-rasterbar qt6-qtbase ffmpeg mkvtoolnix tesseract-ocr \
+    tesseract-ocr-data-eng tesseract-ocr-data-dan tesseract-ocr-data-swe \
+    tesseract-ocr-data-nor tesseract-ocr-data-deu tesseract-ocr-data-fra \
+    tesseract-ocr-data-spa tesseract-ocr-data-ita tesseract-ocr-data-nld \
+    tesseract-ocr-data-por tesseract-ocr-data-fin tesseract-ocr-data-pol \
+    tesseract-ocr-data-ukr tesseract-ocr-data-ara tesseract-ocr-data-jpn \
+    tesseract-ocr-data-kor tesseract-ocr-data-chi_sim
 COPY --from=qbittorrent-build /out/qbittorrent-nox /usr/bin/qbittorrent-nox
 RUN qbittorrent-nox --version
 WORKDIR /app
@@ -31,6 +37,8 @@ COPY app.py deletion_events.py bot_upload.py event_notifier.py hub_email.py hub.
 COPY templates ./templates
 COPY streaming.py ./
 COPY conversion_workflow.py conversion_options.py conversion.py library_conversion.py shared_library.py media_bitrates.py ./
+COPY subtitle_text.py subtitle_pgs.py subtitle_media.py subtitle_auth.py subtitle_translation.py ./
+COPY tools/chatgpt_login.py ./tools/chatgpt_login.py
 COPY converter_runtime.py ./
 COPY dolby_backup.py dolby_jobs.py conversion_media.py conversion_decoder.py converter_worker.py remote_conversion.py remote_helper.py ./
 COPY seed_potential.py ./

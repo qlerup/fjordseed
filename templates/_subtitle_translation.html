@@ -1,0 +1,22 @@
+<section id="st-panel" hidden aria-labelledby="st-title">
+ <button type="button" id="st-back" class="quiet">← Alle konverteringer</button>
+ <div class="cw-toolbar"><div><p class="eyebrow">NYE SPROG · SAMME TIMING</p><h2 id="st-title">AI-oversættelse af undertekster</h2></div><button type="button" id="st-refresh" class="secondary">Opdater bibliotek</button></div>
+ <p class="muted">Film fra dit bevarede bibliotek til Fjordflix/Plex. Vælg en eller flere film, og tilpas kildespor og målsprog for hver film.</p>
+ <section class="connection st-account" aria-labelledby="st-account-title">
+  <h3 id="st-account-title">Din ChatGPT-konto</h3><p id="st-auth-status" role="status">Henter forbindelse …</p>
+  <div class="cw-field-grid"><label>Konto<select id="st-account"><option value="">Ingen konto</option></select></label><label>Model til oversættelse<select id="st-model"><option value="">Forbind ChatGPT først</option></select></label></div>
+  <div class="cw-toolbar"><button type="button" id="st-login" class="secondary">Continue with ChatGPT</button><button type="button" id="st-add-account" class="quiet">Tilføj en anden konto</button><button type="button" id="st-disconnect" class="quiet" hidden>Frakobl</button></div>
+  <p class="muted small">Oversættelse bruger den valgte ChatGPT-kontos adgang og forbrugsgrænser. Underteksternes tekst sendes til OpenAI. PGS tekstgenkendes på serveren først.</p>
+  <div id="st-login-guide" hidden><p>Login åbnes på din pc. Hent hjælperen, og kør kommandoen i en terminal med Python 3:</p><a href="/api/subtitles/login-helper" download="fjordseed-chatgpt-login.py">Hent loginhjælper</a><pre id="st-login-command"></pre><button type="button" id="st-copy-command" class="quiet">Kopiér kommando</button><p class="muted small">Brug Fjordseeds HTTPS-adresse. Ved lokal HTTP-adgang: opret en SSH-tunnel til serverens Fjordseed-port, åbn siden via http://127.0.0.1:8099, og start login derfra. Forbindelsen udløber efter 10 minutter.</p></div>
+ </section>
+ <p id="st-error" role="alert" class="error" hidden></p>
+ <div class="cw-toolbar"><label class="cw-search">Søg i biblioteket<input id="st-search" type="search" placeholder="Titel eller filnavn"></label><button type="button" id="st-select-visible" class="quiet">Vælg viste film</button><button type="button" id="st-clear" class="quiet">Ryd valg</button></div>
+ <p id="st-status" class="muted" role="status"></p><div id="st-films" class="cw-films"></div>
+ <div class="st-selection" id="st-selection" hidden><strong id="st-count"></strong><button type="button" id="st-configure" class="primary">Vælg sprog for filmene →</button></div>
+ <section class="connection" aria-labelledby="st-queue-title"><div class="cw-toolbar"><div><p class="eyebrow">ÉN FILM AD GANGEN</p><h3 id="st-queue-title">Oversættelseskø</h3></div><button type="button" id="st-jobs-refresh" class="quiet">Opdater kø</button></div><p class="muted small">Nye SRT-filer gemmes ved filmen. Eksisterende filer bevares. Ved fejl kan du genoptage de allerede oversatte blokke.</p><div id="st-jobs" aria-live="polite"></div></section>
+</section>
+<dialog id="st-dialog" class="cw-dialog" aria-labelledby="st-dialog-title"><form id="st-form">
+ <div class="cw-toolbar"><p id="st-step" class="eyebrow"></p><button type="button" id="st-close" class="quiet">Luk ×</button></div><h2 id="st-dialog-title"></h2>
+ <div id="st-fields"></div><p id="st-dialog-error" role="alert" class="error" hidden></p>
+ <div class="cw-dialog-actions"><button type="button" id="st-prev" class="secondary">Tilbage</button><button type="button" id="st-remove" class="quiet">Fjern fra valg</button><button type="submit" id="st-next" class="primary">Næste film →</button></div>
+</form></dialog>

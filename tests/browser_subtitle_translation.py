@@ -1,0 +1,68 @@
+"""Exercise the subtitle picker, multi-film wizard, auth guide and mobile layout."""
+from pathlib import Path, PurePosixPath
+import argparse, sys, tempfile, threading
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from playwright.sync_api import sync_playwright, expect
+from werkzeug.serving import make_server
+from app import create_app
+from test_app import FakeRuntime
+
+artifacts=Path(__file__).resolve().parents[1]/'test-results'/'subtitle-translation'
+artifacts.mkdir(parents=True,exist_ok=True)
+parser=argparse.ArgumentParser()
+parser.add_argument('--theme',choices=['fjord','nordic'],default='nordic')
+theme=parser.parse_args().theme
+tracks=[{'id':'stream:3','language':'en','codec':'hdmv_pgs_subtitle','kind':'embedded','forced':False,'supported':True,'label':'English'},
+        {'id':'file:Film.da.srt','language':'da','codec':'srt','kind':'sidecar','forced':False,'supported':True,'label':'Film.da.srt'}]
+items=[{'id':str(i),'name':f'Film-{i}.mkv','title':f'Film {i} · Rejsen gennem fjorden','eligible':True,'size':1234,
+    'tracks':tracks,'probed':True,'snapshot':'stamp','fingerprint':['1234','1'],'preferred':'stream:3'} for i in range(1,3)]
+auth={'connected':True,'enabled':True,'active':'oaiapp_test','revision':1,'accounts':[{'id':'oaiapp_test','email':'Testkonto','connected':True}]}
+class Demo(FakeRuntime):
+ host_downloads=PurePosixPath('/downloads')
+ def status(self): return {**super().status(),'enabled':True,'ready':True}
+with tempfile.TemporaryDirectory() as folder:
+ app=create_app(folder,testing=True,runtime_factory=Demo)
+ server=make_server('127.0.0.1',0,app,threaded=False)
+ threading.Thread(target=server.serve_forever,daemon=True).start()
+ try:
+  with sync_playwright() as p:
+   browser=p.chromium.launch(); page=browser.new_page(viewport={'width':1440,'height':1000}); errors=[]; submitted=[]
+   page.on('pageerror',lambda e:errors.append(str(e)))
+   page.route('**/api/subtitles/library',lambda r:r.fulfill(json={'items':items,'truncated':False}))
+   page.route('**/api/subtitles/library/*',lambda r:r.fulfill(json=items[int(r.request.url.rsplit('/',1)[1])-1]))
+   page.route('**/api/subtitles/jobs',lambda r:r.fulfill(json={'jobs':[],'languages':{'en':'Engelsk','da':'Dansk','sv':'Svensk','de':'Tysk'},'auth':auth}))
+   page.route('**/api/subtitles/models?*',lambda r:r.fulfill(json={'models':[{'id':'test-model','name':'Testmodel'}]}))
+   page.route('**/api/subtitles/auth/begin',lambda r:r.fulfill(json={'pair':'test-pair','expires_in':600}))
+   page.route('**/api/conversion/workflow',lambda r:r.fulfill(json={'items':[],'jobs':[]}))
+   def queue(route): submitted.append(route.request.post_data_json);route.fulfill(json={'ok':True})
+   page.route('**/api/subtitles/queue',queue)
+   page.goto(f'http://127.0.0.1:{server.server_port}')
+   page.locator('[name=username]').fill('admin');page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip());page.get_by_role('button',name='Log ind',exact=True).click()
+   page.goto(f'http://127.0.0.1:{server.server_port}/#appearance')
+   page.locator(f'[name=theme][value={theme}]').check();page.locator('#appearance-save').click()
+   expect(page.locator('#appearance-status')).to_contain_text('er gemt');page.reload()
+   page.goto(f'http://127.0.0.1:{server.server_port}/#conversion');page.locator('#st-open').click()
+   expect(page.locator('.st-film')).to_have_count(2)
+   expect(page.locator('#st-model')).to_have_value('test-model')
+   for width in (1440,390,320):
+    page.set_viewport_size({'width':width,'height':1000})
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),f'overflow at {width}'
+    page.screenshot(path=str(artifacts/f'{theme}-library-{width}.png'),full_page=True)
+   page.locator('#st-select-visible').click();page.locator('#st-configure').click()
+   expect(page.locator('#st-dialog')).to_be_visible()
+   page.locator('.st-languages summary').click()
+   expect(page.get_by_label('Dansk · findes allerede')).to_be_disabled()
+   page.get_by_label('Svensk',exact=True).check();page.get_by_label('Tysk',exact=True).check()
+   page.screenshot(path=str(artifacts/f'{theme}-languages-mobile.png'),full_page=True)
+   page.locator('#st-next').click();page.locator('.st-languages summary').click();page.get_by_label('Tysk',exact=True).check()
+   page.locator('#st-next').click();expect(page.locator('#st-fields')).to_contain_text('Nye sprog: Svensk, Tysk')
+   page.locator('#st-next').click();expect(page.locator('#st-dialog')).to_be_hidden()
+   assert [i['targets'] for i in submitted[0]['items']]==[['sv','de'],['de']]
+   assert all(i['source']=='stream:3' for i in submitted[0]['items'])
+   page.locator('#st-login').click();expect(page.locator('#st-login-guide')).to_be_visible()
+   page.wait_for_timeout(5200);expect(page.locator('#st-login-guide')).to_be_visible()
+   page.locator('#st-back').click();expect(page.locator('#cw-cards')).to_be_visible()
+   assert not errors,errors
+   print('PASS: per-film languages, PGS/SRT, existing-language guard, login guide, 1440/390/320px, no JS errors')
+   browser.close()
+ finally: server.shutdown()

@@ -314,6 +314,9 @@ def execute(action, data):
         if action=='library-shared-cancel':return shared_library.cancel(call,data.get('id'),data.get('device'))
         if action=='library-shared-error':return shared_library.failed(data.get('id'),data.get('device'),data.get('detail'))
         return shared_library.status(call,data.get('id'),data.get('device'),claim=data.get('claim') is True)
+    if action.startswith('library-subtitle-'):
+        import subtitle_media
+        return subtitle_media.dispatch(call, action.removeprefix('library-subtitle-'), data)
     if action.startswith('library-workflow-'):
         import conversion_workflow as workflow
         kind = action.removeprefix('library-workflow-')

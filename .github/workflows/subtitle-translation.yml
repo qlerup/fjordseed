@@ -1,0 +1,24 @@
+name: Subtitle translation
+on:
+  push:
+    paths:
+      - 'subtitle_*.py'
+      - 'tools/chatgpt_login.py'
+      - 'tests/test_subtitle_translation.py'
+      - 'requirements.txt'
+      - 'Dockerfile'
+      - '.github/workflows/subtitle-translation.yml'
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -r requirements.txt pytest
+      - run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ffmpeg tesseract-ocr tesseract-ocr-eng
+      - run: python -m pytest tests/test_subtitle_translation.py tests/test_app.py -q

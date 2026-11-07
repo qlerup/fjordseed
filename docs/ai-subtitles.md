@@ -1,0 +1,36 @@
+# AI-oversættelse af undertekster
+
+Under **Indstillinger → Konvertering → AI-oversættelse** vælges film fra det eksisterende bevarede bibliotek. Film under download, flytning eller konvertering kan ikke behandles. Seeder og Originals er ikke med i listen.
+
+For hver film vises indbyggede undertekstspor samt `.srt` og `.sup` med samme grundnavn ved filmen. Sproget læses fra spormetadata eller sprogmærket i filnavnet. Et fuldt engelsk spor foretrækkes; tekst foretrækkes frem for PGS inden for samme sprog. Kildespor og flere målsprog vælges individuelt. Eksisterende sprog kan ikke vælges som nye mål.
+
+Oversatte filer gemmes som `Film.da.srt`, `Film.sv.srt` osv. Et forced-kildespor giver eksempelvis `Film.da.forced.srt`. Videoen og eksisterende undertekster ændres aldrig. Plex/Fjordflix kan kræve en biblioteksopdatering, før nye filer vises.
+
+## PGS og timing
+
+PGS indeholder billeder, paletter, kompositioner og præsentationstider. Programmet udtrækker SUP med FFmpeg, samler billederne og læser teksten med Tesseract på serveren. Hver komposition afsluttes ved næste komposition/clear. PGS-tider i 90 kHz afrundes til nærmeste millisekund, som SRT understøtter. Et spor med manglende sluttid, beskadigede billeder eller ulæselig tekst fejler frem for at få opdigtede tider. Ukendt OCR-kildesprog forsøges som engelsk.
+
+OpenAI modtager kun tekst og blok-ID'er. Tidskoder opbevares lokalt og sættes på resultatet igen. AI-svar med manglende, ombyttede eller tomme blokke afvises. OCR og oversættelse kan stadig indeholde sproglige fejl; kontrollér resultatet, især ved stiliserede PGS-undertekster.
+
+## ChatGPT-login
+
+Integrationen følger [Sign in with ChatGPT](https://developers.openai.com/siwc/token-sharing-open-source/sign-in) og bruger det offentlige [Responses API](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference). Den kræver adgang til ChatGPT-planbrug; et identitetslogin alene er utilstrækkeligt. Tilgængelige modeller hentes for den valgte konto.
+
+1. Åbn Fjordseed over HTTPS, eller gennem en SSH-tunnel på `http://127.0.0.1:8099`.
+2. Klik **Continue with ChatGPT**, hent loginhjælperen, og kør den viste kommando på browserens pc med Python 3.
+3. Hjælperen åbner en lokal loopback-listener og OpenAI-login i browseren. Godkend kontoen og planadgangen.
+4. Returkoden sendes tilbage til Fjordseed med en engangsforbindelse. Serveren udveksler koden med PKCE og validerer JWT-signatur, issuer, audience, udløb og nonce. Ingen adgangs- eller refresh-tokens gemmes i browseren eller hjælperen.
+
+Hjælperen bruger kun Pythons standardbibliotek. Den accepterer HTTPS eller localhost for forbindelsen til Fjordseed. En SSH-tunnel kan eksempelvis oprettes med `ssh -L 8099:127.0.0.1:8099 bruger@server`; tilpas serverporten til installationen. Log derefter ind i Fjordseed gennem tunneladressen før du starter ChatGPT-login.
+
+Hver Fjordhub-bruger har egne kontoforbindelser og oversættelsesjobs. Den lokale admin-loginform er én fælles lokal bruger. Konto og model fastholdes i jobbet. Credentials gemmes med ejeradgang i `/data/subtitle-accounts`; denne mappe må ikke deles med andre brugere. Frakobling forsøger at tilbagekalde refresh-sessionen hos OpenAI og fjerner lokale tokens.
+
+## Kø og drift
+
+Køen gemmes i `/data/subtitle-translations/jobs.json`. Originalt tekstudtræk og færdige oversættelsesblokke gemmes under jobbets mappe. Genoptagelse oversætter kun manglende blokke. Efter servergenstart skal afbrudte jobs genoptages eksplicit. Annullering stopper ved næste blokgrænse; allerede publicerede sprog bevares. Filer oprettes atomisk uden overskrivning, og publikationskvitteringer gør genforsøg idempotente.
+
+Underteksternes udtrækning kører i den eksisterende qBittorrent-container med adgang til den valgte biblioteksmappe; OpenAI-kald og credentials ligger i webapp-containeren. Funktionen kræver ikke GPU-konvertering. qBittorrent-containeren skal være startet for at læse biblioteket.
+
+Docker-imaget skal genbygges med de nye moduler, Pillow, PyJWT og Tesseract-sprogpakker. Opdatér også den styrede qBittorrent-container til det nye image via installationens normale opdateringsflow. Der er ingen databaseændring.
+
+Test: `python -m pytest tests/test_subtitle_translation.py tests/test_app.py tests/test_conversion_workflow.py -q` på Linux med FFmpeg. UI-test: `python tests/browser_subtitle_translation.py` med Playwright Chromium. Live OAuth, kontoadgang og oversættelseskvalitet skal verificeres med en rigtig ChatGPT-konto; de automatiske tests bruger syntetiske undertekster og simulerede AI-svar.

@@ -3,8 +3,9 @@
  <button type="button" class="cw-card" data-mode="full"><span class="cw-card-icon" aria-hidden="true">◈</span><strong>Fuld konvertering</strong><span>Tilpas video, bitrate, Dolby Vision, lydspor og undertekster. Tilføj AC3 eller E-AC3 med originale kanaler.</span><b>Video + lyd →</b></button>
  <button type="button" class="cw-card" data-mode="video"><span class="cw-card-icon" aria-hidden="true">▣</span><strong>Kun video</strong><span>Justér bitrate og Dolby Vision. Alle lydspor og undertekster følger uændret med.</span><b>Vælg video →</b></button>
  <button type="button" class="cw-card" data-mode="audio"><span class="cw-card-icon" aria-hidden="true">♫</span><strong>Kun lyd</strong><span>Vælg lydsprog og tilføj AC3 eller E-AC3. Videoen kopieres uden ny komprimering.</span><b>Vælg lyd →</b></button>
- <div class="cw-card cw-coming" aria-disabled="true"><span class="cw-card-icon" aria-hidden="true">文</span><strong>AI-oversættelse</strong><span>Oversæt filmens eksisterende undertekster til nye sprog.</span><b>Kommer senere</b></div>
+ <button type="button" id="st-open" class="cw-card"><span class="cw-card-icon" aria-hidden="true">文</span><strong>AI-oversættelse</strong><span>Oversæt SRT og PGS til nye sprog med samme timing. Vælg sprog for hver film.</span><b>Vælg undertekster →</b></button>
 </div>
+{% include '_subtitle_translation.html' %}
 <section id="cw-library" hidden aria-labelledby="cw-title">
  <button type="button" id="cw-back" class="quiet">← Alle konverteringer</button>
  <div class="cw-toolbar"><div><p class="eyebrow">VÆLG FILM</p><h2 id="cw-title"></h2></div><button type="button" id="cw-refresh" class="secondary">Opdater bibliotek</button></div>
