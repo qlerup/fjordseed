@@ -41,9 +41,9 @@ with tempfile.TemporaryDirectory() as folder:
    page.route('**/api/subtitles/models?*',lambda r:r.fulfill(json={'models':[{'id':'test-model','name':'Testmodel'}]}))
    def login(route):
     auth['login']={'state':'waiting','user_code':'ABCD-1234','verification_url':'https://auth.openai.com/codex/device'}
-    route.fulfill(json=auth)
+    route.fulfill(json={**auth,'login':{'state':'starting'}})
    page.route('**/api/subtitles/auth/device',login)
-   page.route('https://auth.openai.com/**',lambda r:r.fulfill(body='Mock OpenAI login'))
+   page.context.route('https://auth.openai.com/**',lambda r:r.fulfill(body='Mock OpenAI login'))
    page.route('**/api/subtitles/auth/cancel',lambda r:(auth.pop('login',None),r.fulfill(json={'ok':True})))
    page.route('**/api/conversion/workflow',lambda r:r.fulfill(json={'items':[],'jobs':[]}))
    def queue(route): submitted.append(route.request.post_data_json);route.fulfill(json={'ok':True})
@@ -72,11 +72,16 @@ with tempfile.TemporaryDirectory() as folder:
    page.locator('#st-next').click();expect(page.locator('#st-dialog')).to_be_hidden()
    assert [i['targets'] for i in submitted[0]['items']]==[['sv','de'],['de']]
    assert all(i['source']=='stream:3' for i in submitted[0]['items'])
-   page.locator('#st-login').click();expect(page.locator('#st-login-guide')).to_be_visible()
+   page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:()=>true})")
+   with page.expect_popup() as popup:
+    page.locator('#st-login').click()
+   expect(page.locator('#st-login-guide')).to_be_visible()
+   expect(popup.value).to_have_url('https://auth.openai.com/codex/device',timeout=12000)
    expect(page.locator('#st-login-code')).to_have_text('ABCD-1234')
    expect(page.locator('#st-login-link')).to_have_attribute('href','https://auth.openai.com/codex/device')
    page.wait_for_timeout(5200);expect(page.locator('#st-login-guide')).to_be_visible()
    page.locator('#st-login-cancel').click();expect(page.locator('#st-login-guide')).to_be_hidden()
+   page.evaluate("delete document.hidden")
    page.locator('#st-back').click();expect(page.locator('#cw-cards')).to_be_visible()
    assert not errors,errors
    print('PASS: per-film languages, PGS/SRT, existing-language guard, login guide, 1440/390/320px, no JS errors')

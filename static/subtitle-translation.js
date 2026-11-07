@@ -109,9 +109,10 @@
  $('st-prev').onclick=()=>{if(!busy&&step>0){step--;showStep();}};
  $('st-remove').onclick=()=>{if(!busy&&step<review.length){selected.delete(review[step].id);review.splice(step,1);showStep();selection();}};
  $('st-close').onclick=()=>{if(!busy)$('st-dialog').close();};$('st-dialog').addEventListener('cancel',e=>{if(busy)e.preventDefault();});
- let loginWindow=null,openedCode=null;
+ let loginWindow=null,openedCode=null,loginActive=false;
  function renderLogin(login){
   const active=login&&['starting','waiting'].includes(login.state);
+  loginActive=!!active;
   $('st-login').disabled=!!active;$('st-add-account').disabled=!!active;
   if(!login)return;
   $('st-login-guide').hidden=login.state==='completed'||login.state==='cancelled';
@@ -126,9 +127,9 @@
   }else{$('st-login-code').textContent='';$('st-login-link').removeAttribute('href');if(!active&&loginWindow&&!loginWindow.closed){loginWindow.close();loginWindow=null;}}
  }
  async function login(newAccount=false){
-  loginWindow=window.open('about:blank','_blank');if(loginWindow)loginWindow.opener=null;
+  loginWindow=window.open('about:blank','_blank');if(loginWindow){loginWindow.opener=null;loginWindow.document.title='Åbner OpenAI-login';loginWindow.document.body.textContent='Forbereder OpenAI-login … Du bliver automatisk sendt videre om et øjeblik.';}
   try{loginRevision=auth.revision||0;const result=await post('auth/device',{account:newAccount?null:auth.active});renderLogin(result.login);}
-  catch(e){if(loginWindow&&!loginWindow.closed)loginWindow.close();loginWindow=null;error('st-error',e.message);}
+  catch(e){loginActive=false;if(loginWindow&&!loginWindow.closed)loginWindow.close();loginWindow=null;error('st-error',e.message);}
  }
  $('st-login').onclick=()=>login();$('st-add-account').onclick=()=>login(true);
  $('st-copy-code').onclick=async()=>{try{await navigator.clipboard.writeText($('st-login-code').textContent);$('st-copy-code').textContent='Kopieret';}catch{error('st-error','Markér og kopiér koden manuelt.');}};
@@ -140,5 +141,5 @@
  $('st-search').oninput=()=>{limit=40;render();probeVisible();};$('st-clear').onclick=()=>{selected.clear();render();};
  $('st-select-visible').onclick=()=>{for(const f of visible().slice(0,limit))if(detail(f).eligible)selected.add(f.id);render();};
  $('st-refresh').onclick=()=>{modelsFor=null;loadJobs();loadLibrary();};$('st-jobs-refresh').onclick=loadJobs;
- setInterval(()=>{if(open&&!document.hidden&&!$('st-dialog').open)loadJobs();},5000);
+ setInterval(()=>{if(loginActive||(open&&!document.hidden&&!$('st-dialog').open))loadJobs();},5000);
 })();
