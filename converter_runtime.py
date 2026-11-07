@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+from types import SimpleNamespace
 from pathlib import PurePosixPath
 
 import docker
@@ -12,10 +13,13 @@ OWNER='dk.fjordseed.converter-owner'
 
 def sync(runtime):
     name=os.environ.get('FJORDSEED_CONVERTER_CONTAINER','')
-    if not name:return
-    try:template=runtime.client.containers.get(name)
-    except docker.errors.NotFound:raise ValueError('GPU-servicen er ikke installeret endnu.') from None
-    if (template.labels.get('com.docker.compose.project')!=runtime.project or
+    audio_only=not name
+    if audio_only:
+        template=SimpleNamespace(attrs={'Image':runtime.image,'HostConfig':{}})
+    else:
+        try:template=runtime.client.containers.get(name)
+        except docker.errors.NotFound:raise ValueError('GPU-servicen er ikke installeret endnu.') from None
+    if not audio_only and (template.labels.get('com.docker.compose.project')!=runtime.project or
             template.labels.get('com.docker.compose.service')!='converter'):
         raise ValueError('GPU-servicen tilhører ikke denne FjordSeed-installation.')
     identity=runtime.state.get()['id']
@@ -28,8 +32,8 @@ def sync(runtime):
     gpu=template.attrs['HostConfig']
     devices=gpu.get('Devices') or []
     requests=gpu.get('DeviceRequests') or []
-    if not requests:raise ValueError('GPU-servicen mangler NVIDIA Container Toolkit-adgang.')
-    signature=hashlib.sha256(json.dumps(['shared-queue-v1',template.attrs['Image'],roots,runtime.uid,runtime.gid,devices,requests],sort_keys=True).encode()).hexdigest()
+    if not audio_only and not requests:raise ValueError('GPU-servicen mangler NVIDIA Container Toolkit-adgang.')
+    signature=hashlib.sha256(json.dumps(['shared-queue-v2',audio_only,template.attrs['Image'],roots,runtime.uid,runtime.gid,devices,requests],sort_keys=True).encode()).hexdigest()
     if worker and worker.labels.get('dk.fjordseed.converter-config')!=signature:
         worker.stop(timeout=30);worker.remove();worker=None
     if worker is None:
@@ -40,7 +44,8 @@ def sync(runtime):
             command=['python3','/app/converter_worker.py'],network_disabled=True,read_only=True,
             user=f'{runtime.uid}:{runtime.gid}',mounts=mounts,
             environment={'FJORDSEED_BUFFERS':':'.join([*('/buffers/'+str(i) for i in range(len(roots))),*('/shared/'+str(i) for i in range(len(roots)))]),
-                         'NVIDIA_VISIBLE_DEVICES':'all','NVIDIA_DRIVER_CAPABILITIES':'compute,video,utility','LC_ALL':'C.UTF-8'},
+                         'FJORDSEED_AUDIO_ONLY':'1' if audio_only else '0',
+                         'NVIDIA_VISIBLE_DEVICES':'none' if audio_only else 'all','NVIDIA_DRIVER_CAPABILITIES':'compute,video,utility','LC_ALL':'C.UTF-8'},
             devices=[f"{d['PathOnHost']}:{d['PathInContainer']}:{d.get('CgroupPermissions','rwm')}" for d in devices],
             device_requests=[docker.types.DeviceRequest(driver=d.get('Driver',''),count=d.get('Count',-1),
                 device_ids=d.get('DeviceIDs') or [],capabilities=d.get('Capabilities',[]),options=d.get('Options') or {}) for d in requests],

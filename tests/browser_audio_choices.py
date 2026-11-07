@@ -1,6 +1,6 @@
 """Exercise the per-film wizard without modifying torrents or library files."""
 from pathlib import Path, PurePosixPath
-import argparse, copy, json, sys, tempfile, threading
+import argparse, copy, json, sys, tempfile, threading, time
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from playwright.sync_api import sync_playwright, expect
 from werkzeug.serving import make_server
@@ -22,6 +22,7 @@ items=[{'id':str(i),'name':f'Film-{i}.mkv','title':f'Film {i} · En rejse gennem
 items[2]['size']=512*1024**2
 items[1]['size']=1024**3  # Conversion grows this file; the first film saves space.
 items.reverse()  # Deliberately unsorted: largest saving must be shown first.
+jobs=[]
 class Demo(FakeRuntime):
  host_downloads=PurePosixPath('/downloads')
  def status(self):return {**super().status(),'enabled':True,'ready':True}
@@ -36,7 +37,7 @@ with tempfile.TemporaryDirectory() as folder:
   with sync_playwright() as p:
    browser=p.chromium.launch();page=browser.new_page(viewport={'width':1440,'height':1000});errors=[];submitted=[]
    page.on('pageerror',lambda e:errors.append(str(e)))
-   page.route('**/api/conversion/workflow',lambda r:r.fulfill(json={'items':copy.deepcopy(items),'jobs':[]}))
+   page.route('**/api/conversion/workflow',lambda r:r.fulfill(json={'items':copy.deepcopy(items),'jobs':copy.deepcopy(jobs)}))
    page.route('**/api/conversion/workflow/*/media',lambda r:r.fulfill(json={'media':media,'fingerprint':[str(50*1024**3),'1794015885417718001']}))
    def queue(route):submitted.append(route.request.post_data_json);route.fulfill(json={'ok':True})
    page.route('**/api/conversion/workflow/queue',queue)
@@ -102,6 +103,22 @@ with tempfile.TemporaryDirectory() as folder:
    expect(convert).to_contain_text('5 originalspor · 5 konverterede spor')
    page.set_viewport_size({'width':1440,'height':1000})
    page.screenshot(path=str(artifacts/f'{theme}-audio-eac3.png'))
+   page.locator('#cw-close').click()
+   jobs.append({'id':'progress-demo','name':'Progress test','options':{'mode':'audio'},'state':'running','phase':'encoding','stage':'audio_encoding','phase_progress':37.5,'progress':37.5,'eta_seconds':120,'at':time.time(),'detail':'Konverterer lyd'})
+   page.locator('#cw-queue-refresh').click()
+   expect(page.locator('#cw-jobs progress')).to_have_attribute('value','37.5')
+   expect(page.locator('#cw-jobs')).to_contain_text('37,5 % af dette trin')
+   expect(page.locator('#cw-jobs')).to_contain_text('ca. 2 min tilbage i dette trin')
+   page.screenshot(path=str(artifacts/f'{theme}-live-progress.png'))
+   jobs[0]['at']=time.time()-90
+   page.locator('#cw-queue-refresh').click()
+   expect(page.locator('#cw-jobs')).to_contain_text('afventer ny status')
+   expect(page.locator('#cw-jobs')).not_to_contain_text('tilbage i dette trin')
+   jobs[0].update(phase='queued',phase_progress=None,eta_seconds=None)
+   page.locator('#cw-queue-refresh').click()
+   expect(page.locator('#cw-jobs')).to_contain_text('konverteringen er ikke startet')
+   expect(page.locator('#cw-jobs progress')).to_have_count(0)
+   expect(page.locator('#cw-jobs')).not_to_contain_text('Arbejder')
    assert not errors,errors
    print('PASS: per-track audio, both formats, converted-only output, persisted selections, five EAC3 languages, mobile layouts; no JS errors')
    browser.close()

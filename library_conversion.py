@@ -185,7 +185,7 @@ def public_job(job):
             'state': 'error' if job.get('error') else result.get('state', job['phase']),
             'detail': job.get('error') or result.get('detail', ''),
             'progress': result.get('progress', 0),
-            **{k:result[k] for k in ('stage','stage_started_at','at','phase_progress') if k in result}}
+            **{k:result[k] for k in ('stage','stage_started_at','at','phase_progress','eta_seconds') if k in result}}
 
 
 def listing(api):

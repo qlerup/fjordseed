@@ -60,7 +60,7 @@ def status(record):
         data = json.loads(checked(Path(record['stage'])/DIRECTORY/'status.json').read_text())
         if data.get('id') != record.get('conversion_id'):
             raise ValueError()
-        return {key:data[key] for key in ('state','progress','detail','stage','stage_started_at','at') if key in data}
+        return {key:data[key] for key in ('state','progress','detail','stage','stage_started_at','at','phase_progress','eta_seconds') if key in data}
     except (OSError, ValueError, TypeError):
         return {'state':'queued' if record.get('conversion_id') else 'downloading', 'progress':0,
                 'detail':'Venter på GPU-konvertering' if record.get('conversion_id') else 'Downloader originalen til bufferen'}

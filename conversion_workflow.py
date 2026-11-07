@@ -214,6 +214,8 @@ def tick(api, rows, credit=None):
                 current = storage.read(library.ledger(), {})[current['id']]
             public = library.public_job(current)
             job.update(progress=public['progress'], detail=public['detail'], phase=public['state'])
+            for field in ('stage','stage_started_at','at','phase_progress','eta_seconds'):
+                job[field] = public.get(field)
             if current.get('phase') == 'published':
                 if current.get('manual'):
                     if current.get('result_verify_required'):

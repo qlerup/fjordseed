@@ -141,6 +141,22 @@ def test_queue_uses_server_then_pauses_before_native_move_and_applies_policy(fil
     assert not workflow.pending(row['hash'])
     assert (Path(job['seed'])/'film.mp4').read_bytes()==b'original video'
 
+
+def test_measured_worker_status_reaches_queue_and_eta_clears(film,prepared):
+    from converter_worker import report
+    workflow.enqueue(film[-1],{'items':[prepared]})
+    workflow.tick(film[-1],film[3])
+    job=next(iter(storage.read(library.ledger(),{}).values()))
+    work=Path(job['stage'])/DIRECTORY
+    report(work,job['id'],'encoding','Audio',25,stage='audio_encoding',eta_seconds=30)
+    workflow.tick(film[-1],film[3])
+    current=workflow.read()['jobs'][0]
+    assert current['phase_progress']==25 and current['eta_seconds']==30 and current['stage']=='audio_encoding'
+    report(work,job['id'],'verifying','Checking')
+    workflow.tick(film[-1],film[3])
+    current=workflow.read()['jobs'][0]
+    assert current['phase_progress'] is None and current['eta_seconds'] is None
+
 def test_file_change_fails_without_touching_original(film,prepared):
     workflow.enqueue(film[-1],{'items':[prepared]})
     (film[1]/'film.mp4').write_bytes(b'new movie')
@@ -311,9 +327,16 @@ def test_worker_executes_reviewed_modes_and_publishes_receipt(tmp_path,monkeypat
     monkeypatch.setattr(worker,'select_decoder',lambda *args:'avsw')
     monkeypatch.setattr(worker,'restore_flags',lambda *args,**kwargs:None)
     monkeypatch.setattr(conversion_media,'restore_flags',lambda *args,**kwargs:None)
+    reports=[]
+    real_report=worker.report
+    def capture(*args,**kwargs):
+        real_report(*args,**kwargs)
+        reports.append(json.loads((work/'status.json').read_text()))
+    monkeypatch.setattr(worker,'report',capture)
     worker.run_job(work)
     status=json.loads((work/'status.json').read_text())
     assert status['state']=='ready',status
+    assert any(r['stage']=='audio_encoding' and r['progress']>0 for r in reports)
     assert len(video_calls)==(0 if mode=='audio' else 1)
     output=conversion_media.probe(work/'result'/'movie.mkv')
     audio=[s for s in output['streams'] if s['codec_type']=='audio']

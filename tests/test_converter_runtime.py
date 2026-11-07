@@ -32,7 +32,13 @@ def test_worker_has_gpu_but_only_buffer_mounts_and_no_network(runtime):
     assert args['labels'][OWNER]==runtime.state.get()['id']
 
 
-def test_uninstalled_gpu_has_no_effect_on_downloads(runtime,monkeypatch):
+def test_without_gpu_creates_scoped_cpu_audio_worker(runtime,monkeypatch):
     monkeypatch.delenv('FJORDSEED_CONVERTER_CONTAINER')
+    runtime.client.containers.get.side_effect=docker.errors.NotFound('missing')
     sync(runtime)
-    runtime.client.containers.get.assert_not_called()
+    args=runtime.client.containers.create.call_args.kwargs
+    assert runtime.client.containers.create.call_args.args[0]=='seed-app-image'
+    assert args['devices']==[] and args['device_requests']==[]
+    assert args['environment']['FJORDSEED_AUDIO_ONLY']=='1'
+    assert args['network_disabled'] and args['read_only']
+    assert args['mounts'][0]['Source']=='/mnt/media/.incomplete'

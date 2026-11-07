@@ -145,8 +145,19 @@
   const list=$('cw-jobs');list.replaceChildren();const active=jobs.filter(j=>!['done','cancelled'].includes(j.state)),show=[...active.slice(0,100),...jobs.filter(j=>j.state==='done').slice(-10)];
   if(active.length>100)list.append(node('p','Viser de første 100 af '+active.length+' film i kø.','muted small'));
   if(!show.length)list.append(node('p','Ingen film i kø.','muted'));
-  show.forEach((j,index)=>{const row=node('div',null,'cw-job'),copy=node('div');copy.append(node('strong',j.name),node('p',(labels[j.options.mode]||'')+' · '+({queued:'Venter',starting:'Klargør',running:'Arbejder',done:'Færdig',error:'Kræver kontrol'}[j.state]||j.state),'small'),node('p',j.detail||'','muted small'));
-   if(j.state==='running'){const progress=node('progress');progress.max=100;if(j.phase==='encoding')progress.value=j.progress||0;copy.append(progress);}
+  show.forEach((j,index)=>{const row=node('div',null,'cw-job'),copy=node('div');copy.append(node('strong',j.name),node('p',(labels[j.options.mode]||'')+' · '+({queued:'Venter',starting:'Klargør',running:j.phase==='queued'?'Venter':j.phase==='preparing'?'Klargør':'Arbejder',done:'Færdig',error:'Kræver kontrol'}[j.state]||j.state),'small'),node('p',j.detail||'','muted small'));
+   if(j.state==='running'&&['queued','preparing'].includes(j.phase)){
+    copy.append(node('p',j.phase==='preparing'?'Klargør arbejdskopien · konverteringen er ikke startet':'Venter på konverteringsworker · konverteringen er ikke startet','muted small'));
+   }else if(j.state==='running'){
+    const progress=node('progress');progress.max=100;
+    const value=Number.isFinite(j.phase_progress)?j.phase_progress:j.phase==='encoding'&&Number.isFinite(j.progress)?j.progress:null;
+    const stale=Number.isFinite(j.at)&&Date.now()/1000-j.at>45;
+    progress.setAttribute('aria-label','Fremdrift i det aktuelle trin');
+    if(value!==null)progress.value=Math.max(0,Math.min(100,value));
+    const status=value===null?'Arbejder · dette trin har endnu ingen procentmåling':new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(value)+' % af dette trin';
+    const eta=!stale&&Number.isFinite(j.eta_seconds)&&j.eta_seconds>=0?' · '+(j.eta_seconds<60?'under 1 min':timeRange({low:j.eta_seconds,high:j.eta_seconds}).replace('Ca. ','ca. '))+' tilbage i dette trin':'';
+    copy.append(progress,node('p',status+eta+(stale?' · afventer ny status fra serveren':''),'muted small'));
+   }
    row.append(copy);
    if(j.state==='queued'||(j.state==='error'&&!j.library_id))row.append(button('Fjern fra kø',()=>act('cancel',j.id),'quiet'));
    if(j.state==='error')row.append(button('Prøv igen',()=>act('retry',j.id)));
