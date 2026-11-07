@@ -149,6 +149,40 @@ def test_file_change_fails_without_touching_original(film,prepared):
     assert not library.ledger().exists()
     assert (film[1]/'film.mp4').read_bytes()==b'new movie'
 
+
+def test_browser_fingerprint_preserves_nanoseconds_and_enqueues(film, prepared):
+    import os
+    source = film[1]/'film.mp4'
+    timestamp = 1794015885417718001
+    os.utime(source, ns=(timestamp, timestamp))
+    stamp = library.fingerprint(source)
+    details = workflow.details(film[-1], prepared['id'])
+    assert details['fingerprint'] == [str(part) for part in stamp]
+    assert all(type(part) is str for part in details['fingerprint'])
+    item = next(i for i in workflow.listing(film[-1])['items'] if i['id']==prepared['id'])
+    assert item['fingerprint'] == details['fingerprint']
+    workflow.enqueue(film[-1], {'items':[{**prepared,'fingerprint':details['fingerprint']}]})
+    assert workflow.read()['jobs'][0]['fingerprint'] == stamp
+
+
+def test_fingerprint_does_not_hide_one_nanosecond_changes():
+    stamp = [37473533952, 1794015885417718001]
+    assert int(float(stamp[1])) != stamp[1]  # The old browser Number path loses precision.
+    assert workflow.fingerprint_matches(workflow.browser_fingerprint(stamp), stamp)
+    assert workflow.fingerprint_matches(stamp, stamp)  # Existing exact API callers.
+    assert not workflow.fingerprint_matches([stamp[0], int(float(stamp[1]))], stamp)
+    assert not workflow.fingerprint_matches(workflow.browser_fingerprint([stamp[0],stamp[1]+1]),stamp)
+    for value in (None, [], {}, ['37473533952'], [True,stamp[1]], [stamp[0],float(stamp[1])]):
+        assert not workflow.fingerprint_matches(value,stamp)
+
+
+def test_changed_file_still_rejected_with_browser_fingerprint(film,prepared):
+    stamp = workflow.browser_fingerprint(library.fingerprint(film[1]/'film.mp4'))
+    (film[1]/'film.mp4').write_bytes(b'changed after opening the dialog')
+    with pytest.raises(ValueError,match='Genåbn'):
+        workflow.enqueue(film[-1],{'items':[{**prepared,'fingerprint':stamp}]})
+    assert not workflow.read()['jobs']
+
 @pytest.mark.parametrize('codec', ['ac3','eac3','both'])
 @pytest.mark.parametrize('layout,channels', [('mono',1),('stereo',2),('5.1',6)])
 @pytest.mark.parametrize('keep_original', [True, False])
@@ -295,7 +329,7 @@ def test_worker_executes_reviewed_modes_and_publishes_receipt(tmp_path,monkeypat
 def test_header_read_does_not_query_all_torrent_owners(film, prepared):
     api=film[-1];api.reset_mock()
     result=workflow.details(api,prepared['id'])
-    assert result['fingerprint']==prepared['fingerprint']
+    assert result['fingerprint']==workflow.browser_fingerprint(prepared['fingerprint'])
     assert result['media']['streams'][0]['codec_name']=='hevc'
     api.assert_not_called()
 

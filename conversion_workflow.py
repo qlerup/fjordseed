@@ -19,6 +19,19 @@ def read(): return storage.read(ledger(), {'jobs': [], 'skipped': {}})
 def save(data): atomic(ledger(), json.dumps(data))
 
 
+def browser_fingerprint(stamp):
+    # Nanosecond timestamps exceed JavaScript's safe integer range. Keep the
+    # internal integer representation, but send decimal strings to browsers.
+    return [str(part) for part in stamp]
+
+
+def fingerprint_matches(received, stamp):
+    # Accept exact legacy integers as well; never round away real file changes.
+    return (isinstance(received, list) and len(received) == len(stamp)
+            and all(type(part) in (str, int) for part in received)
+            and browser_fingerprint(received) == browser_fingerprint(stamp))
+
+
 def media_info(path):
     stamp = library.fingerprint(path)
     cache = storage.CONFIG/'conversion-media'/ (library.key(path)+'.json')
@@ -55,7 +68,7 @@ def details(api, ident):
     try: media = media_info(found)
     except (subprocess.SubprocessError, OSError, ValueError):
         raise ValueError('Medieoplysninger kunne ikke læses. Prøv igen; filmen er ikke ændret.') from None
-    return {'media': media, 'fingerprint': library.fingerprint(found)}
+    return {'media': media, 'fingerprint': browser_fingerprint(library.fingerprint(found))}
 
 
 def skipped_modes(state, ident, stamp):
@@ -82,7 +95,7 @@ def listing(api):
         item['hash'] = row.get('hash')
         item['title'] = row.get('name') or path.stem
         stamp = library.fingerprint(path)
-        item['fingerprint'] = stamp
+        item['fingerprint'] = browser_fingerprint(stamp)
         item['skipped_modes'] = skipped_modes(state, item['id'], stamp)
         item['completed_modes'] = completed_modes(item['converted'], library_jobs)
         item['source'] = 'converted' if item['converted'] else 'torrent' if row else 'manual'
@@ -143,7 +156,8 @@ def enqueue(api, data):
             raise ValueError('Originaler knyttet til torrents skal håndteres gennem seeding og oprydning.')
         if item.get('manual_eligible') and path.with_name(path.stem + '.converted-' + options['mode'] + '.mkv').exists():
             raise ValueError('En separat konverteret fil findes allerede. Ingen filer overskrives.')
-        if choice.get('fingerprint') != library.fingerprint(path): raise ValueError('Filmen er ændret. Genåbn filmvalget.')
+        if not fingerprint_matches(choice.get('fingerprint'), library.fingerprint(path)):
+            raise ValueError('Filmen er ændret. Genåbn filmvalget.')
         policy = share_policy(choice.get('policy', {}), manual=True)
         if item.get('manual_eligible') and policy['ratio_action'] != 'keep':
             raise ValueError('Film uden torrent bruger valget for originalfilen, ikke seeding og automatisk torrentoprydning.')

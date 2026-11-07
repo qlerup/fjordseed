@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory() as folder:
    browser=p.chromium.launch();page=browser.new_page(viewport={'width':1440,'height':1000});errors=[];submitted=[]
    page.on('pageerror',lambda e:errors.append(str(e)))
    page.route('**/api/conversion/workflow',lambda r:r.fulfill(json={'items':copy.deepcopy(items),'jobs':[]}))
-   page.route('**/api/conversion/workflow/*/media',lambda r:r.fulfill(json={'media':media,'fingerprint':[50*1024**3,1]}))
+   page.route('**/api/conversion/workflow/*/media',lambda r:r.fulfill(json={'media':media,'fingerprint':[str(50*1024**3),'1794015885417718001']}))
    def queue(route):submitted.append(route.request.post_data_json);route.fulfill(json={'ok':True})
    page.route('**/api/conversion/workflow/queue',queue)
    def skip(route):
@@ -87,6 +87,7 @@ with tempfile.TemporaryDirectory() as folder:
    expect(keep.locator('input:checked')).to_have_count(0)
    page.locator('#cw-next').click();page.locator('#cw-next').click()
    expect(page.locator('#cw-dialog')).not_to_be_visible()
+   assert submitted[-1]['items'][0]['fingerprint']==[str(50*1024**3),'1794015885417718001']
    assert submitted[-1]['items'][0]['options']['audio']==[]
    assert submitted[-1]['items'][0]['options']['audio_conversions']=={'1':['eac3','ac3'],'2':['ac3']}
    saved_streams=copy.deepcopy(media['streams'])
