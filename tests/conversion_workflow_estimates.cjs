@@ -27,3 +27,14 @@ vm.runInContext('mode="video"; globalThis.compare=compareSavings;',context);
 const ranked=[{...file,id:'growth',title:'A',size:GiB},{...file,id:'large',title:'Z',size:80*GiB},{...file,id:'unknown',title:'B',media:{...file.media,format:{}}},file].sort(context.compare);
 assert.deepEqual(ranked.map(f=>f.id),['large','film','growth','unknown']);
 console.log('PASS: savings sorted by absolute bytes, green savings before growth, unknown metadata last');
+
+vm.runInContext('globalThis.audioEstimate=estimate; globalThis.audioDefaults=defaults; globalThis.missing=missingCodecs;',context);
+const mixed={id:'mixed',size:1_000_000_000,media:{format:{duration:'100'},streams:[
+ {index:1,codec_type:'audio',codec_name:'truehd',channels:6,bit_rate:'4000000'},
+ {index:2,codec_type:'audio',codec_name:'aac',channels:2,bit_rate:'192000'}]}};
+const convertedOnly={mode:'audio',audio:[],audio_codec:'copy',audio_conversions:{1:['eac3','ac3'],2:['ac3']}};
+assert.equal(context.audioEstimate(mixed,convertedOnly),966_000_000);
+assert.equal(context.audioDefaults(mixed).audio.length,2);
+assert.equal(Object.keys(context.audioDefaults(mixed).audio_conversions).length,0);
+assert.equal(context.missing({index:1,codec_name:'eac3'},{...convertedOnly,audio_conversions:{1:['eac3','ac3']}}).join(','),'ac3');
+console.log('PASS: per-track estimates include conversions of removed originals; originals default to selected; existing codec skipped');

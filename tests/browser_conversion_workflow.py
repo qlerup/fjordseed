@@ -154,11 +154,11 @@ with tempfile.TemporaryDirectory() as folder:
    page.locator('.cw-film').first.get_by_role('button',name='Gendan',exact=True).click()
    page.locator('.cw-film input[type=checkbox]').first.check();page.locator('#cw-configure').click()
    expect(page.locator('#cw-fields')).not_to_contain_text('Videobitrate');expect(page.locator('#cw-fields')).not_to_contain_text('Dolby Vision')
-   expect(page.locator('#cw-fields')).to_contain_text('Lydsprog og spor')
+   expect(page.locator('#cw-fields')).to_contain_text('Behold lyd')
    page.locator('#cw-close').click();page.locator('#cw-back').click();page.locator('[data-mode=video]').click()
    expect(page.locator('.cw-film').first).not_to_contain_text('TRUEHD')
    page.locator('.cw-film input[type=checkbox]').first.check();page.locator('#cw-configure').click()
-   expect(page.locator('#cw-fields')).not_to_contain_text('Lydsprog og spor');expect(page.locator('#cw-fields')).to_contain_text('Videobitrate')
+   expect(page.locator('#cw-fields')).not_to_contain_text('Behold lyd');expect(page.locator('#cw-fields')).to_contain_text('Videobitrate')
    page.locator('#cw-skip-film').click();expect(page.locator('#cw-next')).to_be_disabled()
    page.locator('#cw-close').click()
    # Wizard skip persists only in video; converted/manual films remain discoverable.

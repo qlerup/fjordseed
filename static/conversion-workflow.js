@@ -8,12 +8,17 @@
  const error=(id,message)=>{$(id).textContent=message||'';$(id).hidden=!message;};
  const streams=(file,kind)=>(cache.get(file.id)?.media||file.media)?.streams?.filter(s=>s.codec_type===kind)||[];
  const streamLabel=s=>[s.tags?.language||'Ukendt sprog',s.codec_name?.toUpperCase(),s.channel_layout||(s.channels?s.channels+' kanaler':''),s.tags?.title].filter(Boolean).join(' · ');
- function defaults(file){return {mode,bitrate:30,dolby_vision_mode:mode==='audio'?'preserve':'separate',audio_codec:mode==='video'||streams(file,'audio').some(s=>s.channels>6)?'copy':'eac3',audio:streams(file,'audio').map(s=>s.index),subtitle:streams(file,'subtitle').map(s=>s.index),delete_original:false};}
+ const codecNames={eac3:'E-AC3 (Dolby Digital Plus)',ac3:'AC3 (Dolby Digital)'};
+ const targetCodecs=o=>o.audio_codec==='both'?['eac3','ac3']:o.audio_codec==='copy'?[]:[o.audio_codec];
+ const missingCodecs=(s,o)=>(o.audio_conversions?o.audio_conversions[s.index]||[]:o.audio.includes(s.index)?targetCodecs(o):[]).filter(c=>s.codec_name!==c);
+ const supportedAudio=s=>Number.isInteger(s.channels)&&s.channels>=1&&s.channels<=6&&['mono','stereo','2.1','3.0','3.0(back)','quad','quad(side)','4.0','3.1','4.1','5.0','5.0(side)','5.1','5.1(side)'].includes(s.channel_layout||({1:'mono',2:'stereo'})[s.channels]);
+ const audioSummary=o=>o.audio_conversions?o.audio.length+' originalspor · '+Object.values(o.audio_conversions).reduce((n,c)=>n+c.length,0)+' konverterede spor':targetCodecs(o).map(c=>codecNames[c]).join(' + ')||'Kun valgte originalspor';
+ function defaults(file){return {mode,bitrate:30,dolby_vision_mode:mode==='audio'?'preserve':'separate',audio_codec:'copy',audio_conversions:{},audio:streams(file,'audio').map(s=>s.index),subtitle:streams(file,'subtitle').map(s=>s.index),delete_original:false};}
  function estimate(file,options){
   const media=cache.get(file.id)?.media||file.media,duration=Number(media?.format?.duration);if(!duration)return null;
   const audio=media.streams.filter(s=>s.codec_type==='audio'),bps=s=>Number(s.bit_rate||s.tags?.BPS||s.tags?.['BPS-eng']);
   if(audio.some(s=>!bps(s)))return null;
-  let rate=audio.filter(s=>options.audio.includes(s.index)).reduce((sum,s)=>sum+bps(s)+(options.audio_codec!=='copy'&&s.codec_name!==options.audio_codec?(s.channels>2?640000:192000):0),0);
+  let rate=audio.reduce((sum,s)=>sum+(options.audio.includes(s.index)?bps(s):0)+missingCodecs(s,options).length*(s.channels>2?640000:192000),0);
   return options.mode==='audio'?Math.max(0,file.size-audio.reduce((sum,s)=>sum+bps(s),0)*duration/8+rate*duration/8):(options.bitrate*1e6+rate)*duration/8*1.01;
  }
  function estimateCard(file,options,label){
@@ -123,7 +128,7 @@
   error('cw-dialog-error','');const fields=$('cw-fields');fields.replaceChildren();$('cw-prev').disabled=step===0;$('cw-skip-film').hidden=step===review.length;
   if(step===review.length){
    $('cw-step').textContent='KLAR TIL START';$('cw-dialog-title').textContent='Gennemse din konverteringskø';$('cw-next').textContent='Start kø · '+review.length+' film';$('cw-next').disabled=!review.length;
-   review.forEach((r,i)=>{const div=node('div',null,'cw-review-item');div.append(node('strong',r.file.title),node('p',labels[mode]+(mode==='audio'?'':' · '+r.options.bitrate+' Mbps')+(mode==='video'?'':' · '+r.options.audio_codec.toUpperCase())),estimateCard(r.file,r.options,'Original: '+size(r.file.size)),node('p',r.file.source==='manual'?(r.file.torrent_status==='ambiguous'?'Originalen bevares p\u00e5 sin plads':r.options.delete_original?'Originalen slettes efter kontrol':'Originalen gemmes i Originals'):actions.find(a=>a[0]===r.policy.ratio_action)[1],'muted small'),button('Ret indstillinger',()=>{step=i;showStep();},'quiet'));fields.append(div);});
+   review.forEach((r,i)=>{const div=node('div',null,'cw-review-item');div.append(node('strong',r.file.title),node('p',labels[mode]+(mode==='audio'?'':' · '+r.options.bitrate+' Mbps')+(mode==='video'?'':' · '+audioSummary(r.options))),estimateCard(r.file,r.options,'Original: '+size(r.file.size)),node('p',r.file.source==='manual'?(r.file.torrent_status==='ambiguous'?'Originalen bevares p\u00e5 sin plads':r.options.delete_original?'Originalen slettes efter kontrol':'Originalen gemmes i Originals'):actions.find(a=>a[0]===r.policy.ratio_action)[1],'muted small'),button('Ret indstillinger',()=>{step=i;showStep();},'quiet'));fields.append(div);});
    fields.append(node('p','Filmene behandles én ad gangen på serveren. Film uden torrent får en separat resultatfil. Originalen gemmes i Originals eller slettes efter dit valg. Torrentoriginaler flyttes efter kontrol gennem qBittorrent til Seeder med optjent ratio og seedtid bevaret.','muted small'));return;
   }
   const current=review[step],file=current.file,o=current.options,p=current.policy;
@@ -134,8 +139,30 @@
    const video=fieldset('Video'),grid=node('div',null,'cw-field-grid');grid.append(select('Videobitrate',[[20,'20 Mbps'],[30,'30 Mbps'],[40,'40 Mbps']],o.bitrate,v=>{o.bitrate=Number(v);update();}),select('Dolby Vision', [['separate','Fjern fra filmen · gem separat (HDR10)'],['preserve','Behold · profil 8.1']],o.dolby_vision_mode,v=>{o.dolby_vision_mode=v;update();}));video.append(grid,node('p','Profil 7 og 8.1 kan behandles. Profil 7 bliver 8.1; det ekstra billedlag følger kun med originalen. Filer uden Dolby Vision påvirkes ikke.','muted small'));fields.append(video);
   }
   if(mode!=='video'){
-   const audio=fieldset('Lydsprog og spor');trackChoices(file,'audio',o,audio,update);
-   const toggle=node('label',null,'check-label'),check=node('input');check.type='checkbox';check.checked=o.audio_codec!=='copy';const codec=select('Kompatibelt lydformat',[['eac3','E-AC3 (Dolby Digital Plus)'],['ac3','AC3 (Dolby Digital)']],o.audio_codec==='copy'?'eac3':o.audio_codec,v=>{o.audio_codec=v;update();});codec.hidden=!check.checked;check.onchange=()=>{o.audio_codec=check.checked?codec.querySelector('select').value:'copy';codec.hidden=!check.checked;update();};toggle.append(check,node('span','Tilføj kompatibel lyd · behold de valgte originalspor'));audio.append(toggle,codec,node('p','Kanalantal bevares, herunder 5.1. Spor over 5.1 kan beholdes som original lyd, men får ikke en AC3/E-AC3-kopi i denne version.','muted small'));fields.append(audio);
+   const audio=fieldset('Behold lyd');
+   audio.append(node('p','De afkrydsede originalspor beholdes uændret. Alle er valgt fra start.','muted small'));
+   const formats=fieldset('Konvertér lyd'),preview=node('div');preview.setAttribute('aria-live','polite');
+   const refreshAudio=()=>{
+    preview.replaceChildren();
+    for(const s of streams(file,'audio'))for(const codec of missingCodecs(s,o))preview.append(node('p',streamLabel(s)+' → '+codecNames[codec],'muted small'));
+    if(!preview.childElementCount)preview.append(node('p','Ingen nye lydspor valgt.','muted small'));
+    preview.prepend(node('strong','Resultat: '+audioSummary(o)));
+    update();
+   };
+   trackChoices(file,'audio',o,audio,refreshAudio);
+   formats.append(node('p','Vælg AC3, E-AC3 eller begge ud for hvert sprog/spor. Konvertering er uafhængig af “Behold lyd”: fjern markeringen dér, hvis du kun vil have den konverterede version.','muted small'));
+   for(const s of streams(file,'audio')){
+    const group=fieldset(streamLabel(s));
+    for(const codec of ['eac3','ac3']){
+     const row=node('label',null,'check-label'),check=node('input');check.type='checkbox';check.checked=missingCodecs(s,o).includes(codec);
+     const exists=s.codec_name===codec;check.disabled=exists||!supportedAudio(s);
+     check.onchange=()=>{const chosen=new Set(o.audio_conversions[s.index]||[]);check.checked?chosen.add(codec):chosen.delete(codec);o.audio_conversions[s.index]=['eac3','ac3'].filter(c=>chosen.has(c));refreshAudio();};
+     row.append(check,node('span',codecNames[codec]+(exists?' · findes allerede':!supportedAudio(s)?' · kanalopsætningen understøttes ikke':'')));group.append(row);
+    }
+    formats.append(group);
+   }
+   formats.append(preview,node('p','Sprog og kanalantal bevares, herunder 5.1. Spor over 5.1 eller med ukendt kanalopsætning kan beholdes som original lyd.','muted small'));
+   fields.append(audio,formats);refreshAudio();
   }
   if(mode==='full'){const subs=fieldset('Undertekster');trackChoices(file,'subtitle',o,subs,update);if(!streams(file,'subtitle').length)subs.append(node('p','Ingen indbyggede undertekster.','muted'));fields.append(subs);}
   if(file.source==='manual'){
@@ -149,7 +176,7 @@
    const timed=p.ratio_action==='delete_time',label=node('label',timed?'Aktiv seedtid i minutter':'Målratio'),input=node('input');input.type='number';input.min=1;input.max=timed?525600:10000;input.step=timed?'1':'any';input.required=true;input.value=timed?p.seed_minutes:p.ratio_limit;input.oninput=()=>{p[timed?'seed_minutes':'ratio_limit']=Number(input.value);};label.append(input);extra.append(label,node('p',timed?'Når målet er nået, slettes original og torrent, også ved aktive downloadere. Optjent aktiv seedtid tæller med.':'Målene bruger reel upload og aktiv seedtid. Pauser og flytning tæller ikke. Oprydning venter på aktive downloadere.','muted small'));}}
   original.append(select('Seeding og oprydning',actions,p.ratio_action,v=>{p.ratio_action=v;policyFields();}),extra,node('p','Kun originalen i Seeder er omfattet af oprydning. Den konverterede film bliver i biblioteket. Flere film i samme torrent skal have samme seedingvalg, fordi qBittorrent håndterer hele torrenten.','muted small'));policyFields();fields.append(original);fields.prepend(live);update();
  }
- function validCurrent(){if(step>=review.length)return true;const r=review[step],o=r.options;if(mode!=='video'&&streams(r.file,'audio').length&&!o.audio.length){error('cw-dialog-error','Vælg mindst ét lydspor.');return false;}if(o.audio_codec!=='copy'&&streams(r.file,'audio').some(s=>o.audio.includes(s.index)&&s.codec_name!==o.audio_codec&&(!s.channels||s.channels>6))){error('cw-dialog-error','Et valgt spor har mere end 5.1 eller ukendt kanalantal. Behold original lyd, eller fravælg sporet.');return false;}return true;}
+ function validCurrent(){if(step>=review.length)return true;const r=review[step],o=r.options,audio=streams(r.file,'audio');if(mode!=='video'&&audio.length&&!o.audio.length&&!audio.some(s=>missingCodecs(s,o).length)){error('cw-dialog-error','Vælg mindst ét lydspor at beholde eller konvertere.');return false;}if(audio.some(s=>missingCodecs(s,o).length&&!supportedAudio(s))){error('cw-dialog-error','Et valgt spor har en kanalopsætning, der ikke understøttes. Behold det som original lyd.');return false;}return true;}
  $('cw-configure').onclick=async()=>{
   if(busy)return;busy=true;$('cw-configure').disabled=true;error('cw-error','');
   try{review=[];for(const file of items.filter(f=>selected.has(f.id)).sort(compareSavings)){const data=await media(file);review.push({file,fingerprint:data.fingerprint,options:defaults(file),policy:{ratio_action:'keep',ratio_limit:1,seed_minutes:60}});}step=0;showStep();$('cw-dialog').showModal();}

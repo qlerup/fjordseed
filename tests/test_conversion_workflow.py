@@ -59,6 +59,51 @@ def test_estimates_are_mode_specific_and_missing_bitrate_is_unknown(media):
     del media['streams'][1]['bit_rate']
     assert options.estimate(media,1_000_000_000,selected) is None
 
+
+def test_per_track_formats_independent_of_retained_originals(media):
+    selected = options.normalize({'mode':'audio', 'audio':[],
+                                  'audio_conversions':{'1':['ac3','eac3'], '2':['ac3']}}, media)
+    assert options.normalize(selected, media) == selected
+    audio = [s for s in options.reference(media, selected)['streams'] if s['codec_type']=='audio']
+    assert [(s['codec_name'], s['tags']['language'], s['channels']) for s in audio] == [
+        ('eac3','eng',6), ('ac3','eng',6), ('ac3','dan',2)]
+    command = options.remux_command('in.mkv', None, 'out.mkv', media, selected)
+    assert command.count('0:1') == 2 and command.count('0:2') == 1
+    assert [command[command.index(f'-c:a:{i}')+1] for i in range(3)] == ['eac3','ac3','ac3']
+    assert options.estimate(media, 1_000_000_000, selected) == 1_000_000_000 + (1_472_000-4_192_000)*100/8
+
+
+def test_existing_eac3_all_languages_is_not_duplicated(media):
+    source = media['streams'][1]
+    source['codec_name'] = 'eac3'
+    media['streams'] = [media['streams'][0]] + [
+        {**deepcopy(source), 'index':i, 'tags':{'language':lang}}
+        for i, lang in enumerate(('eng','dan','fin','nor','swe'), 1)]
+    selected = options.normalize({'mode':'audio', 'audio_conversions':{
+        str(i):['eac3','ac3'] for i in range(1,6)}}, media)
+    audio = [s for s in options.reference(media, selected)['streams'] if s['codec_type']=='audio']
+    assert [s['codec_name'] for s in audio] == ['eac3','ac3']*5
+    assert [s['tags']['language'] for s in audio] == [lang for lang in ('eng','dan','fin','nor','swe') for _ in range(2)]
+    assert all(c == ['ac3'] for c in selected['audio_conversions'].values())
+
+
+@pytest.mark.parametrize('conversions', [[], {'99':['ac3']}, {'1':'ac3'}, {'1':['aac']}, {'1':['ac3','ac3']}, {'1':[{}]}])
+def test_invalid_per_track_conversions(media, conversions):
+    with pytest.raises(ValueError):
+        options.normalize({'mode':'audio','audio_conversions':conversions},media)
+
+
+def test_per_track_output_required_and_video_mode_keeps_originals(media):
+    with pytest.raises(ValueError,match='mindst'):
+        options.normalize({'mode':'audio','audio':[],'audio_conversions':{}},media)
+    selected = options.normalize({'mode':'video','audio':[], 'audio_conversions':{'1':['ac3']}}, media)
+    assert selected['audio']==[1,2] and selected['audio_conversions']=={}
+    media['streams'][1]['channels']=8
+    selected = options.normalize({'mode':'audio','audio_conversions':{'2':['ac3']}},media)
+    assert selected['audio']==[1,2]  # Unsupported original does not block other languages.
+    with pytest.raises(ValueError,match='5.1'):
+        options.normalize({'mode':'audio','audio':[], 'audio_conversions':{'1':['ac3']}},media)
+
 def test_batch_atomic_validation_skip_and_duplicate(film, prepared):
     api=film[-1]
     with pytest.raises(ValueError):workflow.enqueue(api,{'items':[prepared,{**prepared,'id':'absent'}]})
@@ -104,9 +149,10 @@ def test_file_change_fails_without_touching_original(film,prepared):
     assert not library.ledger().exists()
     assert (film[1]/'film.mp4').read_bytes()==b'new movie'
 
-@pytest.mark.parametrize('codec', ['ac3','eac3'])
+@pytest.mark.parametrize('codec', ['ac3','eac3','both'])
 @pytest.mark.parametrize('layout,channels', [('mono',1),('stereo',2),('5.1',6)])
-def test_real_audio_remux_preserves_video_and_original_audio(tmp_path,codec,layout,channels):
+@pytest.mark.parametrize('keep_original', [True, False])
+def test_real_audio_remux_preserves_video_and_original_audio(tmp_path,codec,layout,channels,keep_original):
     import shutil, subprocess, json
     if not shutil.which('ffmpeg') or not shutil.which('ffprobe'):pytest.skip('ffmpeg/ffprobe unavailable')
     source=tmp_path/'original.mkv';target=tmp_path/'converted.mkv'
@@ -116,16 +162,20 @@ def test_real_audio_remux_preserves_video_and_original_audio(tmp_path,codec,layo
     def probe(path):return json.loads(subprocess.run(['ffprobe','-v','error','-show_streams','-show_format','-show_chapters','-of','json',str(path)],capture_output=True,text=True,check=True).stdout)
     before=probe(source)
     selection=options.normalize({'mode':'audio','audio_codec':codec},before)
+    if not keep_original:
+        selection=options.normalize({'mode':'audio','audio':[], 'audio_conversions':{
+            str(s['index']):list(options.target_codecs(selection)) for s in before['streams'] if s['codec_type']=='audio'}},before)
     subprocess.run(options.remux_command(source,None,target,before,selection),check=True,timeout=30)
     after=probe(target)
     audio=[s for s in after['streams'] if s['codec_type']=='audio']
-    assert [s['codec_name'] for s in audio]==['flac',codec]
+    targets = ['eac3','ac3'] if codec=='both' else [codec]
+    assert [s['codec_name'] for s in audio]==(['flac'] if keep_original else [])+targets
     assert all(s['channels']==channels and s['tags']['language']=='dan' for s in audio)
     options.validate_audio_only(options.reference(before,selection),after)
     def digest(path,stream):
         return subprocess.run(['ffmpeg','-v','error','-i',str(path),'-map',stream,'-c','copy','-f','hash','-'],capture_output=True,check=True).stdout
     assert digest(source,'0:v:0')==digest(target,'0:v:0')
-    assert digest(source,'0:a:0')==digest(target,'0:a:0')
+    if keep_original: assert digest(source,'0:a:0')==digest(target,'0:a:0')
 
 
 def test_workflow_routes_require_login_and_csrf(tmp_path):
