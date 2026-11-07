@@ -79,6 +79,11 @@ with tempfile.TemporaryDirectory() as folder:
    expect(popup.value).to_have_url('https://auth.openai.com/codex/device',timeout=12000)
    expect(page.locator('#st-login-code')).to_have_text('ABCD-1234')
    expect(page.locator('#st-login-link')).to_have_attribute('href','https://auth.openai.com/codex/device')
+   for width in (1440,390,320):
+    page.set_viewport_size({'width':width,'height':1000})
+    assert page.locator('#st-login-code').evaluate('(e)=>parseFloat(getComputedStyle(e).fontSize)>=26')
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),f'login overflow at {width}'
+    page.locator('#st-device-details').screenshot(path=str(artifacts/f'{theme}-login-{width}.png'))
    page.wait_for_timeout(5200);expect(page.locator('#st-login-guide')).to_be_visible()
    page.locator('#st-login-cancel').click();expect(page.locator('#st-login-guide')).to_be_hidden()
    page.evaluate("delete document.hidden")
