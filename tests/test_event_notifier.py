@@ -83,6 +83,7 @@ def test_manual_downloads_recorded_for_today_query_without_rss_tag(tmp_path):
 def test_docker_includes_notifications_module():
     from pathlib import Path
     import shlex
+    from fnmatch import fnmatchcase
     root = Path(__file__).resolve().parents[1]
     included = {line[1:].strip().rstrip("/") for line in
                 (root / ".dockerignore").read_text().splitlines() if line.startswith("!")}
@@ -90,4 +91,4 @@ def test_docker_includes_notifications_module():
         if line.startswith("COPY ") and "--from=" not in line:
             for source in shlex.split(line)[1:-1]:
                 assert (root / source).exists(), source
-                assert source.rstrip("/") in included, source
+                assert any(fnmatchcase(source.rstrip("/"), pattern) for pattern in included), source

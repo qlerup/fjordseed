@@ -5,6 +5,8 @@ on:
       - 'event_notifier.py'
       - 'app.py'
       - 'Dockerfile'
+      - '.dockerignore'
+      - 'tests/test_docker_context.py'
       - 'tests/test_event_notifier.py'
       - 'tests/test_bot_seeding.py'
       - 'bot_upload.py'
@@ -23,4 +25,4 @@ jobs:
           python-version: '3.13'
       - run: pip install -r requirements.txt pytest
       - run: python -m compileall -q app.py event_notifier.py
-      - run: pytest -q tests/test_event_notifier.py tests/test_bot_seeding.py tests/test_bot_upload.py
+      - run: python -m pytest -q tests/test_event_notifier.py tests/test_bot_seeding.py tests/test_bot_upload.py tests/test_docker_context.py
