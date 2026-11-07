@@ -25,14 +25,14 @@ class Storage:
         selected = next((p for p in settings['locations'] if p['id'] == settings['selected']), None)
         path = selected['path'] if selected else str(self.runtime.host_downloads)
         enabled=buffer_enabled(self.runtime.state.get().get('streaming',{}))
-        return {**settings, 'path':path, 'buffer':path.rstrip('/')+'/.incomplete' if enabled else None,
+        return {**settings, 'path':path, 'buffer':str(self.runtime.host_downloads).rstrip('/')+'/.incomplete' if enabled else None,
                 'streaming_enabled':enabled,
                 'fjordflix_enabled':self.runtime.state.get().get('streaming',{}).get('enabled',True)}
 
     def helper(self, action, value='', source='/'):
         r = self.runtime
         script = Path(__file__).with_name('storage_browser.py').read_text(encoding='utf-8')
-        writable = action in ('writable', 'seeder')
+        writable = action in ('writable', 'seeder', 'create')
         scoped = writable or action == 'usage'
         mounts=([Mount('/folder/'+str(i),path,type='bind',read_only=True) for i,path in enumerate(source)]
                 if action=='temporary_usage' else
@@ -123,6 +123,16 @@ class Storage:
             atomic(r.state.path,json.dumps(data))
         return self.public()
 
+    def create_folder(self,parent,name):
+        if (not isinstance(parent,str) or not any(parent.startswith(p+'/') for p in ROOTS)
+                or not isinstance(name,str) or not name or len(name)>100 or name!=name.strip()
+                or name.startswith('.') or any(c in name for c in '/\\') or any(ord(c)<32 for c in name)):
+            raise ValueError('Vælg en lagerplacering og et almindeligt mappenavn.')
+        self.helper('browse',parent)
+        if not self.helper('mount',parent)['ready']:raise ValueError('Tilslut lageret først.')
+        self.helper('create',name,source=parent)
+        return {'path':str(PurePosixPath(parent)/name)}
+
     def mounts(self):
         return {p['path']:{'bind':'/download-locations/'+p['id'],'mode':'rw'} for p in self.settings()['locations']}
 
@@ -131,7 +141,7 @@ class Storage:
         path = '/download-locations/'+settings['selected'] if settings['selected'] else '/downloads'
         (self.runtime.state.root/'rpc').mkdir(exist_ok=True)
         streaming=self.runtime.state.get().get('streaming',{})
-        config={'path':path,'streaming_enabled':buffer_enabled(streaming),
+        config={'path':path,'buffer_path':'/downloads','streaming_enabled':buffer_enabled(streaming),
                 'buffer_roots':['/downloads', *[v['bind'] for v in self.mounts().values()]],
                 'conversion_enabled':streaming.get('conversion_enabled',False),
                 'conversion_bitrate':streaming.get('conversion_bitrate',30),

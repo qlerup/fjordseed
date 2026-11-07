@@ -73,7 +73,7 @@ def test_api_cannot_disable_buffer_while_using_flix(tmp_path):
     assert client.post('/api/streaming',headers=headers,json={'enabled':False,'buffer_enabled':'false'}).status_code==400
 
 
-def test_storage_api_locked_by_flix_but_independent_of_buffer(tmp_path,monkeypatch):
+def test_storage_destination_can_be_selected_with_flix_enabled(tmp_path,monkeypatch):
     app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
     app.extensions['runtime'].host_downloads=Path('/mnt/downloads')
     client,headers=login(app)
@@ -82,17 +82,17 @@ def test_storage_api_locked_by_flix_but_independent_of_buffer(tmp_path,monkeypat
     before=app.extensions['state'].get()
     assert client.get('/api/storage').json['fjordflix_enabled'] is True
     response=client.post('/api/storage',headers=headers,json={'path':'/mnt/media'})
-    assert response.status_code==409 and 'FjordFlix' in response.json['error']
-    select.assert_not_called()
+    assert response.status_code==200
+    select.assert_called_once_with('/mnt/media')
     assert app.extensions['state'].get()==before
     client.post('/api/streaming',headers=headers,json={'enabled':False,'buffer_enabled':True})
     storage=client.get('/api/storage').json
     assert storage['fjordflix_enabled'] is False and storage['streaming_enabled'] is True
     assert client.post('/api/storage',headers=headers,json={'path':'/mnt/media'}).status_code==200
-    select.assert_called_once_with('/mnt/media')
+    assert select.call_count==2
     client.post('/api/streaming',headers=headers,json={'enabled':True})
-    assert client.post('/api/storage',headers=headers,json={'path':'/mnt/other'}).status_code==409
-    assert select.call_count==1
+    assert client.post('/api/storage',headers=headers,json={'path':'/mnt/other'}).status_code==200
+    assert select.call_count==3
 
 
 def test_toggle_preserves_vpn_storage_and_existing_torrents_without_restart(tmp_path):
@@ -104,7 +104,7 @@ def test_toggle_preserves_vpn_storage_and_existing_torrents_without_restart(tmp_
     assert r.state.get()['profile_id']=='a'*32 and r.state.get()['enabled'] is True
     assert Storage(r).public()['buffer'] is None
     settings=json.loads((tmp_path/'rpc/download-settings.json').read_text())
-    assert settings=={'path':'/downloads','buffer_roots':['/downloads'],'streaming_enabled':False,'conversion_enabled':False,'conversion_bitrate':30,'conversion_target':'server','conversion_dolby_vision':'separate'}
+    assert settings=={'path':'/downloads','buffer_path':'/downloads','buffer_roots':['/downloads'],'streaming_enabled':False,'conversion_enabled':False,'conversion_bitrate':30,'conversion_target':'server','conversion_dolby_vision':'separate'}
     r.stop.assert_not_called()
     assert Streaming(r).public()['enabled'] is False
     assert streaming.save(True)['enabled'] is True

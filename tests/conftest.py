@@ -27,3 +27,4 @@ def verified_seed_health(isolated_credit_ledger, tmp_path_factory, monkeypatch):
 def isolated_download_storage(tmp_path, monkeypatch):
     monkeypatch.setattr('download_storage.CONFIG', tmp_path/'qbit-storage')
     monkeypatch.setattr('download_storage.download_root', lambda: tmp_path/'downloads')
+    monkeypatch.setattr('download_storage.BUFFER_ROOT', tmp_path/'downloads')

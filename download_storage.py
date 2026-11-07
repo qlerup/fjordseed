@@ -14,6 +14,7 @@ from state import atomic
 CONFIG = Path('/config')
 SETTINGS = Path('/rpc/download-settings.json')
 BUFFER = '.incomplete'
+BUFFER_ROOT = Path('/downloads')
 PUBLISHING_MARKER = '.fjordseed-publishing'
 _lock = threading.RLock()
 
@@ -186,6 +187,15 @@ def download_root():
     return root
 
 
+def buffer_root():
+    # Old per-torrent records keep their captured paths. New installations use
+    # the standard /downloads mount for staging, independently of Behold.
+    value=read(SETTINGS,{}).get('buffer_path')
+    if value is None:return download_root()
+    if value!='/downloads':raise ValueError('Ugyldig bufferplacering.')
+    return BUFFER_ROOT
+
+
 def download_name(name):
     """One readable path component, also usable from Windows/NAS file browsers."""
     name=re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]', '_', str(name or ''))
@@ -210,8 +220,8 @@ def prepare(hashes, folder='', name='', convert=False):
                 from conversion import require_enabled
                 require_enabled()
             buffered=convert or read(SETTINGS,{}).get('streaming_enabled',True)
-            parent=root/BUFFER if buffered else target
-            if buffered and (root/BUFFER).is_symlink():
+            parent=buffer_root()/BUFFER if buffered else target
+            if buffered and parent.is_symlink():
                 raise ValueError('Buffermappen må ikke være et link.')
             if any(p.is_symlink() for p in (parent,*parent.parents,target,*target.parents)):
                 raise ValueError('Downloadmappen må ikke indeholde links.')

@@ -1,6 +1,6 @@
 """Folder chooser, errors and save flow on desktop and mobile."""
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import sys
 import tempfile
 import threading
@@ -24,7 +24,7 @@ def helper(self,action,value='',source='/'):
 
 with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',helper):
     app=create_app(folder,testing=True,runtime_factory=FakeRuntime)
-    app.extensions['runtime'].host_downloads=Path('/downloads')
+    app.extensions['runtime'].host_downloads=PurePosixPath('/downloads')
     app.extensions['runtime'].stop=Mock()
     server=make_server('127.0.0.1',0,app,threaded=True)
     threading.Thread(target=server.serve_forever,daemon=True).start()
@@ -38,9 +38,9 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
             page.get_by_role('button',name='Log ind').click()
             page.goto(base+'/#storage')
-            expect(page.locator('#storage-browse')).to_be_disabled()
-            expect(page.locator('#storage-proxmox')).to_be_disabled()
-            expect(page.locator('[data-storage-mode-note]').first).to_contain_text('Bruger FjordFlix-lager')
+            expect(page.locator('#storage-browse')).to_be_enabled()
+            expect(page.locator('#storage-proxmox')).to_be_enabled()
+            expect(page.locator('[data-storage-mode-note]').first).to_contain_text('bufferdisken')
             for view in ('storage','streaming'):
                 page.goto(base+'/#'+view)
                 card=page.locator('#'+view+'-view [data-storage-usage]')
@@ -59,14 +59,21 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
             expect(page.locator('#storage-browse')).to_be_enabled()
             page.route('**/api/storage?proxmox=1',lambda route:route.fulfill(json={
                 'storages':[{'id':'Storage-pool1','type':'dir','free_bytes':1024**4,
-                    'paths':['/mnt/fjordhub/Storage-pool1','/mnt/fjordflix/pool-readonly']}],
+                    'paths':['/mnt/fjordhub/Storage-pool1','/mnt/fjordflix/pool-readonly']},
+                    {'id':'New-pool','type':'dir','online':True,'path':'/mnt/pve/New-pool','free_bytes':1024**4,'paths':[]}],
                 'mounts':[{'path':'/mnt/fjordflix/pool-readonly','read_only':True}]}))
             for width in (1440,390):
                 page.set_viewport_size({'width':width,'height':900})
-                expect(page.locator('#page-title')).to_have_text('Lager og mapper')
+                expect(page.locator('#storage-view h2').first).to_have_text('Buffer og beholdte filer')
                 expect(page.locator('#downloads-view')).not_to_be_visible()
                 page.locator('#storage-proxmox').click()
                 expect(page.locator('#storage-pool-list')).to_contain_text('Storage-pool1')
+                page.route('**/api/storage/mount-plan',lambda route:route.fulfill(json={'message':'Kør på Proxmox','commands':'mountpoint -q /mnt/pve/New-pool\npct set 1000 -mp3 ...'}))
+                page.get_by_role('button',name='Tilslut storagepool til Fjordseed').click()
+                expect(page.locator('#storage-mount-dialog')).to_be_visible()
+                expect(page.locator('#storage-mount-command')).to_contain_text('pct set 1000')
+                assert page.locator('#storage-mount-dialog').evaluate('e=>e.scrollWidth<=e.clientWidth+1')
+                page.locator('#storage-mount-dialog button.close').first.click()
                 page.locator('#storage-browse').click()
                 page.get_by_role('button',name='▸ Film og serier').click()
                 expect(page.locator('#storage-select')).to_be_enabled()
@@ -75,7 +82,7 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
                 page.screenshot(path=str(screenshots/f'storage-picker-{width}.png'))
                 page.locator('#storage-select').click()
                 expect(page.locator('#storage-dialog')).not_to_be_visible()
-                expect(page.locator('#storage-buffer')).to_contain_text('fjordflix-media/.incomplete')
+                expect(page.locator('#storage-buffer')).to_contain_text('/downloads/.incomplete')
                 expect(page.locator('#toast')).not_to_be_visible()
                 page.screenshot(path=str(screenshots/f'storage-{width}.png'))
                 page.goto(base+'/#streaming')
@@ -92,7 +99,7 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
                 'error_code':'storage_integration_unavailable'}))
             page.locator('#storage-proxmox').click()
             expect(page.locator('#storage-error')).to_contain_text('Opdatér FjordHub')
-            expect(page.locator('#page-title')).to_have_text('Lager og mapper')
+            expect(page.locator('#storage-view h2').first).to_have_text('Buffer og beholdte filer')
             assert '/login' not in page.url
             assert app.extensions['state'].get()['storage']['locations'][0]['path'].endswith('fjordflix-media')
             page.route('**/api/storage/usage',lambda route:route.fulfill(status=503,json={'error':'offline'}))

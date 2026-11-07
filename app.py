@@ -360,11 +360,22 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     @app.route('/api/storage', methods=['GET','POST'])
     @app.get('/api/storage/usage')
     @app.get('/api/storage/temporary-usage')
+    @app.post('/api/storage/mount-plan')
+    @app.post('/api/storage/folders')
     def storage_settings():
         try:
             if hub.enabled and hub.current(session.get('hub_uid'), force=True).get('hub_role') != 'admin':
                 return jsonify(error='Valg af servermapper kræver en FjordHub-administrator.'),403
             storage = Storage(runtime)
+            if request.path.endswith('/mount-plan'):
+                if not hub.enabled:raise ValueError('Proxmox-tilslutning kræver FjordHub.')
+                data=request.get_json(silent=True) or {}
+                inventory=hub.call('/api/hub/apps/fjordseed/library',{'user_id':session.get('hub_uid')},method='GET',timeout=55)
+                from storage_mount import mount_plan
+                return jsonify(ok=True,**mount_plan(inventory,data.get('storage_id'),runtime.uid,runtime.gid))
+            if request.path.endswith('/folders'):
+                data=request.get_json(silent=True) or {}
+                return jsonify(ok=True,**storage.create_folder(data.get('parent'),data.get('name')))
             if request.path.endswith('/temporary-usage'):
                 return jsonify(ok=True, path=storage.public()['path'], **temporary_snapshot())
             if request.path.endswith('/usage'):
@@ -376,8 +387,6 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
                 if not isinstance(data,dict):
                     raise ValueError('Vælg en mappe.')
                 with runtime.state.lock:
-                    if storage.public()['fjordflix_enabled']:
-                        return jsonify(error='Lager og mapper styres af FjordFlix. Slå FjordFlix fra under Streaming for at vælge en anden mappe.'),409
                     return jsonify(ok=True, **storage.select(data.get('path')))
             if request.args.get('browse') == '1':
                 return jsonify(storage.helper('browse',request.args.get('path','')))

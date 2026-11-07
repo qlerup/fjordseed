@@ -30,10 +30,10 @@ def available(root,target='server'):
 
 
 def require_enabled():
-    from download_storage import read, SETTINGS, download_root
+    from download_storage import read, SETTINGS, buffer_root
     if not read(SETTINGS, {}).get('conversion_enabled', False):
         raise ValueError('Slå GPU-konvertering til under Indstillinger → Konvertering først.')
-    if not available(download_root(),read(SETTINGS,{}).get('conversion_target','server')):
+    if not available(buffer_root(),read(SETTINGS,{}).get('conversion_target','server')):
         raise ValueError('GPU-konverteren er ikke klar til den valgte buffer. Download afventer.')
 
 

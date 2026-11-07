@@ -43,6 +43,7 @@ COPY subtitle_text.py subtitle_pgs.py subtitle_media.py subtitle_auth.py subtitl
 COPY subtitle_device_auth.py subtitle_codex_rpc.py ./
 COPY subtitle_progress.py ./
 COPY subtitle_library_refresh.py ./
+COPY storage_mount.py ./
 COPY tools/chatgpt_login.py ./tools/chatgpt_login.py
 COPY converter_runtime.py ./
 COPY dolby_backup.py dolby_jobs.py conversion_media.py conversion_decoder.py converter_worker.py remote_conversion.py remote_helper.py ./
