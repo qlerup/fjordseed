@@ -33,11 +33,11 @@ with tempfile.TemporaryDirectory() as folder:
  threading.Thread(target=server.serve_forever,daemon=True).start()
  try:
   with sync_playwright() as p:
-   browser=p.chromium.launch(); page=browser.new_page(viewport={'width':1440,'height':1000}); errors=[]; submitted=[]
+   browser=p.chromium.launch(); page=browser.new_page(viewport={'width':1440,'height':1000}); errors=[]; submitted=[]; jobs=[]
    page.on('pageerror',lambda e:errors.append(str(e)))
    page.route('**/api/subtitles/library',lambda r:r.fulfill(json={'items':library,'truncated':False}))
    page.route('**/api/subtitles/library/*',detail)
-   page.route('**/api/subtitles/jobs',lambda r:r.fulfill(json={'jobs':[],'languages':{'en':'Engelsk','da':'Dansk','sv':'Svensk','de':'Tysk'},'auth':auth}))
+   page.route('**/api/subtitles/jobs',lambda r:r.fulfill(json={'jobs':jobs,'summary':{'total':len(jobs),'done':0,'progress':jobs[0]['progress'] if jobs else 0},'languages':{'en':'Engelsk','da':'Dansk','sv':'Svensk','de':'Tysk'},'auth':auth}))
    page.route('**/api/subtitles/models?*',lambda r:r.fulfill(json={'models':[{'id':'test-model','name':'Testmodel'}]}))
    def login(route):
     auth['login']={'state':'waiting','user_code':'ABCD-1234','verification_url':'https://auth.openai.com/codex/device'}
@@ -46,7 +46,10 @@ with tempfile.TemporaryDirectory() as folder:
    page.context.route('https://auth.openai.com/**',lambda r:r.fulfill(body='Mock OpenAI login'))
    page.route('**/api/subtitles/auth/cancel',lambda r:(auth.pop('login',None),r.fulfill(json={'ok':True})))
    page.route('**/api/conversion/workflow',lambda r:r.fulfill(json={'items':[],'jobs':[]}))
-   def queue(route): submitted.append(route.request.post_data_json);route.fulfill(json={'ok':True})
+   def queue(route):
+    submitted.append(route.request.post_data_json)
+    jobs.append(dict(job='job',title='Testfilm',state='running',stage='ocr',progress=25,stage_progress=.5,elapsed_seconds=65,targets=['da'],outputs=[],detail='Tekstgenkender PGS · 10 undertekster læst'))
+    route.fulfill(json={'ok':True})
    page.route('**/api/subtitles/queue',queue)
    page.goto(f'http://127.0.0.1:{server.server_port}')
    page.locator('[name=username]').fill('admin');page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip());page.get_by_role('button',name='Log ind',exact=True).click()
@@ -72,6 +75,17 @@ with tempfile.TemporaryDirectory() as folder:
    page.locator('#st-next').click();expect(page.locator('#st-dialog')).to_be_hidden()
    assert [i['targets'] for i in submitted[0]['items']]==[['sv','de'],['de']]
    assert all(i['source']=='stream:3' for i in submitted[0]['items'])
+   expect(page.locator('.st-overall')).to_contain_text('25 %')
+   expect(page.locator('.st-phases [aria-current=step]')).to_have_text('Tekstgenkendelse')
+   expect(page.locator('.st-progress-label')).to_contain_text('1 min 5 sek')
+   jobs[0].update(stage='refresh',progress=95,stage_progress=None,detail='Plex registrerer de nye undertekster')
+   page.locator('#st-jobs-refresh').click()
+   expect(page.locator('.st-overall')).to_contain_text('95 %')
+   expect(page.locator('.st-job progress').nth(1)).not_to_have_attribute('value','0')
+   for width in (1440,320):
+    page.set_viewport_size({'width':width,'height':1000})
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    page.locator('#st-jobs').screenshot(path=str(artifacts/f'{theme}-progress-{width}.png'))
    page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:()=>true})")
    with page.expect_popup() as popup:
     page.locator('#st-login').click()

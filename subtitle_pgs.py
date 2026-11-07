@@ -50,11 +50,12 @@ def recognize(image, lang):
     return text
 
 
-def read_pgs(path, lang, ocr=recognize):
+def read_pgs(path, lang, ocr=recognize, progress=None):
     from PIL import Image
     objects={}; fragments={}; palettes={}; composition=None; pending=None; cues=[]
     previous=0; wrap=0
     deadline=time.monotonic()+1800
+    total=__import__('os').path.getsize(path); last_report=0
     with open(path,'rb') as stream:
         while header:=stream.read(13):
             if time.monotonic()>deadline: raise ValueError('PGS-tekstgenkendelse overskred 30 minutter. Vælg et andet spor.')
@@ -64,6 +65,8 @@ def read_pgs(path, lang, ocr=recognize):
             previous=pts; at=(pts+wrap+45)//90
             data=stream.read(length)
             if len(data)!=length: raise ValueError('Afbrudt PGS-fil.')
+            if progress and time.monotonic()-last_report>=1:
+                progress(min(.99,stream.tell()/max(1,total)),len(cues));last_report=time.monotonic()
             if kind==0x14:
                 if len(data)<2 or (len(data)-2)%5: raise ValueError('Ugyldig PGS-palette.')
                 palette=palettes.setdefault(data[0],{})
@@ -128,4 +131,5 @@ def read_pgs(path, lang, ocr=recognize):
                 if len(cues)>20000: raise ValueError('PGS indeholder for mange blokke.')
     if pending: raise ValueError('Den sidste PGS-undertekst mangler en sluttid. Vælg et andet spor.')
     if not cues: raise ValueError('PGS-sporet indeholder ingen læsbare undertekster.')
+    if progress: progress(1,len(cues))
     return cues

@@ -91,8 +91,8 @@ def test_extract_snapshot_and_target_validation(film):
 def test_publish_idempotent_without_overwriting_and_movie_unchanged(film):
     path,item=film; detail=media.public(item,True)
     data={'id':item['id'],'fingerprint':detail['fingerprint'],'language':'sv','job':'a'*32,'text':render_srt(parse_srt(SRT))}
-    assert media.publish(None,data)=={'name':'Movie.sv.srt'}
-    assert media.publish(None,data)=={'name':'Movie.sv.srt'}
+    assert media.publish(None,data)=={'name':'Movie.sv.srt','relative':'Movie.mkv'}
+    assert media.publish(None,data)=={'name':'Movie.sv.srt','relative':'Movie.mkv'}
     with pytest.raises(ValueError,match='allerede'): media.publish(None,{**data,'job':'b'*32})
     assert path.read_bytes()==b'video'
     path.write_bytes(b'changed')

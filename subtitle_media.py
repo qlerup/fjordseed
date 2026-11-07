@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+from subtitle_progress import telemetry
 
 import conversion_workflow as workflow
 import download_storage as storage
@@ -78,17 +79,25 @@ def extract(api,data):
     item,detail,source=validate(api,data); path=library.checked(Path(item['_path']))
     # Work outside /tmp: large PGS streams can exceed the container's tmpfs.
     directory=storage.CONFIG/'subtitle-work'; directory.mkdir(parents=True,exist_ok=True)
+    ident=data.get('progress_id')
+    duration=float(workflow.media_info(path).get('format',{}).get('duration',0) or 0) if ident else 0
+    telemetry(storage.CONFIG,ident,stage='extract',duration=duration)
     with tempfile.TemporaryDirectory(dir=directory) as temporary:
         if source['kind']=='sidecar': src=library.checked(path.parent/source['id'][5:])
         else:
             pgs=source['codec']=='hdmv_pgs_subtitle'; src=Path(temporary)/('source.sup' if pgs else 'source.srt')
             command=['ffmpeg','-nostdin','-v','error','-copyts','-i',str(path),'-map','0:'+source['id'][7:],
                      '-c:s','copy' if pgs else 'srt',str(src)]
+            if isinstance(ident,str) and __import__('re').fullmatch('[a-f0-9]{32}',ident):
+                command[1:1]=['-progress',str(directory/(ident+'.ffmpeg')),'-stats_period','1']
             result=subprocess.run(command,capture_output=True,timeout=1800)
             if result.returncode: raise ValueError('Undertekstsporet kunne ikke udtrækkes.')
         if source['codec']=='hdmv_pgs_subtitle':
             from subtitle_pgs import read_pgs
-            cues=read_pgs(src,source['language'])
+            if ident:
+                telemetry(storage.CONFIG,ident,stage='ocr',fraction=0,cues=0)
+                cues=read_pgs(src,source['language'],progress=lambda fraction,cues:telemetry(storage.CONFIG,ident,stage='ocr',fraction=fraction,cues=cues))
+            else: cues=read_pgs(src,source['language'])
         else:
             if src.stat().st_size>8*1024*1024: raise ValueError('SRT-filen er for stor.')
             raw=src.read_bytes()
@@ -125,7 +134,7 @@ def publish(api,data):
         saved=storage.read(receipt,{})
         if target.exists():
             if saved=={'path':str(target),'digest':digest} and hashlib.sha256(target.read_bytes()).hexdigest()==digest:
-                return {'name':target.name}
+                return {'name':target.name,'relative':path.relative_to(storage.download_root()).as_posix()}
             raise ValueError('En undertekst findes allerede. Ingen filer overskrives.')
         fd,temporary=tempfile.mkstemp(prefix='.fjordseed-subtitle-',dir=target.parent)
         try:
@@ -135,7 +144,7 @@ def publish(api,data):
             atomic(receipt,json.dumps({'path':str(target),'digest':digest}))
             os.link(temporary,target)  # atomic create-if-absent; never replace a sidecar
         finally: Path(temporary).unlink(missing_ok=True)
-    return {'name':target.name}
+    return {'name':target.name,'relative':path.relative_to(storage.download_root()).as_posix()}
 
 
 def dispatch(api, action, data):

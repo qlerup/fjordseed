@@ -6,6 +6,10 @@ For hver film vises indbyggede undertekstspor samt `.srt` og `.sup` med samme gr
 
 Oversatte filer gemmes som `Film.da.srt`, `Film.sv.srt` osv. Et forced-kildespor giver eksempelvis `Film.da.forced.srt`. Videoen og eksisterende undertekster ændres aldrig. Plex/Fjordflix kan kræve en biblioteksopdatering, før nye filer vises.
 
+Efter lagring kontrollerer Fjordseed filerne gennem Fjordflix' egen sidecar-opdagelse og opdaterer det præcise Plex-element. Fjordflix læser sidecars igen ved næste åbning af spor/afspilning; en allerede åben afspiller kan kræve genåbning. På installationer med Plex-linkbibliotek opretter den begrænsede `tools/plex_subtitle_links.py`-tjeneste de tilsvarende SRT-links uden at overskrive eksisterende filer. Den kender kun videoer i den eksisterende links-ledger. Manglende eller tvetydig katalogisering vises som fejl, ikke som succes.
+
+Forbindelser konfigureres i `/data/subtitle-library.json` med filrettighed 0600: `fjordflix_container`, `fjordflix_root`, `plex_url`, `plex_token`, `plex_root`. Linkbiblioteker bruger desuden `plex_link_url`, `plex_link_secret` og `plex_view_root`. Linktjenesten læser bind-adresse, port og hemmelighed fra `/etc/fjordseed-subtitle-links.json` på Plex-serveren. Disse filer indeholder legitimationsoplysninger og må ikke lægges i Git. Manglende konfiguration stopper kun biblioteksopdateringen; allerede gemte undertekster bevares.
+
 ## PGS og timing
 
 PGS indeholder billeder, paletter, kompositioner og præsentationstider. Programmet udtrækker SUP med FFmpeg, samler billederne og læser teksten med Tesseract på serveren. Hver komposition afsluttes ved næste komposition/clear. PGS-tider i 90 kHz afrundes til nærmeste millisekund, som SRT understøtter. Et spor med manglende sluttid, beskadigede billeder eller ulæselig tekst fejler frem for at få opdigtede tider. Ukendt OCR-kildesprog forsøges som engelsk.
@@ -32,6 +36,8 @@ Listen viser kun medier med fundne undertekstspor. Medier uden kendte spor under
 ## Kø og drift
 
 Køen gemmes i `/data/subtitle-translations/jobs.json`. Originalt tekstudtræk og færdige oversættelsesblokke gemmes under jobbets mappe. Genoptagelse oversætter kun manglende blokke. Efter servergenstart skal afbrudte jobs genoptages eksplicit. Annullering stopper ved næste blokgrænse; allerede publicerede sprog bevares. Filer oprettes atomisk uden overskrivning, og publikationskvitteringer gør genforsøg idempotente.
+
+Fremdrift opdateres hvert andet sekund: FFmpeg-tidsposition under udtræk, gennemgåede PGS-data og antal læste undertekster under OCR, færdige tekstblokke under oversættelse, lagring samt verificering i Plex/Fjordflix. Trin uden målelig fremdrift viser en ubestemt aktivitetsbjælke. Samlet procent vægter udtræk 15 %, OCR 20 %, oversættelse 55 % og afslutning 10 %; SRT springer OCR over. Det er arbejdstrin, ikke et tidsestimat. Køoversigten omfatter aktive indsendelser og seneste indsendelse, ikke hele historikken. 100 % kræver vellykket biblioteksopdatering. Ved fejl kan genoptagelse genbruge alle oversatte blokke og gemte SRT-filer.
 
 Underteksternes udtrækning kører i den eksisterende qBittorrent-container med adgang til den valgte biblioteksmappe; OpenAI-kald og credentials ligger i webapp-containeren. Funktionen kræver ikke GPU-konvertering. qBittorrent-containeren skal være startet for at læse biblioteket.
 

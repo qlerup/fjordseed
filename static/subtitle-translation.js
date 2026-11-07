@@ -53,7 +53,10 @@
    if(!result.models.length)error('st-error','Kontoen har ingen tilgængelige modeller til oversættelse.');
   }catch(e){error('st-error',e.message);$('st-model').replaceChildren(node('option','Modeller kunne ikke hentes'));}
  }
+ let jobsLoading=false;
+ const stageNames={queued:'Venter',extract:'Udtræk',ocr:'Tekstgenkendelse',translate:'Oversættelse',save:'Gemmer SRT',refresh:'Plex og Fjordflix',done:'Færdig'};
  async function loadJobs(){
+  if(jobsLoading)return;jobsLoading=true;
   try{const result=await api('/api/subtitles/jobs');languages=result.languages;auth=result.auth;
    const options=(auth.accounts||[]).map(a=>({value:a.id,label:a.email+' · '+a.id.slice(-6)}));
    if(JSON.stringify(options)!==$('st-account').dataset.options){$('st-account').replaceChildren();for(const a of options){const option=node('option',a.label);option.value=a.value;$('st-account').append(option);}$('st-account').dataset.options=JSON.stringify(options);}
@@ -63,10 +66,27 @@
    renderLogin(auth.login);
    if(loginRevision!==null&&auth.connected&&auth.revision!==loginRevision){$('st-login-guide').hidden=true;loginRevision=null;modelsFor=null;}
    loadModels();const list=$('st-jobs');list.replaceChildren();
+   const total=result.summary;
+   if(total?.total){
+    const overview=node('section',null,'st-overall');overview.append(node('h4','Samlet fremdrift'),node('strong',total.progress+' % · '+total.done+' af '+total.total+' film færdige'));
+    const bar=node('progress');bar.max=100;bar.value=total.progress;bar.setAttribute('aria-label','Samlet fremdrift');overview.append(bar);
+    overview.append(node('p','Procenten følger arbejdstrinnene og er ikke et estimat af resterende tid.','muted small'));
+    if(total.errors)overview.append(node('p',total.errors+' film kræver handling. Gemte undertekster bevares.','error'));
+    if(total.cancelled)overview.append(node('p',total.cancelled+' film annulleret.','muted'));
+    list.append(overview);
+   }
    if(!result.jobs.length)list.append(node('p','Ingen film i oversættelseskøen.','muted'));
    for(const job of result.jobs){
     const row=node('article',null,'st-job');row.append(node('strong',job.title),node('p',(job.targets||[]).map(name).join(', ')+' · '+({queued:'Venter',running:'Arbejder',done:'Færdig',error:'Kræver handling',cancelled:'Annulleret'})[job.state]),node('p',job.detail,'muted small'));
     const progress=node('progress');progress.max=100;progress.value=job.progress||0;progress.setAttribute('aria-label','Oversættelse af '+job.title);row.append(progress);
+    const stage=job.stage||'queued',elapsed=job.elapsed_seconds;
+    row.append(node('p',(job.progress||0)+' % · '+(stageNames[stage]||stage)+(elapsed!=null?' · Forløbet '+Math.floor(elapsed/60)+' min '+elapsed%60+' sek':''),'st-progress-label'));
+    const phases=node('div',null,'st-phases');for(const id of ['extract','ocr','translate','save','refresh']){const label=node('span',stageNames[id]);if(stage===id)label.setAttribute('aria-current','step');phases.append(label);}row.append(phases);
+    if(job.state==='running'){
+     const phasebar=node('progress');phasebar.max=100;if(job.stage_progress!=null)phasebar.value=Math.round(job.stage_progress*100);
+     phasebar.setAttribute('aria-label','Fremdrift i '+(stageNames[stage]||stage));row.append(phasebar);
+    }
+    for(const [service,status] of Object.entries(job.refresh||{}))row.append(node('p',service+': '+status,'small'));
     const action=async kind=>{try{await post('jobs/'+job.job+'/'+kind);await loadJobs();}catch(e){error('st-error',e.message);}};
     if(job.state==='error')row.append(button('Genoptag',()=>action('retry')));
     if(['queued','running','error'].includes(job.state))row.append(button('Annuller',()=>action('cancel'),'quiet'));
@@ -74,7 +94,7 @@
    }
    const signature=JSON.stringify(result.jobs.filter(j=>j.outputs?.length).map(j=>[j.job,j.outputs]));
    if(jobSignature&&signature!==jobSignature&&!$('st-dialog').open)loadLibrary();jobSignature=signature;
-  }catch(e){error('st-error',e.message);}
+  }catch(e){error('st-error',e.message);}finally{jobsLoading=false;}
  }
  function showStep(){
   const fields=$('st-fields');fields.replaceChildren();error('st-dialog-error','');$('st-prev').disabled=step===0;$('st-remove').hidden=step>=review.length;
@@ -103,7 +123,7 @@
   catch(e){error('st-error',e.message);}finally{busy=false;selection();}
  };
  $('st-form').onsubmit=async event=>{event.preventDefault();if(busy)return;if(step<review.length){if(!review[step].targets.length){error('st-dialog-error','Vælg mindst ét nyt sprog.');return;}step++;showStep();return;}
-  busy=true;$('st-next').disabled=true;try{await post('queue',{account:auth.active,model:$('st-model').value,items:review.map(r=>({id:r.id,snapshot:r.snapshot,source:r.source,targets:r.targets}))});$('st-dialog').close();selected.clear();render();await loadJobs();}
+  busy=true;$('st-next').disabled=true;try{await post('queue',{account:auth.active,model:$('st-model').value,items:review.map(r=>({id:r.id,snapshot:r.snapshot,source:r.source,targets:r.targets}))});$('st-dialog').close();selected.clear();render();await loadJobs();$('st-jobs').scrollIntoView({block:'start',behavior:'smooth'});}
   catch(e){error('st-dialog-error',e.message);}finally{busy=false;$('st-next').disabled=false;render();}
  };
  $('st-prev').onclick=()=>{if(!busy&&step>0){step--;showStep();}};
@@ -141,5 +161,5 @@
  $('st-search').oninput=()=>{limit=40;render();probeVisible();};$('st-clear').onclick=()=>{selected.clear();render();};
  $('st-select-visible').onclick=()=>{for(const f of visible().slice(0,limit))if(detail(f).eligible)selected.add(f.id);render();};
  $('st-refresh').onclick=()=>{modelsFor=null;loadJobs();loadLibrary();};$('st-jobs-refresh').onclick=loadJobs;
- setInterval(()=>{if(loginActive||(open&&!document.hidden&&!$('st-dialog').open))loadJobs();},5000);
+ setInterval(()=>{if(loginActive||(open&&!document.hidden&&!$('st-dialog').open))loadJobs();},2000);
 })();
