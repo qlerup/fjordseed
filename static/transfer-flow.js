@@ -40,6 +40,8 @@
    const rect=this.canvas.getBoundingClientRect();
    if(!rect.width||!rect.height)return;
    this.width=rect.width;this.height=rect.height;
+   // Keep the DOM flagpole aligned with the VPN village painted on canvas.
+   this.root.style.setProperty('--vpn-village-scale',this.caravan.villageScale(rect.width)*1.08);
    const dpr=Math.min(devicePixelRatio||1,2);
    this.canvas.width=Math.round(rect.width*dpr);this.canvas.height=Math.round(rect.height*dpr);
    this.ctx.setTransform(dpr,0,0,dpr,0,0);

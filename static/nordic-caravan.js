@@ -85,8 +85,40 @@
    }
    c.restore();
   }
-  village(c,x,y,scale,farm=false){
+  wall(c,front,intact){
+   const start=front?0:Math.PI,segments=18;
+   for(let i=0;i<segments;i++){
+    const a=start+i*Math.PI/segments,b=start+(i+1)*Math.PI/segments;
+    // Leave the front gate open for the existing road and walking parties.
+    if(front&&i>=8&&i<=9)continue;
+    const p=[Math.cos(a)*73,Math.sin(a)*33+3],q=[Math.cos(b)*73,Math.sin(b)*33+3];
+    const broken=!intact&&[1,2,5,6,7,11,12,15,16].includes(i);
+    const height=broken?2+(i%3):intact?13:8+(i%3);
+    this.shape(c,[[p[0],p[1]],[q[0],q[1]],[q[0],q[1]-height],[p[0],p[1]-height]],front?'#726b58':'#5d6152','#393b30',.8);
+    this.line(c,[[p[0],p[1]-height],[q[0],q[1]-height]],'#c2b58d',1.5);
+    if(!broken){
+     const mx=(p[0]+q[0])/2,my=(p[1]+q[1])/2;
+     this.line(c,[[p[0],p[1]-height/2],[q[0],q[1]-height/2]],'#45483b',.7);
+     this.line(c,[[mx,my],[mx,my-height/2]],'#45483b',.7);
+     this.shape(c,[[p[0],p[1]-height],[mx,my-height],[mx,my-height-4],[p[0],p[1]-height-4]],'#958d72','#c2b58d',.6);
+    }else{
+     for(let j=0;j<3;j++){
+      const x=p[0]+(q[0]-p[0])*(j+.5)/3+(j%2?3:-2),y=p[1]+(q[1]-p[1])*(j+.5)/3+3+j%2*3;
+      this.shape(c,[[x-3,y],[x+2,y+1],[x+4,y-2],[x-1,y-4]],j%2?'#88816b':'#625f4f','#b0a17d',.6);
+     }
+    }
+   }
+   if(front){
+    for(const x of [-15,15]){
+     const h=intact?22:9;
+     this.shape(c,[[x-3,35],[x+3,35],[x+3,35-h],[x-3,35-h]],'#8a8168','#c5b58c',1);
+     if(intact)this.line(c,[[x-3,35-h-3],[x-3,35-h],[x+3,35-h],[x+3,35-h-3]],'#d3c39b',1.5);
+    }
+   }
+  }
+  village(c,x,y,scale,farm=false,protectedVPN=null){
    c.save();c.translate(x,y);c.scale(scale,scale);
+   if(protectedVPN!==null)this.wall(c,false,protectedVPN);
    if(farm){
     this.shape(c,[[-65,14],[-31,5],[-5,24],[-39,34]],'#6e6036','#a99556');
     for(let i=0;i<6;i++)this.line(c,[[-58+i*5,15-i],[-36+i*5,30-i]],'#c3a660',1);
@@ -94,12 +126,15 @@
    this.house(c,-38,-11,.68);this.house(c,37,-13,.62);this.house(c,0,6,farm?1:.95,farm);
    this.house(c,-37,15,.55);this.house(c,42,19,.52);
    // Palisade posts, a gate, stacked logs and a little well.
-   for(let i=-62;i<=62;i+=7){if(Math.abs(i)<13)continue;const yy=24-Math.abs(i)*.09;this.line(c,[[i,yy],[i,yy-10]],'#a28a5a',2);}
-   this.line(c,[[-62,19],[-15,23]],'#604a30',2);this.line(c,[[15,23],[62,19]],'#604a30',2);
+   if(protectedVPN===null){
+    for(let i=-62;i<=62;i+=7){if(Math.abs(i)<13)continue;const yy=24-Math.abs(i)*.09;this.line(c,[[i,yy],[i,yy-10]],'#a28a5a',2);}
+    this.line(c,[[-62,19],[-15,23]],'#604a30',2);this.line(c,[[15,23],[62,19]],'#604a30',2);
+   }
    this.ellipse(c,23,16,6,3,'#b6a17a');this.ellipse(c,23,15,4,2,'#1b2521');
    this.line(c,[[18,15],[18,5],[28,5],[28,15]],'#b49a6b',1.5);
    for(let i=0;i<3;i++)this.line(c,[[-27+i*2,24],[-14+i*2,24]],'#ba8d54',2);
    if(!farm){this.line(c,[[-12,0],[-12,-53]],'#bda072',1.5);this.shape(c,[[-11,-52],[10,-48],[-11,-40]],'#894c37','#d8b77b');}
+   if(protectedVPN!==null)this.wall(c,true,protectedVPN);
    c.restore();
   }
   terrain(c,w,h,towns,paths,width,dpr){
@@ -132,8 +167,8 @@
    }
    c.restore();
   }
-  backdrop(w,h){
-   const key=w+'x'+h;if(this.cacheKey===key)return;
+  backdrop(w,h,ready){
+   const key=w+'x'+h+':'+!!ready;if(this.cacheKey===key)return;
    this.cacheKey=key;const layer=document.createElement('canvas'),dpr=Math.min(devicePixelRatio||1,2);
    layer.width=Math.round(w*dpr);layer.height=Math.round(h*dpr);const c=layer.getContext('2d');c.scale(dpr,dpr);
    const scale=this.villageScale(w);
@@ -148,7 +183,9 @@
    for(let direction=0;direction<2;direction++)for(let link=0;link<2;link++)paths.push(this.route(direction,link,w,h));
    this.terrain(c,w,h,towns,paths,roadWidth,dpr);
    for(const path of paths)this.road(c,path,roadWidth);
-   for(const town of towns)this.village(c,...town);
+   for(let i=0;i<towns.length;i++){
+    const [x,y,size,farm=false]=towns[i];this.village(c,x,y,size,farm,i===1?!!ready:null);
+   }
    this.layer=layer;
   }
   person(c,x,y,s,facing,phase,variant,cargo){
@@ -228,7 +265,7 @@
    this.shape(c,[[-3,0],[3,0],[3,6],[-3,6]],'#ffe49b','#8f5d14',.6);this.ellipse(c,0,3,.8,1.2,'#3c280e');c.restore();
   }
   draw(c,w,h,time,ready,rates,still){
-   this.backdrop(w,h);c.drawImage(this.layer,0,0,w,h);
+   this.backdrop(w,h,ready);c.drawImage(this.layer,0,0,w,h);
    if(!ready)return;
    const scale=w<600?.72:1.05;
    for(const party of [...this.parties].sort((a,b)=>this.position(a,w,h).y-this.position(b,w,h).y)){

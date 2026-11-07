@@ -91,6 +91,13 @@ with tempfile.TemporaryDirectory() as folder:
                 for label in ('.flow-computer>strong', '.flow-tracker>strong', '.flow-peers>strong', '#flow-vpn-label'):
                     expect(page.locator(label)).to_be_visible()
                 page.locator('#traffic-flow').screenshot(path=str(root / f'test-results/nordic-caravan-{width}.png'))
+                if width in (1440,390):
+                    intact=page.evaluate('transferFlow.caravan.layer.toDataURL()')
+                    page.evaluate('transferFlow.update({ready:false,download:0,upload:0})')
+                    assert page.evaluate('transferFlow.caravan.layer.toDataURL()')!=intact
+                    page.locator('#traffic-flow').screenshot(path=str(root / f'test-results/nordic-wall-broken-{width}.png'))
+                    page.evaluate('transferFlow.update({ready:true,download:0,upload:0});transferFlow.draw(4)')
+                    assert page.evaluate('transferFlow.caravan.layer.toDataURL()')==intact
             assert page.evaluate('''() => {
                 const s=transferFlow;s.draw(1);const before=s.canvas.toDataURL();
                 s.caravan.advance(.5,s.rates,s.ready);s.draw(1.5);
