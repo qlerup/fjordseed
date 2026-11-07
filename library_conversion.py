@@ -12,7 +12,7 @@ import download_storage as storage
 from conversion import DIRECTORY, checked, safe_relative
 from state import atomic
 
-VIDEO = {'.mkv', '.mp4', '.m4v', '.avi', '.mov', '.ts', '.m2ts', '.webm'}
+from conversion_media import VIDEO
 STABLE = {'uploading', 'stalledUP', 'forcedUP', 'queuedUP', 'stoppedUP', 'pausedUP'}
 
 

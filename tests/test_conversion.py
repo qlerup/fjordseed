@@ -99,6 +99,18 @@ def test_missing_selected_files_does_not_queue_or_delete(job):
     assert not finish_seeding(api,row,{'ratio':100,'ratio_limit':1})
 
 
+@pytest.mark.parametrize('extension', ['.mpg', '.mpeg', '.mts', '.wmv', '.flv', '.ogv'])
+def test_extended_video_formats_are_queued_instead_of_published_unchanged(job, extension):
+    root,stage,api,row=job
+    name='film'+extension
+    (stage/'film.mkv').rename(stage/name)
+    api.return_value.json=Mock(return_value=[{'name':name,'size':8,'priority':1}])
+    assert storage.publish_complete(api,[row])==[]
+    request=json.loads((stage/conversion.DIRECTORY/'request.json').read_text())
+    assert request['files'][0]['name']==name
+    assert not (root/'Movie').exists()
+
+
 def media():
     return {'format':{'duration':'900'},'_rpu_frames':3,'chapters':[], 'streams':[
         {'codec_type':'video','codec_name':'hevc','width':3840,'height':2160,'pix_fmt':'yuv420p10le',

@@ -6,6 +6,17 @@ import pytest
 import workspace_sync as sync
 
 
+def test_inventory_includes_extended_video_formats(tmp_path):
+    from conversion_media import VIDEO
+    assert sync.VIDEO is VIDEO
+    names={'film.mpg','film.mts','film.wmv','film.flv','film.ogv'}
+    for name in names | {'notes.txt','disc.iso'}:
+        (tmp_path/name).write_bytes(b'test')
+    files,truncated=sync.inventory(str(tmp_path))
+    assert {f['name'] for f in files}==names
+    assert not truncated
+
+
 def test_sync_uses_encrypted_token_and_reports_current_selection_only(tmp_path,monkeypatch):
     import windows_secret
     connection=tmp_path/'connection.json';preferences=tmp_path/'preferences.json'

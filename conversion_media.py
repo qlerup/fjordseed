@@ -5,6 +5,10 @@ import subprocess
 from collections import Counter
 from fractions import Fraction
 
+# Shared by download queues, library discovery, and the desktop converter.
+VIDEO = frozenset({'.mkv', '.mp4', '.m4v', '.avi', '.mov', '.ts', '.m2ts', '.webm',
+                   '.mpg', '.mpeg', '.mpe', '.mts', '.m2v', '.wmv', '.asf', '.flv', '.ogv'})
+
 def probe(path, run=None):
     run = run or subprocess.run
     result=run(['ffprobe','-v','error','-show_format','-show_streams','-show_chapters',

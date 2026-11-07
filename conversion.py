@@ -8,6 +8,7 @@ import time
 import uuid
 
 from state import atomic
+from conversion_media import VIDEO
 
 DIRECTORY = '.fjordseed-conversion'
 HEARTBEAT = '.fjordseed-converter.json'
@@ -69,7 +70,6 @@ def status(record):
 def bitrate_decisions(files,stage,bitrate):
     """Only automatic opt-in downloads use the source's total bitrate + 5%."""
     from media_bitrates import probe
-    from converter_worker import VIDEO
     result=[]
     for entry in files:
         entry=dict(entry)
@@ -124,10 +124,10 @@ def reconcile(api, row, record):
             request={'version':1,'id':uuid.uuid4().hex,'files':names,'bitrate':record['conversion_bitrate'],
                      'executor':record.get('conversion_target','server'),
                      'dolby_vision_mode':record.get('conversion_dolby_vision','separate')}
-            if any(f.get('convert') is not False and Path(f['name']).suffix.lower() in {'.mkv','.mp4','.m4v','.avi','.mov','.ts','.m2ts','.webm'} for f in names):
+            if any(f.get('convert') is not False and Path(f['name']).suffix.lower() in VIDEO for f in names):
                 atomic(request_path,json.dumps(request),mode=0o644)
         record['conversion_id']=request['id']
-        if names and all(entry.get('convert') is False or Path(entry['name']).suffix.lower() not in {'.mkv','.mp4','.m4v','.avi','.mov','.ts','.m2ts','.webm'} for entry in request['files']):
+        if names and all(entry.get('convert') is False or Path(entry['name']).suffix.lower() not in VIDEO for entry in request['files']):
             # No GPU is required when every video already satisfies the limit.
             result=checked(work/'result');result.mkdir(exist_ok=True)
             for entry in request['files']:

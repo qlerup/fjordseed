@@ -9,7 +9,7 @@ import urllib.request
 
 from remote_agent import NoRedirect, WorkerError, connection_details
 
-VIDEO={'.mkv','.mp4','.m4v','.avi','.mov','.ts','.m2ts','.webm'}
+from conversion_media import VIDEO
 
 
 def inventory(folder):

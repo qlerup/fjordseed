@@ -22,10 +22,10 @@ from conversion import DIRECTORY, HEARTBEAT, checked, safe_relative
 from state import atomic
 from conversion_media import probe, video, dovi, command, validate, restore_flags, prepare_output, validate_file, publish_output
 from conversion_decoder import select as select_decoder
+from conversion_media import VIDEO
 
 LOG=logging.getLogger(__name__)
 STOP=threading.Event()
-VIDEO={'.mkv','.mp4','.m4v','.avi','.mov','.ts','.m2ts','.webm'}
 
 
 def report(work,ident,state,detail,progress=0,*,stage=None,eta_seconds=None):
