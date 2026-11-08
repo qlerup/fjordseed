@@ -61,6 +61,8 @@
 
 !conversion_workflow.py
 !conversion_options.py
+!merge_media.py
+!merge_routes.py
 !subtitle_*.py
 !tools/
 !tools/chatgpt_login.py

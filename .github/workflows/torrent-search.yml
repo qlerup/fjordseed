@@ -2,6 +2,9 @@ name: Torrent search
 on:
   push:
     paths:
+      - '.dockerignore'
+      - 'Dockerfile'
+      - 'tests/test_docker_context.py'
       - 'torrent_search.py'
       - 'search_routes.py'
       - 'benefits.py'
