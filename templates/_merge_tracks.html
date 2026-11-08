@@ -13,6 +13,7 @@
  <form id="mt-form" hidden>
   <div id="mt-sources" class="mt-columns"></div>
   <div class="mt-timing"><label>Forskyd tilføjede spor (millisekunder)<input id="mt-offset" type="number" min="-3600000" max="3600000" step="1" value="0" required></label><p class="muted small">0 bevarer timingen. Positivt tal afspiller de tilføjede spor senere; negativt tal tidligere. Forskydningen gælder alle valgte spor fra den anden fil.</p></div>
+  {% include '_merge_sync.html' %}
   <p id="mt-duration-warning" class="mt-warning" hidden></p>
   <p class="muted small">Brug samme klipning af filmen. Forskellige introer, billedhastigheder eller scener kan kræve yderligere synkronisering; en fast tidsforskydning retter kun en konstant forskel.</p>
   <div class="cw-live"><strong id="mt-summary" role="status"></strong><p class="muted small">Resultatet gemmes som en ny .merged-….mkv ved hovedfilen. Begge originalfiler bevares, og eventuel seeding fortsætter.</p></div>

@@ -63,6 +63,8 @@
 !conversion_options.py
 !merge_media.py
 !merge_routes.py
+!merge_sync.py
+!merge_checks.py
 !subtitle_*.py
 !tools/
 !tools/chatgpt_login.py

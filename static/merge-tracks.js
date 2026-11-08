@@ -9,10 +9,12 @@
  const sizes=n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(n/1024**3)+' GB';
  const duration=n=>n?Math.floor(n/60)+' min '+Math.round(n%60)+' sek':'Ukendt varighed';
  const label=t=>[t.language,t.codec,t.profile,t.channels?t.channels+' kanaler':'',t.title,t.default?'Standard':'',t.forced?'Tvungen':''].filter(Boolean).join(' · ');
+ function syncSelection(){window.dispatchEvent(new CustomEvent('fjord-merge-selection',{detail:{base,donor,stage,choices:{base:[...choices.base],donor:[...choices.donor]}}}));}
  function updateSummary(){
   const selected=[...(base?.tracks||[]).filter(t=>choices.base.has(t.id)),...(donor?.tracks||[]).filter(t=>choices.donor.has(t.id))];
   $('mt-summary').textContent='Resultat: hovedfilens video · '+selected.filter(t=>t.kind==='audio').length+' lydspor · '+selected.filter(t=>t.kind==='subtitles').length+' undertekstspor';
   $('mt-submit').disabled=busy||!choices.donor.size;
+  syncSelection();
  }
  function renderPicker(){
   const list=$('mt-films');list.replaceChildren();const search=$('mt-search').value.toLocaleLowerCase();
@@ -32,7 +34,7 @@
   for(const id of ['base','donor','tracks']){const e=$('mt-step-'+id);e.removeAttribute('aria-current');if(stage===id)e.setAttribute('aria-current','step');}
   $('mt-picker-title').textContent=stage==='base'?'Hvilken film skal levere billedet?':'Hvilken fil vil du hente ekstra spor fra?';
   $('mt-picked').replaceChildren();if(base&&stage==='donor')$('mt-picked').append(node('span','Hovedfil: '+base.name+' '),button('Skift hovedfil',()=>{stage='base';show();},'quiet'));
-  if(stage!=='tracks'){renderPicker();return;}
+  if(stage!=='tracks'){syncSelection();renderPicker();return;}
   const sources=$('mt-sources');sources.replaceChildren();
   for(const [key,file,title] of [['base',base,'Behold fra hovedfilen'],['donor',donor,'Tilføj fra den anden fil']]){
    const panel=node('section',null,'mt-source'),change=button('Skift fil',()=>{if(busy)return;stage=key;$('mt-search').value='';show();},'quiet');change.disabled=busy;
@@ -46,7 +48,7 @@
    sources.append(panel);
   }
   const difference=Math.abs(base.duration-donor.duration),warning=$('mt-duration-warning');warning.hidden=!base.duration||!donor.duration||difference<1;
-  warning.textContent='Filerne har forskellig varighed: '+duration(base.duration)+' og '+duration(donor.duration)+'. Kontrollér, at det er samme klipning; sporene synkroniseres ikke automatisk.';
+  warning.textContent='Filerne har forskellig varighed: '+duration(base.duration)+' og '+duration(donor.duration)+'. Kontrollér klipningen med lydmatch og prøveklip. En fast forskydning kan ikke rette forskellige scener.';
   updateSummary();
  }
  async function chooseFile(file){

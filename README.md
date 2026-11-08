@@ -14,6 +14,9 @@ and subtitle tracks from another film into a new MKV using the main film's
 video. Choose which original tracks to keep; Atmos/JOC is copied without
 re-encoding. Both source files remain intact. See [track merging](docs/track-merges.md)
 for timing, queue behavior and verification.
+Before merging, automatic audio cross-correlation can suggest the offset from
+multiple film locations. Compare the waveforms and test short video clips with
+live timing adjustments; conflicting matches are flagged instead of applied.
 
 A separate FjordHub seedbox with bundled qBittorrent. FjordVPN manages Proton profiles; installation starts no torrents. The interface currently uses Danish labels.
 

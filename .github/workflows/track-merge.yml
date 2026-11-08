@@ -1,0 +1,31 @@
+name: Track merging and audio sync
+on:
+  push:
+    paths:
+      - 'merge_*.py'
+      - 'static/merge-*.js'
+      - 'static/merge-*.css'
+      - 'templates/_merge*.html'
+      - 'tests/test_merge*.py'
+      - 'tests/browser_merge*.py'
+      - 'requirements.txt'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/track-merge.yml'
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -r requirements.txt pytest playwright
+      - run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ffmpeg mkvtoolnix
+      - run: python -m pytest tests/test_merge_media.py tests/test_merge_sync.py tests/test_docker_context.py tests/test_app.py -q
+      - run: python -m playwright install --with-deps chromium
+      - run: python tests/browser_merge_tracks.py
+      - run: python tests/browser_merge_sync.py

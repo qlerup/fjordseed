@@ -80,7 +80,7 @@ def details(api, ident):
             'duration': media.get('container', {}).get('properties', {}).get('duration', 0)/1e9, 'tracks': tracks}
 
 
-def validate(api, data):
+def validate(api, data, *, require_import=True):
     sources = []
     for key in ('base', 'donor'):
         choice = data.get(key)
@@ -97,7 +97,7 @@ def validate(api, data):
             raise ValueError('Vælg gyldige lydspor og undertekster.')
         sources.append((item, path, media, selected))
     if sources[0][1] == sources[1][1]: raise ValueError('Vælg to forskellige filer.')
-    if not sources[1][3]: raise ValueError('Vælg mindst ét spor fra den anden film.')
+    if require_import and not sources[1][3]: raise ValueError('Vælg mindst ét spor fra den anden film.')
     offset = data.get('offset_ms', 0)
     if type(offset) not in (int, float) or not -3600000 <= offset <= 3600000 or not math.isfinite(offset) or int(offset) != offset:
         raise ValueError('Tidsforskydningen skal være hele millisekunder mellem -3600000 og 3600000.')
@@ -264,6 +264,9 @@ def jobs_for(owner):
 
 
 def dispatch(api, action, data):
+    if action in ('analyse', 'preview'):
+        from merge_sync import run
+        return run(api, action, data)
     if action == 'list':
         result = library.inventory(api)
         return {'items': [public(i) for i in result['items']], 'truncated': result['truncated']}
