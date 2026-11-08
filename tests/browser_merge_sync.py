@@ -1,4 +1,4 @@
-"""Exercise waveform matching, live preview timing and unsafe match rejection."""
+"""Exercise the single-video preview with imported audio and live timing."""
 from pathlib import Path, PurePosixPath
 import json
 import logging
@@ -31,10 +31,13 @@ with tempfile.TemporaryDirectory() as folder:
     if not ffmpeg:
         import imageio_ffmpeg
         ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-    subprocess.run([ffmpeg, '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=128x72:r=24:d=25',
-                    '-f', 'lavfi', '-i', 'sine=frequency=880:duration=25', '-c:v', 'libx264', '-preset', 'ultrafast',
-                    '-c:a', 'aac', '-movflags', '+faststart', str(clip)], capture_output=True, check=True)
+    subprocess.run([ffmpeg, '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=24:d=20',
+                    '-c:v', 'libx264', '-preset', 'ultrafast', '-an', '-movflags', '+faststart', str(clip)], capture_output=True, check=True)
     media = clip.read_bytes()
+    audio = Path(folder)/'donor.m4a'
+    subprocess.run([ffmpeg, '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=880:duration=30',
+                    '-c:a', 'aac', '-movflags', '+faststart', str(audio)], capture_output=True, check=True)
+    audio_media = audio.read_bytes()
     app = create_app(Path(folder)/'app', testing=True, runtime_factory=Demo)
     server = make_server('127.0.0.1', 0, app)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -43,6 +46,7 @@ with tempfile.TemporaryDirectory() as folder:
             browser = p.chromium.launch()
             page = browser.new_page(viewport={'width': 1440, 'height': 1000})
             page.set_default_timeout(10000)
+            page.set_default_navigation_timeout(30000)
             errors, requests = [], []
             checks = {}; scenario = ['matched']
             page.on('pageerror', lambda e: errors.append(str(e)))
@@ -71,20 +75,23 @@ with tempfile.TemporaryDirectory() as folder:
                               'waveform': {'rate': 100, 'base_start': 860, 'donor_start': 856.437, 'base': values, 'donor': [0]*400+values+[0]*400}}
                 else:
                     result = {'kind': 'preview', 'base_start': data['start'], 'donor_start': data['start']-data['offset_ms']/1000-5,
-                              'base_duration': 15, 'donor_duration': 25, 'offset_ms': data['offset_ms'], 'base_audio': True, 'donor_audio': True,
+                              'base_duration': data['length'], 'donor_duration': data['length']+10, 'offset_ms': data['offset_ms'], 'base_audio': False, 'donor_audio': True, 'video_fps': 24,
                               'detail': 'Prøveklippet er klar'}
                 route.fulfill(json={'id': ident, 'state': 'done', 'detail': result['detail'], 'result': result})
             page.route('**/api/merge/checks', create)
             page.route('**/api/merge/checks/*', status)
             def asset(route):
+                body = audio_media if route.request.url.endswith('.m4a') else media
+                mime = 'audio/mp4' if route.request.url.endswith('.m4a') else 'video/mp4'
                 value = route.request.headers.get('range', '')
                 if value.startswith('bytes='):
                     first, last = value[6:].split('-', 1)
-                    start = int(first or 0); end = min(len(media)-1, int(last) if last else len(media)-1)
-                    route.fulfill(status=206, headers={'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes',
-                                  'Content-Range': f'bytes {start}-{end}/{len(media)}'}, body=media[start:end+1])
-                else: route.fulfill(content_type='video/mp4', headers={'Accept-Ranges': 'bytes'}, body=media)
+                    start = int(first or 0); end = min(len(body)-1, int(last) if last else len(body)-1)
+                    route.fulfill(status=206, headers={'Content-Type': mime, 'Accept-Ranges': 'bytes',
+                                  'Content-Range': f'bytes {start}-{end}/{len(body)}'}, body=body[start:end+1])
+                else: route.fulfill(content_type=mime, headers={'Accept-Ranges': 'bytes'}, body=body)
             page.route('**/api/merge/checks/*/*.mp4', asset)
+            page.route('**/api/merge/checks/*/*.m4a', asset)
             page.goto(f'http://127.0.0.1:{server.server_port}')
             page.locator('[name=username]').fill('admin')
             page.locator('[name=password]').fill((Path(folder)/'app/initial-login.txt').read_text().strip())
@@ -96,10 +103,14 @@ with tempfile.TemporaryDirectory() as folder:
                 page.locator(f'[name=theme][value={theme}]').check(); page.locator('#appearance-save').click()
                 expect(page.locator('#appearance-status')).to_contain_text('er gemt'); page.reload()
                 page.goto(f'http://127.0.0.1:{server.server_port}/#conversion')
-                page.locator('#mt-open').click(); page.locator('.mt-film button').nth(0).click()
-                expect(page.locator('.mt-film button')).to_have_count(1)
-                page.locator('.mt-film button').click()
+                page.locator('#mt-open').click(); page.locator('#mt-films .mt-film button').nth(0).click()
+                expect(page.locator('#mt-dialog')).to_be_visible()
+                expect(page.locator('#mt-donor-films .mt-film button')).to_have_count(1)
+                page.locator('#mt-donor-films .mt-film button').click()
+                expect(page.locator('#ms-preview')).to_be_disabled()
                 page.locator('.mt-source').nth(1).locator('input').check()
+                page.locator('#mt-next').click()
+                expect(page.locator('#mt-sync-step')).to_be_visible()
                 page.locator('#ms-analyse').click()
                 expect(page.locator('#ms-progress')).to_be_visible()
                 expect(page.locator('#ms-apply')).to_be_visible()
@@ -111,32 +122,57 @@ with tempfile.TemporaryDirectory() as folder:
                 assert before != after, 'graph must move when the offset changes'
                 page.get_by_role('button', name='+10 ms', exact=True).click()
                 expect(page.locator('#mt-offset')).to_have_value('-427')
+                page.locator('#ms-length').fill('20')
+                expect(page.locator('#ms-preview')).to_have_text('Lav 20 sek. prøveklip')
                 page.locator('#ms-preview').click()
                 expect(page.locator('#ms-player')).to_be_visible()
+                expect(page.locator('#ms-player video')).to_have_count(1)
+                expect(page.locator('#ms-playing-track')).to_contain_text('E-AC-3')
+                expect(page.locator('#ms-listen')).to_have_count(0)
+                expect(page.locator('#ms-seek')).to_have_attribute('max', '20')
+                assert requests[-1]['length'] == 20
                 print('Preview received', flush=True)
-                page.wait_for_function("()=>document.getElementById('ms-base-video').readyState>=2&&document.getElementById('ms-donor-video').readyState>=2")
+                page.wait_for_function("()=>document.getElementById('ms-base-video').readyState>=2&&document.getElementById('ms-audio-player').readyState>=2")
                 page.locator('#ms-play').click()
                 page.wait_for_function("()=>document.getElementById('ms-base-video').currentTime>.3")
+                assert page.locator('#ms-base-video').evaluate('(e)=>e.getVideoPlaybackQuality().totalVideoFrames>1')
                 try:
-                    page.wait_for_function("()=>!document.getElementById('ms-donor-video').paused&&Math.abs(document.getElementById('ms-donor-video').currentTime-document.getElementById('ms-base-video').currentTime-5)<.15")
+                    page.wait_for_function("()=>!document.getElementById('ms-audio-player').paused&&Math.abs(document.getElementById('ms-audio-player').currentTime-document.getElementById('ms-base-video').currentTime-5)<.15")
                 except Exception:
-                    print(page.evaluate("()=>({status:document.getElementById('ms-player-status').textContent,offset:document.getElementById('mt-offset').value,videos:['ms-base-video','ms-donor-video'].map(id=>{const e=document.getElementById(id);return {time:e.currentTime,paused:e.paused,seeking:e.seeking,ready:e.readyState,duration:e.duration,error:e.error?.message,seekable:e.seekable.length,src:e.src};})})"), flush=True)
+                    print(page.evaluate("()=>({status:document.getElementById('ms-player-status').textContent,offset:document.getElementById('mt-offset').value,players:['ms-base-video','ms-audio-player'].map(id=>{const e=document.getElementById(id);return {time:e.currentTime,paused:e.paused,seeking:e.seeking,ready:e.readyState,duration:e.duration,error:e.error?.message};})})"), flush=True)
                     print('Requests:', requests, 'Errors:', errors, flush=True)
                     raise
                 print('Playback synchronised', flush=True)
-                timing = page.evaluate("(()=>{const a=document.getElementById('ms-base-video'),b=document.getElementById('ms-donor-video');return {difference:b.currentTime-a.currentTime,baseMuted:a.muted,donorMuted:b.muted,donorPaused:b.paused};})()")
+                timing = page.evaluate("(()=>{const a=document.getElementById('ms-base-video'),b=document.getElementById('ms-audio-player');return {difference:b.currentTime-a.currentTime,baseMuted:a.muted,donorMuted:b.muted,donorPaused:b.paused};})()")
                 assert abs(timing['difference']-5) < .15, timing
                 assert timing['baseMuted'] and not timing['donorMuted'] and not timing['donorPaused'], timing
                 page.get_by_role('button', name='+100 ms', exact=True).click()
-                page.wait_for_function("()=>Math.abs(document.getElementById('ms-donor-video').currentTime-document.getElementById('ms-base-video').currentTime-4.9)<.15")
-                page.locator('#ms-listen').select_option('base')
-                assert page.locator('#ms-base-video').evaluate('(e)=>!e.muted')
-                assert page.locator('#ms-donor-video').evaluate('(e)=>e.muted')
+                page.wait_for_function("()=>Math.abs(document.getElementById('ms-audio-player').currentTime-document.getElementById('ms-base-video').currentTime-4.9)<.15")
                 page.locator('#ms-play').click()
+                assert page.locator('#ms-audio-player').evaluate('(e)=>e.paused')
+                page.locator('#ms-replay').click()
+                expect(page.locator('#ms-seek')).to_have_value('0')
+                page.get_by_role('button', name='Ét billede frem', exact=True).click()
+                page.wait_for_function("()=>Math.abs(document.getElementById('ms-base-video').currentTime-1/24)<.005")
+                page.get_by_role('button', name='Ét billede tilbage', exact=True).click()
+                page.wait_for_function("()=>document.getElementById('ms-base-video').currentTime<.005")
+                if page.evaluate('()=>document.fullscreenEnabled'):
+                    page.locator('#ms-fullscreen').click()
+                    page.wait_for_function("()=>document.fullscreenElement?.id==='ms-stage'")
+                    page.locator('#ms-fullscreen').click()
+                    page.wait_for_function('()=>document.fullscreenElement===null')
                 for width in (1440, 390, 320):
                     page.set_viewport_size({'width': width, 'height': 1000})
                     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'), (theme, width)
-                    page.locator('#ms-panel').screenshot(path=str(artifacts/f'{theme}-preview-{width}.png'))
+                    assert page.locator('#mt-dialog').evaluate('(e)=>e.scrollWidth<=e.clientWidth+1')
+                    page.locator('#ms-stage').screenshot(path=str(artifacts/f'{theme}-preview-{width}.png'))
+                page.locator('#ms-play').click()
+                page.locator('#mt-next').click()
+                expect(page.locator('#mt-review-step')).to_be_visible()
+                assert page.locator('#ms-audio-player').evaluate('(e)=>e.paused')
+                page.locator('#mt-prev').click()
+                expect(page.locator('#ms-player')).to_be_visible()
+                expect(page.locator('#ms-length')).to_have_value('20')
                 page.locator('#mt-offset').fill('10000'); page.locator('#mt-offset').dispatch_event('input')
                 expect(page.locator('#ms-player-status')).to_contain_text('uden for prøveklippet')
                 page.locator('#mt-offset').fill('0'); page.locator('#mt-offset').dispatch_event('input')
@@ -147,11 +183,14 @@ with tempfile.TemporaryDirectory() as folder:
                 scenario[0] = 'error'; page.locator('#ms-analyse').click()
                 expect(page.locator('#ms-error')).to_contain_text('ændret')
                 expect(page.locator('#ms-analyse')).to_be_enabled()
+                page.keyboard.press('Escape')
+                expect(page.locator('#mt-dialog')).to_be_hidden()
+                page.wait_for_function("()=>!document.documentElement.classList.contains('mt-modal-open')")
                 page.locator('#mt-back').click()
                 assert page.locator('#ms-base-video').evaluate('(e)=>e.paused')
             assert not errors, errors
             assert requests[0]['base_audio'] == 2 and requests[0]['donor_audio'] == 3
             browser.close()
-            print('PASS: waveform/offset, async status, live audio/video sync, drift rejection and both themes at 1440/390/320px')
+            print('PASS: one video with imported audio, live offset, frame stepping, replay, drift rejection and both themes at 1440/390/320px')
     finally:
         server.shutdown()

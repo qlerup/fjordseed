@@ -12,7 +12,7 @@ from state import atomic
 
 RATE = 4000
 SEARCH = 120
-ASSETS = ('base.mp4', 'donor.mp4')
+ASSETS = ('base.mp4', 'donor.m4a')
 
 
 def correlate(reference, search):
@@ -121,45 +121,66 @@ def analyse(sources, tracks, offset, directory):
 
 
 def clip(source, audio, start, length, target):
-    # Small SDR/H.264/AAC copies are only for the browser; final merges copy originals.
+    # Detailed SDR/H.264 copies are only for the browser; final merges copy originals.
     video = next((s for s in merge.workflow.media_info(source[1]).get('streams', [])
                   if s.get('codec_type') == 'video' and not s.get('disposition', {}).get('attached_pic')), {})
-    filters = 'scale=768:-2,setsar=1,format=yuv420p'
+    filters = "scale=w='min(1920,iw)':h='min(1080,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,setsar=1,format=yuv420p"
     if video.get('color_transfer') in ('smpte2084', 'arib-std-b67'):
         filters = 'zscale=t=linear:npl=100,format=gbrpf32le,tonemap=hable,zscale=p=bt709:t=bt709:m=bt709:r=tv,'+filters
     filters = f'trim=start={start:.6f}:duration={length:.6f},setpts=PTS-{start:.6f}/TB,'+filters
     args = ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-threads', '2', '-filter_threads', '2', '-ss', f'{max(0, start-2):.6f}', '-copyts', '-i', str(source[1]),
             '-t', f'{length:.6f}', '-map', '0:V:0', '-sn', '-dn', '-map_metadata', '-1', '-vf', filters,
-            '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '27', '-threads', '2', '-pix_fmt', 'yuv420p']
+            '-c:v', 'libx264', '-preset', 'fast', '-crf', '18', '-threads', '2', '-pix_fmt', 'yuv420p']
     if audio is None: args += ['-an']
     else:
         audio_filter = (f'aresample=48000,aresample=async=1:first_pts={round(start*48000)},'
                         f'atrim=duration={length:.6f},asetpts=PTS-STARTPTS')
         args += ['-map', f'0:a:{audio}', '-af', audio_filter, '-c:a', 'aac', '-b:a', '128k', '-ac', '2']
     args += ['-movflags', '+faststart', str(target)]
-    result = subprocess.run(args, capture_output=True, timeout=240)
+    result = subprocess.run(args, capture_output=True, timeout=720)
     if result.returncode or not target.exists(): raise ValueError('Prøveklippet kunne ikke laves. Prøv et andet tidspunkt.')
 
 
+def audio_clip(source, audio, start, length, target):
+    filters = (f'aresample=48000,aresample=async=1:first_pts={round(start*48000)},'
+               f'atrim=duration={length:.6f},asetpts=PTS-STARTPTS')
+    args = ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-threads', '2', '-ss', f'{max(0, start-2):.6f}',
+            '-copyts', '-i', str(source[1]), '-t', f'{length:.6f}', '-map', f'0:a:{audio}', '-vn', '-sn', '-dn',
+            '-af', filters, '-c:a', 'aac', '-b:a', '320k', '-ac', '2', '-map_metadata', '-1',
+            '-movflags', '+faststart', str(target)]
+    result = subprocess.run(args, capture_output=True, timeout=120)
+    if result.returncode or not target.exists(): raise ValueError('Det nye lydspor kunne ikke klargøres til prøven.')
+
+
 def preview(sources, tracks, offset, data, directory):
+    if tracks[1] is None or data.get('donor_audio') not in sources[1][3]:
+        raise ValueError('Vælg et lydspor fra den anden fil til fletningen, og brug det i prøven.')
     start = data.get('start', 60)
     lengths = [duration(source) for source in sources]
     if type(start) not in (int, float) or not 0 <= start < lengths[0]-1 or not math.isfinite(start):
         raise ValueError('Vælg et tidspunkt inden for hovedfilens varighed.')
-    length = min(15., lengths[0]-start)
+    requested_length = data.get('length', 15)
+    if type(requested_length) is not int or not 5 <= requested_length <= 120:
+        raise ValueError('Vælg en prøvelængde på 5 til 120 hele sekunder.')
+    length = min(float(requested_length), lengths[0]-start)
     aligned = start-offset/1000
     if aligned+length <= 0 or aligned >= lengths[1]:
         raise ValueError('Forskydningen placerer den anden fil uden for dette prøveklip.')
     donor_start = max(0., aligned-5)
     donor_length = min(length+10, lengths[1]-donor_start)
     report(directory, 'Laver hovedfilens prøveklip', 10)
-    clip(sources[0], tracks[0], start, length, directory/'base.mp4')
-    report(directory, 'Laver prøveklip med det importerede lydspor', 50)
-    clip(sources[1], tracks[1], donor_start, donor_length, directory/'donor.mp4')
+    clip(sources[0], None, start, length, directory/'base.mp4')
+    report(directory, 'Klargør det nye lydspor', 70)
+    audio_clip(sources[1], tracks[1], donor_start, donor_length, directory/'donor.m4a')
+    video = next((s for s in merge.workflow.media_info(sources[0][1]).get('streams', []) if s.get('codec_type') == 'video'), {})
+    from fractions import Fraction
+    try: fps = float(Fraction(video.get('avg_frame_rate') or video.get('r_frame_rate') or '25'))
+    except (ValueError, ZeroDivisionError): fps = 25.
+    if not math.isfinite(fps) or not 1 <= fps <= 120: fps = 25.
     return {'kind': 'preview', 'base_start': start, 'donor_start': donor_start,
             'base_duration': length, 'donor_duration': donor_length, 'offset_ms': offset,
-            'base_audio': tracks[0] is not None, 'donor_audio': tracks[1] is not None,
-            'detail': 'Prøveklippet er klar. Justér forskydningen under afspilning uden at flette igen.'}
+            'base_audio': False, 'donor_audio': True, 'video_fps': fps,
+            'detail': 'Prøven er klar: video fra hovedfilen med det nye lydspor.'}
 
 
 def run(api, kind, data):

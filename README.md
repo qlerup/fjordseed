@@ -17,6 +17,9 @@ for timing, queue behavior and verification.
 Before merging, automatic audio cross-correlation can suggest the offset from
 multiple film locations. Compare the waveforms and test short video clips with
 live timing adjustments; conflicting matches are flagged instead of applied.
+Selecting the main film opens a guided modal for the remaining steps. Its
+single preview player shows the main film with the imported audio, in up to
+1080p with a user-selected duration of 5–120 seconds.
 
 A separate FjordHub seedbox with bundled qBittorrent. FjordVPN manages Proton profiles; installation starts no torrents. The interface currently uses Danish labels.
 

@@ -9,7 +9,7 @@ import uuid
 
 from state import atomic
 
-ASSETS = ('base.mp4', 'donor.mp4')
+ASSETS = ('base.mp4', 'donor.m4a')
 
 
 class Checks:
@@ -34,7 +34,7 @@ class Checks:
             directory = self.media/row['id']
             if (re.fullmatch('[a-f0-9]{32}', row['id']) and not self.media.is_symlink()
                     and not directory.is_symlink() and directory.is_dir()):
-                for name in (*ASSETS, 'progress.json'):
+                for name in (*ASSETS, 'donor.mp4', 'progress.json'):
                     (directory/name).unlink(missing_ok=True)
                 try: directory.rmdir()
                 except OSError: pass

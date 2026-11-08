@@ -2,7 +2,7 @@
  <p class="eyebrow">TJEK SYNKRONISERING FØR FLETNING</p>
  <h3 id="ms-title">Find de samme lyde i begge film</h3>
  <p class="muted small">Vælg helst samme sprog. Vi sammenligner lydkurverne flere steder i filmen og foreslår en forskydning, hvis de passer entydigt sammen. Der søges op til 2 minutter på hver side af din nuværende forskydning.</p>
- <div class="mt-columns"><label>Hovedfilens lyd til sammenligning<select id="ms-base-audio"></select></label><label>Lyd fra den anden fil<select id="ms-donor-audio"></select></label></div>
+ <div class="mt-columns"><label>Hovedfilens lyd · kun til auto-match<select id="ms-base-audio"></select></label><label>Det nye lydspor · bruges i prøven<select id="ms-donor-audio"></select></label></div>
  <div class="cw-toolbar"><button type="button" id="ms-analyse" class="secondary">Find forskydning automatisk</button><span id="ms-current" class="muted small"></span></div>
  <p id="ms-status" role="status" class="muted"></p><progress id="ms-progress" max="100" hidden aria-label="Kontrol af synkronisering"></progress>
  <p id="ms-error" role="alert" class="error" hidden></p>
@@ -14,12 +14,18 @@
   <button type="button" id="ms-apply" class="secondary" hidden>Brug foreslået forskydning</button>
  </div>
  <div class="ms-adjust"><span>Finjustér forskydningen</span><div id="ms-nudges" class="ms-nudges"><button type="button" data-ms="-1000" class="quiet">−1 sek</button><button type="button" data-ms="-100" class="quiet">−100 ms</button><button type="button" data-ms="-10" class="quiet">−10 ms</button><button type="button" data-ms="10" class="quiet">+10 ms</button><button type="button" data-ms="100" class="quiet">+100 ms</button><button type="button" data-ms="1000" class="quiet">+1 sek</button></div><label class="ms-slider-label">Træk for at finjustere<input id="ms-slider" type="range" min="-1000" max="1000" step="1" value="0"></label></div>
- <div class="ms-preview-settings"><h4>Se og hør et prøveklip</h4><p class="muted small">Hovedfilens billede afspilles med lyden fra den anden fil. Du kan ændre forskydningen under afspilning uden at flette igen. Prøveklippene bruger stereo; den færdige fil beholder de originale lydspor.</p>
-  <div class="cw-toolbar"><label>Tidspunkt i hovedfilen (sekunder)<input id="ms-start" type="number" min="0" step="1" value="60"></label><div class="ms-shortcuts"><button type="button" data-position=".12" class="quiet">Tidligt</button><button type="button" data-position=".5" class="quiet">Midt i filmen</button><button type="button" data-position=".85" class="quiet">Sent</button></div><button type="button" id="ms-preview" class="secondary">Lav 15 sek. prøveklip</button></div>
+ <div class="ms-preview-settings"><h4>Afprøv videoen med det nye lydspor</h4><p class="muted small">Se på munden, mens personen taler: passer ordene med læberne? Prøven afspiller video fra hovedfilen med det valgte nye lydspor. Finjustér forskydningen, mens du lytter.</p><p class="muted small">Videoen vises i op til 1080p med høj kvalitet. Prøvelyden er stereo; den færdige fil beholder det originale lydspor.</p>
+  <div class="cw-toolbar"><label>Tidspunkt i hovedfilen (sekunder)<input id="ms-start" type="number" min="0" step="1" value="60"></label><label>Prøvens længde (5–120 sekunder)<input id="ms-length" type="number" min="5" max="120" step="1" value="15" required></label><div class="ms-shortcuts"><button type="button" data-position=".12" class="quiet">Tidligt</button><button type="button" data-position=".5" class="quiet">Midt i filmen</button><button type="button" data-position=".85" class="quiet">Sent</button></div><button type="button" id="ms-preview" class="secondary">Lav 15 sek. prøveklip</button></div>
  </div>
+ <p id="ms-preview-hint" class="muted small">Vælg et lydspor fra den anden fil til fletningen for at prøve det.</p>
  <div id="ms-player" hidden>
-  <div class="mt-columns"><figure><video id="ms-base-video" controls playsinline preload="metadata" muted></video><figcaption>Hovedfilens billede</figcaption></figure><figure><video id="ms-donor-video" playsinline preload="metadata"></video><figcaption>Anden fils billede · samme tidspunkt efter forskydning</figcaption></figure></div>
-  <div class="cw-toolbar"><button type="button" id="ms-play" class="secondary">Afspil / pause</button><label>Hør lyd fra<select id="ms-listen"><option value="donor">Den anden fil</option><option value="base">Hovedfilen</option></select></label></div>
+  <p id="ms-playing-track" class="ms-playing-track"></p>
+  <div id="ms-stage" class="ms-stage">
+   <video id="ms-base-video" playsinline preload="metadata" muted aria-label="Hovedfilens video med det nye lydspor"></video>
+   <audio id="ms-audio-player" preload="auto"></audio>
+   <div class="ms-transport"><button type="button" id="ms-play" class="primary">Afspil med nyt lydspor</button><button type="button" id="ms-replay" class="quiet">Forfra</button><div class="ms-frame-controls"><button type="button" id="ms-frame-back" class="quiet" aria-label="Ét billede tilbage">← Ét billede</button><button type="button" id="ms-frame-next" class="quiet" aria-label="Ét billede frem">Ét billede →</button></div><button type="button" id="ms-fullscreen" class="quiet">Fuld skærm</button></div>
+   <label class="ms-seek-label">Tid i prøveklippet <span id="ms-clip-time">00:00 / 00:15</span><input id="ms-seek" type="range" min="0" max="15" step="0.001" value="0" aria-label="Tid i prøveklippet"></label>
+  </div>
   <p id="ms-player-status" class="muted small" role="status"></p>
  </div>
 </section>

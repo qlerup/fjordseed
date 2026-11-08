@@ -103,12 +103,43 @@ def test_no_match_outside_search_window_and_changed_sources_are_rejected(films, 
 def test_preview_has_correct_global_times_for_live_offset_adjustment(films, monkeypatch):
     paths, _, _, choices = films
     made = []
-    monkeypatch.setattr(sync, 'clip', lambda source, audio, start, length, target: made.append((source[1], audio, start, length, target.name)))
+    record = lambda source, audio, start, length, target: made.append((source[1], audio, start, length, target.name))
+    monkeypatch.setattr(sync, 'clip', record)
+    monkeypatch.setattr(sync, 'audio_clip', record)
     data = {**choices, 'check_id': 'b'*32, 'base_audio': 2, 'donor_audio': 3, 'offset_ms': -1500, 'start': 40}
     result = sync.run(None, 'preview', data)
-    assert made == [(paths[0], 0, 40, 15, 'base.mp4'), (paths[1], 0, 36.5, 25, 'donor.mp4')]
+    assert made == [(paths[0], None, 40, 15, 'base.mp4'), (paths[1], 0, 36.5, 25, 'donor.m4a')]
     assert result['base_start']-result['offset_ms']/1000-result['donor_start'] == 5
-    assert result['base_audio'] and result['donor_audio']
+    assert not result['base_audio'] and result['donor_audio']
+
+
+def test_preview_cannot_play_a_track_not_selected_for_the_merge(films, monkeypatch):
+    video, audio = Mock(), Mock()
+    monkeypatch.setattr(sync, 'clip', video); monkeypatch.setattr(sync, 'audio_clip', audio)
+    data = {**films[-1], 'check_id': 'f'*32, 'base_audio': 2, 'donor_audio': 3, 'start': 40}
+    data['donor']['tracks'] = [8]  # Only a subtitle has been selected for import.
+    with pytest.raises(ValueError, match='lydspor fra den anden fil'): sync.run(None, 'preview', data)
+    video.assert_not_called(); audio.assert_not_called()
+
+
+@pytest.mark.parametrize('length', [5, 30, 60, 120])
+def test_user_selected_preview_length_is_honoured_and_clamped_at_end(films, monkeypatch, length):
+    video, audio = Mock(), Mock()
+    monkeypatch.setattr(sync, 'clip', video); monkeypatch.setattr(sync, 'audio_clip', audio)
+    data = {**films[-1], 'check_id': 'f'*32, 'base_audio': 2, 'donor_audio': 3, 'start': 40, 'length': length}
+    result = sync.run(None, 'preview', data)
+    assert result['base_duration'] == min(length, 60)
+    assert video.call_args.args[3] == min(length, 60)
+    assert audio.call_args.args[3] <= min(length, 60)+10
+
+
+@pytest.mark.parametrize('length', [0, 4, 121, None, '30', True, 15.5])
+def test_invalid_preview_lengths_are_rejected_before_encoding(films, monkeypatch, length):
+    video, audio = Mock(), Mock()
+    monkeypatch.setattr(sync, 'clip', video); monkeypatch.setattr(sync, 'audio_clip', audio)
+    data = {**films[-1], 'check_id': 'f'*32, 'base_audio': 2, 'donor_audio': 3, 'start': 40, 'length': length}
+    with pytest.raises(ValueError, match='prøvelængde'): sync.run(None, 'preview', data)
+    video.assert_not_called(); audio.assert_not_called()
 
 
 @pytest.mark.parametrize('start', [-1, float('nan'), float('inf'), True, 100, '10'])
@@ -146,12 +177,17 @@ def test_asset_routes_authenticate_owner_and_support_byte_ranges(tmp_path):
     manager.update(ident, state='done', result={'kind': 'preview'})
     folder = manager.media/ident; folder.mkdir(parents=True)
     (folder/'base.mp4').write_bytes(b'0123456789')
+    (folder/'donor.m4a').write_bytes(b'abcdefghij')
     result = client.get('/api/merge/checks/'+ident+'/base.mp4', headers={'Range': 'bytes=2-5'})
     assert result.status_code == 206 and result.data == b'2345'
+    result = client.get('/api/merge/checks/'+ident+'/donor.m4a', headers={'Range': 'bytes=2-5'})
+    assert result.status_code == 206 and result.data == b'cdef'
+    assert result.mimetype == 'audio/mp4'
     assert client.get('/api/merge/checks/'+ident+'/other.mp4').status_code == 404
     with client.session_transaction() as session: session['hub_uid'] = 77
     assert client.get('/api/merge/checks/'+ident).status_code == 404
     assert client.get('/api/merge/checks/'+ident+'/base.mp4').status_code == 404
+    assert client.get('/api/merge/checks/'+ident+'/donor.m4a').status_code == 404
 
 
 def test_failed_and_interrupted_checks_explain_failure_without_exposing_assets(tmp_path):
@@ -202,11 +238,12 @@ def test_real_lossy_audio_match_and_seekable_preview_clips(tmp_path, monkeypatch
     result = sync.run(None, 'analyse', data)
     assert result['reliable'], result
     assert abs(result['offset_ms']+437) <= 5, result
-    preview = sync.run(None, 'preview', {**data, 'check_id': 'e'*32, 'offset_ms': result['offset_ms'], 'start': 10})
+    preview = sync.run(None, 'preview', {**data, 'donor': {**data['donor'], 'tracks': [1]}, 'check_id': 'e'*32, 'offset_ms': result['offset_ms'], 'start': 10})
     directory = merge.storage.CONFIG/'merge-previews'/('e'*32)
     assert all((directory/name).stat().st_size > 1000 for name in sync.ASSETS)
-    first = sync.pcm(directory/'base.mp4', 0, 0, 4)
-    second = sync.pcm(directory/'donor.mp4', 0, 5, 5)
+    assert [t['type'] for t in merge.identify(directory/'base.mp4')['tracks']] == ['video']
+    first = sync.pcm(paths[0], 0, preview['base_start'], 4)
+    second = sync.pcm(directory/'donor.m4a', 0, 5, 5)
     match = sync.correlate(first, second)
     assert match['score'] > .8
     assert match['sample']/sync.RATE < .02
@@ -228,3 +265,21 @@ def test_hdr_preview_is_browser_compatible_sdr_without_changing_original(tmp_pat
     assert 'bt709' in result.stderr and 'yuv420p(' in result.stderr
     assert 'yuv420p10le' not in result.stderr
     assert source.read_bytes() == original
+    assert '64x64' in result.stderr  # Never upscale a small source into a blurry preview.
+
+
+@pytest.mark.skipif(not shutil.which('mkvmerge'), reason='Requires MKVToolNix')
+def test_preview_retains_full_hd_detail_for_visual_sync_checks(tmp_path, monkeypatch, ffmpeg_tools):
+    import re
+    source = tmp_path/'detailed.mkv'; target = tmp_path/'preview.mp4'
+    subprocess.run([ffmpeg_tools, '-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=1920x1080:r=24:d=1.5',
+                    '-c:v', 'ffv1', '-threads', '2', str(source)], capture_output=True, check=True)
+    monkeypatch.setattr(merge.workflow, 'media_info', lambda path: {'streams': [{'codec_type': 'video', 'width': 1920, 'height': 1080}]})
+    sync.clip(({}, source, {}, []), None, .25, 1, target)
+    info = subprocess.run([ffmpeg_tools, '-hide_banner', '-i', str(target)], capture_output=True, text=True)
+    assert '1920x1080' in info.stderr
+    comparison = subprocess.run([ffmpeg_tools, '-hide_banner', '-i', str(source), '-i', str(target),
+        '-filter_complex', '[0:v]trim=start=0.25:duration=1,setpts=PTS-STARTPTS[ref];[1:v]setpts=PTS-STARTPTS[preview];[ref][preview]ssim',
+        '-an', '-f', 'null', '-'], capture_output=True, text=True, check=True)
+    score = re.search(r'All:([0-9.]+)', comparison.stderr)
+    assert score and float(score[1]) > .98, comparison.stderr

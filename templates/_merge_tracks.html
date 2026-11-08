@@ -1,23 +1,34 @@
 <section id="mt-panel" hidden aria-labelledby="mt-title">
  <button type="button" id="mt-back" class="quiet">← Alle konverteringer</button>
  <div class="cw-toolbar"><div><p class="eyebrow">TO FILER · ÉN FILM</p><h2 id="mt-title">Flet spor fra to filer</h2></div><button type="button" id="mt-refresh" class="secondary">Opdater bibliotek</button></div>
- <p class="muted">Brug billedet fra hovedfilen, og tilføj lydspor eller undertekster fra en anden udgave. Sporene kopieres uden genkodning, så blandt andet Dolby Vision, TrueHD og Atmos/JOC bevares.</p>
- <ol class="mt-steps" aria-label="Fletningens trin"><li id="mt-step-base">1. Vælg hovedfil</li><li id="mt-step-donor">2. Vælg fil med ekstra spor</li><li id="mt-step-tracks">3. Vælg spor og start</li></ol>
+ <p class="muted">Vælg hovedfilen, hvis video du vil bruge. Derefter vælger du ekstra spor og tester resultatet i et separat vindue. Sporene kopieres uden genkodning, så blandt andet Dolby Vision, TrueHD og Atmos/JOC bevares.</p>
  <p id="mt-status" class="muted" role="status"></p><p id="mt-error" class="error" role="alert" hidden></p>
  <div id="mt-picker">
-  <h3 id="mt-picker-title">Hvilken film skal levere billedet?</h3>
-  <p id="mt-picked" class="muted small"></p>
+  <h3>Vælg hovedfilen</h3>
   <label class="cw-search">Søg efter film eller filnavn<input type="search" id="mt-search" placeholder="Titel eller filnavn"></label>
   <div id="mt-films" class="cw-films"></div>
  </div>
- <form id="mt-form" hidden>
-  <div id="mt-sources" class="mt-columns"></div>
-  <div class="mt-timing"><label>Forskyd tilføjede spor (millisekunder)<input id="mt-offset" type="number" min="-3600000" max="3600000" step="1" value="0" required></label><p class="muted small">0 bevarer timingen. Positivt tal afspiller de tilføjede spor senere; negativt tal tidligere. Forskydningen gælder alle valgte spor fra den anden fil.</p></div>
-  {% include '_merge_sync.html' %}
-  <p id="mt-duration-warning" class="mt-warning" hidden></p>
-  <p class="muted small">Brug samme klipning af filmen. Forskellige introer, billedhastigheder eller scener kan kræve yderligere synkronisering; en fast tidsforskydning retter kun en konstant forskel.</p>
-  <div class="cw-live"><strong id="mt-summary" role="status"></strong><p class="muted small">Resultatet gemmes som en ny .merged-….mkv ved hovedfilen. Begge originalfiler bevares, og eventuel seeding fortsætter.</p></div>
-  <div class="cw-dialog-actions"><button id="mt-submit" class="primary" type="submit">Start fletning</button></div>
- </form>
+ <dialog id="mt-dialog" class="mt-dialog" aria-labelledby="mt-dialog-title">
+  <div class="mt-dialog-header"><div><p id="mt-dialog-step" class="eyebrow"></p><h2 id="mt-dialog-title" tabindex="-1">Flet spor fra to filer</h2></div><button id="mt-close" type="button" class="quiet" aria-label="Luk fletning">Luk ×</button></div>
+  <p id="mt-base-name" class="muted small"></p>
+  <ol class="mt-steps" aria-label="Trin i fletningen"><li id="mt-step-donor">1. Ekstra fil</li><li id="mt-step-tracks">2. Vælg spor</li><li id="mt-step-sync">3. Test video og lyd</li><li id="mt-step-review">4. Gennemse og start</li></ol>
+  <p id="mt-dialog-error" class="error" role="alert" hidden></p>
+  <section id="mt-donor-picker">
+   <h3>Hvilken fil vil du hente ekstra spor fra?</h3><button id="mt-change-base" type="button" class="quiet">Skift hovedfil</button>
+   <label class="cw-search">Søg efter den anden fil<input type="search" id="mt-donor-search" placeholder="Titel eller filnavn"></label>
+   <p id="mt-donor-status" class="muted" role="status"></p><div id="mt-donor-films" class="cw-films"></div>
+  </section>
+  <form id="mt-form" hidden novalidate>
+   <section id="mt-track-step"><div id="mt-sources" class="mt-columns"></div></section>
+   <section id="mt-sync-step" hidden>
+    <div class="mt-timing"><label>Forskyd tilføjede spor (millisekunder)<input id="mt-offset" type="number" min="-3600000" max="3600000" step="1" value="0" required></label><p class="muted small">0 bevarer timingen. Positivt tal afspiller de tilføjede spor senere; negativt tal tidligere. Forskydningen gælder alle valgte spor fra den anden fil.</p></div>
+    {% include '_merge_sync.html' %}
+    <p id="mt-duration-warning" class="mt-warning" hidden></p>
+    <p class="muted small">Brug samme klipning af filmen. Forskellige introer, billedhastigheder eller scener kan kræve yderligere synkronisering; en fast tidsforskydning retter kun en konstant forskel.</p>
+   </section>
+   <section id="mt-review-step" hidden><h3>Klar til at flette?</h3><div id="mt-review-details"></div><div class="cw-live"><strong id="mt-summary" role="status"></strong><p class="muted small">Resultatet gemmes som en ny .merged-….mkv ved hovedfilen. Begge originalfiler bevares, og eventuel seeding fortsætter.</p></div></section>
+   <div class="mt-dialog-actions" role="group" aria-label="Handlinger for dette trin"><button id="mt-prev" type="button" class="secondary">← Tilbage</button><button id="mt-next" type="button" class="primary">Næste: test video og lyd →</button><button id="mt-submit" class="primary" type="submit" hidden>Start fletning</button></div>
+  </form>
+ </dialog>
  <section class="connection cw-queue" aria-labelledby="mt-jobs-title"><div class="cw-toolbar"><h3 id="mt-jobs-title">Flettekø</h3><button type="button" id="mt-jobs-refresh" class="quiet">Opdater kø</button></div><p class="muted small">Filerne flettes én ad gangen på serveren. Ingen GPU er nødvendig.</p><div id="mt-jobs" aria-live="polite"></div></section>
 </section>

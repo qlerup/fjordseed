@@ -22,7 +22,7 @@ def register(app, runtime, stop, testing=False):
 
     @app.get('/api/merge/checks/<ident>/<name>')
     def merge_check_asset(ident, name):
-        try: return send_file(checks.asset(owner(), ident, name), mimetype='video/mp4', conditional=True)
+        try: return send_file(checks.asset(owner(), ident, name), mimetype='audio/mp4' if name.endswith('.m4a') else 'video/mp4', conditional=True)
         except ValueError as exc: return jsonify(error=str(exc)), 404
     def call(action, data=None):
         payload = {**(data or {}), 'owner': 'hub:'+str(session['hub_uid']) if 'hub_uid' in session else 'local'}
