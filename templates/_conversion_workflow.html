@@ -4,7 +4,9 @@
  <button type="button" class="cw-card" data-mode="video"><span class="cw-card-icon" aria-hidden="true">▣</span><strong>Kun video</strong><span>Justér bitrate og Dolby Vision. Alle lydspor og undertekster følger uændret med.</span><b>Vælg video →</b></button>
  <button type="button" class="cw-card" data-mode="audio"><span class="cw-card-icon" aria-hidden="true">♫</span><strong>Kun lyd</strong><span>Vælg lydsprog og tilføj AC3 eller E-AC3. Videoen kopieres uden ny komprimering.</span><b>Vælg lyd →</b></button>
  <button type="button" id="st-open" class="cw-card"><span class="cw-card-icon" aria-hidden="true">文</span><strong>AI-oversættelse</strong><span>Oversæt SRT og PGS til nye sprog med samme timing. Vælg sprog for hver film.</span><b>Vælg undertekster →</b></button>
+ <button type="button" id="mt-open" class="cw-card"><span class="cw-card-icon" aria-hidden="true">⇄</span><strong>Flet spor fra to filer</strong><span>Tilføj lydspor og undertekster fra en anden filmfil. Vælg, hvilke originale spor du vil beholde, og bevar Atmos uden genkodning.</span><b>Vælg to filer →</b></button>
 </div>
+{% include '_merge_tracks.html' %}
 {% include '_subtitle_translation.html' %}
 <section id="cw-library" hidden aria-labelledby="cw-title">
  <button type="button" id="cw-back" class="quiet">← Alle konverteringer</button>

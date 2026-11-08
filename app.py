@@ -831,6 +831,8 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     register_remote_conversion(app,state,runtime)
     from subtitle_translation import register as register_subtitles
     register_subtitles(app,state,runtime,stop,testing)
+    from merge_routes import register as register_merge
+    register_merge(app,runtime,stop,testing)
     return app
 
 

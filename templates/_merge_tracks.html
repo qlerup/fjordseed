@@ -1,0 +1,22 @@
+<section id="mt-panel" hidden aria-labelledby="mt-title">
+ <button type="button" id="mt-back" class="quiet">← Alle konverteringer</button>
+ <div class="cw-toolbar"><div><p class="eyebrow">TO FILER · ÉN FILM</p><h2 id="mt-title">Flet spor fra to filer</h2></div><button type="button" id="mt-refresh" class="secondary">Opdater bibliotek</button></div>
+ <p class="muted">Brug billedet fra hovedfilen, og tilføj lydspor eller undertekster fra en anden udgave. Sporene kopieres uden genkodning, så blandt andet Dolby Vision, TrueHD og Atmos/JOC bevares.</p>
+ <ol class="mt-steps" aria-label="Fletningens trin"><li id="mt-step-base">1. Vælg hovedfil</li><li id="mt-step-donor">2. Vælg fil med ekstra spor</li><li id="mt-step-tracks">3. Vælg spor og start</li></ol>
+ <p id="mt-status" class="muted" role="status"></p><p id="mt-error" class="error" role="alert" hidden></p>
+ <div id="mt-picker">
+  <h3 id="mt-picker-title">Hvilken film skal levere billedet?</h3>
+  <p id="mt-picked" class="muted small"></p>
+  <label class="cw-search">Søg efter film eller filnavn<input type="search" id="mt-search" placeholder="Titel eller filnavn"></label>
+  <div id="mt-films" class="cw-films"></div>
+ </div>
+ <form id="mt-form" hidden>
+  <div id="mt-sources" class="mt-columns"></div>
+  <div class="mt-timing"><label>Forskyd tilføjede spor (millisekunder)<input id="mt-offset" type="number" min="-3600000" max="3600000" step="1" value="0" required></label><p class="muted small">0 bevarer timingen. Positivt tal afspiller de tilføjede spor senere; negativt tal tidligere. Forskydningen gælder alle valgte spor fra den anden fil.</p></div>
+  <p id="mt-duration-warning" class="mt-warning" hidden></p>
+  <p class="muted small">Brug samme klipning af filmen. Forskellige introer, billedhastigheder eller scener kan kræve yderligere synkronisering; en fast tidsforskydning retter kun en konstant forskel.</p>
+  <div class="cw-live"><strong id="mt-summary" role="status"></strong><p class="muted small">Resultatet gemmes som en ny .merged-….mkv ved hovedfilen. Begge originalfiler bevares, og eventuel seeding fortsætter.</p></div>
+  <div class="cw-dialog-actions"><button id="mt-submit" class="primary" type="submit">Start fletning</button></div>
+ </form>
+ <section class="connection cw-queue" aria-labelledby="mt-jobs-title"><div class="cw-toolbar"><h3 id="mt-jobs-title">Flettekø</h3><button type="button" id="mt-jobs-refresh" class="quiet">Opdater kø</button></div><p class="muted small">Filerne flettes én ad gangen på serveren. Ingen GPU er nødvendig.</p><div id="mt-jobs" aria-live="polite"></div></section>
+</section>

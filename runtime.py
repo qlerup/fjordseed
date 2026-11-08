@@ -283,8 +283,8 @@ class Runtime:
         path = self.state.root/'rpc'/(ident+'.json')
         try:
             atomic(path, json.dumps({'action':action,'data':data}), mode=0o644)
-            if action in ('library-shared-complete', 'library-workflow-tick', 'library-subtitle-extract'):
-                verification_client=docker.from_env(timeout=3700 if action=='library-subtitle-extract' else 600)
+            if action in ('library-shared-complete', 'library-workflow-tick', 'library-subtitle-extract', 'library-merge-tick'):
+                verification_client=docker.from_env(timeout=21700 if action=='library-merge-tick' else 3700 if action=='library-subtitle-extract' else 600)
                 try:result=verification_client.containers.get(child.id).exec_run(['python','/app/qbit_rpc.py',ident])
                 finally:verification_client.close()
             else:result = child.exec_run(['python','/app/qbit_rpc.py',ident])

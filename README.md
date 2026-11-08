@@ -9,6 +9,12 @@ Conversion can also run on a paired Windows PC: see
 and PC pairing share **Indstillinger → Konvertering**. This mode needs no
 server GPU and remains disabled until explicitly enabled.
 
+**Indstillinger → Konvertering → Flet spor fra to filer** copies selected audio
+and subtitle tracks from another film into a new MKV using the main film's
+video. Choose which original tracks to keep; Atmos/JOC is copied without
+re-encoding. Both source files remain intact. See [track merging](docs/track-merges.md)
+for timing, queue behavior and verification.
+
 A separate FjordHub seedbox with bundled qBittorrent. FjordVPN manages Proton profiles; installation starts no torrents. The interface currently uses Danish labels.
 
 ## Torrent search
