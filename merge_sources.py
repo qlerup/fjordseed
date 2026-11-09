@@ -121,6 +121,21 @@ def archive(api, ident):
     jobs = storage.read(library.ledger(), {})
     parent = jobs[ident]; donor = parent['donor_cleanup']
     source, target = library.checked(donor['source']), library.checked(donor['archive'])
+    if donor.get('original_disposition') == 'delete':
+        with storage.transaction():
+            jobs = storage.read(library.ledger(), {})
+            parent = jobs[ident]; donor = parent['donor_cleanup']
+            result(parent)
+            if source.exists():
+                if library.fingerprint(source) != donor['source_fingerprint']:
+                    raise ValueError('Donorfilen er ændret. Den slettes ikke.')
+                unowned(api, {str(source)})
+                donor['deletion_started'] = True; library.save(jobs)
+                source.unlink()
+            elif not donor.get('deletion_started'):
+                raise ValueError('Donorfilens placering kunne ikke bekræftes.')
+            donor['done'] = True; library.save(jobs)
+        return True
     if source.exists():
         if library.fingerprint(source) != donor['source_fingerprint']:
             raise ValueError('Donorfilen er ændret. Den er bevaret.')

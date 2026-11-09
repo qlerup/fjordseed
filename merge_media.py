@@ -77,6 +77,8 @@ def details(api, ident):
     if not any(t['type'] == 'video' for t in media['tracks']): raise ValueError('Filen har intet videospor.')
     if library.fingerprint(path) != stamp: raise ValueError('Filmen er ændret. Vælg den igen.')
     return {**public(item), 'fingerprint': workflow.browser_fingerprint(stamp),
+            'source': 'torrent' if item.get('_row') else 'manual',
+            'torrent_hash': (item.get('_row') or {}).get('hash'),
             'duration': media.get('container', {}).get('properties', {}).get('duration', 0)/1e9, 'tracks': tracks}
 
 
@@ -101,12 +103,18 @@ def validate(api, data, *, require_import=True):
     offset = data.get('offset_ms', 0)
     if type(offset) not in (int, float) or not -3600000 <= offset <= 3600000 or not math.isfinite(offset) or int(offset) != offset:
         raise ValueError('Tidsforskydningen skal være hele millisekunder mellem -3600000 og 3600000.')
+    if 'source_options' in data:
+        from merge_policy import prepare
+        if prepare(sources, data) != data['source_options']:
+            raise ValueError('Kildefilernes torrentforbindelse er ændret. Vælg filmene igen.')
     return sources, int(offset)
 
 
 def enqueue(api, data):
     with storage.transaction():
         sources, offset = validate(api, data)
+        from merge_policy import prepare
+        source_options = prepare(sources, data)
         jobs = read()
         if sum(j['state'] in ('queued', 'running') for j in jobs) >= 100:
             raise ValueError('Flettekøen er fuld (maks. 100).')
@@ -117,7 +125,7 @@ def enqueue(api, data):
         job = {'id': ident, 'owner': data['owner'], 'name': base.name, 'state': 'queued',
                'detail': 'Venter på fletning', 'created_at': time.time(), 'output': output.name,
                'base': data['base'], 'donor': data['donor'], 'offset_ms': offset, 'relocate_original': True,
-               'refresh_libraries': True, 'relocate_donor': True}
+               'refresh_libraries': True, 'relocate_donor': True, 'source_options': source_options}
         from merge_publish import plan
         plan(api, sources, ident, output.name)
         from merge_sources import plan as plan_donor

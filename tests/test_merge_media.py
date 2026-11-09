@@ -543,3 +543,84 @@ def test_changed_donor_archive_collision_preserves_input(films, monkeypatch):
     merge.enqueue(empty_api,choices); tick(empty_api)
     assert merge.read()[0]['state']=='error'
     assert paths[1].read_bytes()==b'film-1'
+
+
+@pytest.mark.parametrize('key', ['base', 'donor'])
+def test_manual_source_can_be_deleted_only_after_verified_publication(films, monkeypatch, key):
+    paths, _, _, choices=films
+    choices[key]['original']={'disposition':'delete'}
+    def run(args,**kwargs):
+        assert all(p.exists() for p in paths)
+        Path(args[args.index('-o')+1]).write_bytes(b'merged')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(merge.subprocess,'run',run)
+    queued=merge.enqueue(empty_api,choices);tick(empty_api)
+    assert merge.read()[0]['state']=='done'
+    assert paths[0].with_name(queued['output']).exists()
+    for index,name in enumerate(('base','donor')):
+        assert not paths[index].exists()
+        assert (paths[index].parent/'Originals'/paths[index].name).exists() == (name!=key)
+
+
+@pytest.mark.parametrize('action', ['keep','stop_keep','delete','automatic','delete_ratio','delete_time'])
+def test_donor_seeding_dropdown_applies_after_move_and_preserves_progress(donor_torrent, action):
+    from green_credit import CreditLedger
+    paths,choices,api,row,calls,moved,_=donor_torrent
+    row.update(uploaded=500,downloaded=1000,total_size=1000,seeding_time=123)
+    choices['donor']['original']={'policy':{'ratio_action':action,'ratio_limit':2.5,'seed_minutes':120}}
+    queued=merge.enqueue(api,choices);tick(api)
+    assert library.pending(row['hash'])
+    assert not any(e=='torrents/setShareLimits' for e,_ in calls)
+    moved();tick(api)
+    assert merge.read()[0]['state']=='done'
+    assert not library.pending(row['hash'])
+    limits=next(d for e,d in calls if e=='torrents/setShareLimits')
+    assert limits['shareLimitAction']==('Stop' if action in ('keep','stop_keep') else 'RemoveWithContent')
+    with CreditLedger().snapshot() as credit:
+        entry=credit.entries[row['hash']]
+        assert entry['target']==(1 if action in ('stop_keep','delete_time') else 2.5)
+        assert entry['ratio_only']==(action=='delete_ratio')
+        assert entry['adaptive_seeding']==(action=='automatic')
+        assert entry['stop_on_complete']==(action=='stop_keep')
+        assert entry['seed_minutes']==(120 if action=='delete_time' else None)
+
+
+@pytest.mark.parametrize('key', ['base','donor'])
+def test_original_choices_are_validated_before_queueing(films,key):
+    _,_,_,choices=films
+    choices[key]['original']={'policy':{'ratio_action':'delete','ratio_limit':2}}
+    with pytest.raises(ValueError,match='uden torrent'): merge.enqueue(empty_api,choices)
+    assert not merge.read()
+
+
+def test_same_torrent_rejects_conflicting_seeding_choices(seeding_merge,films):
+    import merge_policy
+    _,choices,api,row,_,_,_=seeding_merge
+    _,items,_,_=films
+    items[1]['_row']=row
+    choices['base']['original']={'policy':{'ratio_action':'keep','ratio_limit':1}}
+    choices['donor']['original']={'policy':{'ratio_action':'delete_ratio','ratio_limit':2}}
+    with pytest.raises(ValueError,match='samme seedingvalg'):
+        merge_policy.prepare(merge.validate(api,choices)[0],choices)
+
+
+def test_torrent_cannot_be_switched_to_direct_deletion(donor_torrent):
+    _,choices,api,_,_,_,_=donor_torrent
+    choices['donor']['original']={'disposition':'delete'}
+    with pytest.raises(ValueError,match='Torrentoriginaler'): merge.enqueue(api,choices)
+
+
+def test_policy_failure_can_retry_without_merging_or_moving_again(donor_torrent,monkeypatch):
+    _,choices,api,row,calls,moved,_=donor_torrent
+    choices['donor']['original']={'policy':{'ratio_action':'delete_ratio','ratio_limit':3}}
+    queued=merge.enqueue(api,choices);tick(api);moved()
+    def failed(endpoint,data=None):
+        if endpoint=='torrents/setShareLimits':raise ValueError('temporary API failure')
+        return api(endpoint,data)
+    tick(failed)
+    assert merge.read()[0]['state']=='error' and library.pending(row['hash'])
+    merge.dispatch(api,'retry',{'id':queued['id'],'owner':'alice'})
+    monkeypatch.setattr(merge.subprocess,'run',Mock(side_effect=AssertionError('remux')))
+    tick(api)
+    assert merge.read()[0]['state']=='done' and not library.pending(row['hash'])
+    assert sum(e=='torrents/setLocation' for e,_ in calls)==1

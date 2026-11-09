@@ -18,6 +18,7 @@ tracks = [
     {'id': 4, 'kind': 'audio', 'codec': 'E-AC-3', 'profile': 'Dolby Digital Plus + Dolby Atmos (JOC)', 'language': 'eng', 'channels': 6},
     {'id': 7, 'kind': 'subtitles', 'codec': 'SubRip/SRT', 'language': 'dan', 'title': 'Dansk'}]
 items = [{'id': str(i), 'name': f'Film-{i}-'+('langt-filnavn-'*8)+'.mkv', 'title': f'Film {i}', 'eligible': i != 3, 'size': 20*1024**3,
+          'source':'torrent' if i==1 else 'manual', 'torrent_hash':'a'*40 if i==1 else None,
           'duration': 7200+i*10, 'tracks': tracks, 'fingerprint': ['123456789', '1794171474346797000']} for i in (1, 2, 3)]
 
 class Demo(FakeRuntime):
@@ -51,6 +52,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.locator('[name=password]').fill((Path(folder)/'initial-login.txt').read_text().strip())
             page.get_by_role('button', name='Log ind', exact=True).click()
             for theme in ('fjord', 'nordic'):
+                items[1].update(source='manual' if theme=='fjord' else 'torrent',torrent_hash=None if theme=='fjord' else 'a'*40)
                 page.goto(f'http://127.0.0.1:{server.server_port}/#appearance')
                 page.locator(f'[name=theme][value={theme}]').check()
                 page.locator('#appearance-save').click()
@@ -94,6 +96,30 @@ with tempfile.TemporaryDirectory() as folder:
                 expect(page.locator('#mt-review-details')).to_contain_text('-1250 ms')
                 expect(page.locator('#mt-review-step')).to_contain_text('via qBittorrent til Seeder')
                 expect(page.locator('#mt-review-step')).to_contain_text('Originals')
+                expect(page.locator('#mt-original-base option')).to_have_count(6)
+                page.locator('#mt-original-base-trigger').click()
+                page.locator('#mt-original-base-options [data-value=delete_time]').click()
+                base_original=page.locator('#mt-original-base').locator('xpath=ancestor::fieldset[1]')
+                base_original.locator('input').fill('0')
+                before=len(submitted)
+                page.locator('#mt-submit').click()
+                assert len(submitted)==before  # Invalid goals never enter the queue.
+                base_original.locator('input').fill('120')
+                if theme=='fjord':
+                    page.locator('#mt-original-donor').select_option('delete')
+                else:
+                    expect(page.locator('#mt-original-donor')).to_have_value('delete_time')
+                    donor_original=page.locator('#mt-original-donor').locator('xpath=ancestor::fieldset[1]')
+                    expect(donor_original.locator('input')).to_have_value('120')
+                    donor_original.locator('input').fill('45')
+                    expect(base_original.locator('input')).to_have_value('45')
+                page.locator('#mt-prev').click()
+                page.locator('#mt-next').click()
+                expect(page.locator('#mt-original-base')).to_have_value('delete_time')
+                for width in (1440,390,320):
+                    page.set_viewport_size({'width':width,'height':1000})
+                    assert page.locator('#mt-dialog').evaluate('(e)=>e.scrollWidth<=e.clientWidth+1')
+                    page.screenshot(path=str(artifacts/f'{theme}-originals-{width}.png'))
                 page.locator('#mt-submit').click()
                 if len(submitted) == 1:
                     expect(page.locator('#mt-dialog-error')).to_contain_text('ændret')
@@ -112,6 +138,9 @@ with tempfile.TemporaryDirectory() as folder:
                 assert submitted[-1]['base']['tracks'] == [4, 7]
                 assert submitted[-1]['donor']['tracks'] == [4, 7]
                 assert submitted[-1]['base']['id'] == '1' and submitted[-1]['donor']['id'] == '2'
+                assert submitted[-1]['base']['original']['policy']['ratio_action']=='delete_time'
+                assert submitted[-1]['base']['original']['policy']['seed_minutes']==(120 if theme=='fjord' else 45)
+                assert submitted[-1]['donor']['original']==({'disposition':'delete'} if theme=='fjord' else submitted[-1]['base']['original'])
                 assert submitted[-1]['offset_ms'] == -1250
                 assert submitted[-1]['base']['fingerprint'][1] == '1794171474346797000'
                 page.locator('#mt-back').click()

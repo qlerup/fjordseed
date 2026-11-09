@@ -5,7 +5,9 @@
  const post=(path,data={})=>api('/api/merge/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
  const error=text=>{const id=$('mt-dialog').open?'mt-dialog-error':'mt-error';$(id).textContent=text||'';$(id).hidden=!text;};
  let items=[],base=null,donor=null,stage='base',busy=false,open=false,limit=40,loading=false,jobsLoading=false;
- const choices={base:new Set(),donor:new Set()};
+ const choices={base:new Set(),donor:new Set()}, originals={base:null,donor:null};
+ const originalActions=[['keep','Behold original · seed indtil du stopper'],['stop_keep','Behold original · stop efter fletning'],['delete','Slet original ved målratio eller 50 timers seedtid'],['automatic','Optimér upload · slet original bagefter'],['delete_ratio','Slet original kun ved målratio'],['delete_time','Seed i X minutter · slet original bagefter']];
+ const originalDefault=file=>file.source==='torrent'?{policy:{ratio_action:'keep',ratio_limit:1,seed_minutes:60}}:{disposition:'archive'};
  const sizes=n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(n/1024**3)+' GB';
  const duration=n=>n?Math.floor(n/60)+' min '+Math.round(n%60)+' sek':'Ukendt varighed';
  const label=t=>[t.language,t.codec,t.profile,t.channels?t.channels+' kanaler':'',t.title,t.default?'Standard':'',t.forced?'Tvungen':''].filter(Boolean).join(' · ');
@@ -39,13 +41,24 @@
    sources.append(panel);
   }
  }
+ function originalFields(key,file){
+  const field=node('fieldset'),title=key==='base'?'Originalen fra hovedfilen':'Originalen fra den anden fil';field.append(node('legend',title));
+  const o=originals[key]||(originals[key]=originalDefault(file)),label=node('label',file.source==='torrent'?'Seeding og oprydning':'Originalfil'),select=node('select'),extra=node('div');select.id='mt-original-'+key;select.disabled=busy;
+  const actions=file.source==='torrent'?originalActions:[['archive','Behold originalen i Originals'],['delete','Slet originalen efter fletning']];
+  for(const [value,text] of actions){const option=node('option',text);option.value=value;select.append(option);}select.value=o.policy?o.policy.ratio_action:o.disposition;
+  function sync(){if(file.torrent_hash){const other=key==='base'?'donor':'base',otherFile=other==='base'?base:donor;if(otherFile?.torrent_hash===file.torrent_hash){originals[other]=o;const input=$('mt-original-'+other)?.closest('fieldset').querySelector('input');if(input)input.value=o.policy.ratio_action==='delete_time'?o.policy.seed_minutes:o.policy.ratio_limit;}}}
+  function inputs(){extra.replaceChildren();if(o.policy&&!['keep','stop_keep'].includes(o.policy.ratio_action)){
+   const timed=o.policy.ratio_action==='delete_time',l=node('label',timed?'Aktiv seedtid i minutter':'Målratio'),input=node('input');input.type='number';input.min=1;input.max=timed?525600:10000;input.step=timed?'1':'any';input.required=true;input.disabled=busy;input.value=timed?o.policy.seed_minutes:o.policy.ratio_limit;input.oninput=()=>{o.policy[timed?'seed_minutes':'ratio_limit']=Number(input.value);sync();};l.append(input);extra.append(l,node('p',timed?'Optjent aktiv seedtid tæller med. Når målet er nået, slettes original og torrent, også ved aktive downloadere.':'Reel upload og aktiv seedtid tæller med. Oprydning venter på aktive downloadere.','muted small'));
+  }}
+  select.onchange=()=>{if(o.policy)o.policy.ratio_action=select.value;else o.disposition=select.value;sync();renderReview();};label.append(select);field.append(label,extra,node('p',o.policy?'Originalen flyttes via qBittorrent til Seeder. Valget gælder kun originalen; den flettede film bliver i biblioteket. Filer i samme torrent følger samme valg.':'Originalen flyttes til Originals eller slettes først, når resultatfilen er kontrolleret og gemt.','muted small'));inputs();return field;
+ }
  function renderReview(){
   const list=$('mt-review-details');list.replaceChildren();
   for(const [key,file,title] of [['base',base,'Video og beholdte spor fra hovedfilen'],['donor',donor,'Nye spor fra den anden fil']]){
    const section=node('section',null,'mt-review-file');section.append(node('h4',title),node('p',file.name,'muted small'));
    const kept=file.tracks.filter(t=>choices[key].has(t.id)),audio=kept.filter(t=>t.kind==='audio'),subs=kept.filter(t=>t.kind==='subtitles');
    section.append(node('p',audio.length+' lydspor'));const tracks=node('ul');for(const t of audio)tracks.append(node('li',label(t)));section.append(tracks);
-   const details=node('details');details.append(node('summary',subs.length+' undertekstspor'));const subtitles=node('ul');for(const t of subs)subtitles.append(node('li',label(t)));details.append(subtitles);section.append(details);list.append(section);
+   const details=node('details');details.append(node('summary',subs.length+' undertekstspor'));const subtitles=node('ul');for(const t of subs)subtitles.append(node('li',label(t)));details.append(subtitles);section.append(details,originalFields(key,file));list.append(section);
   }
   const offset=Number($('mt-offset').value);list.append(node('p','Forskydning af nye spor: '+(offset>0?'+':'')+offset+' ms','mt-review-offset'));
  }
@@ -75,8 +88,8 @@
   if(busy)return;busy=true;$('mt-close').disabled=true;error('');const requested=stage,status=$(requested==='donor'?'mt-donor-status':'mt-status');status.textContent='Læser spor fra '+file.name+' …';renderPicker();
   try{
    const detail=await api('/api/merge/library/'+encodeURIComponent(file.id));if(!open)return;
-   if(requested==='base'){base=detail;choices.base=new Set(detail.tracks.map(t=>t.id));donor=null;choices.donor.clear();stage='donor';}
-   else{donor=detail;choices.donor=new Set();stage='tracks';}
+   if(requested==='base'){base=detail;originals.base=originalDefault(detail);originals.donor=null;choices.base=new Set(detail.tracks.map(t=>t.id));donor=null;choices.donor.clear();stage='donor';}
+   else{donor=detail;originals.donor=base.torrent_hash&&base.torrent_hash===detail.torrent_hash?originals.base:originalDefault(detail);choices.donor=new Set();stage='tracks';}
    $('mt-donor-search').value='';limit=40;
   }catch(e){error(e.message);}finally{busy=false;status.textContent='';if(open)show();}
  }
@@ -112,9 +125,10 @@
  $('mt-form').onsubmit=async event=>{
   event.preventDefault();if(busy)return;if(stage!=='review'){advance();return;}error('');if(!choices.donor.size){error('Vælg mindst ét spor fra den anden fil.');return;}
   const offset=Number($('mt-offset').value);if(!Number.isInteger(offset)||Math.abs(offset)>3600000){error('Angiv tidsforskydningen i hele millisekunder.');return;}
+  if(!$('mt-form').reportValidity())return;
   busy=true;show();
   try{
-   const selection=(file,key)=>({id:file.id,fingerprint:file.fingerprint,tracks:[...choices[key]]});
+   const selection=(file,key)=>({id:file.id,fingerprint:file.fingerprint,tracks:[...choices[key]],original:originals[key]});
    const result=await post('queue',{base:selection(base,'base'),donor:selection(donor,'donor'),offset_ms:offset});
    base=null;donor=null;choices.base.clear();choices.donor.clear();stage='base';$('mt-offset').value='0';$('mt-status').textContent='Tilføjet til køen · '+result.output;$('mt-dialog').close();await loadJobs();
   }catch(e){error(e.message);}finally{busy=false;show();}

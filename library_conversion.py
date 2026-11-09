@@ -535,8 +535,14 @@ def copy_review_job(job, source_base):
 def pending(ident):
     from conversion_workflow import pending as workflow_pending
     if workflow_pending(ident): return True
-    return any(j['hash'] == ident and j['phase'] not in ('published', 'cancelled')
-               for j in storage.read(ledger(), {}).values())
+    for job in storage.read(ledger(), {}).values():
+        if job['hash'] == ident and job['phase'] not in ('published', 'cancelled'): return True
+        donor = job.get('donor_cleanup', {})
+        if (job.get('merge_id') and ident in (job.get('hash'), donor.get('hash'))
+                and (not donor.get('done', True) or
+                     job.get('source_options') and not job.get('source_policies_applied'))):
+            return True
+    return False
 
 
 def verify_sources(job, base):

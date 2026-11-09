@@ -15,7 +15,7 @@ video. Choose which original tracks to keep; Atmos/JOC is copied without
 re-encoding. After verification, both source files move out of the library: torrents go through qBittorrent to
 Seeder (or to Originals for a file without a torrent), and the new MKV is published
 in the library. Only the merged movie remains in the library; donor originals are also archived or kept seeding. See [track merging](docs/track-merges.md)
-for timing, queue behavior and verification.
+for timing, queue behavior and verification. Each source has its own original-file dropdown: retain/stop seeding, ratio/time/adaptive cleanup for torrents, or archive/delete after verification for files without a torrent. Both sources leave the Plex/FjordFlix library; the merged movie remains.
 Before merging, automatic audio cross-correlation can suggest the offset from
 multiple film locations. Compare the waveforms and test short video clips with
 live timing adjustments; conflicting matches are flagged instead of applied.
