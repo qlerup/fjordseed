@@ -167,7 +167,8 @@ def test_publication_checks_tracks_and_never_overwrites_originals(films, monkeyp
     assert (paths[0].parent/queued['output']).read_bytes() == b'new-matroska'
     assert not paths[0].exists()
     assert (paths[0].parent/'Originals'/paths[0].name).read_bytes() == originals[0]
-    assert paths[1].read_bytes() == originals[1]
+    assert not paths[1].exists()
+    assert (paths[1].parent/'Originals'/paths[1].name).read_bytes() == originals[1]
     assert not list(paths[0].parent.glob('*.partial'))
 
 
@@ -263,7 +264,8 @@ def test_seeding_original_moves_via_qbittorrent_before_library_publication(seedi
     assert (Path(row['save_path'])/paths[0].name).read_bytes()==b'film-0'
     assert paths[0].with_name('cover.txt').read_bytes()==b'original-cover'
     assert (Path(row['save_path'])/'cover.txt').read_bytes()==b'original-cover'
-    assert paths[1].read_bytes()==b'film-1'
+    assert not paths[1].exists()
+    assert (paths[1].parent/'Originals'/paths[1].name).read_bytes()==b'film-1'
     assert row['state']=='uploading' and any(e=='torrents/start' for e,_ in calls)
     records = merge.storage.read(merge.storage.CONFIG/'download-storage.json', {})
     assert records[row['hash']]['library_replaced'] is True
@@ -390,12 +392,154 @@ def test_real_remux_preserves_video_and_eac3_bytes_metadata_and_subtitles(tmp_pa
     assert audio['properties']['track_name'] == 'Test audio'
     assert [t['properties']['forced_track'] for t in actual['tracks'] if t['type'] == 'subtitles'] == [
         next(t['properties'].get('forced_track', False) for t in merge.identify(p)['tracks'] if t['type'] == 'subtitles')
-        for p in (root/'Originals'/base.name, donor)]
+        for p in (root/'Originals'/base.name, root/'Originals'/donor.name)]
     def raw(path, mapping, fmt):
         return subprocess.run([ffmpeg, '-v', 'error', '-i', str(path), '-map', mapping, '-c', 'copy', '-f', fmt, '-'], capture_output=True, check=True).stdout
     archived = root/'Originals'/base.name
+    donor = root/'Originals'/donor.name
     assert raw(archived, '0:v:0', 'h264') == raw(output, '0:v:0', 'h264')
     assert raw(donor, '0:a:0', 'eac3') == raw(output, '0:a:0', 'eac3')
     text = subprocess.run([ffmpeg, '-v', 'error', '-i', str(output), '-map', '0:s:1', '-f', 'srt', '-'], capture_output=True, check=True).stdout
     assert b'00:00:00,750 --> 00:00:01,750' in text
     assert [hashlib.sha256(p.read_bytes()).hexdigest() for p in (archived, donor)] == originals
+
+
+@pytest.fixture
+def donor_torrent(films, monkeypatch):
+    paths, items, _, choices = films
+    row = {'hash':'d'*40, 'name':'Donor film', 'save_path':str(paths[1].parent),
+           'progress':1, 'state':'uploading', 'auto_tmm':True}
+    items[1]['_row'] = row; items[1]['torrent_status'] = 'linked'
+    entries = [{'name':paths[1].name,'size':paths[1].stat().st_size,'priority':1}]
+    calls = []; others = []
+    def api(endpoint, data=None):
+        calls.append((endpoint, data))
+        if endpoint == 'torrents/info': return SimpleNamespace(json=lambda:deepcopy([row,*others]))
+        if endpoint.startswith('torrents/files?'): return SimpleNamespace(json=lambda:deepcopy(entries))
+        if endpoint == 'torrents/stop': row['state']='stoppedUP'
+        if endpoint == 'torrents/start': row['state']='uploading'
+        return SimpleNamespace(json=lambda:[])
+    def run(args, **kwargs):
+        Path(args[args.index('-o')+1]).write_bytes(b'merged')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(merge.subprocess, 'run', run)
+    def moved():
+        location = next(data['location'] for endpoint,data in calls if endpoint=='torrents/setLocation')
+        target = Path(location)/paths[1].name
+        target.parent.mkdir(parents=True,exist_ok=True); paths[1].rename(target)
+        row['save_path'] = location; row['state'] = 'stoppedUP'
+    return paths, choices, api, row, calls, moved, others
+
+
+@pytest.mark.parametrize('paused', [False, True])
+def test_donor_torrent_moves_and_only_merged_film_remains(donor_torrent, monkeypatch, paused):
+    paths, choices, api, row, calls, moved, _ = donor_torrent
+    if paused: row['state']='stoppedUP'
+    queued = merge.enqueue(api, choices); tick(api)
+    assert merge.read()[0]['state']=='running'
+    assert paths[0].with_name(queued['output']).exists() and paths[1].exists()
+    assert merge.dispatch(api,'refresh-pending',{})['jobs']==[]
+    tick(api)
+    assert sum(e=='torrents/setLocation' for e,_ in calls)==1
+    moved()
+    # A restart after relocation must only finish cleanup, never remux.
+    monkeypatch.setattr(merge.subprocess,'run',Mock(side_effect=AssertionError('remux')))
+    tick(api)
+    assert merge.read()[0]['state']=='done'
+    assert not paths[0].exists() and not paths[1].exists()
+    assert (Path(row['save_path'])/paths[1].name).read_bytes()==b'film-1'
+    assert (row['state']=='stoppedUP') == paused
+    records=merge.storage.read(merge.storage.CONFIG/'download-storage.json',{})
+    assert records[row['hash']]['library_replaced'] is True
+
+
+def test_donor_move_failure_retries_after_source_path_disappears(donor_torrent, monkeypatch):
+    paths, choices, api, row, calls, moved, _ = donor_torrent
+    queued=merge.enqueue(api, choices); tick(api); moved()
+    def failed(endpoint,data=None):
+        if endpoint=='torrents/start': raise ValueError('resume failed')
+        return api(endpoint,data)
+    tick(failed)
+    assert merge.read()[0]['state']=='error'
+    assert not paths[1].exists()
+    merge.dispatch(api,'retry',{'id':queued['id'],'owner':'alice'})
+    monkeypatch.setattr(merge.subprocess,'run',Mock(side_effect=AssertionError('remux')))
+    tick(api)
+    assert merge.read()[0]['state']=='done' and row['state']=='uploading'
+
+
+def test_donor_ownership_is_rechecked_before_native_move(donor_torrent):
+    paths, choices, api, row, calls, _, others = donor_torrent
+    merge.enqueue(api,choices)
+    others.append({**row,'hash':'e'*40})
+    tick(api)
+    assert merge.read()[0]['state']=='error'
+    assert not any(e=='torrents/setLocation' for e,_ in calls)
+    assert paths[1].read_bytes()==b'film-1'
+
+
+def test_changed_published_result_blocks_donor_cleanup(donor_torrent):
+    paths, choices, api, row, calls, moved, _ = donor_torrent
+    queued=merge.enqueue(api,choices); tick(api); moved()
+    paths[0].with_name(queued['output']).write_bytes(b'changed-result')
+    tick(api)
+    assert merge.read()[0]['state']=='error'
+    assert (Path(row['save_path'])/paths[1].name).exists()
+    assert not any(e=='torrents/start' for e,_ in calls)
+
+
+def test_legacy_merge_keeps_donor(films, monkeypatch):
+    paths, _, _, choices=films
+    queued=merge.enqueue(empty_api,choices)
+    rows=merge.read(); rows[0].pop('relocate_donor'); merge.save(rows)
+    def run(args,**kwargs):
+        Path(args[args.index('-o')+1]).write_bytes(b'merged')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(merge.subprocess,'run',run)
+    tick(empty_api)
+    assert merge.read()[0]['state']=='done'
+    assert paths[1].read_bytes()==b'film-1'
+
+
+def test_both_sources_in_one_torrent_are_moved_once(seeding_merge, films):
+    paths, choices, api, row, calls, moved, _ = seeding_merge
+    _, items, _, _ = films
+    items[1]['_row']=row; items[1]['torrent_status']='linked'
+    original_api=api
+    def shared_api(endpoint,data=None):
+        response=original_api(endpoint,data)
+        if endpoint.startswith('torrents/files?'):
+            return SimpleNamespace(json=lambda:response.json()+[
+                {'name':paths[1].name,'size':len(b'film-1'),'priority':1}])
+        return response
+    queued=merge.enqueue(shared_api,choices); tick(shared_api)
+    location=next(d['location'] for e,d in calls if e=='torrents/setLocation')
+    moved()
+    # Simulate qBittorrent moving the donor companion with the same torrent.
+    paths[1].rename(Path(location)/paths[1].name)
+    tick(shared_api)
+    assert merge.read()[0]['state']=='done'
+    assert sum(e=='torrents/setLocation' for e,_ in calls)==1
+    assert not paths[0].exists() and not paths[1].exists()
+    assert paths[0].with_name(queued['output']).exists()
+    assert (Path(location)/paths[1].name).read_bytes()==b'film-1'
+
+
+def test_changed_donor_archive_collision_preserves_input(films, monkeypatch):
+    import merge_sources
+    paths, _, _, choices=films
+    def run(args,**kwargs):
+        Path(args[args.index('-o')+1]).write_bytes(b'merged')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(merge.subprocess,'run',run)
+    original_advance=merge_sources.advance
+    def collision(api,ident):
+        jobs=merge.storage.read(library.ledger(),{})
+        archive=Path(jobs[ident]['donor_cleanup']['archive'])
+        archive.parent.mkdir(parents=True,exist_ok=True)
+        archive.write_bytes(b'someone elses file')
+        return original_advance(api,ident)
+    monkeypatch.setattr(merge_sources,'advance',collision)
+    merge.enqueue(empty_api,choices); tick(empty_api)
+    assert merge.read()[0]['state']=='error'
+    assert paths[1].read_bytes()==b'film-1'

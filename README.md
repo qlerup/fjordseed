@@ -12,9 +12,9 @@ server GPU and remains disabled until explicitly enabled.
 **Indstillinger → Konvertering → Flet spor fra to filer** copies selected audio
 and subtitle tracks from another film into a new MKV using the main film's
 video. Choose which original tracks to keep; Atmos/JOC is copied without
-re-encoding. After verification, the main original moves through qBittorrent to
+re-encoding. After verification, both source files move out of the library: torrents go through qBittorrent to
 Seeder (or to Originals for a file without a torrent), and the new MKV is published
-in the library. The donor file is retained. See [track merging](docs/track-merges.md)
+in the library. Only the merged movie remains in the library; donor originals are also archived or kept seeding. See [track merging](docs/track-merges.md)
 for timing, queue behavior and verification.
 Before merging, automatic audio cross-correlation can suggest the offset from
 multiple film locations. Compare the waveforms and test short video clips with

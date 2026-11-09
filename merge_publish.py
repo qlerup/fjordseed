@@ -62,6 +62,9 @@ def handoff(api, sources, merge_job, result):
         if prior.get('merge_id') != ident: raise ValueError('Et andet job bruger fletningens id.')
         return
     job = plan(api, sources, ident, merge_job['output'])
+    if merge_job.get('relocate_donor'):
+        from merge_sources import plan as plan_donor
+        job['donor_cleanup'] = plan_donor(api, sources, ident, merge_job['output'])
     stage = library.checked(job['stage']); stage.mkdir(parents=True, exist_ok=True)
     # Only companions need copies. The selected original will be moved by qBittorrent.
     if not job.get('manual'):
@@ -94,6 +97,9 @@ def handoff(api, sources, merge_job, result):
         current = plan(api, current_sources, ident, merge_job['output'])
         if any(current.get(k) != job.get(k) for k in ('files','hash','original','source_fingerprint')):
             raise ValueError('Hovedfilen eller torrenten er ændret under klargøringen.')
+        if job.get('donor_cleanup'):
+            if plan_donor(api, current_sources, ident, merge_job['output']) != job['donor_cleanup']:
+                raise ValueError('Filen med ekstra spor er ændret under klargøringen.')
         atomic(work/'result'/'.fjordseed-converted.json', json.dumps({'id':ident,'files':[job['output']]}), mode=0o644)
         atomic(work/'status.json', json.dumps({'id':ident,'state':'ready','progress':100}), mode=0o644)
         job['phase'] = 'queued'
@@ -118,4 +124,8 @@ def advance(api, ident):
         finally: library.save(jobs)
         done = job['phase']=='published' and not any(job.get(k) for k in
             ('original_pending','result_verify_required','resume_pending'))
-        return done, ('originalen er gemt i Originals' if job.get('manual') else 'originalen ligger i Seeder')
+    if done and job.get('donor_cleanup'):
+        from merge_sources import advance as advance_donor
+        done = advance_donor(api, ident)
+    return done, ('begge kildefiler er flyttet fra biblioteket' if job.get('donor_cleanup') else
+                  'originalen er gemt i Originals' if job.get('manual') else 'originalen ligger i Seeder')

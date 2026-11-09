@@ -117,9 +117,11 @@ def enqueue(api, data):
         job = {'id': ident, 'owner': data['owner'], 'name': base.name, 'state': 'queued',
                'detail': 'Venter på fletning', 'created_at': time.time(), 'output': output.name,
                'base': data['base'], 'donor': data['donor'], 'offset_ms': offset, 'relocate_original': True,
-               'refresh_libraries': True}
+               'refresh_libraries': True, 'relocate_donor': True}
         from merge_publish import plan
         plan(api, sources, ident, output.name)
+        from merge_sources import plan as plan_donor
+        plan_donor(api, sources, ident, output.name)
         jobs.append(job); save(jobs)
     return {'ok': True, 'id': ident, 'output': output.name}
 
@@ -229,7 +231,7 @@ def finish(api, job):
                progress=100 if done and not refreshing else None,
                **({'refresh_started_at':time.time()} if refreshing else {}),
                detail='Opdaterer FjordFlix og Plex' if refreshing else 'Færdig · '+detail if done else
-                      'Flytter/kontrollerer originalen og gemmer resultatet i biblioteket')
+                      'Flytter/kontrollerer kildefilerne og gemmer resultatet i biblioteket')
     except (ValueError, OSError, KeyError, TypeError) as exc:
         update(job['id'], state='error', phase='finalizing',
                detail='Fletningen er bevaret · flytningen kræver kontrol: '+str(exc))
