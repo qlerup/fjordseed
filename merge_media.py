@@ -116,7 +116,9 @@ def enqueue(api, data):
         if output.exists(): raise ValueError('Resultatfilen findes allerede.')
         job = {'id': ident, 'owner': data['owner'], 'name': base.name, 'state': 'queued',
                'detail': 'Venter på fletning', 'created_at': time.time(), 'output': output.name,
-               'base': data['base'], 'donor': data['donor'], 'offset_ms': offset}
+               'base': data['base'], 'donor': data['donor'], 'offset_ms': offset, 'relocate_original': True}
+        from merge_publish import plan
+        plan(api, sources, ident, output.name)
         jobs.append(job); save(jobs)
     return {'ok': True, 'id': ident, 'output': output.name}
 
@@ -190,6 +192,12 @@ def process(api, job):
             raise ValueError('MKVToolNix kunne ikke flette sporene. Originalerne er bevaret.')
         update(job['id'], detail='Kontrollerer resultatets spor')
         verify(sources, temporary)
+        if job.get('relocate_original'):
+            from merge_publish import handoff
+            handoff(api, sources, job, temporary)
+            update(job['id'], phase='finalizing', detail='Flytter originalen og gemmer resultatet i biblioteket', progress=None)
+            finish(api, job)
+            return
         with storage.transaction():
             # Publication never replaces either input, a torrent payload, or another result.
             validate(api, job)
@@ -207,6 +215,18 @@ def process(api, job):
         update(job['id'], state='error', detail=detail)
     finally:
         if temporary and (not linked or completed): temporary.unlink(missing_ok=True)
+
+
+def finish(api, job):
+    from merge_publish import advance
+    try:
+        done, detail = advance(api, job['id'])
+        update(job['id'], state='done' if done else 'running', phase='finalizing',
+               progress=100 if done else None,
+               detail='Færdig · '+detail if done else 'Flytter/kontrollerer originalen og gemmer resultatet i biblioteket')
+    except (ValueError, OSError, KeyError, TypeError) as exc:
+        update(job['id'], state='error', phase='finalizing',
+               detail='Fletningen er bevaret · flytningen kræver kontrol: '+str(exc))
 
 
 @contextmanager
@@ -236,12 +256,19 @@ def tick(api):
         with storage.transaction():
             jobs = read()
             for running in (j for j in jobs if j['state'] == 'running'):
-                running.update(state='error', detail='Serveren blev genstartet under fletningen. Prøv igen.')
-            job = next((j for j in jobs if j['state'] == 'queued'), None)
+                if running.get('phase') == 'finalizing': continue
+                # Recover a crash after the durable publisher accepted the result.
+                publication = storage.read(library.ledger(), {}).get(running['id'], {})
+                if publication.get('merge_id') == running['id']:
+                    running['phase'] = 'finalizing'
+                else: running.update(state='error', detail='Serveren blev genstartet under fletningen. Prøv igen.')
+            finalizing = [j for j in jobs if j['state']=='running' and j.get('phase')=='finalizing']
+            job = None if finalizing else next((j for j in jobs if j['state'] == 'queued'), None)
             if job:
                 job.update(state='running', detail='Kopierer spor uden genkodning', started_at=time.time())
                 (folder()/(job['id']+'.log')).unlink(missing_ok=True)
             save(jobs)
+        for pending in finalizing: finish(api, pending)
         if job: process(api, job)
     return {'ok': True}
 
@@ -251,8 +278,8 @@ def jobs_for(owner):
     rows = [j for j in rows if j['state'] in ('queued', 'running', 'error')] + [j for j in rows if j['state'] in ('done', 'cancelled')][-20:]
     result = []
     for row in rows:
-        public_job = {k: row.get(k) for k in ('id', 'name', 'state', 'detail', 'output', 'progress')}
-        if row['state'] == 'running':
+        public_job = {k: row.get(k) for k in ('id', 'name', 'state', 'detail', 'output', 'progress', 'phase')}
+        if row['state'] == 'running' and row.get('phase') != 'finalizing':
             log = folder()/(row['id']+'.log')
             if log.exists():
                 with log.open('rb') as handle:
@@ -280,10 +307,15 @@ def dispatch(api, action, data):
             job = next((j for j in jobs if j['id'] == data.get('id') and j['owner'] == data['owner']), None)
             if not job: raise ValueError('Fletningen findes ikke.')
             if action == 'cancel' and job['state'] in ('queued', 'error'):
+                if job.get('phase') == 'finalizing': raise ValueError('Flytningen er allerede begyndt. Ret fejlen og prøv igen.')
                 job.update(state='cancelled', detail='Annulleret · originalerne er bevaret')
             elif action == 'retry' and job['state'] == 'error':
-                validate(api, job)
-                job.update(state='queued', detail='Venter på fletning', progress=None)
+                publication = storage.read(library.ledger(), {}).get(job['id'], {})
+                if publication.get('merge_id') == job['id']:
+                    job.update(state='running', phase='finalizing', detail='Genoptager flytning', progress=None)
+                else:
+                    validate(api, job)
+                    job.update(state='queued', detail='Venter på fletning', progress=None)
             else: raise ValueError('Handlingen er ikke mulig for dette job.')
             save(jobs)
         return {'ok': True}

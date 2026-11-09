@@ -92,6 +92,8 @@ with tempfile.TemporaryDirectory() as folder:
                     page.screenshot(path=str(artifacts/f'{theme}-tracks-{width}.png'))
                 page.locator('#mt-next').click()
                 expect(page.locator('#mt-review-details')).to_contain_text('-1250 ms')
+                expect(page.locator('#mt-review-step')).to_contain_text('via qBittorrent til Seeder')
+                expect(page.locator('#mt-review-step')).to_contain_text('Originals')
                 page.locator('#mt-submit').click()
                 if len(submitted) == 1:
                     expect(page.locator('#mt-dialog-error')).to_contain_text('ændret')

@@ -14,6 +14,17 @@ import merge_media as merge
 import library_conversion as library
 
 
+def empty_api(*args, **kwargs):
+    return SimpleNamespace(json=lambda: [])
+
+
+@pytest.fixture(autouse=True)
+def archive_roots(tmp_path, monkeypatch):
+    monkeypatch.setattr(merge.storage, 'originals_root', lambda: tmp_path/'downloads'/'Originals')
+    monkeypatch.setattr(merge.storage, 'seeding_root', lambda: tmp_path/'downloads'/'Seeder')
+    monkeypatch.setattr(merge.storage, 'managed_directory', lambda value: Path(value).is_relative_to(tmp_path/'downloads'))
+
+
 def track(ident, kind, codec, **properties):
     return {'id': ident, 'type': kind, 'codec': codec,
             'properties': {'codec_id': codec, **properties}}
@@ -73,7 +84,7 @@ def test_rejects_invalid_or_stale_selection_without_queueing(films, change):
     if change == 'offset': choices['offset_ms'] = True
     if change == 'nan': choices['offset_ms'] = float('nan')
     if change == 'fraction': choices['offset_ms'] = .5
-    with pytest.raises(ValueError): merge.enqueue(None, choices)
+    with pytest.raises(ValueError): merge.enqueue(empty_api, choices)
     assert merge.read() == []
     assert len(list(paths[0].parent.iterdir())) == 2
 
@@ -98,35 +109,35 @@ def test_details_exposes_joc_profile_and_precise_fingerprint(films, monkeypatch)
 
 def test_user_isolation_cancellation_and_retry(films):
     _, _, _, choices = films
-    job = merge.enqueue(None, choices)
+    job = merge.enqueue(empty_api, choices)
     assert not merge.jobs_for('bob')['jobs']
-    with pytest.raises(ValueError): merge.dispatch(None, 'cancel', {'owner': 'bob', 'id': job['id']})
+    with pytest.raises(ValueError): merge.dispatch(empty_api, 'cancel', {'owner': 'bob', 'id': job['id']})
     merge.update(job['id'], state='error')
-    merge.dispatch(None, 'retry', {'owner': 'alice', 'id': job['id']})
+    merge.dispatch(empty_api, 'retry', {'owner': 'alice', 'id': job['id']})
     assert merge.read()[0]['state'] == 'queued'
-    merge.dispatch(None, 'cancel', {'owner': 'alice', 'id': job['id']})
-    merge.tick(None)
+    merge.dispatch(empty_api, 'cancel', {'owner': 'alice', 'id': job['id']})
+    merge.tick(empty_api)
     assert merge.read()[0]['state'] == 'cancelled'
 
 
 def test_queue_revalidates_sources_before_running(films, monkeypatch):
     paths, _, _, choices = films
-    merge.enqueue(None, choices); paths[1].write_bytes(b'changed')
+    merge.enqueue(empty_api, choices); paths[1].write_bytes(b'changed')
     run = Mock(); monkeypatch.setattr(merge.subprocess, 'run', run)
-    merge.tick(None)
+    merge.tick(empty_api)
     assert merge.read()[0]['state'] == 'error'
     run.assert_not_called()
 
 
 def test_recovery_after_publication_does_not_remux_or_replace_result(films, monkeypatch):
     paths, _, _, choices = films
-    queued = merge.enqueue(None, choices)
+    queued = merge.enqueue(empty_api, choices)
     temporary = paths[0].with_name('.fjordseed-merge-'+queued['id']+'.partial')
     temporary.write_bytes(b'finished-before-crash')
     target = paths[0].with_name(queued['output'])
     os.link(temporary, target)
     run = Mock(); monkeypatch.setattr(merge.subprocess, 'run', run)
-    merge.tick(None)
+    merge.tick(empty_api)
     assert merge.read()[0]['state'] == 'done'
     assert target.read_bytes() == b'finished-before-crash'
     assert not temporary.exists()
@@ -136,24 +147,26 @@ def test_recovery_after_publication_does_not_remux_or_replace_result(films, monk
 def test_publication_checks_tracks_and_never_overwrites_originals(films, monkeypatch):
     paths, _, _, choices = films
     originals = [p.read_bytes() for p in paths]
-    queued = merge.enqueue(None, choices)
+    queued = merge.enqueue(empty_api, choices)
     def run(args, **kwargs):
         Path(args[args.index('-o')+1]).write_bytes(b'new-matroska')
         kwargs['stdout'].write('#GUI#progress 100%\n')
         return SimpleNamespace(returncode=0)
     monkeypatch.setattr(merge.subprocess, 'run', run)
-    merge.tick(None)
+    merge.tick(empty_api)
     job = merge.read()[0]
     assert job['state'] == 'done'
     assert (paths[0].parent/queued['output']).read_bytes() == b'new-matroska'
-    assert [p.read_bytes() for p in paths] == originals
+    assert not paths[0].exists()
+    assert (paths[0].parent/'Originals'/paths[0].name).read_bytes() == originals[0]
+    assert paths[1].read_bytes() == originals[1]
     assert not list(paths[0].parent.glob('*.partial'))
 
 
 @pytest.mark.parametrize('failure', ['tracks', 'source', 'exists', 'tool', 'space'])
 def test_failed_merges_leave_inputs_and_existing_results_untouched(films, monkeypatch, failure):
     paths, _, _, choices = films
-    queued = merge.enqueue(None, choices)
+    queued = merge.enqueue(empty_api, choices)
     target = paths[0].parent/queued['output']
     if failure == 'exists': target.write_bytes(b'existing')
     if failure == 'space': monkeypatch.setattr(merge.shutil, 'disk_usage', lambda path: SimpleNamespace(free=0))
@@ -163,7 +176,7 @@ def test_failed_merges_leave_inputs_and_existing_results_untouched(films, monkey
         if failure == 'source': paths[1].write_bytes(b'replaced')
         return SimpleNamespace(returncode=2 if failure == 'tool' else 0)
     monkeypatch.setattr(merge.subprocess, 'run', run)
-    merge.tick(None)
+    merge.tick(empty_api)
     assert merge.read()[0]['state'] == 'error'
     assert paths[0].read_bytes() == b'film-0'
     assert target.read_bytes() == b'existing' if failure == 'exists' else not target.exists()
@@ -171,18 +184,131 @@ def test_failed_merges_leave_inputs_and_existing_results_untouched(films, monkey
 
 
 def test_live_worker_is_not_claimed_twice(films, monkeypatch):
-    merge.enqueue(None, films[-1])
+    merge.enqueue(empty_api, films[-1])
     process = Mock(); monkeypatch.setattr(merge, 'process', process)
     with merge.worker_lock() as acquired:
         assert acquired
-        merge.tick(None)
+        merge.tick(empty_api)
     process.assert_not_called()
 
 
+@pytest.fixture
+def seeding_merge(films, monkeypatch):
+    paths, items, _, choices = films
+    companion = paths[0].with_name('cover.txt'); companion.write_bytes(b'original-cover')
+    row = {'hash':'a'*40, 'name':'Main film', 'save_path':str(paths[0].parent),
+           'progress':1, 'state':'uploading', 'auto_tmm':True}
+    items[0]['_row'] = row; items[0]['torrent_status'] = 'linked'
+    entries = [{'name':p.name,'size':p.stat().st_size,'priority':1} for p in (paths[0],companion)]
+    calls = []; extra_rows = []
+    def api(endpoint, data=None):
+        calls.append((endpoint, data))
+        if endpoint == 'torrents/info': return SimpleNamespace(json=lambda:deepcopy([row,*extra_rows]))
+        if endpoint.startswith('torrents/files?'): return SimpleNamespace(json=lambda:deepcopy(entries))
+        if endpoint == 'torrents/stop': row['state']='stoppedUP'
+        if endpoint == 'torrents/start': row['state']='uploading'
+        return SimpleNamespace(json=lambda:[])
+    def run(args, **kwargs):
+        Path(args[args.index('-o')+1]).write_bytes(b'verified-merged-mkv')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(merge.subprocess, 'run', run)
+    def complete_move():
+        location = next(data['location'] for endpoint,data in calls if endpoint=='torrents/setLocation')
+        for entry in entries:
+            source = Path(row['save_path'])/entry['name']; target = Path(location)/entry['name']
+            target.parent.mkdir(parents=True,exist_ok=True); source.rename(target)
+        row['save_path'] = location; row['state'] = 'stoppedUP'
+    return paths, choices, api, row, calls, complete_move, extra_rows
+
+
+def test_seeding_original_moves_via_qbittorrent_before_library_publication(seeding_merge):
+    paths, choices, api, row, calls, moved, _ = seeding_merge
+    queued = merge.enqueue(api, choices); merge.tick(api)
+    target = paths[0].with_name(queued['output'])
+    assert merge.read()[0]['phase']=='finalizing' and merge.read()[0]['state']=='running'
+    assert not target.exists() and paths[0].exists()
+    assert any(endpoint=='torrents/setLocation' for endpoint,_ in calls)
+    assert any(endpoint=='torrents/setAutoManagement' for endpoint,_ in calls)
+    merge.tick(api)  # Native relocation is asynchronous: wait for confirmation.
+    assert not target.exists() and sum(e=='torrents/setLocation' for e,_ in calls)==1
+    moved(); merge.tick(api)
+    assert merge.read()[0]['state']=='done'
+    assert target.read_bytes()==b'verified-merged-mkv' and not paths[0].exists()
+    assert (Path(row['save_path'])/paths[0].name).read_bytes()==b'film-0'
+    assert paths[0].with_name('cover.txt').read_bytes()==b'original-cover'
+    assert (Path(row['save_path'])/'cover.txt').read_bytes()==b'original-cover'
+    assert paths[1].read_bytes()==b'film-1'
+    assert row['state']=='uploading' and any(e=='torrents/start' for e,_ in calls)
+    records = merge.storage.read(merge.storage.CONFIG/'download-storage.json', {})
+    assert records[row['hash']]['library_replaced'] is True
+
+
+def test_paused_original_stays_paused_and_finalization_recovers_without_remux(seeding_merge, monkeypatch):
+    paths, choices, api, row, calls, moved, _ = seeding_merge
+    row['state']='stoppedUP'
+    queued = merge.enqueue(api, choices); merge.tick(api)
+    # A restart after handoff must recover from the durable publisher receipt.
+    merge.update(queued['id'], phase=None)
+    moved()
+    monkeypatch.setattr(merge.subprocess,'run',Mock(side_effect=AssertionError('Must not remux again')))
+    merge.tick(api)
+    assert merge.read()[0]['state']=='done'
+    assert not any(e=='torrents/start' for e,_ in calls) and row['state']=='stoppedUP'
+
+
+def test_move_error_can_resume_after_original_path_disappears(seeding_merge, monkeypatch):
+    paths, choices, api, row, calls, moved, _ = seeding_merge
+    queued = merge.enqueue(api, choices); merge.tick(api); moved()
+    def failed_resume(endpoint,data=None):
+        if endpoint=='torrents/start': raise ValueError('Temporarily unavailable')
+        return api(endpoint,data)
+    merge.tick(failed_resume)
+    assert merge.read()[0]['state']=='error' and not paths[0].exists()
+    with pytest.raises(ValueError): merge.dispatch(api,'cancel',{'id':queued['id'],'owner':'alice'})
+    merge.dispatch(api,'retry',{'id':queued['id'],'owner':'alice'})
+    monkeypatch.setattr(merge.subprocess,'run',Mock(side_effect=AssertionError('Must not remux again')))
+    merge.tick(api)
+    assert merge.read()[0]['state']=='done' and row['state']=='uploading'
+
+
+def test_shared_torrent_original_is_not_moved_or_replaced(seeding_merge):
+    paths, choices, api, row, calls, moved, others = seeding_merge
+    queued = merge.enqueue(api,choices)
+    others.append({**row,'hash':'b'*40})
+    merge.tick(api)
+    assert merge.read()[0]['state']=='error'
+    assert not any(e=='torrents/setLocation' for e,_ in calls)
+    assert paths[0].read_bytes()==b'film-0'
+    assert not paths[0].with_name(queued['output']).exists()
+
+
+@pytest.mark.skipif(os.name=='nt', reason='Cross-disk archive verification uses production Linux file locks')
+def test_manual_merge_cross_disk_archive_and_output_are_verified_before_removal(films, monkeypatch):
+    import errno
+    paths, _, _, choices = films
+    real_link = os.link
+    def cross_disk(source,target,*args,**kwargs):
+        if Path(source).parent != Path(target).parent: raise OSError(errno.EXDEV,'Cross-device link')
+        return real_link(source,target,*args,**kwargs)
+    monkeypatch.setattr(os,'link',cross_disk)
+    def run(args,**kwargs):
+        Path(args[args.index('-o')+1]).write_bytes(b'merged')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(merge.subprocess,'run',run)
+    queued = merge.enqueue(empty_api,choices); merge.tick(empty_api)
+    assert paths[0].exists() and merge.read()[0]['state']=='running'
+    publication = merge.storage.read(library.ledger(), {})[queued['id']]
+    assert publication['result_verify_required'] is True
+    for _ in range(4): merge.tick(empty_api)
+    assert merge.read()[0]['state']=='done' and not paths[0].exists()
+    assert (paths[0].parent/'Originals'/paths[0].name).read_bytes()==b'film-0'
+    assert paths[0].with_name(queued['output']).read_bytes()==b'merged'
+
+
 def test_recover_interrupted_worker_and_report_measured_progress(films, monkeypatch):
-    queued = merge.enqueue(None, films[-1])
+    queued = merge.enqueue(empty_api, films[-1])
     merge.update(queued['id'], state='running')
-    merge.tick(None)
+    merge.tick(empty_api)
     assert merge.read()[0]['state'] == 'error'
     merge.update(queued['id'], state='running')
     (merge.folder()/(queued['id']+'.log')).write_text('#GUI#progress 12%\n#GUI#progress 58%\n')
@@ -227,8 +353,8 @@ def test_real_remux_preserves_video_and_eac3_bytes_metadata_and_subtitles(tmp_pa
     monkeypatch.setattr(library, 'inventory', lambda api: {'items': items, 'truncated': False})
     def choice(path, ids): return {'id': library.key(path), 'fingerprint': library.fingerprint(path), 'tracks': ids}
     originals = [hashlib.sha256(p.read_bytes()).hexdigest() for p in (base, donor)]
-    queued = merge.enqueue(None, {'owner': 'local', 'base': choice(base, [2]), 'donor': choice(donor, [1, 2]), 'offset_ms': 250})
-    merge.tick(None)
+    queued = merge.enqueue(empty_api, {'owner': 'local', 'base': choice(base, [2]), 'donor': choice(donor, [1, 2]), 'offset_ms': 250})
+    merge.tick(empty_api)
     job = merge.read()[0]
     assert job['state'] == 'done', job['detail']
     output = root/queued['output']; actual = merge.identify(output)
@@ -238,11 +364,12 @@ def test_real_remux_preserves_video_and_eac3_bytes_metadata_and_subtitles(tmp_pa
     assert audio['properties']['track_name'] == 'Test audio'
     assert [t['properties']['forced_track'] for t in actual['tracks'] if t['type'] == 'subtitles'] == [
         next(t['properties'].get('forced_track', False) for t in merge.identify(p)['tracks'] if t['type'] == 'subtitles')
-        for p in (base, donor)]
+        for p in (root/'Originals'/base.name, donor)]
     def raw(path, mapping, fmt):
         return subprocess.run([ffmpeg, '-v', 'error', '-i', str(path), '-map', mapping, '-c', 'copy', '-f', fmt, '-'], capture_output=True, check=True).stdout
-    assert raw(base, '0:v:0', 'h264') == raw(output, '0:v:0', 'h264')
+    archived = root/'Originals'/base.name
+    assert raw(archived, '0:v:0', 'h264') == raw(output, '0:v:0', 'h264')
     assert raw(donor, '0:a:0', 'eac3') == raw(output, '0:a:0', 'eac3')
     text = subprocess.run([ffmpeg, '-v', 'error', '-i', str(output), '-map', '0:s:1', '-f', 'srt', '-'], capture_output=True, check=True).stdout
     assert b'00:00:00,750 --> 00:00:01,750' in text
-    assert [hashlib.sha256(p.read_bytes()).hexdigest() for p in (base, donor)] == originals
+    assert [hashlib.sha256(p.read_bytes()).hexdigest() for p in (archived, donor)] == originals

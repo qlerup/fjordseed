@@ -93,7 +93,7 @@
     const row=node('div',null,'cw-job'),copy=node('div');copy.append(node('strong',job.name),node('p',({queued:'Venter',running:'Fletter',done:'Færdig',error:'Kræver kontrol',cancelled:'Annulleret'})[job.state]||job.state,'small'),node('p',job.detail,'muted small'));
     if(job.state==='running'){const progress=node('progress');progress.max=100;if(Number.isFinite(job.progress))progress.value=job.progress;progress.setAttribute('aria-label','Fletning af '+job.name);copy.append(progress);if(Number.isFinite(job.progress))copy.append(node('p',job.progress+' %','muted small'));}
     row.append(copy);const action=async kind=>{try{await post('jobs/'+job.id+'/'+kind);await loadJobs();}catch(e){error(e.message);}};
-    if(['queued','error'].includes(job.state))row.append(button('Fjern fra kø',()=>action('cancel'),'quiet'));if(job.state==='error')row.append(button('Prøv igen',()=>action('retry')));list.append(row);
+    if(['queued','error'].includes(job.state)&&job.phase!=='finalizing')row.append(button('Fjern fra kø',()=>action('cancel'),'quiet'));if(job.state==='error')row.append(button('Prøv igen',()=>action('retry')));list.append(row);
    }
   }catch(e){error(e.message);}finally{jobsLoading=false;}
  }

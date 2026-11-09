@@ -43,7 +43,7 @@ COPY subtitle_text.py subtitle_pgs.py subtitle_media.py subtitle_auth.py subtitl
 COPY subtitle_device_auth.py subtitle_codex_rpc.py ./
 COPY subtitle_progress.py ./
 COPY subtitle_library_refresh.py ./
-COPY merge_media.py merge_routes.py merge_sync.py merge_checks.py merge_progress.py ./
+COPY merge_media.py merge_routes.py merge_sync.py merge_checks.py merge_progress.py merge_publish.py ./
 COPY storage_mount.py ./
 COPY tools/chatgpt_login.py ./tools/chatgpt_login.py
 COPY converter_runtime.py ./

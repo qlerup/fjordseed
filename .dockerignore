@@ -66,6 +66,7 @@
 !merge_sync.py
 !merge_checks.py
 !merge_progress.py
+!merge_publish.py
 !subtitle_*.py
 !tools/
 !tools/chatgpt_login.py
