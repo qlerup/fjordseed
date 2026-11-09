@@ -134,9 +134,46 @@ def enqueue(api, data):
     return {'ok': True, 'id': ident, 'output': output.name}
 
 
+def audio_names(path, media, selected):
+    """Fill missing Matroska names without replacing source descriptions."""
+    audio = [t for t in media['tracks'] if t['type'] == 'audio']
+    missing = [t for t in audio if t['id'] in selected
+               and not (t.get('properties', {}).get('track_name') or '').strip()]
+    if not missing: return {}
+    try:
+        probes = [s for s in workflow.media_info(path).get('streams', []) if s.get('codec_type') == 'audio']
+    except (OSError, ValueError, subprocess.SubprocessError):
+        probes = []  # MKVToolNix still supplies codec/channels if FFprobe fails.
+    names = {}
+    for index, track in enumerate(audio):
+        if track not in missing: continue
+        props = track.get('properties', {})
+        probe = probes[index] if index < len(probes) else {}
+        tags = {str(k).lower(): str(v).strip() for k, v in probe.get('tags', {}).items() if v}
+        description = next((tags[k] for k in ('title', 'description', 'comment') if tags.get(k)), '')
+        if not description:
+            codec = probe.get('codec_name') or props.get('codec_id') or track.get('codec', '')
+            label = {'eac3': 'E-AC-3', 'A_EAC3': 'E-AC-3', 'E-AC-3': 'E-AC-3',
+                     'ac3': 'AC-3', 'A_AC3': 'AC-3', 'truehd': 'TrueHD', 'A_TRUEHD': 'TrueHD',
+                     'aac': 'AAC', 'flac': 'FLAC', 'dts': 'DTS', 'A_DTS': 'DTS'}.get(codec, codec)
+            profile = str(probe.get('profile') or '')
+            if 'dts' in label.lower() and profile and profile.lower() != 'unknown': label = profile
+            layout = probe.get('channel_layout')
+            channels = probe.get('channels') or props.get('audio_channels')
+            layout = {'mono': '1.0', 'stereo': '2.0'}.get(layout, layout)
+            if layout: layout = re.sub(r'\([^)]*\)', '', layout).strip()
+            else: layout = f'{channels} kanaler' if channels else ''
+            description = ' '.join(filter(None, [label, layout])) or 'Lydspor'
+            if re.search(r'atmos|\bjoc\b', profile, re.I): description += ' + Atmos'
+        names[track['id']] = description
+    return names
+
+
 def command(sources, offset, output):
     args = ['mkvmerge', '--gui-mode', '-o', str(output)]
     for index, (_, path, media, selected) in enumerate(sources):
+        for track_id, name in audio_names(path, media, selected).items():
+            args.extend(['--track-name', f'{track_id}:{name}'])
         for kind, flag, empty in (('audio', '--audio-tracks', '--no-audio'),
                                   ('subtitles', '--subtitle-tracks', '--no-subtitles')):
             ids = [str(t['id']) for t in media['tracks'] if t['type'] == kind and t['id'] in selected]

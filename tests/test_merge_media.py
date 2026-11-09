@@ -115,6 +115,42 @@ def test_details_exposes_joc_profile_and_precise_fingerprint(films, monkeypatch)
     assert details['fingerprint'] == [str(v) for v in library.fingerprint(paths[1])]
 
 
+@pytest.mark.parametrize('profile,expected', [
+    ('Dolby Digital Plus + Dolby Atmos', 'E-AC-3 5.1 + Atmos'),
+    ('E-AC-3 JOC', 'E-AC-3 5.1 + Atmos'),
+    ('', 'E-AC-3 5.1'),
+])
+def test_merge_writes_missing_audio_description(films, monkeypatch, profile, expected):
+    paths, _, _, choices = films
+    monkeypatch.setattr(merge.workflow, 'media_info', lambda path: {'streams': [
+        {'codec_type': 'video'},
+        {'codec_type': 'audio', 'codec_name': 'eac3', 'profile': profile,
+         'channels': 6, 'channel_layout': '5.1(side)'}]})
+    args = merge.command(*merge.validate(None, choices), Path('result.mkv'))
+    donor = args[args.index(str(paths[0]))+1:args.index(str(paths[1]))]
+    assert donor[donor.index('--track-name')+1] == '3:'+expected
+    assert [donor[i+1] for i, value in enumerate(donor) if value == '--track-name'] == ['3:'+expected]
+
+
+def test_merge_preserves_names_and_matches_probe_by_audio_order(films, monkeypatch):
+    paths, _, videos, choices = films
+    videos[1]['tracks'].insert(1, track(1, 'audio', 'A_AC3', track_name='Commentary'))
+    probe = Mock(return_value={'streams': [
+        {'codec_type': 'audio', 'tags': {'title': 'Wrong track'}},
+        {'codec_type': 'audio', 'tags': {'DESCRIPTION': 'Original Atmos description'}}]})
+    monkeypatch.setattr(merge.workflow, 'media_info', probe)
+    assert merge.audio_names(paths[1], videos[1], [3]) == {3: 'Original Atmos description'}
+    probe.reset_mock()
+    assert merge.audio_names(paths[1], videos[1], [1, 8]) == {}
+    probe.assert_not_called()
+
+
+def test_merge_description_falls_back_when_probe_fails(films, monkeypatch):
+    paths, _, videos, _ = films
+    monkeypatch.setattr(merge.workflow, 'media_info', Mock(side_effect=OSError('ffprobe missing')))
+    assert merge.audio_names(paths[1], videos[1], [3, 8]) == {3: 'E-AC-3 6 kanaler'}
+
+
 def test_user_isolation_cancellation_and_retry(films):
     _, _, _, choices = films
     job = merge.enqueue(empty_api, choices)
