@@ -102,6 +102,13 @@ with tempfile.TemporaryDirectory() as folder:
                 expect(page.locator('#mt-form')).to_be_hidden()
                 expect(page.locator('#mt-dialog')).to_be_hidden()
                 expect(page.locator('#mt-jobs')).to_contain_text('58 %')
+                jobs[-1].update(phase='copying',progress=33.5,detail='Kopierer resultatet til arbejdsmappen',
+                                copied_bytes=15_800_000_000,total_bytes=47_200_000_000,eta_seconds=315)
+                page.locator('#mt-jobs-refresh').click()
+                expect(page.locator('#mt-jobs')).to_contain_text('33,5 % af kopieringen')
+                expect(page.locator('#mt-jobs')).to_contain_text('15,8 af 47,2 GB')
+                expect(page.locator('#mt-jobs')).to_contain_text('ca. 6 min tilbage')
+                expect(page.locator('#mt-jobs progress').last).to_have_js_property('value',33.5)
                 assert submitted[-1]['base']['tracks'] == [4, 7]
                 assert submitted[-1]['donor']['tracks'] == [4, 7]
                 assert submitted[-1]['base']['id'] == '1' and submitted[-1]['donor']['id'] == '2'

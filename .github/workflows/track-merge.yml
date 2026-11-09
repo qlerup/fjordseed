@@ -25,7 +25,7 @@ jobs:
           python-version: '3.13'
       - run: pip install -r requirements.txt pytest playwright
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ffmpeg mkvtoolnix
-      - run: python -m pytest tests/test_merge_media.py tests/test_merge_library_refresh.py tests/test_merge_sync.py tests/test_library_conversion.py tests/test_conversion_workflow.py tests/test_docker_context.py tests/test_app.py -q
+      - run: python -m pytest tests/test_merge_media.py tests/test_merge_copy_progress.py tests/test_merge_library_refresh.py tests/test_merge_sync.py tests/test_library_conversion.py tests/test_conversion_workflow.py tests/test_docker_context.py tests/test_app.py -q
       - run: python -m playwright install --with-deps chromium
       - run: python tests/browser_merge_tracks.py
       - run: python tests/browser_merge_sync.py

@@ -64,7 +64,11 @@ def publish_file(job, source, target):
         if not prepared.exists():
             if shutil.disk_usage(target.parent).free < source.stat().st_size + 1024**3:
                 raise ValueError('Der er ikke plads til den konverterede film på bibliotekets disk.')
-            shutil.copy2(source, prepared)
+            if job.get('merge_id'):
+                from merge_copy_progress import measure
+                with measure(job['merge_id'], source, prepared, 'Kopierer til biblioteket eller Originals'):
+                    shutil.copy2(source, prepared)
+            else: shutil.copy2(source, prepared)
         os.link(prepared, target)
 
 

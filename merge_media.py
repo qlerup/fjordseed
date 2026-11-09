@@ -191,10 +191,11 @@ def process(api, job):
             result = subprocess.run(command(sources, offset, temporary), stdout=output, stderr=subprocess.STDOUT, timeout=21600)
         if result.returncode not in (0, 1) or not temporary.is_file():
             raise ValueError('MKVToolNix kunne ikke flette sporene. Originalerne er bevaret.')
-        update(job['id'], detail='Kontrollerer resultatets spor')
+        update(job['id'], phase='verifying', progress=None, detail='Kontrollerer resultatets spor')
         verify(sources, temporary)
         if job.get('relocate_original'):
             from merge_publish import handoff
+            update(job['id'], phase='copying', progress=None, detail='Klargør arbejdskopi til flytning og publicering')
             handoff(api, sources, job, temporary)
             update(job['id'], phase='finalizing', detail='Flytter originalen og gemmer resultatet i biblioteket', progress=None)
             finish(api, job)
@@ -270,7 +271,8 @@ def tick(api):
             finalizing = [j for j in jobs if j['state']=='running' and j.get('phase')=='finalizing']
             job = None if finalizing else next((j for j in jobs if j['state'] == 'queued'), None)
             if job:
-                job.update(state='running', detail='Kopierer spor uden genkodning', started_at=time.time())
+                job.update(state='running', phase='merging', progress=None,
+                           detail='Kopierer spor uden genkodning', started_at=time.time())
                 (folder()/(job['id']+'.log')).unlink(missing_ok=True)
             save(jobs)
         for pending in finalizing: finish(api, pending)
@@ -284,13 +286,16 @@ def jobs_for(owner):
     result = []
     for row in rows:
         public_job = {k: row.get(k) for k in ('id', 'name', 'state', 'detail', 'output', 'progress', 'phase')}
-        if row['state'] == 'running' and row.get('phase') not in ('finalizing','refresh'):
+        if row['state'] == 'running' and row.get('phase') not in ('finalizing','refresh','copying','verifying'):
             log = folder()/(row['id']+'.log')
             if log.exists():
                 with log.open('rb') as handle:
                     handle.seek(max(0, log.stat().st_size-8192))
                     matches = re.findall(rb'#GUI#progress (\d+)%', handle.read())
                 if matches: public_job['progress'] = min(99, int(matches[-1]))
+        if row['state'] == 'running' and row.get('phase') in ('copying','finalizing'):
+            from merge_copy_progress import snapshot
+            public_job.update(snapshot(row['id']))
         result.append(public_job)
     return {'jobs': result}
 

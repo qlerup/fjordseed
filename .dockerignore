@@ -68,6 +68,7 @@
 !merge_progress.py
 !merge_publish.py
 !merge_library_refresh.py
+!merge_copy_progress.py
 !subtitle_*.py
 !tools/
 !tools/chatgpt_login.py

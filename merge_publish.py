@@ -8,6 +8,7 @@ import time
 import download_storage as storage
 import library_conversion as library
 from state import atomic
+from merge_copy_progress import measure
 
 
 def plan(api, sources, ident, output):
@@ -70,8 +71,9 @@ def handoff(api, sources, merge_job, result):
             source = library.checked(base/entry['name']); target = library.checked(stage/entry['name'])
             target.parent.mkdir(parents=True, exist_ok=True)
             if not target.exists():
-                if source.suffix.lower() in library.VIDEO: library.snapshot(source, target)
-                else: shutil.copy2(source, target)
+                with measure(ident, source, target, 'Kopierer ledsagefil til arbejdsmappen'):
+                    if source.suffix.lower() in library.VIDEO: library.snapshot(source, target)
+                    else: shutil.copy2(source, target)
             if library.fingerprint(target) != entry['fingerprint']:
                 raise ValueError('En ledsagefil er ændret. Originalen flyttes ikke.')
     work = library.checked(stage/library.DIRECTORY)
@@ -79,10 +81,11 @@ def handoff(api, sources, merge_job, result):
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists() and library.fingerprint(destination) != library.fingerprint(result):
         destination.unlink()  # Disposable work copy from an interrupted handoff.
-    if not destination.exists(): library.snapshot(result, destination)
+    with measure(ident, result, destination, 'Kopierer resultatet til arbejdsmappen'):
+        if not destination.exists(): library.snapshot(result, destination)
+        with destination.open('rb+') as handle: os.fsync(handle.fileno())
     if library.fingerprint(destination) != library.fingerprint(result):
         raise ValueError('Arbejdskopien af fletningen er ændret. Originalen flyttes ikke.')
-    with destination.open('rb+') as handle: os.fsync(handle.fileno())
     job['verified_result'] = library.fingerprint(destination)
     with storage.transaction():
         import merge_media
