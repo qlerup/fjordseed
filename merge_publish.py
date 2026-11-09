@@ -103,8 +103,8 @@ def advance(api, ident):
     if job.get('manual'):
         if job.get('result_verify_required'): library.verify_manual_result(job)
         if job.get('archive_copy_required'): library.archive_manual_original(job)
-    rows = api('torrents/info').json()
     with storage.transaction() as entries:
+        rows = api('torrents/info').json()
         jobs = storage.read(library.ledger(), {}); job = jobs[ident]
         try:
             library.advance(api, rows, entries, jobs, job)
