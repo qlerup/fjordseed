@@ -332,20 +332,28 @@ def test_real_lossy_audio_match_and_seekable_preview_clips(tmp_path, monkeypatch
 
 
 @pytest.mark.skipif(not shutil.which('mkvmerge'), reason='Requires MKVToolNix')
-def test_hdr_preview_is_browser_compatible_sdr_without_changing_original(tmp_path, monkeypatch, ffmpeg_tools):
+@pytest.mark.parametrize('size,expected', [('64x64', '64x64'), ('3840x2160', '1920x1080')])
+def test_hdr_preview_is_browser_compatible_sdr_without_changing_original(tmp_path, monkeypatch, ffmpeg_tools, size, expected):
     source = tmp_path/'hdr.mkv'; target = tmp_path/'preview.mp4'
-    subprocess.run([ffmpeg_tools, '-v', 'error', '-f', 'lavfi', '-i', 'color=s=64x64:r=24:d=3',
-                    '-vf', 'format=yuv420p10le', '-c:v', 'libx265', '-pix_fmt', 'yuv420p10le',
-                    '-x265-params', 'log-level=error:pools=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc',
+    subprocess.run([ffmpeg_tools, '-v', 'error', '-f', 'lavfi', '-i', f'color=s={size}:r=4:d=1',
+                    '-vf', 'format=yuv420p10le', '-c:v', 'libx265', '-threads', '1', '-pix_fmt', 'yuv420p10le',
+                    '-x265-params', 'log-level=error:pools=1:frame-threads=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc',
                     str(source)], capture_output=True, check=True)
     original = source.read_bytes()
     monkeypatch.setattr(merge.workflow, 'media_info', lambda path: {'streams': [{'codec_type': 'video', 'color_transfer': 'smpte2084'}]})
-    sync.clip(({}, source, {}, []), None, .25, 2, target)
+    sync.clip(({}, source, {}, []), None, .25, .5, target)
     result = subprocess.run([ffmpeg_tools, '-hide_banner', '-i', str(target)], capture_output=True, text=True)
     assert 'bt709' in result.stderr and 'yuv420p(' in result.stderr
     assert 'yuv420p10le' not in result.stderr
     assert source.read_bytes() == original
-    assert '64x64' in result.stderr  # Never upscale a small source into a blurry preview.
+    assert expected in result.stderr  # Preserve small sources and downscale 4K HDR to full HD.
+
+
+def test_killed_preview_reports_server_resource_failure(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(sync.subprocess, 'run', lambda *a, **k: subprocess.CompletedProcess(a[0], -9, b'', b''))
+    with pytest.raises(ValueError, match='hukommelse'):
+        sync.encode(['ffmpeg'], tmp_path/'base.mp4', 720, 'video', 15)
+    assert 'exit -9' in caplog.text
 
 
 @pytest.mark.skipif(not shutil.which('mkvmerge'), reason='Requires MKVToolNix')

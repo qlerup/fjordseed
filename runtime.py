@@ -218,7 +218,7 @@ class Runtime:
                 tmpfs={'/tmp':'rw,nosuid,noexec,size=32m'}, cap_drop=['ALL'],
                 security_opt=['no-new-privileges:true'], init=True,
                 environment={'HOME':'/config','PYTHONDONTWRITEBYTECODE':'1'},
-                restart_policy={'Name':'no'}, mem_limit='1g',
+                restart_policy={'Name':'no'}, mem_limit='4g',
                 log_config=docker.types.LogConfig(type='json-file', config={'max-size':'2m','max-file':'2'}))
         if child.status != 'running':
             (self.state.root/'qbit/worker-status.json').unlink(missing_ok=True)

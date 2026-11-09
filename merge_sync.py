@@ -1,5 +1,6 @@
 """Bounded audio cross-correlation and disposable two-film preview clips."""
 import json
+import logging
 import math
 from pathlib import Path
 import re
@@ -92,6 +93,10 @@ def encode(args, target, timeout, stage, length):
     args = [args[0], '-progress', str(path), '-stats_period', '1', '-nostats', *args[1:]]
     result = subprocess.run(args, capture_output=True, timeout=timeout)
     if result.returncode or not target.exists():
+        logging.getLogger(__name__).error('Preview %s failed (exit %s): %s', stage, result.returncode,
+                                         result.stderr.decode(errors='replace')[-4000:])
+        if result.returncode == -9:
+            raise ValueError('Serveren stoppede prøveklippet. Der kan være for lidt ledig hukommelse.')
         raise ValueError('Prøveklippet kunne ikke laves. Prøv et andet tidspunkt.' if stage == 'video' else
                          'Det nye lydspor kunne ikke klargøres til prøven.')
 
@@ -138,13 +143,16 @@ def clip(source, audio, start, length, target):
     # Detailed SDR/H.264 copies are only for the browser; final merges copy originals.
     video = next((s for s in merge.workflow.media_info(source[1]).get('streams', [])
                   if s.get('codec_type') == 'video' and not s.get('disposition', {}).get('attached_pic')), {})
-    filters = "scale=w='min(1920,iw)':h='min(1080,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,setsar=1,format=yuv420p"
+    # Resize before floating-point HDR processing: a 4K float frame alone uses
+    # ~95 MiB. Keep x264's frame queue small in the shared 1 GiB media container.
+    filters = "scale=w='min(1920,iw)':h='min(1080,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,setsar=1,"
     if video.get('color_transfer') in ('smpte2084', 'arib-std-b67'):
-        filters = 'zscale=t=linear:npl=100,format=gbrpf32le,tonemap=hable,zscale=p=bt709:t=bt709:m=bt709:r=tv,'+filters
+        filters += 'zscale=t=linear:npl=100,format=gbrpf32le,tonemap=hable,zscale=p=bt709:t=bt709:m=bt709:r=tv,'
+    filters += 'format=yuv420p'
     filters = f'trim=start={start:.6f}:duration={length:.6f},setpts=PTS-{start:.6f}/TB,'+filters
-    args = ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-threads', '2', '-filter_threads', '2', '-ss', f'{max(0, start-2):.6f}', '-copyts', '-i', str(source[1]),
+    args = ['ffmpeg', '-nostdin', '-v', 'error', '-y', '-threads', '1', '-filter_threads', '1', '-ss', f'{max(0, start-2):.6f}', '-copyts', '-i', str(source[1]),
             '-t', f'{length:.6f}', '-map', '0:V:0', '-sn', '-dn', '-map_metadata', '-1', '-vf', filters,
-            '-c:v', 'libx264', '-preset', 'fast', '-crf', '18', '-threads', '2', '-pix_fmt', 'yuv420p']
+            '-c:v', 'libx264', '-preset', 'fast', '-crf', '18', '-threads', '1', '-x264-params', 'rc-lookahead=8:sync-lookahead=0', '-pix_fmt', 'yuv420p']
     if audio is None: args += ['-an']
     else:
         audio_filter = (f'aresample=48000,aresample=async=1:first_pts={round(start*48000)},'
