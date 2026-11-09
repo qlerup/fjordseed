@@ -14,6 +14,14 @@ import merge_media as merge
 import library_conversion as library
 
 
+def tick(api):
+    merge.tick(api)
+    # Publication tests acknowledge the independently tested web-side scans.
+    for row in merge.read():
+        if row['state']=='running' and row.get('phase')=='refresh':
+            merge.dispatch(api,'refresh-update',{'id':row['id'],'refresh':{'fjordflix':True,'plex':True},'detail':'Scanned'})
+
+
 def empty_api(*args, **kwargs):
     return SimpleNamespace(json=lambda: [])
 
@@ -116,7 +124,7 @@ def test_user_isolation_cancellation_and_retry(films):
     merge.dispatch(empty_api, 'retry', {'owner': 'alice', 'id': job['id']})
     assert merge.read()[0]['state'] == 'queued'
     merge.dispatch(empty_api, 'cancel', {'owner': 'alice', 'id': job['id']})
-    merge.tick(empty_api)
+    tick(empty_api)
     assert merge.read()[0]['state'] == 'cancelled'
 
 
@@ -124,7 +132,7 @@ def test_queue_revalidates_sources_before_running(films, monkeypatch):
     paths, _, _, choices = films
     merge.enqueue(empty_api, choices); paths[1].write_bytes(b'changed')
     run = Mock(); monkeypatch.setattr(merge.subprocess, 'run', run)
-    merge.tick(empty_api)
+    tick(empty_api)
     assert merge.read()[0]['state'] == 'error'
     run.assert_not_called()
 
@@ -137,7 +145,7 @@ def test_recovery_after_publication_does_not_remux_or_replace_result(films, monk
     target = paths[0].with_name(queued['output'])
     os.link(temporary, target)
     run = Mock(); monkeypatch.setattr(merge.subprocess, 'run', run)
-    merge.tick(empty_api)
+    tick(empty_api)
     assert merge.read()[0]['state'] == 'done'
     assert target.read_bytes() == b'finished-before-crash'
     assert not temporary.exists()
@@ -153,7 +161,7 @@ def test_publication_checks_tracks_and_never_overwrites_originals(films, monkeyp
         kwargs['stdout'].write('#GUI#progress 100%\n')
         return SimpleNamespace(returncode=0)
     monkeypatch.setattr(merge.subprocess, 'run', run)
-    merge.tick(empty_api)
+    tick(empty_api)
     job = merge.read()[0]
     assert job['state'] == 'done'
     assert (paths[0].parent/queued['output']).read_bytes() == b'new-matroska'
@@ -161,6 +169,24 @@ def test_publication_checks_tracks_and_never_overwrites_originals(films, monkeyp
     assert (paths[0].parent/'Originals'/paths[0].name).read_bytes() == originals[0]
     assert paths[1].read_bytes() == originals[1]
     assert not list(paths[0].parent.glob('*.partial'))
+
+
+def test_job_waits_for_both_library_updates_after_original_is_archived(films, monkeypatch):
+    paths, _, _, choices = films
+    def run(args, **kwargs):
+        Path(args[args.index('-o')+1]).write_bytes(b'merged')
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(merge.subprocess,'run',run)
+    queued=merge.enqueue(empty_api,choices);merge.tick(empty_api)
+    assert merge.read()[0]['state']=='running' and merge.read()[0]['phase']=='refresh'
+    pending=merge.dispatch(empty_api,'refresh-pending',{})['jobs']
+    assert len(pending)==1 and pending[0]['relative']==queued['output']
+    assert not paths[0].exists() and paths[0].with_name(queued['output']).exists()
+    merge.dispatch(empty_api,'refresh-update',{'id':queued['id'],'refresh':{'fjordflix':True},'detail':'Waiting for Plex'})
+    merge.tick(empty_api)  # A restart/worker pass must not remux a published file.
+    assert merge.read()[0]['state']=='running'
+    merge.dispatch(empty_api,'refresh-update',{'id':queued['id'],'refresh':{'fjordflix':True,'plex':True},'detail':'Done'})
+    assert merge.read()[0]['state']=='done'
 
 
 @pytest.mark.parametrize('failure', ['tracks', 'source', 'exists', 'tool', 'space'])
@@ -176,7 +202,7 @@ def test_failed_merges_leave_inputs_and_existing_results_untouched(films, monkey
         if failure == 'source': paths[1].write_bytes(b'replaced')
         return SimpleNamespace(returncode=2 if failure == 'tool' else 0)
     monkeypatch.setattr(merge.subprocess, 'run', run)
-    merge.tick(empty_api)
+    tick(empty_api)
     assert merge.read()[0]['state'] == 'error'
     assert paths[0].read_bytes() == b'film-0'
     assert target.read_bytes() == b'existing' if failure == 'exists' else not target.exists()
@@ -188,7 +214,7 @@ def test_live_worker_is_not_claimed_twice(films, monkeypatch):
     process = Mock(); monkeypatch.setattr(merge, 'process', process)
     with merge.worker_lock() as acquired:
         assert acquired
-        merge.tick(empty_api)
+        tick(empty_api)
     process.assert_not_called()
 
 
@@ -223,15 +249,15 @@ def seeding_merge(films, monkeypatch):
 
 def test_seeding_original_moves_via_qbittorrent_before_library_publication(seeding_merge):
     paths, choices, api, row, calls, moved, _ = seeding_merge
-    queued = merge.enqueue(api, choices); merge.tick(api)
+    queued = merge.enqueue(api, choices); tick(api)
     target = paths[0].with_name(queued['output'])
     assert merge.read()[0]['phase']=='finalizing' and merge.read()[0]['state']=='running'
     assert not target.exists() and paths[0].exists()
     assert any(endpoint=='torrents/setLocation' for endpoint,_ in calls)
     assert any(endpoint=='torrents/setAutoManagement' for endpoint,_ in calls)
-    merge.tick(api)  # Native relocation is asynchronous: wait for confirmation.
+    tick(api)  # Native relocation is asynchronous: wait for confirmation.
     assert not target.exists() and sum(e=='torrents/setLocation' for e,_ in calls)==1
-    moved(); merge.tick(api)
+    moved(); tick(api)
     assert merge.read()[0]['state']=='done'
     assert target.read_bytes()==b'verified-merged-mkv' and not paths[0].exists()
     assert (Path(row['save_path'])/paths[0].name).read_bytes()==b'film-0'
@@ -246,28 +272,28 @@ def test_seeding_original_moves_via_qbittorrent_before_library_publication(seedi
 def test_paused_original_stays_paused_and_finalization_recovers_without_remux(seeding_merge, monkeypatch):
     paths, choices, api, row, calls, moved, _ = seeding_merge
     row['state']='stoppedUP'
-    queued = merge.enqueue(api, choices); merge.tick(api)
+    queued = merge.enqueue(api, choices); tick(api)
     # A restart after handoff must recover from the durable publisher receipt.
     merge.update(queued['id'], phase=None)
     moved()
     monkeypatch.setattr(merge.subprocess,'run',Mock(side_effect=AssertionError('Must not remux again')))
-    merge.tick(api)
+    tick(api)
     assert merge.read()[0]['state']=='done'
     assert not any(e=='torrents/start' for e,_ in calls) and row['state']=='stoppedUP'
 
 
 def test_move_error_can_resume_after_original_path_disappears(seeding_merge, monkeypatch):
     paths, choices, api, row, calls, moved, _ = seeding_merge
-    queued = merge.enqueue(api, choices); merge.tick(api); moved()
+    queued = merge.enqueue(api, choices); tick(api); moved()
     def failed_resume(endpoint,data=None):
         if endpoint=='torrents/start': raise ValueError('Temporarily unavailable')
         return api(endpoint,data)
-    merge.tick(failed_resume)
+    tick(failed_resume)
     assert merge.read()[0]['state']=='error' and not paths[0].exists()
     with pytest.raises(ValueError): merge.dispatch(api,'cancel',{'id':queued['id'],'owner':'alice'})
     merge.dispatch(api,'retry',{'id':queued['id'],'owner':'alice'})
     monkeypatch.setattr(merge.subprocess,'run',Mock(side_effect=AssertionError('Must not remux again')))
-    merge.tick(api)
+    tick(api)
     assert merge.read()[0]['state']=='done' and row['state']=='uploading'
 
 
@@ -275,7 +301,7 @@ def test_shared_torrent_original_is_not_moved_or_replaced(seeding_merge):
     paths, choices, api, row, calls, moved, others = seeding_merge
     queued = merge.enqueue(api,choices)
     others.append({**row,'hash':'b'*40})
-    merge.tick(api)
+    tick(api)
     assert merge.read()[0]['state']=='error'
     assert not any(e=='torrents/setLocation' for e,_ in calls)
     assert paths[0].read_bytes()==b'film-0'
@@ -295,11 +321,11 @@ def test_manual_merge_cross_disk_archive_and_output_are_verified_before_removal(
         Path(args[args.index('-o')+1]).write_bytes(b'merged')
         return SimpleNamespace(returncode=0)
     monkeypatch.setattr(merge.subprocess,'run',run)
-    queued = merge.enqueue(empty_api,choices); merge.tick(empty_api)
+    queued = merge.enqueue(empty_api,choices); tick(empty_api)
     assert paths[0].exists() and merge.read()[0]['state']=='running'
     publication = merge.storage.read(library.ledger(), {})[queued['id']]
     assert publication['result_verify_required'] is True
-    for _ in range(4): merge.tick(empty_api)
+    for _ in range(4): tick(empty_api)
     assert merge.read()[0]['state']=='done' and not paths[0].exists()
     assert (paths[0].parent/'Originals'/paths[0].name).read_bytes()==b'film-0'
     assert paths[0].with_name(queued['output']).read_bytes()==b'merged'
@@ -308,7 +334,7 @@ def test_manual_merge_cross_disk_archive_and_output_are_verified_before_removal(
 def test_recover_interrupted_worker_and_report_measured_progress(films, monkeypatch):
     queued = merge.enqueue(empty_api, films[-1])
     merge.update(queued['id'], state='running')
-    merge.tick(empty_api)
+    tick(empty_api)
     assert merge.read()[0]['state'] == 'error'
     merge.update(queued['id'], state='running')
     (merge.folder()/(queued['id']+'.log')).write_text('#GUI#progress 12%\n#GUI#progress 58%\n')
@@ -354,7 +380,7 @@ def test_real_remux_preserves_video_and_eac3_bytes_metadata_and_subtitles(tmp_pa
     def choice(path, ids): return {'id': library.key(path), 'fingerprint': library.fingerprint(path), 'tracks': ids}
     originals = [hashlib.sha256(p.read_bytes()).hexdigest() for p in (base, donor)]
     queued = merge.enqueue(empty_api, {'owner': 'local', 'base': choice(base, [2]), 'donor': choice(donor, [1, 2]), 'offset_ms': 250})
-    merge.tick(empty_api)
+    tick(empty_api)
     job = merge.read()[0]
     assert job['state'] == 'done', job['detail']
     output = root/queued['output']; actual = merge.identify(output)

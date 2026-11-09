@@ -116,7 +116,8 @@ def enqueue(api, data):
         if output.exists(): raise ValueError('Resultatfilen findes allerede.')
         job = {'id': ident, 'owner': data['owner'], 'name': base.name, 'state': 'queued',
                'detail': 'Venter på fletning', 'created_at': time.time(), 'output': output.name,
-               'base': data['base'], 'donor': data['donor'], 'offset_ms': offset, 'relocate_original': True}
+               'base': data['base'], 'donor': data['donor'], 'offset_ms': offset, 'relocate_original': True,
+               'refresh_libraries': True}
         from merge_publish import plan
         plan(api, sources, ident, output.name)
         jobs.append(job); save(jobs)
@@ -221,9 +222,13 @@ def finish(api, job):
     from merge_publish import advance
     try:
         done, detail = advance(api, job['id'])
-        update(job['id'], state='done' if done else 'running', phase='finalizing',
-               progress=100 if done else None,
-               detail='Færdig · '+detail if done else 'Flytter/kontrollerer originalen og gemmer resultatet i biblioteket')
+        refreshing = done and job.get('refresh_libraries')
+        update(job['id'], state='done' if done and not refreshing else 'running',
+               phase='refresh' if refreshing else 'finalizing',
+               progress=100 if done and not refreshing else None,
+               **({'refresh_started_at':time.time()} if refreshing else {}),
+               detail='Opdaterer FjordFlix og Plex' if refreshing else 'Færdig · '+detail if done else
+                      'Flytter/kontrollerer originalen og gemmer resultatet i biblioteket')
     except (ValueError, OSError, KeyError, TypeError) as exc:
         update(job['id'], state='error', phase='finalizing',
                detail='Fletningen er bevaret · flytningen kræver kontrol: '+str(exc))
@@ -256,7 +261,7 @@ def tick(api):
         with storage.transaction():
             jobs = read()
             for running in (j for j in jobs if j['state'] == 'running'):
-                if running.get('phase') == 'finalizing': continue
+                if running.get('phase') in ('finalizing','refresh'): continue
                 # Recover a crash after the durable publisher accepted the result.
                 publication = storage.read(library.ledger(), {}).get(running['id'], {})
                 if publication.get('merge_id') == running['id']:
@@ -279,7 +284,7 @@ def jobs_for(owner):
     result = []
     for row in rows:
         public_job = {k: row.get(k) for k in ('id', 'name', 'state', 'detail', 'output', 'progress', 'phase')}
-        if row['state'] == 'running' and row.get('phase') != 'finalizing':
+        if row['state'] == 'running' and row.get('phase') not in ('finalizing','refresh'):
             log = folder()/(row['id']+'.log')
             if log.exists():
                 with log.open('rb') as handle:
@@ -291,6 +296,32 @@ def jobs_for(owner):
 
 
 def dispatch(api, action, data):
+    if action == 'refresh-pending':
+        publications = storage.read(library.ledger(), {})
+        jobs = []
+        for row in read():
+            if row['state']!='running' or row.get('phase')!='refresh': continue
+            job = publications.get(row['id'])
+            if not job or job.get('merge_id')!=row['id'] or job['phase']!='published': continue
+            target = Path(job['destination']) if job.get('manual') else Path(job['original'])/job['output']
+            target = library.checked(target)
+            flag = library.converted(target) if target.is_file() else None
+            if not flag or flag.get('id') != row['id']:
+                update(row['id'], state='error', detail='Resultatfilen mangler eller er ændret. Biblioteksopdateringen er sat på pause.')
+                continue
+            jobs.append({'id':row['id'],'relative':target.relative_to(job['root']).as_posix(),
+                         'refresh':row.get('refresh',{}),'started_at':row['refresh_started_at']})
+        return {'jobs':jobs}
+    if action == 'refresh-update':
+        with storage.transaction():
+            jobs = read(); row = next((j for j in jobs if j['id']==data.get('id')), None)
+            if not row or row['state']!='running' or row.get('phase')!='refresh': return {'ok':False}
+            status = {k:bool(data.get('refresh',{}).get(k)) for k in ('fjordflix','plex')}
+            done = all(status.values()) and not data.get('error')
+            row.update(refresh=status, state='error' if data.get('error') else 'done' if done else 'running',
+                       progress=100 if done else None, detail=str(data.get('detail',''))[:500])
+            save(jobs)
+        return {'ok':True}
     if action in ('analyse', 'preview'):
         from merge_sync import run
         return run(api, action, data)
@@ -307,11 +338,13 @@ def dispatch(api, action, data):
             job = next((j for j in jobs if j['id'] == data.get('id') and j['owner'] == data['owner']), None)
             if not job: raise ValueError('Fletningen findes ikke.')
             if action == 'cancel' and job['state'] in ('queued', 'error'):
-                if job.get('phase') == 'finalizing': raise ValueError('Flytningen er allerede begyndt. Ret fejlen og prøv igen.')
+                if job.get('phase') in ('finalizing','refresh'): raise ValueError('Flytning eller biblioteksopdatering er begyndt. Ret fejlen og prøv igen.')
                 job.update(state='cancelled', detail='Annulleret · originalerne er bevaret')
             elif action == 'retry' and job['state'] == 'error':
                 publication = storage.read(library.ledger(), {}).get(job['id'], {})
-                if publication.get('merge_id') == job['id']:
+                if job.get('phase')=='refresh':
+                    job.update(state='running', detail='Genoptager biblioteksopdatering', refresh_started_at=time.time())
+                elif publication.get('merge_id') == job['id']:
                     job.update(state='running', phase='finalizing', detail='Genoptager flytning', progress=None)
                 else:
                     validate(api, job)

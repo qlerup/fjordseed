@@ -22,7 +22,8 @@ def ensure_links(relative, outputs):
     source=(SOURCE/relative).resolve(strict=True)
     if not source.is_relative_to(SOURCE.resolve()) or not source.is_file():
         raise ValueError('Filmen findes ikke i mediebiblioteket.')
-    if not isinstance(outputs,list) or not 1<=len(outputs)<=30:
+    # An empty list resolves a newly indexed video's Plex path for a library scan.
+    if not isinstance(outputs,list) or not 0<=len(outputs)<=30:
         raise ValueError('Ugyldig undertekstliste.')
     ledger=json.loads(LEDGER.read_text())
     candidates=[VIEW/name for name,target in ledger.items() if target==str(source)]

@@ -6,8 +6,11 @@ from flask import jsonify, request, session, send_file
 
 def register(app, runtime, stop, testing=False):
     from merge_checks import Checks
+    from merge_library_refresh import LibraryRefresh
     checks = Checks(runtime.state.root, runtime)
+    refresh = LibraryRefresh(runtime)
     app.extensions['merge_checks'] = checks
+    app.extensions['merge_library_refresh'] = refresh
     def owner(): return 'hub:'+str(session['hub_uid']) if 'hub_uid' in session else 'local'
 
     @app.post('/api/merge/checks')
@@ -55,6 +58,13 @@ def register(app, runtime, stop, testing=False):
             except ValueError: pass  # VPN/qBittorrent can be intentionally stopped.
             except Exception: logging.getLogger(__name__).exception('Track merge worker failed')
 
+    def refresh_libraries():
+        while not stop.wait(3):
+            try: refresh.tick()
+            except ValueError: pass  # A disabled VPN can temporarily block the RPC.
+            except Exception: logging.getLogger(__name__).exception('Track merge library refresh failed')
+
     if not testing:
         threading.Thread(target=run, name='track-merges', daemon=True).start()
         threading.Thread(target=checks.run, args=(stop,), name='merge-checks', daemon=True).start()
+        threading.Thread(target=refresh_libraries, name='merge-library-refresh', daemon=True).start()
