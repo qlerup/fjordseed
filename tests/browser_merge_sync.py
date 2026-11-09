@@ -62,6 +62,14 @@ with tempfile.TemporaryDirectory() as folder:
             def status(route):
                 ident = route.request.url.rsplit('/', 1)[1]; check = checks[ident]
                 check['polls'] += 1
+                if check['request']['kind'] == 'preview' and check['polls'] <= 2:
+                    percent = 25 if check['polls'] == 1 else 50
+                    route.fulfill(json={'id': ident, 'state': 'running', 'detail': 'Laver hovedfilens prøveklip',
+                        'progress': percent, 'stage': 'video', 'stage_index': 1, 'stage_total': 3,
+                        'processed_seconds': percent/100*check['request']['length'], 'duration': check['request']['length'],
+                        'elapsed_seconds': 20 if percent == 25 else 40, 'eta_seconds': 60 if percent == 25 else None,
+                        'stale': percent == 50})
+                    return
                 if check['polls'] == 1:
                     route.fulfill(json={'id': ident, 'state': 'running', 'detail': 'Sammenligner lyd · sted 2 af 3', 'progress': 35}); return
                 if check['scenario'] == 'error':
@@ -77,7 +85,8 @@ with tempfile.TemporaryDirectory() as folder:
                     result = {'kind': 'preview', 'base_start': data['start'], 'donor_start': data['start']-data['offset_ms']/1000-5,
                               'base_duration': data['length'], 'donor_duration': data['length']+10, 'offset_ms': data['offset_ms'], 'base_audio': False, 'donor_audio': True, 'video_fps': 24,
                               'detail': 'Prøveklippet er klar'}
-                route.fulfill(json={'id': ident, 'state': 'done', 'detail': result['detail'], 'result': result})
+                route.fulfill(json={'id': ident, 'state': 'done', 'detail': result['detail'], 'result': result,
+                                    'progress': 100, 'elapsed_seconds': 42})
             page.route('**/api/merge/checks', create)
             page.route('**/api/merge/checks/*', status)
             def asset(route):
@@ -125,7 +134,17 @@ with tempfile.TemporaryDirectory() as folder:
                 page.locator('#ms-length').fill('20')
                 expect(page.locator('#ms-preview')).to_have_text('Lav 20 sek. prøveklip')
                 page.locator('#ms-preview').click()
+                expect(page.locator('#ms-preview-work')).to_be_visible()
+                expect(page.locator('#ms-preview-progress')).to_have_attribute('value', '25')
+                expect(page.locator('#ms-preview-stats')).to_contain_text('5 af 20 sek. video')
+                expect(page.locator('#ms-preview-stats')).to_contain_text('Forløbet: 20 sek')
+                expect(page.locator('#ms-preview-stats')).to_contain_text('tilbage i dette trin')
+                expect(page.locator('#ms-preview-progress')).to_have_attribute('value', '50')
+                expect(page.locator('#ms-preview-stats')).to_contain_text('Afventer ny måling')
+                expect(page.locator('#ms-preview-stats')).not_to_contain_text('tilbage i dette trin')
                 expect(page.locator('#ms-player')).to_be_visible()
+                expect(page.locator('#ms-preview-progress')).to_have_attribute('value', '100')
+                expect(page.locator('#ms-preview-stats')).to_contain_text('Færdig')
                 expect(page.locator('#ms-player video')).to_have_count(1)
                 expect(page.locator('#ms-playing-track')).to_contain_text('E-AC-3')
                 expect(page.locator('#ms-listen')).to_have_count(0)

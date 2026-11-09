@@ -5,6 +5,7 @@
  <div class="mt-columns"><label>Hovedfilens lyd · kun til auto-match<select id="ms-base-audio"></select></label><label>Det nye lydspor · bruges i prøven<select id="ms-donor-audio"></select></label></div>
  <div class="cw-toolbar"><button type="button" id="ms-analyse" class="secondary">Find forskydning automatisk</button><span id="ms-current" class="muted small"></span></div>
  <p id="ms-status" role="status" class="muted"></p><progress id="ms-progress" max="100" hidden aria-label="Kontrol af synkronisering"></progress>
+ <p id="ms-top-stats" class="muted small" hidden></p>
  <p id="ms-error" role="alert" class="error" hidden></p>
  <div id="ms-analysis" hidden>
   <strong id="ms-verdict"></strong><p id="ms-explanation" class="muted small"></p>
@@ -17,6 +18,7 @@
  <div class="ms-preview-settings"><h4>Afprøv videoen med det nye lydspor</h4><p class="muted small">Se på munden, mens personen taler: passer ordene med læberne? Prøven afspiller video fra hovedfilen med det valgte nye lydspor. Finjustér forskydningen, mens du lytter.</p><p class="muted small">Videoen vises i op til 1080p med høj kvalitet. Prøvelyden er stereo; den færdige fil beholder det originale lydspor.</p>
   <div class="cw-toolbar"><label>Tidspunkt i hovedfilen (sekunder)<input id="ms-start" type="number" min="0" step="1" value="60"></label><label>Prøvens længde (5–120 sekunder)<input id="ms-length" type="number" min="5" max="120" step="1" value="15" required></label><div class="ms-shortcuts"><button type="button" data-position=".12" class="quiet">Tidligt</button><button type="button" data-position=".5" class="quiet">Midt i filmen</button><button type="button" data-position=".85" class="quiet">Sent</button></div><button type="button" id="ms-preview" class="secondary">Lav 15 sek. prøveklip</button></div>
  </div>
+ <div id="ms-preview-work" class="ms-preview-work" hidden aria-label="Fremdrift for prøveklippet"><strong id="ms-preview-work-title" role="status"></strong><progress id="ms-preview-progress" max="100" aria-label="Fremdrift i det aktuelle trin"></progress><p id="ms-preview-stats" class="muted small"></p></div>
  <p id="ms-preview-hint" class="muted small">Vælg et lydspor fra den anden fil til fletningen for at prøve det.</p>
  <div id="ms-player" hidden>
   <p id="ms-playing-track" class="ms-playing-track"></p>

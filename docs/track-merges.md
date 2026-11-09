@@ -24,6 +24,8 @@ Prøvevideoen bevarer billedhastigheden og skaleres højst til 1920×1080 uden o
 
 Prøvernes tidsstempler bevares under udtræk og trimmes til den præcise prøveposition. Det undgår hele codec-frame-fejl ved forskellige starttider eller delvise AC-3/E-AC-3-pakker. Analyse og prøveklip kører i en separat baggrundskø uden at oprette et flettejob eller ændre kildefilerne. Én kontrol pr. bruger kan vente/køre ad gangen, og filer fra afsluttede kontroller ryddes efter en time. Medieadgang er beskyttet af samme login og ejerskab som kontrollen og understøtter HTTP byte ranges til videoseeking.
 
+Prøvens fremdrift måles via FFmpegs `-progress`-uddata, ikke faste trinprocenter. Video og lyd viser kodede sekunder, procent af det aktuelle trin, samlet forløbet tid og et estimat på resterende tid i trinnet baseret på den målte hastighed. De tre trin er video, lyd og kontrol af resultat/kilder. Status vises både øverst og ved knappen til prøveklippet. Før første måling er bjælken ubestemt; resttid vises først efter tilstrækkelig kodning og fjernes, hvis målingen er over 15 sekunder gammel. Videofilen meldes ikke færdig, blot fordi den sidste tidskode er nået: FFmpeg skal også have afsluttet filen.
+
 API: `POST /api/merge/checks` (`kind: analyse|preview`, `length: 5..120` ved preview), `GET /api/merge/checks/<id>`, `GET /api/merge/checks/<id>/base.mp4` og `GET /api/merge/checks/<id>/donor.m4a`.
 
 ## Kø og fejl

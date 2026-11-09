@@ -6,10 +6,27 @@
  const offset=()=>Number($('mt-offset').value)||0;
  const clock=seconds=>{const n=Math.max(0,Math.round(seconds));return Math.floor(n/3600).toString().padStart(2,'0')+':'+Math.floor(n/60%60).toString().padStart(2,'0')+':'+(n%60).toString().padStart(2,'0');};
  const message=text=>{$('ms-error').textContent=text||'';$('ms-error').hidden=!text;};
+ const elapsed=seconds=>{const value=Math.max(0,Math.round(seconds));return value>=60?Math.floor(value/60)+' min '+value%60+' sek':value+' sek';};
+ function previewWork(data){
+  $('ms-preview-work').hidden=false;const title=data.detail||'Klargør prøveklip';
+  $('ms-preview-work-title').textContent=title+(data.stage_index?' · trin '+data.stage_index+' af '+data.stage_total:'');
+  const bar=$('ms-preview-progress');bar.hidden=data.state==='error';if(Number.isFinite(data.progress))bar.value=data.progress;else bar.removeAttribute('value');
+  const parts=[];
+  if(data.state==='done')parts.push('Færdig');
+  else if(Number.isFinite(data.progress))parts.push(new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(data.progress)+' % af dette trin');
+  else if(data.stage==='video'||data.stage==='audio')parts.push('Afventer første fremdriftsmåling');
+  if(Number.isFinite(data.processed_seconds)&&Number.isFinite(data.duration))parts.push(new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(data.processed_seconds)+' af '+new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(data.duration)+' sek. '+(data.stage==='audio'?'lyd':'video'));
+  if(Number.isFinite(data.elapsed_seconds))parts.push('Forløbet: '+elapsed(data.elapsed_seconds));
+  if(data.stale)parts.push('Afventer ny måling fra FFmpeg');
+  else if(Number.isFinite(data.eta_seconds))parts.push('Ca. '+elapsed(data.eta_seconds)+' tilbage i dette trin');
+  else if(data.state==='running'&&['video','audio'].includes(data.stage)&&data.progress!==100)parts.push('Resterende tid beregnes …');
+  $('ms-preview-stats').textContent=parts.join(' · ');$('ms-top-stats').textContent=parts.join(' · ');$('ms-top-stats').hidden=false;
+  if(task?.kind==='preview')$('ms-preview').textContent='Laver prøve'+(Number.isFinite(data.progress)?' · '+new Intl.NumberFormat('da-DK',{maximumFractionDigits:0}).format(data.progress)+' %':' …');
+ }
  const trackLabel=t=>[t.language,t.codec,t.profile,t.channels?t.channels+' kanaler':'',t.title].filter(Boolean).join(' · ');
  function stop(){for(const id of ['ms-base-video','ms-audio-player'])$(id).pause();}
  function clearPlayer(){stop();preview=null;$('ms-player').hidden=true;for(const id of ['ms-base-video','ms-audio-player']){$(id).removeAttribute('src');$(id).load();}}
- function controls(){const hasAudio=['base','donor'].every(k=>$("ms-"+k+"-audio").value!=='');const imported=selection?.choices.donor.includes(Number($('ms-donor-audio').value))&&$('ms-donor-audio').value!=='';$('ms-analyse').disabled=!!task||!hasAudio||!selection?.base||!selection?.donor;$('ms-preview').disabled=!!task||!selection?.base||!selection?.donor||!imported;$('ms-preview-hint').hidden=!!imported;}
+ function controls(){const hasAudio=['base','donor'].every(k=>$("ms-"+k+"-audio").value!=='');const imported=selection?.choices.donor.includes(Number($('ms-donor-audio').value))&&$('ms-donor-audio').value!=='';$('ms-analyse').disabled=!!task||!hasAudio||!selection?.base||!selection?.donor;$('ms-preview').disabled=!!task||!selection?.base||!selection?.donor||!imported;$('ms-preview-hint').hidden=!!imported;$('ms-length').disabled=task?.kind==='preview';$('ms-start').disabled=task?.kind==='preview';if(!task)$('ms-preview').textContent='Lav '+($('ms-length').value||'…')+' sek. prøveklip';}
  function setOffset(value,center=false){value=Math.max(-3600000,Math.min(3600000,Math.round(value)));$('mt-offset').value=value;if(center){$('ms-slider').min=value-1000;$('ms-slider').max=value+1000;}$('mt-offset').dispatchEvent(new Event('input',{bubbles:true}));}
  function updateOffset(){const value=offset();$('ms-current').textContent='Aktuel forskydning: '+(value>0?'+':'')+value+' ms';if(value<Number($('ms-slider').min)||value>Number($('ms-slider').max)){$('ms-slider').min=value-1000;$('ms-slider').max=value+1000;}$('ms-slider').value=value;draw();synchronise(true);}
  function fillAudio(kind,file){
@@ -24,13 +41,13 @@
  window.addEventListener('fjord-merge-selection',event=>{
   selection=event.detail;if(selection.active===false)stop();const next=selection.stage==='tracks'?[selection.base?.id,...(selection.base?.fingerprint||[]),selection.donor?.id,...(selection.donor?.fingerprint||[])].join(':'):'';
   const changed=next!==key;
-  if(changed){key=next;revision++;task=null;analysis=null;explicit={base:false,donor:false};clearPlayer();$('ms-analysis').hidden=true;$('ms-status').textContent='';$('ms-progress').hidden=true;message('');}
+  if(changed){key=next;revision++;task=null;analysis=null;explicit={base:false,donor:false};clearPlayer();$('ms-analysis').hidden=true;$('ms-status').textContent='';$('ms-progress').hidden=true;$('ms-preview-work').hidden=true;$('ms-top-stats').hidden=true;message('');}
   if(next){const before=[$('ms-base-audio').value,$('ms-donor-audio').value].join(':');fillAudio('base',selection.base);fillAudio('donor',selection.donor);const after=[$('ms-base-audio').value,$('ms-donor-audio').value].join(':');
-   if(before!==after&&(analysis||preview||task)){revision++;task=null;analysis=null;$('ms-analysis').hidden=true;clearPlayer();$('ms-status').textContent='Lydspor ændret. Start en ny kontrol.';$('ms-progress').hidden=true;}
+   if(before!==after&&(analysis||preview||task)){revision++;task=null;analysis=null;$('ms-analysis').hidden=true;clearPlayer();$('ms-status').textContent='Lydspor ændret. Start en ny kontrol.';$('ms-progress').hidden=true;$('ms-preview-work').hidden=true;$('ms-top-stats').hidden=true;}
    if(changed)$('ms-start').value=Math.floor(Math.min(60,Math.max(0,selection.base.duration-16)));}
   controls();updateOffset();
  });
- for(const kind of ['base','donor'])$('ms-'+kind+'-audio').onchange=()=>{explicit[kind]=true;revision++;task=null;analysis=null;$('ms-analysis').hidden=true;clearPlayer();$('ms-status').textContent='Lydspor ændret. Start en ny kontrol.';$('ms-progress').hidden=true;controls();};
+ for(const kind of ['base','donor'])$('ms-'+kind+'-audio').onchange=()=>{explicit[kind]=true;revision++;task=null;analysis=null;$('ms-analysis').hidden=true;clearPlayer();$('ms-status').textContent='Lydspor ændret. Start en ny kontrol.';$('ms-progress').hidden=true;$('ms-preview-work').hidden=true;$('ms-top-stats').hidden=true;controls();};
  function request(kind){
   const choice=(file,k)=>({id:file.id,fingerprint:file.fingerprint,tracks:selection.choices[k]});
   return {kind,base:choice(selection.base,'base'),donor:choice(selection.donor,'donor'),base_audio:$('ms-base-audio').value===''?null:Number($('ms-base-audio').value),donor_audio:$('ms-donor-audio').value===''?null:Number($('ms-donor-audio').value),offset_ms:offset(),start:Number($('ms-start').value),length:Number($('ms-length').value)};
@@ -39,18 +56,21 @@
   if(task||!selection?.base||!selection?.donor)return;message('');stop();const generation=revision;
   if(kind==='preview'&&(!Number.isInteger(Number($('ms-length').value))||Number($('ms-length').value)<5||Number($('ms-length').value)>120)){message('Vælg en prøvelængde på 5 til 120 hele sekunder.');return;}
   if(kind==='analyse'){analysis=null;$('ms-analysis').hidden=true;}
-  task={id:null,generation};controls();$('ms-status').textContent=kind==='analyse'?'Leder efter de samme lyde …':'Klargør korte prøveklip …';$('ms-progress').hidden=false;$('ms-progress').removeAttribute('value');
+  task={id:null,generation,kind};controls();$('ms-status').textContent=kind==='analyse'?'Leder efter de samme lyde …':'Klargør prøveklip …';$('ms-progress').hidden=false;$('ms-progress').removeAttribute('value');
+  if(kind==='preview')previewWork({state:'queued',detail:'Venter på at lave prøveklippet',elapsed_seconds:0});else{$('ms-preview-work').hidden=true;$('ms-top-stats').hidden=true;}
   try{const data=await post(request(kind));if(generation!==revision)return;task.id=data.id;await poll();}
-  catch(e){if(generation===revision){task=null;message(e.message);$('ms-progress').hidden=true;controls();}}
+  catch(e){if(generation===revision){task=null;message(e.message);if(kind==='preview')previewWork({state:'error',detail:e.message});$('ms-progress').hidden=true;controls();}}
  }
  async function poll(){
   if(polling||!task?.id)return;polling=true;const current=task;
   try{
    const data=await api('/api/merge/checks/'+current.id);if(task!==current||current.generation!==revision)return;
    $('ms-status').textContent=data.detail||'';if(Number.isFinite(data.progress))$('ms-progress').value=data.progress;
+   else $('ms-progress').removeAttribute('value');
+   if(current.kind==='preview')previewWork(data);
    if(data.state==='error'){task=null;message(data.detail);$('ms-progress').hidden=true;controls();}
    else if(data.state==='done'){task=null;$('ms-progress').hidden=true;controls();if(data.result.kind==='analyse')renderAnalysis(data.result);else renderPreview(data.result,current.id);}
-  }catch(e){if(task===current){task=null;message(e.message);$('ms-progress').hidden=true;controls();}}finally{polling=false;}
+  }catch(e){if(task===current){task=null;message(e.message);if(current.kind==='preview')previewWork({state:'error',detail:e.message});$('ms-progress').hidden=true;controls();}}finally{polling=false;}
  }
  function renderAnalysis(result){
   analysis=result;$('ms-analysis').hidden=false;$('ms-verdict').textContent=result.reliable?'Match fundet: '+(result.offset_ms>0?'+':'')+result.offset_ms+' ms':result.status==='drift'?'Timingen ændrer sig gennem filmen':'Intet sikkert match';$('ms-explanation').textContent=result.detail;

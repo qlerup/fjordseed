@@ -6,6 +6,9 @@ import subprocess
 from types import SimpleNamespace
 from unittest.mock import Mock
 import wave
+import os
+import threading
+import time
 
 import numpy as np
 import pytest
@@ -13,6 +16,7 @@ import pytest
 import merge_sync as sync
 import merge_media as merge
 from merge_checks import Checks
+from merge_progress import snapshot
 from test_merge_media import films
 
 
@@ -202,6 +206,62 @@ def test_failed_and_interrupted_checks_explain_failure_without_exposing_assets(t
     assert manager.status('local', queued['id'])['state'] == 'error'
 
 
+def telemetry(tmp_path, text, duration=30):
+    (tmp_path/'progress.json').write_text(json.dumps({'detail': 'Laver hovedfilens prøveklip', 'stage': 'video',
+        'stage_index': 1, 'stage_total': 3, 'progress': None, 'duration': duration,
+        'stage_started_at': 100, 'updated_at': 100, 'progress_file': 'video.ffmpeg'}))
+    path = tmp_path/'video.ffmpeg'; path.write_text(text)
+    os.utime(path, (139, 139))
+
+
+def test_progress_uses_actual_output_time_and_encode_speed(tmp_path):
+    telemetry(tmp_path, 'frame=240\nout_time_us=10000000\nspeed=0.25x\nprogress=continue\n')
+    result = snapshot(tmp_path, now=140)
+    assert result['progress'] == 33.3
+    assert result['processed_seconds'] == 10
+    assert result['eta_seconds'] == 80
+    assert result['stage_elapsed_seconds'] == 40
+    assert result['stage_index'] == 1 and not result['stale']
+
+
+def test_startup_partial_updates_and_stale_measurements_do_not_invent_an_eta(tmp_path):
+    telemetry(tmp_path, 'frame=1\nout_time_us=500000\nspeed=N/A\nprogress=continue\nout_time_us=20000000\n')
+    initial = snapshot(tmp_path, now=140)
+    assert initial['processed_seconds'] == .5  # Ignore an incomplete FFmpeg packet.
+    assert initial['eta_seconds'] is None
+    stale = snapshot(tmp_path, now=200)
+    assert stale['stale'] and stale['eta_seconds'] is None
+    telemetry(tmp_path, 'out_time_us=N/A\nspeed=nanx\nprogress=continue\n')
+    missing = snapshot(tmp_path, now=140)
+    assert missing['progress'] is None and missing['eta_seconds'] is None
+
+
+def test_negative_timestamps_are_zero_and_mux_finalization_is_not_claimed_complete(tmp_path):
+    telemetry(tmp_path, 'out_time_us=-40000\nspeed=0.1x\nprogress=continue\n')
+    assert snapshot(tmp_path, now=140)['progress'] == 0
+    telemetry(tmp_path, 'out_time_us=30000000\nspeed=0.1x\nprogress=continue\n')
+    result = snapshot(tmp_path, now=140)
+    assert result['progress'] == 99 and result['detail'] == 'Færdiggør videofilen'
+    assert result['eta_seconds'] is None
+    telemetry(tmp_path, 'out_time_us=30000000\nspeed=0.1x\nprogress=end\n')
+    assert snapshot(tmp_path, now=140)['progress'] == 100
+
+
+def test_status_reports_live_stage_and_freezes_elapsed_time_after_completion(tmp_path, monkeypatch):
+    manager = Checks(tmp_path, Mock())
+    queued = manager.enqueue('local', {'kind': 'preview', 'base': {}, 'donor': {}})
+    manager.update(queued['id'], state='running', started_at=100)
+    folder = manager.media/queued['id']; folder.mkdir(parents=True)
+    telemetry(folder, 'out_time_us=10000000\nspeed=0.25x\nprogress=continue\n')
+    monkeypatch.setattr(time, 'time', lambda: 140)
+    result = manager.status('local', queued['id'])
+    assert result['progress'] == 33.3 and result['elapsed_seconds'] == 40
+    manager.update(queued['id'], state='done', result={'kind': 'preview'})
+    monkeypatch.setattr(time, 'time', lambda: 500)
+    assert manager.status('local', queued['id'])['elapsed_seconds'] == 40
+    assert manager.status('local', queued['id'])['progress'] == 100
+
+
 @pytest.fixture
 def ffmpeg_tools(monkeypatch):
     ffmpeg = shutil.which('ffmpeg')
@@ -214,6 +274,26 @@ def ffmpeg_tools(monkeypatch):
         return run(args, **kwargs)
     monkeypatch.setattr(subprocess, 'run', tools)
     return ffmpeg
+
+
+def test_ffmpeg_publishes_measured_progress_while_encoding(tmp_path, ffmpeg_tools):
+    target = tmp_path/'preview.mp4'; errors = []
+    def work():
+        try:
+            sync.encode(['ffmpeg', '-nostdin', '-v', 'error', '-re', '-f', 'lavfi', '-i', 'testsrc2=s=64x64:r=24:d=4',
+                         '-an', '-c:v', 'libx264', '-threads', '2', str(target)], target, 15, 'video', 4)
+        except Exception as exc: errors.append(exc)
+    thread = threading.Thread(target=work); thread.start(); seen = []
+    try:
+        deadline = time.monotonic()+10
+        while thread.is_alive() and time.monotonic() < deadline:
+            sample = snapshot(tmp_path)
+            if isinstance(sample.get('progress'), (int, float)): seen.append(sample['progress'])
+            time.sleep(.05)
+    finally: thread.join(timeout=20)
+    assert not thread.is_alive() and not errors
+    assert any(0 < value < 100 for value in seen), seen
+    assert snapshot(tmp_path)['progress'] == 100
 
 
 @pytest.mark.skipif(not shutil.which('mkvmerge'), reason='Requires MKVToolNix')

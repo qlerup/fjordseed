@@ -4,6 +4,7 @@ import math
 from pathlib import Path
 import re
 import subprocess
+import time
 
 import numpy as np
 
@@ -78,8 +79,21 @@ def pcm(path, track, start, length):
     return np.frombuffer(result.stdout, dtype='<i2').astype(np.float64)/32768
 
 
-def report(directory, text, progress):
-    atomic(directory/'progress.json', json.dumps({'detail': text, 'progress': progress}), mode=0o644)
+def report(directory, text, progress, **fields):
+    atomic(directory/'progress.json', json.dumps({'detail': text, 'progress': progress, 'updated_at': time.time(), **fields}), mode=0o644)
+
+
+def encode(args, target, timeout, stage, length):
+    path = target.parent/(stage+'.ffmpeg')
+    path.unlink(missing_ok=True)
+    detail = 'Laver hovedfilens prøveklip' if stage == 'video' else 'Klargør det nye lydspor'
+    report(target.parent, detail, None, stage=stage, stage_index=1 if stage == 'video' else 2,
+           stage_total=3, duration=length, stage_started_at=time.time(), progress_file=path.name)
+    args = [args[0], '-progress', str(path), '-stats_period', '1', '-nostats', *args[1:]]
+    result = subprocess.run(args, capture_output=True, timeout=timeout)
+    if result.returncode or not target.exists():
+        raise ValueError('Prøveklippet kunne ikke laves. Prøv et andet tidspunkt.' if stage == 'video' else
+                         'Det nye lydspor kunne ikke klargøres til prøven.')
 
 
 def analyse(sources, tracks, offset, directory):
@@ -137,8 +151,7 @@ def clip(source, audio, start, length, target):
                         f'atrim=duration={length:.6f},asetpts=PTS-STARTPTS')
         args += ['-map', f'0:a:{audio}', '-af', audio_filter, '-c:a', 'aac', '-b:a', '128k', '-ac', '2']
     args += ['-movflags', '+faststart', str(target)]
-    result = subprocess.run(args, capture_output=True, timeout=720)
-    if result.returncode or not target.exists(): raise ValueError('Prøveklippet kunne ikke laves. Prøv et andet tidspunkt.')
+    encode(args, target, 720, 'video', length)
 
 
 def audio_clip(source, audio, start, length, target):
@@ -148,8 +161,7 @@ def audio_clip(source, audio, start, length, target):
             '-copyts', '-i', str(source[1]), '-t', f'{length:.6f}', '-map', f'0:a:{audio}', '-vn', '-sn', '-dn',
             '-af', filters, '-c:a', 'aac', '-b:a', '320k', '-ac', '2', '-map_metadata', '-1',
             '-movflags', '+faststart', str(target)]
-    result = subprocess.run(args, capture_output=True, timeout=120)
-    if result.returncode or not target.exists(): raise ValueError('Det nye lydspor kunne ikke klargøres til prøven.')
+    encode(args, target, 120, 'audio', length)
 
 
 def preview(sources, tracks, offset, data, directory):
@@ -168,9 +180,8 @@ def preview(sources, tracks, offset, data, directory):
         raise ValueError('Forskydningen placerer den anden fil uden for dette prøveklip.')
     donor_start = max(0., aligned-5)
     donor_length = min(length+10, lengths[1]-donor_start)
-    report(directory, 'Laver hovedfilens prøveklip', 10)
+    report(directory, 'Læser videooplysninger til prøveklippet', None, stage='prepare')
     clip(sources[0], None, start, length, directory/'base.mp4')
-    report(directory, 'Klargør det nye lydspor', 70)
     audio_clip(sources[1], tracks[1], donor_start, donor_length, directory/'donor.m4a')
     video = next((s for s in merge.workflow.media_info(sources[0][1]).get('streams', []) if s.get('codec_type') == 'video'), {})
     from fractions import Fraction
@@ -191,6 +202,7 @@ def run(api, kind, data):
     directory = merge.library.checked(merge.storage.CONFIG/'merge-previews'/ident)
     directory.mkdir(parents=True, exist_ok=True)
     result = analyse(sources, tracks, offset, directory) if kind == 'analyse' else preview(sources, tracks, offset, data, directory)
+    if kind == 'preview': report(directory, 'Kontrollerer prøven og kildefilerne', None, stage='verify', stage_index=3, stage_total=3)
     merge.validate(api, data, require_import=False)
-    report(directory, 'Kontrollen er færdig', 100)
+    report(directory, 'Kontrollen er færdig', 100, stage='done')
     return result

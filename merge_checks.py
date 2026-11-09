@@ -8,6 +8,7 @@ import time
 import uuid
 
 from state import atomic
+from merge_progress import snapshot
 
 ASSETS = ('base.mp4', 'donor.m4a')
 
@@ -20,7 +21,7 @@ class Checks:
         with self.lock:
             rows = self.read()
             for row in rows:
-                if row['state'] == 'running': row.update(state='error', detail='Serveren blev genstartet. Start kontrollen igen.')
+                if row['state'] == 'running': row.update(state='error', finished_at=time.time(), detail='Serveren blev genstartet. Start kontrollen igen.')
             self.save(rows)
 
     def read(self): return json.loads(self.path.read_text(encoding='utf-8')) if self.path.exists() else []
@@ -34,7 +35,7 @@ class Checks:
             directory = self.media/row['id']
             if (re.fullmatch('[a-f0-9]{32}', row['id']) and not self.media.is_symlink()
                     and not directory.is_symlink() and directory.is_dir()):
-                for name in (*ASSETS, 'donor.mp4', 'progress.json'):
+                for name in (*ASSETS, 'donor.mp4', 'progress.json', 'video.ffmpeg', 'audio.ffmpeg'):
                     (directory/name).unlink(missing_ok=True)
                 try: directory.rmdir()
                 except OSError: pass
@@ -65,9 +66,11 @@ class Checks:
     def status(self, owner, ident):
         with self.lock: row = self.owned(owner, ident)
         result = {k: row.get(k) for k in ('id', 'state', 'detail', 'result')}
+        if row['state'] != 'queued':
+            result['elapsed_seconds'] = max(0, int((row.get('finished_at') or time.time())-row.get('started_at', row['created_at'])))
         if row['state'] == 'running':
-            try: result.update(json.loads((self.media/ident/'progress.json').read_text(encoding='utf-8')))
-            except (OSError, ValueError): pass
+            result.update(snapshot(self.media/ident))
+        elif row['state'] == 'done': result['progress'] = 100
         return result
 
     def asset(self, owner, ident, name):
@@ -82,6 +85,7 @@ class Checks:
     def update(self, ident, **fields):
         with self.lock:
             rows = self.read(); row = next(r for r in rows if r['id'] == ident)
+            if fields.get('state') in ('done', 'error'): fields.setdefault('finished_at', time.time())
             row.update(fields); self.save(rows)
 
     def run_once(self):
@@ -89,7 +93,7 @@ class Checks:
             original = self.read()
             rows = self.cleanup(original)
             row = next((r for r in rows if r['state'] == 'queued'), None)
-            if row: row.update(state='running', detail='Klargør kontrol')
+            if row: row.update(state='running', started_at=time.time(), detail='Klargør kontrol')
             if row or len(rows) != len(original): self.save(rows)
         if not row: return
         try:
