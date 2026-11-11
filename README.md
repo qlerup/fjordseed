@@ -395,6 +395,33 @@ Downloads now combines manual torrents and RSS in one workspace, with All, Manua
 
 Reload/install Chrome extension 1.2.1 for RSS handoff to the unified dialog (the updated extension also supports the previous UI). UI regression coverage: `python tests/browser_downloads.py`, `python tests/browser_rss_toggle.py`, `python tests/browser_rss_date.py`, `python tests/browser_rss_filters.py`, and `python tests/browser_transfer_flow.py`.
 
+## Safari setup on iPhone
+
+The [Safari userscript](safari-userscript/README.md) runs in the existing, free
+**Userscripts** Safari extension. FjordSeed does not require its own App Store
+app, Apple Developer account or TestFlight distribution. In Safari on an iPhone,
+**Opsæt Safari-udvidelse** opens the installation guide in FjordSeed. This entry
+stays hidden in other browsers and in a standalone home-screen web app.
+
+After setup, a small FjordSeed tab appears on NordicBytes/Sagmire pages containing
+supported torrent or RSS links. Open the tab to choose a link, or hold its
+download link to open the menu for that exact torrent. Normal taps still work,
+and moving/scrolling cancels the hold gesture. The menu is inside the page;
+Safari's native long-press menu is not modified.
+
+Only the small `.torrent` is fetched on the tracker page, using its existing
+login. FjordSeed receives the selection through its ordinary torrent/RSS forms
+or manual package drafts, and the user confirms before any torrent content is
+downloaded on the server. Pending selections are stored locally by Userscripts,
+expire after 15 minutes and are removed on delivery or cleanup. They are not
+guaranteed to disappear merely by closing Safari.
+
+The public `/browser/fjordseed.user.js` endpoint serves only code and the
+validated Seed origin. It contains no account credentials. Userscripts must be
+able to fetch this installer without a website session. Normal application
+routes keep their existing authentication and CSRF checks. See the linked guide
+for installation, limitations and validation status.
+
 ## Operations and tests
 
 Back up `DATA_DIR`, every storage/download location, qBittorrent state, RSS metadata and the credit ledger. `docker compose down --remove-orphans` removes runtime while preserving bind mounts. Stop Seed before rollback. Updates briefly interrupt VPN-bound transfers, then resume saved state. Shared directories need appropriate permissions; existing ownership is not changed recursively.

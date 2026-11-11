@@ -1,0 +1,21 @@
+.safari-setup-trigger{display:block;border:0;background:none;text-align:left;padding:6px 0;min-height:44px;margin-top:2px}
+#safari-setup-dialog{width:min(580px,calc(100% - 24px));max-height:calc(100dvh - 32px)}
+#safari-setup-dialog[open]{display:flex;flex-direction:column}
+#safari-setup-dialog .dialog-heading{align-items:flex-start}
+#safari-setup-dialog .dialog-heading h2{font-size:20px;line-height:1.35}
+#safari-setup-dialog .dialog-heading button{font-size:24px;padding:0 8px;min-width:40px;min-height:40px}
+#safari-setup-dialog .dialog-body{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+#safari-setup-dialog .dialog-footer{padding-top:14px;padding-bottom:14px}
+.safari-setup-steps{padding-left:24px;margin:24px 0 0}
+.safari-setup-steps>li{padding-left:5px;margin:0 0 24px}
+.safari-setup-steps>li:last-child{margin-bottom:0}
+.safari-setup-steps>li::marker{color:var(--green);font-weight:700;font-size:17px}
+.safari-setup-steps h3{font-size:15px;margin-bottom:8px}
+#safari-setup-dialog .safari-setup-steps p{margin:0 0 12px;font-size:13px;line-height:1.65}
+#safari-setup-dialog .safari-setup-detected{padding:12px;border:1px solid var(--green);border-radius:8px;background:var(--bg);color:var(--green)}
+#safari-setup-install,#safari-setup-userscripts{display:inline-flex;align-items:center;justify-content:center;min-height:44px;white-space:normal;text-align:center}
+.safari-setup-address-row{display:flex;gap:8px;align-items:stretch;margin-top:6px;flex-wrap:wrap}
+#safari-setup-address{flex:1;min-width:170px;margin:0;font-size:16px}
+#safari-setup-copy{min-height:44px}
+#safari-setup-dialog #safari-setup-copy-status{min-height:22px;margin:8px 0 0;color:var(--green)}
+@media(max-width:480px){#safari-setup-dialog .dialog-heading,#safari-setup-dialog .dialog-body,#safari-setup-dialog .dialog-footer{padding-left:16px;padding-right:16px}#safari-setup-dialog .dialog-heading{padding-top:18px;padding-bottom:16px}.safari-setup-address-row>*{width:100%}}

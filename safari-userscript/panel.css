@@ -1,0 +1,84 @@
+/* Only this link-scoped rule applies to the tracker document. */
+.fjordseed-longpress-link, .fjordseed-longpress-link * {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+:host {
+  color-scheme: dark;
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #e7f0f5;
+  -webkit-text-size-adjust: 100%;
+}
+:host * { box-sizing: border-box; }
+:host [hidden] { display: none !important; }
+:host button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+:host button:focus-visible { outline: 3px solid #b1f6de; outline-offset: 2px; }
+:host button:disabled { opacity: .6; cursor: wait; }
+:host .fjordseed-tab {
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  position: absolute;
+  right: env(safe-area-inset-right, 0px);
+  top: 0;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 100px;
+  padding: 13px 9px;
+  color: #b1f6de;
+  background: #132d29;
+  border: 1px solid #5db596;
+  border-right: 0;
+  border-radius: 13px 0 0 13px;
+  box-shadow: 0 4px 20px #0005;
+}
+:host .tab-name { writing-mode: vertical-rl; font-size: 12px; font-weight: 750; letter-spacing: .03em; }
+:host .tab-count { min-width: 22px; padding: 2px 3px; border-radius: 12px; background: #8be5c5; color: #0a2920; font-size: 11px; font-weight: 750; line-height: 1.4; }
+:host .fjordseed-panel {
+  position: absolute;
+  right: max(8px, env(safe-area-inset-right, 0px));
+  top: 0;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(70vh, 620px);
+  max-height: min(70dvh, 620px);
+  overflow: hidden;
+  border: 1px solid #496c65;
+  border-radius: 16px;
+  background: #101b22;
+  box-shadow: 0 12px 48px #0009;
+  color: #e7f0f5;
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-align: left;
+}
+:host .panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 12px 12px 16px; background: #142a29; border-bottom: 1px solid #2f4848; flex: none; }
+:host .panel-title { min-width: 0; }
+:host h2 { font-size: 18px; font-weight: 750; margin: 0; color: #e7f0f5; }
+:host .link-count { margin: 2px 0 0; color: #acbfc6; font-size: 12px; }
+:host .close { width: 44px; min-height: 44px; flex: none; background: transparent; color: #d4e2e8; border: 1px solid #4b6866; border-radius: 10px; font-size: 26px; line-height: 1; }
+:host .links { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 12px; -webkit-overflow-scrolling: touch; }
+:host .link-card { background: #182831; border: 1px solid #314954; border-radius: 11px; padding: 12px; }
+:host .link-card + .link-card { margin-top: 10px; }
+:host .link-meta { margin: 0 0 5px; color: #8be5c5; font-size: 11px; font-weight: 650; }
+:host .link-label { font-size: 14px; line-height: 1.45; margin: 0; color: #e7f0f5; font-weight: 650; overflow-wrap: anywhere; }
+:host .link-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+:host .action { flex: 1 1 110px; min-height: 44px; padding: 9px 10px; border-radius: 8px; border: 1px solid transparent; background: #8be5c5; color: #092b20; font-size: 12px; line-height: 1.4; font-weight: 750; }
+:host .action.quiet { border-color: #627f86; background: transparent; color: #d6e6ec; }
+:host .feedback { margin: 10px 0 0; color: #b1f6de; font-size: 12px; overflow-wrap: anywhere; }
+:host .feedback.error { color: #ffb9bd; }
+:host .overflow-note, :host .panel-footer { flex: none; margin: 0; padding: 10px 16px; color: #b6c9d0; font-size: 11px; }
+:host .overflow-note { color: #ead7a7; border-top: 1px solid #314954; }
+:host .panel-footer { border-top: 1px solid #314954; }
+@media (prefers-reduced-motion: no-preference) {
+  :host .action, :host .close, :host .fjordseed-tab { transition: background-color .12s ease, opacity .12s ease; }
+}
+
+:host .show-all { min-height: 44px; margin: 8px 12px 0; padding: 9px 12px; border: 1px solid #627f86; border-radius: 8px; color: #d6e6ec; background: transparent; font-weight: 650; text-align: left; flex: none; }
+
+:host .panel-footer .open-seed { width: 100%; }
+:host .panel-footer p { margin: 8px 0 0; }

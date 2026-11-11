@@ -31,6 +31,7 @@ from covers import Covers
 from storage import Storage
 from streaming import Streaming
 from manual_package import ManualPackage
+from safari_setup import build_userscript, validate_seed_origin
 
 
 def create_app(root=None, testing=False, runtime_factory=Runtime):
@@ -90,6 +91,10 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
             supplied = request.headers.get('X-Hub-Key', '')
             if not hub.enabled or not hub.key or not secrets.compare_digest(hub.key, supplied):
                 return jsonify(ok=False, error='Ugyldig appnøgle.'), 403
+            return
+        # Userscripts refetches this public source from its extension popup.
+        # It contains only reviewed code and this server's nonsecret origin.
+        if request.endpoint == 'safari_userscript' and request.method in ('GET', 'HEAD'):
             return
         if request.endpoint in ('login','hub_login','static','health','logout'):
             return
@@ -198,6 +203,23 @@ def create_app(root=None, testing=False, runtime_factory=Runtime):
     def index():
         return render_template('index.html',csrf=session['csrf'],tracker_providers=PROVIDERS,
                                appearance=state.appearance())
+
+    @app.get('/browser/fjordseed.user.js')
+    def safari_userscript():
+        try:
+            if len(request.args.getlist('origin')) > 1:
+                raise ValueError('Angiv kun én FjordSeed-adresse.')
+            origin = validate_seed_origin(request.args.get('origin'), request.host, request.scheme)
+        except ValueError as exc:
+            return jsonify(error=str(exc)), 400
+        try:
+            source = build_userscript(origin)
+        except (OSError, RuntimeError):
+            app.logger.exception('Safari userscript source could not be assembled')
+            return jsonify(error='Safari-opsætningen mangler filer. Opdatér FjordSeed og prøv igen.'), 503
+        response = app.response_class(source, mimetype='text/plain')
+        response.headers['Content-Disposition'] = 'inline; filename="fjordseed.user.js"'
+        return response
 
     @app.get('/api/status')
     def status():

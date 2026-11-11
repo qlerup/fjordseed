@@ -1,0 +1,36 @@
+<dialog id="safari-setup-dialog" aria-labelledby="safari-setup-title" aria-describedby="safari-setup-intro">
+  <div class="dialog-heading">
+    <h2 id="safari-setup-title" tabindex="-1">Opsæt Safari-udvidelse</h2>
+    <button type="button" class="quiet" data-safari-setup-close aria-label="Luk Safari-opsætning">×</button>
+  </div>
+  <div class="dialog-body">
+    <p id="safari-setup-intro" class="muted small">Send torrentlinks og RSS-feeds fra NordicBytes og Sagmire til din FjordSeed, mens du bruger Safari på din iPhone.</p>
+    <p id="safari-setup-detected" class="safari-setup-detected" role="status" hidden>FjordSeed-scriptet er aktivt på denne side.</p>
+    <ol class="safari-setup-steps">
+      <li>
+        <h3>Hent og aktivér Userscripts</h3>
+        <p>Hent den gratis Safari-udvidelse Userscripts, og åbn den én gang. Aktivér Userscripts i Safaris udvidelsesmenu, og tillad adgang til denne FjordSeed-side samt NordicBytes eller Sagmire.</p>
+        <a id="safari-setup-userscripts" class="secondary" href="https://apps.apple.com/dk/app/userscripts/id1463298887" target="_blank" rel="noopener noreferrer">Hent Userscripts</a>
+      </li>
+      <li>
+        <h3>Installér FjordSeed-scriptet</h3>
+        <p>Åbn scriptet herunder. Når koden vises, åbn Userscripts i Safaris udvidelsesmenu, og vælg <strong>Install</strong>. Scriptet hentes fra din FjordSeed, og serveradressen er allerede indstillet.</p>
+        <a id="safari-setup-install" class="primary" href="/browser/fjordseed.user.js" target="_blank" rel="noopener">Installér FjordSeed i Userscripts</a>
+      </li>
+      <li>
+        <h3>Send et link fra trackeren</h3>
+        <p>Gå tilbage til NordicBytes eller Sagmire, genindlæs siden, og log ind som normalt. Hold fingeren på et torrentlink, eller åbn FjordSeed-fanen i siden. Vælg <strong>Send til FjordSeed</strong>, og bekræft i FjordSeed.</p>
+        <p>Kun den lille torrentfil hentes fra trackeren på telefonen. Selve indholdet downloades af din FjordSeed-server.</p>
+        <label for="safari-setup-address">Din FjordSeed-adresse</label>
+        <div class="safari-setup-address-row">
+          <input id="safari-setup-address" type="text" readonly spellcheck="false" autocomplete="off" aria-describedby="safari-setup-copy-status">
+          <button id="safari-setup-copy" type="button" class="secondary">Kopiér adresse</button>
+        </div>
+        <p id="safari-setup-copy-status" role="status" aria-live="polite"></p>
+      </li>
+    </ol>
+  </div>
+  <div class="dialog-footer">
+    <button type="button" class="secondary" data-safari-setup-close>Luk</button>
+  </div>
+</dialog>

@@ -4,6 +4,12 @@
 !manual_package.py
 !torrent_search.py
 !search_routes.py
+!safari_setup.py
+!safari-userscript/
+!safari-userscript/*.js
+!safari-userscript/*.css
+!chrome-extension/
+!chrome-extension/common.mjs
 !event_notifier.py
 !hub_email.py
 !hub.py
