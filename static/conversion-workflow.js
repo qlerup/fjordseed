@@ -205,11 +205,11 @@
    formats.append(node('p','Vælg AC3, E-AC3 eller begge ud for hvert sprog/spor. Konvertering er uafhængig af “Behold lyd”: fjern markeringen dér, hvis du kun vil have den konverterede version.','muted small'));
    for(const s of streams(file,'audio')){
     const group=fieldset(streamLabel(s));
-    for(const codec of ['eac3','ac3']){
+    for(const codec of ['eac3','ac3'].filter(codec=>codec!==s.codec_name)){
      const row=node('label',null,'check-label'),check=node('input');check.type='checkbox';check.checked=missingCodecs(s,o).includes(codec);
-     const exists=s.codec_name===codec;check.disabled=exists||!supportedAudio(s);
+     check.disabled=!supportedAudio(s);
      check.onchange=()=>{const chosen=new Set(o.audio_conversions[s.index]||[]);check.checked?chosen.add(codec):chosen.delete(codec);o.audio_conversions[s.index]=['eac3','ac3'].filter(c=>chosen.has(c));refreshAudio();};
-     row.append(check,node('span',codecNames[codec]+(exists?' · findes allerede':!supportedAudio(s)?' · kanalopsætningen understøttes ikke':'')));group.append(row);
+     row.append(check,node('span',codecNames[codec]+(!supportedAudio(s)?' · kanalopsætningen understøttes ikke':'')));group.append(row);
     }
     formats.append(group);
    }
