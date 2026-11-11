@@ -96,3 +96,14 @@ def test_plex_bridge_can_resolve_a_new_video_without_subtitle_files(tmp_path,mon
     monkeypatch.setattr(bridge,'SOURCE',source);monkeypatch.setattr(bridge,'VIEW',view);monkeypatch.setattr(bridge,'LEDGER',ledger)
     assert bridge.ensure_links('merged.mkv',[])==str(linked)
     assert list(source.iterdir())==[video] and linked.resolve()==video
+
+
+def test_conversion_refresh_uses_workflow_rpc(worker):
+    service, runtime, job = worker
+    service.rpc_prefix = 'library-workflow'
+    service.flix = Mock(return_value=True)
+    service.plex = Mock(return_value=True)
+    service.tick()
+    assert runtime.rpc.call_args_list[0].args[0] == 'library-workflow-refresh-pending'
+    assert runtime.rpc.call_args.args[0] == 'library-workflow-refresh-update'
+    assert runtime.rpc.call_args.args[1]['refresh'] == {'fjordflix':True, 'plex':True}

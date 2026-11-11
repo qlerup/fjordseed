@@ -326,6 +326,8 @@ def execute(action, data):
         if kind == 'tick':
             workflow.tick(call, call('torrents/info').json())
             return {'ok':True}
+        if kind == 'refresh-pending': return workflow.refresh_pending()
+        if kind == 'refresh-update': return workflow.refresh_update(data)
         if kind == 'list': return workflow.listing(call)
         if kind == 'media': return workflow.details(call, data.get('id'))
         if kind == 'skip': return workflow.skip(call, data)

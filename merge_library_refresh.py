@@ -22,7 +22,8 @@ print(json.dumps(json.loads(body)))
 
 
 class LibraryRefresh:
-    def __init__(self, runtime):
+    def __init__(self, runtime, rpc_prefix="library-merge"):
+        self.rpc_prefix = rpc_prefix
         self.runtime = runtime
         self.config = runtime.state.root/'subtitle-library.json'
         self.next_at = {}
@@ -74,7 +75,7 @@ class LibraryRefresh:
             return True
 
     def tick(self):
-        jobs = self.runtime.rpc('library-merge-refresh-pending', {}).get('jobs', [])
+        jobs = self.runtime.rpc(self.rpc_prefix+'-refresh-pending', {}).get('jobs', [])
         for job in jobs[:10]:
             ident = job['id']
             if time.time() < self.next_at.get(ident, 0): continue
@@ -100,10 +101,10 @@ class LibraryRefresh:
                 self.record(job, status, 'Færdig · FjordFlix er opdateret, og Plex-scanning er startet')
             except Exception:
                 # Credentials and HTTP request URLs must not appear in job errors.
-                self.runtime.rpc('library-merge-refresh-update', {'id':ident,'refresh':status,
+                self.runtime.rpc(self.rpc_prefix+'-refresh-update', {'id':ident,'refresh':status,
                     'error':True,'detail':'Filen er gemt · biblioteksopdateringen fejlede. Kontrollér Plex/FjordFlix-forbindelsen og prøv igen.'})
 
     def record(self, job, status, detail):
         if not all(status.get(k) for k in ('fjordflix','plex')) and time.time()-job['started_at']>1800:
             raise ValueError('Biblioteket kunne ikke registrere filmen inden for 30 minutter.')
-        self.runtime.rpc('library-merge-refresh-update', {'id':job['id'],'refresh':status,'detail':detail})
+        self.runtime.rpc(self.rpc_prefix+'-refresh-update', {'id':job['id'],'refresh':status,'detail':detail})

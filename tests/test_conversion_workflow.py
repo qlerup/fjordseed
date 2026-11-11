@@ -136,8 +136,10 @@ def test_queue_uses_server_then_pauses_before_native_move_and_applies_policy(fil
         workflow.tick(api,rows,credit)
         assert credit.entries[row['hash']]['target']==2
         assert credit.entries[row['hash']]['ratio_only'] is True
-    assert workflow.read()['jobs'][0]['state']=='done'
+    assert workflow.read()['jobs'][0]['phase']=='refresh'
     assert row['share_limit_action']=='RemoveWithContent'
+    assert workflow.pending(row['hash'])
+    workflow.refresh_update({'id':workflow.read()['jobs'][0]['id'], 'refresh':{'fjordflix':True, 'plex':True}})
     assert not workflow.pending(row['hash'])
     assert (Path(job['seed'])/'film.mp4').read_bytes()==b'original video'
 
@@ -266,6 +268,7 @@ def test_same_torrent_second_movie_reuses_seeder_original(film,prepared):
     move_by_qbit(film,first);row['state']='pausedUP'
     assert library.reconcile(api,rows)==[]
     with CreditLedger().transaction() as credit:workflow.tick(api,rows,credit)
+    workflow.refresh_update({'id':workflow.read()['jobs'][0]['id'], 'refresh':{'fjordflix':True, 'plex':True}})
     with CreditLedger().transaction() as credit:workflow.tick(api,rows,credit)
     second_job=next(j for j in storage.read(library.ledger(),{}).values() if j['id']!=first['id'])
     assert second_job['reuse_seeding'] and second_job['seed']==first['seed']
@@ -400,7 +403,7 @@ def test_manual_conversion_archives_original_beside_seeder_and_skips_seeding(fil
     assert archive.read_bytes() == b'manual original' and not source.exists()
     target = Path(job['destination']); assert target.read_bytes() == b'converted'
     assert library.converted(target)['conversion_mode'] == 'full'
-    assert workflow.read()['jobs'][0]['state'] == 'done'
+    assert workflow.read()['jobs'][0]['phase'] == 'refresh'
     item = next(i for i in workflow.listing(film[-1])['items'] if i['id'] == library.key(target))
     assert set(item['completed_modes']) == {'audio','full','video'}
     assert not any(c.args[0] in ('torrents/setLocation','torrents/stop','torrents/start') for c in film[-1].call_args_list)
@@ -418,7 +421,7 @@ def test_manual_delete_is_opt_in_and_only_after_successful_publication(film, med
     target=Path(job['destination']); assert target.read_bytes()==b'converted'
     assert library.converted(target)['id'] == job['id']
     workflow.tick(film[-1], film[3])
-    assert workflow.read()['jobs'][0]['state']=='done'
+    assert workflow.read()['jobs'][0]['phase']=='refresh'
     assert 'slettet' in workflow.read()['jobs'][0]['detail']
 
 
@@ -499,7 +502,7 @@ def test_cross_disk_original_archive_is_verified_outside_storage_lock(film, medi
     assert library.reconcile(film[-1],film[3])==[]
     workflow.tick(film[-1],film[3])
     assert not source.exists() and archive.exists()
-    assert workflow.read()['jobs'][0]['state']=='done'
+    assert workflow.read()['jobs'][0]['phase']=='refresh'
 
 
 @pytest.mark.parametrize('corrupt', [False,True])
@@ -619,3 +622,47 @@ def test_persistent_conversion_tags_and_replaced_file(film, mode, expected):
 def test_legacy_conversion_tags_recover_mode_from_job():
     assert workflow.completed_modes({'id':'old'}, {'old':{'options':{'mode':'audio'}}}) == ['audio']
     assert workflow.completed_modes({'bitrate':30}, {}) == ['video']
+
+
+def test_conversion_refresh_waits_for_both_services_and_retries_without_conversion(film, prepared, monkeypatch):
+    workflow.enqueue(film[-1], {'items':[prepared]})
+    state = workflow.read()
+    job = state['jobs'][0]
+    job.update(state='running', phase='refresh', library_id='published-film', refresh_started_at=1)
+    workflow.save(state)
+    monkeypatch.setattr(library, 'queue', lambda *a, **k: pytest.fail('Must not convert again'))
+    workflow.tick(film[-1], film[3])
+    assert workflow.read()['jobs'][0]['phase'] == 'refresh'
+    workflow.refresh_update({'id':job['id'], 'refresh':{'fjordflix':True}, 'error':True})
+    workflow.retry(job['id'])
+    retried = workflow.read()['jobs'][0]
+    assert retried['state'] == 'running' and retried['refresh']['fjordflix']
+    assert retried['refresh_started_at'] > 1
+    workflow.refresh_update({'id':job['id'], 'refresh':{'fjordflix':True, 'plex':True}, 'detail':'Updated'})
+    assert workflow.read()['jobs'][0]['state'] == 'done'
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+def test_conversion_refresh_checks_published_file(film, prepared, legacy):
+    import json
+    workflow.enqueue(film[-1], {'items':[prepared]})
+    target = film[1] / 'film.mp4'
+    publication = {'id':'publication', 'root':str(film[0]), 'original':str(film[1]),
+                   'output':'film.mp4', 'phase':'published'}
+    library.save({'publication':publication})
+    library.marker(target).write_text(json.dumps({'version':1, 'id':'publication', 'output_size':target.stat().st_size, 'output_fingerprint':library.fingerprint(target)}))
+    state = workflow.read()
+    job = state['jobs'][0]
+    job.update(state='running', phase='refresh', library_id='publication', refresh_started_at=1)
+    workflow.save(state)
+    if legacy:
+        job.update(state='done', phase='published')
+        job.pop('refresh_started_at')
+        workflow.save(state)
+    pending = workflow.refresh_pending()['jobs']
+    assert pending[0]['relative'] == target.relative_to(film[0]).as_posix()
+    assert workflow.read()['jobs'][0]['phase'] == 'refresh'
+    assert len(workflow.refresh_pending()['jobs']) == 1
+    target.unlink()
+    assert workflow.refresh_pending()['jobs'] == []
+    assert workflow.read()['jobs'][0]['state'] == 'error'

@@ -9,6 +9,7 @@ def register(app, runtime, stop, testing=False):
     from merge_library_refresh import LibraryRefresh
     checks = Checks(runtime.state.root, runtime)
     refresh = LibraryRefresh(runtime)
+    conversion_refresh = LibraryRefresh(runtime, "library-workflow")
     app.extensions['merge_checks'] = checks
     app.extensions['merge_library_refresh'] = refresh
     def owner(): return 'hub:'+str(session['hub_uid']) if 'hub_uid' in session else 'local'
@@ -60,7 +61,9 @@ def register(app, runtime, stop, testing=False):
 
     def refresh_libraries():
         while not stop.wait(3):
-            try: refresh.tick()
+            try:
+                refresh.tick()
+                conversion_refresh.tick()
             except ValueError: pass  # A disabled VPN can temporarily block the RPC.
             except Exception: logging.getLogger(__name__).exception('Track merge library refresh failed')
 

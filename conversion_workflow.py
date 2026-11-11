@@ -201,7 +201,7 @@ def tick(api, rows, credit=None):
     """Prepare on the maintenance RPC, outside VPN supervision and credit locks."""
     state = read()
     job = next((j for j in state['jobs'] if j['state'] not in ('done', 'cancelled')), None)
-    if not job: return
+    if not job or job.get('phase') == 'refresh': return
     try:
         jobs = storage.read(library.ledger(), {})
         # Recover a crash between queue creation and recording its returned ID.
@@ -229,8 +229,8 @@ def tick(api, rows, credit=None):
                             detail=current.get('error') or 'Resultatet er gemt · gemmer originalen i Originals')
                     else:
                         original = 'originalen er slettet' if current.get('original_deleted') else 'originalen er gemt i Originals' if current.get('original_archived') else 'originalen er bevaret'
-                        job.update(state='done', phase='published', progress=100,
-                            detail='Færdig · '+original)
+                        job.update(state='running', phase='refresh', progress=None, refresh_started_at=time.time(), stage="refresh", phase_progress=None, eta_seconds=None,
+                            detail=original+' - opdaterer FjordFlix og Plex')
                     with storage.transaction():
                         latest = read()
                         for i, other in enumerate(latest['jobs']):
@@ -253,7 +253,7 @@ def tick(api, rows, credit=None):
                 action = 'Stop' if policy['ratio_action'] in ('keep','stop_keep') else 'RemoveWithContent'
                 apply_limits(api,row,action=action)
                 row['share_limit_action'] = action
-                job.update(state='done', phase='published', progress=100, detail='Færdig · originalen ligger i Seeder')
+                job.update(state='running', phase='refresh', progress=None, refresh_started_at=time.time(), stage="refresh", phase_progress=None, eta_seconds=None, detail='Originalen ligger i Seeder - opdaterer FjordFlix og Plex')
             elif current.get('phase') == 'cancelled': job['state'] = 'cancelled'
             elif public['state'] == 'error': job['state'] = 'error'
         elif job['state'] in ('queued', 'starting'):
@@ -287,10 +287,66 @@ def tick(api, rows, credit=None):
 def retry(ident):
     state = read(); job = next((j for j in state['jobs'] if j['id'] == ident), None)
     if not job or job['state'] != 'error': raise ValueError('Jobbet er ikke fejlet.')
+    if job.get('phase') == 'refresh':
+        with storage.transaction():
+            state = read(); job = next(j for j in state['jobs'] if j['id'] == ident)
+            job.update(state='running', refresh_started_at=time.time(), stage="refresh", phase_progress=None, eta_seconds=None, detail='Opdaterer FjordFlix og Plex')
+            save(state)
+        return {'ok':True}
     if job.get('library_id'):
         current = storage.read(library.ledger(), {}).get(job['library_id'], {})
         if current.get('phase') == 'queued': library.retry(job['library_id'])
     with storage.transaction():
         state = read(); job = next(j for j in state['jobs'] if j['id'] == ident)
         job.update(state='running' if job.get('library_id') else 'queued', detail=''); save(state)
+    return {'ok':True}
+
+
+def refresh_pending():
+    publications = storage.read(library.ledger(), {})
+    pending = []
+    for row in read()['jobs']:
+        legacy = row['state'] == 'done' and row.get('phase') == 'published' and not row.get('refresh_started_at')
+        if not legacy and (row['state'] != 'running' or row.get('phase') != 'refresh'):
+            continue
+        publication = publications.get(row.get('library_id'), {})
+        if publication.get('phase') != 'published':
+            continue
+        target = (Path(publication['destination']) if publication.get('manual')
+                  else Path(publication['original']) / publication['output'])
+        target = library.checked(target)
+        flag = library.converted(target) if target.is_file() else None
+        if not flag or flag.get('id') != publication['id']:
+            if legacy:
+                continue
+            refresh_update({'id':row['id'], 'refresh':row.get('refresh', {}), 'error':True,
+                            'detail':'Resultatfilen mangler eller er ændret. Kontrollér filen før biblioteksopdatering.'})
+            continue
+        if legacy:
+            with storage.transaction():
+                state = read()
+                current = next((job for job in state['jobs'] if job['id'] == row['id']), None)
+                if not current or current['state'] != 'done' or current.get('refresh_started_at'):
+                    continue
+                current.update(state='running', phase='refresh', stage='refresh', progress=None,
+                               phase_progress=None, eta_seconds=None, refresh_started_at=time.time(),
+                               detail='Opdaterer FjordFlix og Plex')
+                save(state)
+                row = current
+        pending.append({'id':row['id'], 'relative':target.relative_to(publication['root']).as_posix(),
+                        'refresh':row.get('refresh', {}), 'started_at':row['refresh_started_at']})
+    return {'jobs':pending}
+
+
+def refresh_update(data):
+    with storage.transaction():
+        state = read()
+        row = next((job for job in state['jobs'] if job['id'] == data.get('id')), None)
+        if not row or row['state'] != 'running' or row.get('phase') != 'refresh':
+            return {'ok':False}
+        status = {key:bool(data.get('refresh', {}).get(key)) for key in ('fjordflix', 'plex')}
+        done = all(status.values()) and not data.get('error')
+        row.update(refresh=status, state='error' if data.get('error') else 'done' if done else 'running',
+                   progress=100 if done else None, detail=str(data.get('detail', ''))[:500])
+        save(state)
     return {'ok':True}
