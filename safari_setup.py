@@ -7,7 +7,7 @@ import re
 from urllib.parse import urlencode, urlsplit
 
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 
 
 def _authority(value):

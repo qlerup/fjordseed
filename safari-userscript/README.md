@@ -69,6 +69,10 @@ serialized because NordicBytes persists the view choice in cookies. The
 switch parameters and cookie behavior were verified against the public site;
 the authenticated device flow still needs an iPhone check.
 
+Version 1.1.2 prefers the raw MediaInfo dump and retains the technical Format
+alongside its commercial name, for example `E-AC-3 JOC (Dolby Digital Plus
+with Dolby Atmos)`. The rendered desktop summary remains a fallback.
+
 ## Sending and packages
 
 - **Send til FjordSeed:** for a torrent, fetch its small `.torrent` on the

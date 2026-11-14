@@ -4,9 +4,8 @@ function fjordSeedAudioTracks(doc) {
   // UNIT3D's desktop MediaInfo summary contains one dd per audio stream.
   const summary = [...doc.querySelectorAll('.mediainfo__audio dd')]
     .map(node => clean(node.textContent)).filter(Boolean);
-  if (summary.length) return summary.slice(0, 64);
-
-  // Older tracker themes expose the original MediaInfo dump instead.
+  // Prefer the raw dump: desktop summaries may replace the technical codec
+  // (E-AC-3 JOC, MLP FBA, DTS XLL) with its commercial name.
   for (const node of doc.querySelectorAll('[x-ref="mediainfo"], .torrent-mediainfo-dump, pre')) {
     const raw = node.textContent || '';
     if (raw.length > 256 * 1024) continue;
@@ -24,13 +23,15 @@ function fjordSeedAudioTracks(doc) {
     }
     if (audio) tracks.push(audio);
     const labels = tracks.filter(track => track.format || track.language).slice(0, 64).map(track => {
-      const format = track['commercial name'] || track['format/commercial name'] || track['format/commercial'] || track.format;
+      const commercial = track['commercial name'] || track['format/commercial name'] || track['format/commercial'];
+      const format = track.format && commercial && track.format.toLowerCase() !== commercial.toLowerCase()
+        ? `${track.format} (${commercial})` : track.format || commercial;
       return [track.language || 'Sprog ikke oplyst', format || 'Format ikke oplyst',
         track['channel(s)'], track['bit rate'], track.title].filter(Boolean).join(' / ');
     });
     if (labels.length) return labels;
   }
-  return [];
+  return summary.slice(0, 64);
 }
 
 let fjordSeedDesktopAudioQueue = Promise.resolve();

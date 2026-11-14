@@ -30,7 +30,18 @@ test('raw MediaInfo reads only audio, preserves duplicate languages and commerci
   pre.textContent = `General\nFormat : Matroska\nVideo\nFormat : HEVC\nAudio #1\nFormat : MLP FBA\nCommercial name : Dolby TrueHD with Dolby Atmos\nChannel(s) : 8 channels\nLanguage : English\nAudio #2\nFormat : AC-3\nLanguage : English\nText #1\nLanguage : Danish\nFormat : PGS`;
   w.document.body.append(pre);
   assert.deepEqual([...w.fjordSeedAudioTracks(w.document)], [
-    'English / Dolby TrueHD with Dolby Atmos / 8 channels', 'English / AC-3'
+    'English / MLP FBA (Dolby TrueHD with Dolby Atmos) / 8 channels', 'English / AC-3'
+  ]);
+});
+
+test('raw codec is retained alongside the commercial name even when a summary exists', t => {
+  const w = fixture(t);
+  w.document.body.innerHTML = summary;
+  const pre = w.document.createElement('pre');
+  pre.textContent = 'Audio\r\nFormat : E-AC-3 JOC\r\nCommercial name : Dolby Digital Plus with Dolby Atmos\r\nLanguage : English\r\nChannel(s) : 6 channels\r\nBit rate : 768 kb/s';
+  w.document.body.append(pre);
+  assert.deepEqual([...w.fjordSeedAudioTracks(w.document)], [
+    'English / E-AC-3 JOC (Dolby Digital Plus with Dolby Atmos) / 6 channels / 768 kb/s'
   ]);
 });
 test('mobile details fetch uses the selected ID, same-origin login, and no private download parameters', async t => {
