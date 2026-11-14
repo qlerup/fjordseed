@@ -62,6 +62,13 @@ no audio information even when the file has audio.
 Version 1.1.0 adds this feature. Install the updated script from the same
 FjordSeed origin and disable obsolete copies targeting other origins.
 
+Version 1.1.1 adds a NordicBytes mobile fallback: when the normal detail page
+has no readable audio data, request the site's `?desktop=1` variant, then
+restore its `?mobile=1` preference, including on failure. These requests are
+serialized because NordicBytes persists the view choice in cookies. The
+switch parameters and cookie behavior were verified against the public site;
+the authenticated device flow still needs an iPhone check.
+
 ## Sending and packages
 
 - **Send til FjordSeed:** for a torrent, fetch its small `.torrent` on the

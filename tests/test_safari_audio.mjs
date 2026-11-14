@@ -71,3 +71,49 @@ test('unsupported links and other tracker origins never cause requests', async t
     await assert.rejects(w.loadFjordSeedAudio(url), /Vælg en torrent/);
   }
 });
+
+test('NordicBytes mobile fallback requests desktop metadata and restores mobile preference', async t => {
+  const w = fixture(t, 'https://nordicbytes.org/torrents/42?mobile=1');
+  Object.defineProperty(w.navigator, 'userAgent', {value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)'});
+  const requests = [];
+  w.fetch = async url => {
+    requests.push(url);
+    return new Response(url.endsWith('?desktop=1') ? summary : '<h1>Mobile detail page</h1>',
+      {headers: {'Content-Type': 'text/html'}});
+  };
+  assert.equal((await w.loadFjordSeedAudio('https://nordicbytes.org/torrents/download/42')).length, 2);
+  assert.deepEqual(requests, [
+    'https://nordicbytes.org/torrents/42',
+    'https://nordicbytes.org/torrents/42?desktop=1',
+    'https://nordicbytes.org/torrents/42?mobile=1'
+  ]);
+});
+
+test('desktop fetch failure still restores NordicBytes mobile preference', async t => {
+  const w = fixture(t);
+  Object.defineProperty(w.navigator, 'userAgent', {value: 'iPhone'});
+  const requests = [];
+  w.fetch = async url => {
+    requests.push(url);
+    if (url.endsWith('?desktop=1')) throw new w.TypeError('network failure');
+    return new Response('<h1>Mobile detail page</h1>', {headers: {'Content-Type': 'text/html'}});
+  };
+  await assert.rejects(w.loadFjordSeedAudio('https://nordicbytes.org/torrents/download/42'), /kunne ikke hentes/);
+  assert.equal(requests.at(-1), 'https://nordicbytes.org/torrents/42?mobile=1');
+});
+
+test('concurrent cards serialize persistent view switches', async t => {
+  const w = fixture(t);
+  Object.defineProperty(w.navigator, 'userAgent', {value: 'iPhone'});
+  const switches = [];
+  w.fetch = async url => {
+    if (url.includes('?')) switches.push(new URL(url).search);
+    if (url.endsWith('?desktop=1')) await new Promise(resolve => setTimeout(resolve, 10));
+    return new Response(url.endsWith('?desktop=1') ? summary : '<h1>Mobile page</h1>',
+      {headers: {'Content-Type': 'text/html'}});
+  };
+  const results = await Promise.all([42, 43].map(id =>
+    w.loadFjordSeedAudio('https://nordicbytes.org/torrents/download/' + id)));
+  assert(results.every(result => result.length === 2));
+  assert.deepEqual(switches, ['?desktop=1', '?mobile=1', '?desktop=1', '?mobile=1']);
+});

@@ -33,6 +33,8 @@ function fjordSeedAudioTracks(doc) {
   return [];
 }
 
+let fjordSeedDesktopAudioQueue = Promise.resolve();
+
 async function loadFjordSeedAudio(downloadUrl) {
   const source = new URL(downloadUrl);
   const match = source.pathname.match(/^\/torrents\/download\/([1-9]\d*)\/?$/);
@@ -45,48 +47,73 @@ async function loadFjordSeedAudio(downloadUrl) {
     const existing = fjordSeedAudioTracks(document);
     if (existing.length) return existing;
   }
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
-  try {
-    const response = await fetch(source.origin + path, {
-      credentials: 'same-origin', redirect: 'error', signal: controller.signal,
-      headers: {Accept: 'text/html'}
-    });
-    if (!response.ok || !response.headers.get('Content-Type')?.includes('text/html')) {
-      throw Error('Detaljesiden kunne ikke læses. Kontrollér, at du er logget ind på trackeren.');
-    }
-    if (response.url) {
-      const final = new URL(response.url);
-      if (final.origin !== source.origin || final.pathname.replace(/\/$/, '') !== path) {
+  async function readPage(query = '', restorePreference = false) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    try {
+      const response = await fetch(source.origin + path + query, {
+        credentials: 'same-origin', redirect: 'error', signal: controller.signal,
+        headers: {Accept: 'text/html'}
+      });
+      if (!response.ok || !response.headers.get('Content-Type')?.includes('text/html')) {
+        throw Error('Detaljesiden kunne ikke læses. Kontrollér, at du er logget ind på trackeren.');
+      }
+      if (response.url) {
+        const final = new URL(response.url);
+        if (final.origin !== source.origin || final.pathname.replace(/\/$/, '') !== path) {
+          throw Error('Log ind på trackeren, og prøv igen.');
+        }
+      }
+      if (restorePreference) {
+        await response.body?.cancel();
+        return [];
+      }
+      // Bound the response while streaming, including chunked responses.
+      const reader = response.body.getReader(), chunks = [];
+      let size = 0;
+      try {
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > 2 * 1024 * 1024) {
+            await reader.cancel();
+            throw Error('Detaljesiden er for stor til at indlæse.');
+          }
+          chunks.push(value);
+        }
+      } finally { reader.releaseLock(); }
+      const bytes = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+      const doc = new DOMParser().parseFromString(new TextDecoder().decode(bytes), 'text/html');
+      if (doc.querySelector('input[type="password"], meta[http-equiv="refresh" i]')) {
         throw Error('Log ind på trackeren, og prøv igen.');
       }
-    }
-    // Bound the response while streaming, including chunked responses.
-    const reader = response.body.getReader(), chunks = [];
-    let size = 0;
+      return fjordSeedAudioTracks(doc);
+    } catch (error) {
+      if (controller.signal.aborted) throw Error('Detaljesiden svarede ikke. Prøv igen.');
+      if (error instanceof TypeError) throw Error('Detaljesiden kunne ikke hentes. Kontrollér tracker-login og Userscripts-adgang.');
+      throw error;
+    } finally { clearTimeout(timeout); }
+  }
+  const tracks = await readPage();
+  if (tracks.length || source.origin !== 'https://nordicbytes.org' ||
+      !/iPhone|iPad|Android/i.test(navigator.userAgent) ||
+      new URL(location.href).searchParams.get('desktop') === '1') return tracks;
+
+  // NordicBytes' view switch is persistent: desktop=1 sets force_desktop and
+  // clears force_mobile. Restore mobile=1 even when loading/parsing fails.
+  // Serialize these switches so concurrent cards cannot overwrite each other.
+  const loadDesktop = async () => {
     try {
-      while (true) {
-        const {done, value} = await reader.read();
-        if (done) break;
-        size += value.byteLength;
-        if (size > 2 * 1024 * 1024) {
-          await reader.cancel();
-          throw Error('Detaljesiden er for stor til at indlæse.');
-        }
-        chunks.push(value);
-      }
-    } finally { reader.releaseLock(); }
-    const bytes = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-    const doc = new DOMParser().parseFromString(new TextDecoder().decode(bytes), 'text/html');
-    if (doc.querySelector('input[type="password"], meta[http-equiv="refresh" i]')) {
-      throw Error('Log ind på trackeren, og prøv igen.');
+      return await readPage('?desktop=1');
+    } finally {
+      try { await readPage('?mobile=1', true); }
+      catch { throw Error('Mobilvisningen kunne ikke gendannes. Åbn NordicBytes med ?mobile=1, og prøv igen.'); }
     }
-    return fjordSeedAudioTracks(doc);
-  } catch (error) {
-    if (controller.signal.aborted) throw Error('Detaljesiden svarede ikke. Prøv igen.');
-    if (error instanceof TypeError) throw Error('Detaljesiden kunne ikke hentes. Kontrollér tracker-login og Userscripts-adgang.');
-    throw error;
-  } finally { clearTimeout(timeout); }
+  };
+  const request = fjordSeedDesktopAudioQueue.then(loadDesktop, loadDesktop);
+  fjordSeedDesktopAudioQueue = request.then(() => undefined, () => undefined);
+  return request;
 }
