@@ -82,3 +82,9 @@
 
 :host .panel-footer .open-seed { width: 100%; }
 :host .panel-footer p { margin: 8px 0 0; }
+:host .audio-info { margin-top: 12px; padding-top: 10px; border-top: 1px solid #314954; }
+:host .audio-toggle { width: 100%; text-align: left; }
+:host .audio-status { margin: 10px 0 0; color: #acbfc6; font-size: 12px; overflow-wrap: anywhere; }
+:host .audio-tracks { margin: 8px 0 0; padding-left: 22px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+:host .audio-tracks:empty { display: none; }
+:host .audio-tracks li + li { margin-top: 8px; }

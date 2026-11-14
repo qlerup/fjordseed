@@ -7,7 +7,7 @@ import re
 from urllib.parse import urlencode, urlsplit
 
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 
 def _authority(value):
@@ -74,9 +74,10 @@ def build_userscript(seed_origin, root=None):
     # Only this repository's known top-level declarations are converted.
     common = re.sub(r"(?m)^export (?=(?:const |function |async function ))", "", common)
     panel = (root / "safari-userscript" / "panel.js").read_text(encoding="utf-8")
+    audio = (root / "safari-userscript" / "audio.js").read_text(encoding="utf-8")
     runtime = (root / "safari-userscript" / "runtime.js").read_text(encoding="utf-8")
     css = (root / "safari-userscript" / "panel.css").read_text(encoding="utf-8")
-    if any(re.search(r"(?m)^\s*(?:import|export)\b", source) for source in (common, panel, runtime)):
+    if any(re.search(r"(?m)^\s*(?:import|export)\b", source) for source in (common, audio, panel, runtime)):
         raise RuntimeError("Userscript sources must not contain module imports or exports.")
     seed = urlsplit(seed_origin)
     host = "[" + seed.hostname + "]" if ":" in seed.hostname else seed.hostname
@@ -102,6 +103,6 @@ def build_userscript(seed_origin, root=None):
         "// @downloadURL  " + install_url,
         "// ==/UserScript==",
     ]
-    return ("\n".join(metadata) + "\n\n(async () => {\n" + common + "\n" + panel + "\n" + runtime +
+    return ("\n".join(metadata) + "\n\n(async () => {\n" + common + "\n" + audio + "\n" + panel + "\n" + runtime +
             "\nawait startFjordSeedUserscript(" + json.dumps(seed_origin) + ", " + json.dumps(css) +
             ");\n})().catch(() => console.warn('FjordSeed kunne ikke starte. Genindlæs siden og prøv igen.'));\n")

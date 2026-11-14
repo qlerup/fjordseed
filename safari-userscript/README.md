@@ -44,6 +44,24 @@ This is an in-page menu. Apple's native Safari long-press menu is not extended.
 JavaScript-only download buttons without a supported link need a separate
 tracker integration; they are not guessed from unrelated page content.
 
+## Audio tracks on mobile
+
+Choose **Vis lydspor** in a torrent's FjordSeed card to read the languages,
+audio formats and channel details from that exact torrent's desktop detail
+page. The script first checks the current page when its torrent ID matches,
+then fetches `/torrents/<id>` with the current tracker login. It reads
+UNIT3D's `.mediainfo__audio` summary or the raw MediaInfo dump. No API key,
+torrent download or media download is involved. Subtitles are not listed as
+audio tracks. Missing metadata and login errors are reported explicitly.
+
+This uses the upstream UNIT3D desktop markup, not an authenticated capture
+of NordicBytes' custom mobile interface. Its actual availability must be
+checked on the signed-in iPhone; an unsupported tracker layout may return
+no audio information even when the file has audio.
+
+Version 1.1.0 adds this feature. Install the updated script from the same
+FjordSeed origin and disable obsolete copies targeting other origins.
+
 ## Sending and packages
 
 - **Send til FjordSeed:** for a torrent, fetch its small `.torrent` on the
@@ -131,6 +149,10 @@ npm install --prefix /tmp/fjordseed-test-dom --no-save happy-dom
 FJORDSEED_TEST_HAPPY_DOM=/tmp/fjordseed-test-dom/node_modules/happy-dom/lib/index.js \
   node --test tests/test_safari_userscript.mjs
 ```
+
+The audio parser and bounded details-page transport are covered by
+`tests/test_safari_audio.mjs` with the same Happy DOM setup. The desktop
+summary fixture follows the [upstream UNIT3D MediaInfo template](https://github.com/HDInnovations/UNIT3D/blob/master/resources/views/torrent/partials/mediainfo.blade.php).
 
 These checks mock GM storage and tracker responses. They do not contact live
 trackers or initiate torrent downloads. They also do not substitute for the

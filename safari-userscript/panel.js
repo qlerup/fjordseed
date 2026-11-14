@@ -280,6 +280,55 @@ function mountFjordSeedPanel(api, cssText) {
     addButton('send-link', 'Send til FjordSeed');
     if (item.kind === 'torrent') addButton('package-add', 'Føj til pakke', true);
     card.append(meta, label, actions, feedback);
+    if (item.kind === 'torrent') {
+      const audio = element('section', 'audio-info');
+      audio.setAttribute('aria-label', 'Lydspor');
+      const showAudio = element('button', 'action quiet audio-toggle', 'Vis lydspor');
+      showAudio.type = 'button';
+      const result = element('div', 'audio-result');
+      result.hidden = true;
+      const status = element('p', 'audio-status');
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      const tracks = element('ol', 'audio-tracks');
+      result.append(status, tracks);
+      audio.append(showAudio, result);
+      card.append(audio);
+      let loaded = false;
+      showAudio.addEventListener('click', async event => {
+        if (!event.isTrusted || !available) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (loaded) {
+          result.hidden = !result.hidden;
+          showAudio.textContent = result.hidden ? 'Vis lydspor' : 'Skjul lydspor';
+          showAudio.setAttribute('aria-expanded', String(!result.hidden));
+          return;
+        }
+        if (!items.has(item.url)) return;
+        showAudio.disabled = true;
+        showAudio.setAttribute('aria-expanded', 'true');
+        result.hidden = false;
+        result.setAttribute('aria-busy', 'true');
+        status.textContent = 'Henter lydspor fra detaljesiden…';
+        try {
+          const labels = await loadFjordSeedAudio(item.url);
+          tracks.replaceChildren(...labels.map(text => element('li', '', text)));
+          status.textContent = labels.length ? `${labels.length} lydspor · fra trackerens MediaInfo` :
+            'Ingen lydoplysninger fundet på detaljesiden. Det betyder ikke, at filen er uden lyd.';
+          loaded = true;
+          showAudio.textContent = 'Skjul lydspor';
+        } catch (error) {
+          status.textContent = safeMessage(error.message, 'Lydsporene kunne ikke hentes.');
+          showAudio.textContent = 'Prøv lydspor igen';
+        } finally {
+          result.setAttribute('aria-busy', 'false');
+          showAudio.disabled = !available;
+        }
+      });
+      showAudio.setAttribute('aria-expanded', 'false');
+      buttons.push(showAudio);
+    }
     return {node: card, label, setAvailable(value) {
       if (available === value) return;
       available = value;

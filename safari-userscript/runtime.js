@@ -1,7 +1,7 @@
 async function startFjordSeedUserscript(seedOrigin, cssText) {
   'use strict';
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.1.0';
   const PREFIX = 'fjordseed:pending:';
   const LIMIT_COUNT = 50;
   const LIMIT_BYTES = 8 * 1024 * 1024;
