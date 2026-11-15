@@ -232,6 +232,8 @@ test('missing Userscripts GM support produces a visible setup error', async t =>
   await tracker.start();
   const notice = tracker.window.document.querySelector('fjordseed-userscript-status');
   assert(notice);
+  assert.equal(notice.shadowRoot.adoptedStyleSheets.length, 1);
+  assert.match(notice.shadowRoot.adoptedStyleSheets[0].cssRules.map(rule => rule.cssText).join(''), /#14262c/);
   assert.match(notice.shadowRoot.textContent, /Userscripts|GM|tilladelse/i);
   assert.equal(tracker.api, undefined);
   assert.equal(tracker.requests.length, 0);

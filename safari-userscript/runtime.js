@@ -1,7 +1,7 @@
 async function startFjordSeedUserscript(seedOrigin, cssText) {
   'use strict';
 
-  const VERSION = '1.1.2';
+  const VERSION = '1.1.3';
   const PREFIX = 'fjordseed:pending:';
   const LIMIT_COUNT = 50;
   const LIMIT_BYTES = 8 * 1024 * 1024;
@@ -75,7 +75,11 @@ async function startFjordSeedUserscript(seedOrigin, cssText) {
       });
       actions.append(retryButton, clearButton);
       box.append(top, actions);
-      shadow.append(style, box);
+      // Constructed stylesheets also work when the page CSP blocks <style>.
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(style.textContent);
+      shadow.adoptedStyleSheets = [sheet];
+      shadow.append(box);
       document.documentElement.append(notice);
     }
     noticeText.textContent = lastNotice;
