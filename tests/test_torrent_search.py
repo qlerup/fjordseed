@@ -164,6 +164,31 @@ def test_custom_plugin_metadata_is_bounded_and_validated(tmp_path, monkeypatch):
     with pytest.raises(ValueError): plugin_metadata({**row, 'engineName': '../evil'}, tmp_path)
 
 
+def test_search_resolves_plugin_magnet_from_html_result(tmp_path, monkeypatch):
+    (tmp_path/'engines').mkdir()
+    (tmp_path/'engines'/'limetorrents.py').touch()
+    url = 'https://example.test/details/1.html'
+    magnet = 'magnet:?xt=urn:btih:'+'a'*40+'&dn=Ubuntu&tr=udp%3A%2F%2Ftracker.example%3A80'
+    row = {'engineName': 'limetorrents', 'fileUrl': url, 'fileName': 'Ubuntu'}
+    api = Mock(return_value=Mock(json=lambda: {'results': [row]}))
+    monkeypatch.setattr('rss_gate.fetch_metadata', Mock(side_effect=ValueError('HTML, not torrent metadata')))
+    run = Mock(return_value=Mock(returncode=0, stdout=magnet+' '+url+'\n'))
+    monkeypatch.setattr('torrent_search.subprocess.run', run)
+    monkeypatch.setattr('torrent_search.plugin_metadata', lambda row: plugin_metadata(row, tmp_path))
+    assert execute('search-resolve', {'id': 1, 'offset': 3}, api) == {'magnet': magnet, 'name': 'Ubuntu'}
+    assert run.call_args.args[0][-2:] == ['limetorrents', url]
+
+
+@pytest.mark.parametrize('target', ['magnet:?xt=urn:btih:invalid', 'magnet:?dn=Ubuntu', '../outside.torrent', ''])
+def test_plugin_metadata_rejects_invalid_magnets_and_file_paths(tmp_path, monkeypatch, target):
+    (tmp_path/'engines').mkdir()
+    (tmp_path/'engines'/'example.py').touch()
+    monkeypatch.setattr('torrent_search.subprocess.run',
+                        Mock(return_value=Mock(returncode=0, stdout=target+' https://example.test/details/1')))
+    with pytest.raises(ValueError):
+        plugin_metadata({'engineName': 'example', 'fileUrl': 'https://example.test/details/1'}, tmp_path)
+
+
 def test_seeders_filter_precedes_pagination_and_keeps_native_result_indices():
     rows = [{'fileName': f'Fixture {i}', 'nbSeeders': -1 if i == 0 else i} for i in range(35)]
     api = Mock(return_value=Mock(json=lambda: {'results': rows, 'total': 35, 'status': 'Running'}))

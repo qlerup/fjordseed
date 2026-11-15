@@ -20,14 +20,20 @@ def plugin_metadata(row, root=Path('/config/qBittorrent/data/nova3')):
     name = row.get('engineName', '')
     if not re.fullmatch(r'[a-zA-Z0-9_]+', name) or not (root/'engines'/f'{name}.py').is_file():
         raise ValueError('Søgemaskinen kan ikke hente dette link.')
-    from torrent_meta import torrent_meta
+    from torrent_meta import magnet_meta, torrent_meta
     with tempfile.TemporaryDirectory(prefix='fjordseed-search-') as directory:
         result = subprocess.run([sys.executable, '-I', '-X', 'utf8', str(root/'nova2dl.py'), name, row['fileUrl']],
             capture_output=True, text=True, timeout=15,
             env={**os.environ, 'TMPDIR': directory, 'TEMP': directory, 'TMP': directory})
         if result.returncode or len(result.stdout) > 32768:
             raise ValueError('Søgemaskinen kunne ikke hente torrentfilen.')
-        path = Path(result.stdout.strip().split(' ', 1)[0]).resolve()
+        # nova2dl returns either a local torrent path or a magnet, followed by
+        # the source URL. LimeTorrents, for example, returns a magnet directly.
+        target = result.stdout.strip().split(' ', 1)[0]
+        if target.startswith('magnet:?'):
+            magnet_meta(target)
+            return {'magnet': target}
+        path = Path(target).resolve()
         if not path.is_relative_to(Path(directory).resolve()) or not path.is_file():
             raise ValueError('Søgemaskinen returnerede en ugyldig fil.')
         with path.open('rb') as file:
