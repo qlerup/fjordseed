@@ -5,9 +5,10 @@
  const post=(path,data={})=>api('/api/merge/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
  const error=text=>{const id=$('mt-dialog').open?'mt-dialog-error':'mt-error';$(id).textContent=text||'';$(id).hidden=!text;};
  let items=[],base=null,donor=null,stage='base',busy=false,open=false,limit=40,loading=false,jobsLoading=false;
+ let buffered=[],bufferRequest=0;
  const choices={base:new Set(),donor:new Set()}, originals={base:null,donor:null};
  const originalActions=[['keep','Behold original · seed indtil du stopper'],['stop_keep','Behold original · stop efter fletning'],['delete','Slet original ved målratio eller 50 timers seedtid'],['automatic','Optimér upload · slet original bagefter'],['delete_ratio','Slet original kun ved målratio'],['delete_time','Seed i X minutter · slet original bagefter']];
- const originalDefault=file=>file.source==='torrent'?{policy:{ratio_action:'keep',ratio_limit:1,seed_minutes:60}}:{disposition:'archive'};
+ const originalDefault=file=>file.buffered?null:file.source==='torrent'?{policy:{ratio_action:'keep',ratio_limit:1,seed_minutes:60}}:{disposition:'archive'};
  const sizes=n=>new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(n/1024**3)+' GB';
  const duration=n=>n?Math.floor(n/60)+' min '+Math.round(n%60)+' sek':'Ukendt varighed';
  const label=t=>[t.language,t.codec,t.profile,t.channels?t.channels+' kanaler':'',t.title,t.default?'Standard':'',t.forced?'Tvungen':''].filter(Boolean).join(' · ');
@@ -19,10 +20,12 @@
  }
  function renderPicker(){
   const isDonor=stage==='donor',list=$(isDonor?'mt-donor-films':'mt-films'),search=$(isDonor?'mt-donor-search':'mt-search').value.toLocaleLowerCase();list.replaceChildren();
-  const found=items.filter(f=>(!isDonor||f.id!==base?.id)&&(f.title+' '+f.name).toLocaleLowerCase().includes(search)).sort((a,b)=>a.title.localeCompare(b.title,'da'));
+  const candidates=isDonor&&$('mt-show-buffered').checked?[...items,...buffered]:items;
+  const found=candidates.filter(f=>(!isDonor||f.id!==base?.id)&&(f.title+' '+f.name).toLocaleLowerCase().includes(search)).sort((a,b)=>a.title.localeCompare(b.title,'da'));
   if(!found.length)list.append(node('p','Ingen film fundet. Prøv en anden søgning eller opdater biblioteket.','muted'));
   for(const file of found.slice(0,limit)){
    const row=node('article',null,'mt-film'),info=node('div');info.append(node('h3',file.title),node('p',file.name+' · '+sizes(file.size),'muted small'));
+   if(file.buffered)info.append(node('p','Downloadbuffer','muted small'));
    if(!file.eligible)info.append(node('p','Vent til download eller konvertering er færdig. Filer med flere mulige torrents kan ikke vælges.','muted small'));
    const choose=button(isDonor?'Hent spor herfra':'Brug som hovedfil',()=>chooseFile(file));choose.disabled=busy||!file.eligible;choose.setAttribute('aria-label',(isDonor?'Hent spor fra: ':'Brug som hovedfil: ')+file.name);row.append(info,choose);list.append(row);
   }
@@ -42,6 +45,7 @@
   }
  }
  function originalFields(key,file){
+  if(file.buffered)return node('p','Originalen bliver i downloadbufferen og følger sin nuværende seeding- og sletteindstilling.','muted small');
   const field=node('fieldset'),title=key==='base'?'Originalen fra hovedfilen':'Originalen fra den anden fil';field.append(node('legend',title));
   const o=originals[key]||(originals[key]=originalDefault(file)),label=node('label',file.source==='torrent'?'Seeding og oprydning':'Originalfil'),select=node('select'),extra=node('div');select.id='mt-original-'+key;select.disabled=busy;
   const actions=file.source==='torrent'?originalActions:[['archive','Behold originalen i Originals'],['delete','Slet originalen efter fletning']];
@@ -98,6 +102,21 @@
   try{const data=await api('/api/merge/library');items=data.items||[];$('mt-status').textContent=items.length+' filer'+(data.truncated?' · Listen er begrænset til 5.000 filer':'');if(['base','donor'].includes(stage))renderPicker();}
   catch(e){error(e.message);$('mt-status').textContent='Biblioteket kunne ikke indlæses.';}finally{loading=false;}
  }
+ async function loadBuffered(){
+  const request=++bufferRequest,status=$('mt-donor-status');
+  buffered=[];limit=40;renderPicker();
+  status.textContent='';
+  if(!$('mt-show-buffered').checked)return;
+  status.textContent='Henter færdige downloads …';
+  try{
+   const data=await api('/api/merge/buffered');
+   if(request!==bufferRequest)return;
+   buffered=data.items||[];
+   if(stage==='donor'){status.textContent=buffered.length?'':'Ingen færdige downloads i bufferen.';renderPicker();}
+  }catch(e){
+   if(request===bufferRequest&&stage==='donor')status.textContent='Downloadbufferen kunne ikke indlæses. Slå visningen fra og til for at prøve igen.';
+  }
+ }
  async function loadJobs(){
   if(jobsLoading)return;jobsLoading=true;
   try{
@@ -117,9 +136,10 @@
  $('mt-back').onclick=()=>{if(busy)return;open=false;if($('mt-dialog').open)$('mt-dialog').close();$('mt-panel').hidden=true;$('cw-cards').hidden=false;};
  $('mt-close').onclick=()=>{if(!busy)$('mt-dialog').close();};$('mt-change-base').onclick=()=>{if(!busy)$('mt-dialog').close();};
  $('mt-dialog').addEventListener('cancel',event=>{if(busy)event.preventDefault();});
- $('mt-dialog').addEventListener('close',()=>{stage='base';document.documentElement.classList.remove('mt-modal-open');$('mt-dialog-error').hidden=true;$('mt-dialog-error').textContent='';show();});
+ $('mt-dialog').addEventListener('close',()=>{stage='base';$('mt-show-buffered').checked=false;$('mt-donor-status').textContent='';buffered=[];bufferRequest++;document.documentElement.classList.remove('mt-modal-open');$('mt-dialog-error').hidden=true;$('mt-dialog-error').textContent='';show();});
  $('mt-next').onclick=advance;$('mt-prev').onclick=()=>{if(!busy){error('');stage=({tracks:'donor',sync:'tracks',review:'sync'})[stage]||'donor';show();}};
  for(const id of ['mt-search','mt-donor-search'])$(id).oninput=()=>{limit=40;renderPicker();};
+ $('mt-show-buffered').onchange=loadBuffered;
  $('mt-refresh').onclick=()=>{if(!busy)loadLibrary();};$('mt-jobs-refresh').onclick=loadJobs;
  window.addEventListener('hashchange',()=>{if(location.hash!=='#conversion'&&$('mt-dialog').open)$('mt-dialog').close();});
  $('mt-form').onsubmit=async event=>{

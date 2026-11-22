@@ -295,14 +295,18 @@ def retained_library():
 
 def publish_complete(api, rows):
     """Publish retained payloads; optionally migrate older torrents via qBittorrent."""
+    from merge_media import buffered_in_use
     errors = []
     library=retained_library()
     with transaction() as entries:
+        merge_sources = buffered_in_use()
         active={row.get(k) for row in rows for k in ('hash','infohash_v1','infohash_v2') if row.get(k)}
         migration_busy=any(entries.get(h,{}).get('migration') and not entries[h].get('published')
                            and not entries[h].get('files_deleted') for h in active) or any(
             row.get('state')=='moving' for row in rows)
         for row in rows:
+            if row['hash'] in merge_sources:
+                continue
             record = next((entries.get(row.get(k)) for k in ('hash','infohash_v1','infohash_v2')
                            if entries.get(row.get(k))), None)
             if record and record.get('library_replaced'):

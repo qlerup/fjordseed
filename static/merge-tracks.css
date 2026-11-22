@@ -4,3 +4,7 @@
 @media(max-width:700px){.mt-dialog{width:calc(100vw - 12px);max-height:96dvh;padding:14px;border-radius:10px}.mt-dialog-header{top:-14px;margin:-14px -14px 12px;padding:14px;gap:8px}.mt-dialog-header h2{font-size:1.15rem}.mt-dialog .mt-source{max-height:none}.mt-dialog-actions{bottom:-14px;margin:20px -14px -14px;padding:14px}.mt-dialog-actions button{flex:1}.mt-dialog .ms-panel{padding:12px}.mt-dialog .ms-stage video{max-height:65vh}}
 
 .mt-review-file fieldset{min-width:0;margin:18px 0 0;padding:16px;border:1px solid var(--border,#344450);border-radius:10px}.mt-review-file legend{font-weight:600;padding:0 8px}.mt-review-file label{display:flex;flex-direction:column;gap:8px;margin:8px 0 14px}.mt-review-file select,.mt-review-file input{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
+.mt-buffer-toggle{display:flex;align-items:center;gap:10px;margin:12px 0;cursor:pointer}
+.mt-buffer-toggle input{appearance:none;display:grid;align-items:center;width:2.5rem;height:1.4rem;flex:none;margin:0;padding:2px;border:1px solid var(--muted);border-radius:999px;background:transparent;color:var(--muted);cursor:pointer}
+.mt-buffer-toggle input::before{content:"";width:1rem;height:1rem;border-radius:50%;background:currentColor}
+.mt-buffer-toggle input:checked{justify-items:end;color:var(--accent,#87cdc2);border-color:currentColor}

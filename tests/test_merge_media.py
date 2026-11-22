@@ -105,6 +105,39 @@ def test_kept_and_imported_tracks_can_both_be_subtitle_only(films):
     assert '8' in args
 
 
+def test_completed_buffered_download_can_supply_subtitles_without_relocation(films):
+    paths, items, _, choices = films
+    main, donor = paths
+    buffer = main.parent/'.incomplete'
+    buffer.mkdir()
+    paths[1] = donor.rename(buffer/donor.name)
+    items.pop()
+    row = {'hash': 'a'*40, 'name': 'Buffered film', 'save_path': str(buffer),
+           'progress': 1, 'state': 'stalledUP'}
+    entries = [{'name': donor.name, 'size': paths[1].stat().st_size}]
+
+    def api(route):
+        return SimpleNamespace(json=lambda: [row] if route == 'torrents/info' else entries)
+
+    assert len(merge.dispatch(api, 'list', {})['items']) == 1
+    buffered = merge.dispatch(api, 'buffered', {})['items']
+    assert len(buffered) == 1 and buffered[0]['buffered']
+    details = merge.details(api, buffered[0]['id'])
+    assert any(t['kind'] == 'subtitles' and t['id'] == 8 for t in details['tracks'])
+    choices['donor'].update(id=details['id'], fingerprint=details['fingerprint'], tracks=[8])
+    with pytest.raises(ValueError):
+        merge.validate(api, {**choices, 'base': choices['donor']})
+    job = merge.enqueue(api, choices)
+    queued, = merge.read()
+    assert queued['id'] == job['id'] and not queued['relocate_donor']
+    assert queued['source_options']['donor'] == {'hash': row['hash']}
+    assert merge.buffered_in_use() == {row['hash']}
+    merge.dispatch(api, 'cancel', {'id': job['id'], 'owner': choices['owner']})
+    assert merge.buffered_in_use() == set()
+    row['progress'] = 0.99
+    assert merge.dispatch(api, 'buffered', {})['items'] == []
+
+
 def test_details_exposes_joc_profile_and_precise_fingerprint(films, monkeypatch):
     paths, items, _, _ = films
     monkeypatch.setattr(merge.workflow, 'media_info', lambda path: {'streams': [

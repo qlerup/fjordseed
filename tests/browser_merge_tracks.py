@@ -37,6 +37,8 @@ with tempfile.TemporaryDirectory() as folder:
             page.on('pageerror', lambda e: errors.append(str(e)))
             page.route('**/api/conversion/workflow', lambda r: r.fulfill(json={'items': [], 'jobs': []}))
             page.route('**/api/merge/library', lambda r: r.fulfill(json={'items': items, 'truncated': False}))
+            page.route('**/api/merge/buffered', lambda r: r.fulfill(json={'items': [
+                {**items[1], 'id': 'buffer-test', 'title': 'Bufferfilm', 'buffered': True}]}))
             page.route('**/api/merge/library/*', lambda r: r.fulfill(json=next(i for i in items if r.request.url.endswith('/'+i['id']))))
             page.route('**/api/merge/jobs', lambda r: r.fulfill(json={'jobs': jobs}))
             def queue(route):
@@ -69,6 +71,13 @@ with tempfile.TemporaryDirectory() as folder:
                 expect(page.locator('#mt-dialog')).to_be_visible()
                 assert page.locator('.mt-dialog-header').bounding_box()['y']+page.locator('.mt-dialog-header').bounding_box()['height'] <= page.locator('#mt-base-name').bounding_box()['y']+1
                 expect(page.locator('#mt-step-donor')).to_have_attribute('aria-current', 'step')
+                expect(page.locator('#mt-donor-films .mt-film')).to_have_count(2)
+                toggle = page.get_by_role('switch', name='Vis færdige downloads fra bufferen')
+                expect(toggle).not_to_be_checked()
+                toggle.check()
+                expect(page.locator('#mt-donor-films .mt-film')).to_have_count(3)
+                expect(page.get_by_text('Downloadbuffer', exact=True)).to_be_visible()
+                toggle.uncheck()
                 expect(page.locator('#mt-donor-films .mt-film')).to_have_count(2)
                 page.locator('#mt-donor-search').fill('Film 2')
                 expect(page.locator('#mt-donor-films .mt-film')).to_have_count(1)

@@ -9,6 +9,11 @@ def prepare(sources, data):
     for key, (item, _, _, _) in zip(('base', 'donor'), sources):
         choice = data[key].get('original')
         row = item.get('_row')
+        if item.get('buffered'):
+            if choice is not None:
+                raise ValueError('En fil fra downloadbufferen beholder sin seedingindstilling.')
+            result[key] = {'hash':row['hash']}
+            continue
         # Requests from previous clients retain the existing seeding policy.
         if choice is None:
             result[key] = {'hash':row['hash']} if row else {'disposition':'archive'}

@@ -192,7 +192,11 @@ def finish_seeding(api,row,credit):
     action=row.get('share_limit_action')
     if action=='RemoveWithContent':
         from deletion_events import delete_completed
-        return delete_completed(api, row, credit)
+        from download_storage import transaction
+        from merge_media import buffered_in_use
+        with transaction():
+            if row['hash'] not in buffered_in_use():
+                return delete_completed(api, row, credit)
 
 
 def extra_seed_hours(value):

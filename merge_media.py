@@ -47,18 +47,55 @@ def eligible(item):
 def public(item):
     path = Path(item['_path'])
     return {'id': item['id'], 'name': item['name'], 'title': (item.get('_row') or {}).get('name') or path.stem,
-            'size': item['size'], 'eligible': eligible(item)}
+            'size': item['size'], 'eligible': eligible(item),
+            **({'buffered': True} if item.get('buffered') else {})}
 
 
-def resolve(api, ident):
-    item = next((i for i in library.inventory(api)['items'] if i['id'] == ident), None)
+def buffered_items(api):
+    """List finished, torrent-owned media in managed download buffers."""
+    records = storage.read(storage.CONFIG/'download-storage.json', {})
+    for row in api('torrents/info').json():
+        current = row.get('save_path', '')
+        if row.get('progress') != 1 or row.get('state') not in library.STABLE or not storage.managed_directory(current):
+            continue
+        base = Path(current)
+        if storage.BUFFER not in base.parts:
+            continue
+        record = next((records[row[k]] for k in ('hash', 'infohash_v1', 'infohash_v2')
+                       if row.get(k) in records), {})
+        if record.get('convert') or record.get('migration') or record.get('files_deleted'):
+            continue
+        for entry in library.selected_files(api, row):
+            path = base/entry['name']
+            if path.suffix.lower() not in library.VIDEO:
+                continue
+            try:
+                if not library.checked(path).is_file() or path.stat().st_size != entry['size']:
+                    continue
+            except (OSError, ValueError):
+                continue
+            yield {'id': 'buffer-'+library.key(Path(row['hash'])/entry['name']),
+                   'name': entry['name'], 'size': entry['size'], '_path': str(path),
+                   '_row': row, 'buffered': True}
+
+
+def buffered_in_use():
+    jobs = storage.read(storage.CONFIG/'track-merges'/'jobs.json', [])
+    return {job['buffered_donor_hash'] for job in jobs if job.get('buffered_donor_hash')
+            and job['state'] in ('queued', 'running') and job.get('phase') not in ('finalizing', 'refresh')}
+
+
+def resolve(api, ident, *, allow_buffer=False):
+    buffered = isinstance(ident, str) and ident.startswith('buffer-')
+    items = (buffered_items(api) if allow_buffer else ()) if buffered else library.inventory(api)['items']
+    item = next((i for i in items if i['id'] == ident), None)
     if not item: raise ValueError('Filmen findes ikke længere i biblioteket.')
     if not eligible(item): raise ValueError('Vent til download eller konvertering er færdig.')
     return item, library.checked(Path(item['_path']))
 
 
 def details(api, ident):
-    item, path = resolve(api, ident)
+    item, path = resolve(api, ident, allow_buffer=True)
     stamp = library.fingerprint(path)
     media = identify(path)
     tracks = []
@@ -87,7 +124,7 @@ def validate(api, data, *, require_import=True):
     for key in ('base', 'donor'):
         choice = data.get(key)
         if not isinstance(choice, dict): raise ValueError('Vælg både hovedfil og filen med ekstra spor.')
-        item, path = resolve(api, choice.get('id'))
+        item, path = resolve(api, choice.get('id'), allow_buffer=key == 'donor')
         if not workflow.fingerprint_matches(choice.get('fingerprint'), library.fingerprint(path)):
             raise ValueError('En film er ændret. Vælg filmene igen.')
         media = identify(path)
@@ -126,10 +163,14 @@ def enqueue(api, data):
                'detail': 'Venter på fletning', 'created_at': time.time(), 'output': output.name,
                'base': data['base'], 'donor': data['donor'], 'offset_ms': offset, 'relocate_original': True,
                'refresh_libraries': True, 'relocate_donor': True, 'source_options': source_options}
+        donor = sources[1][0]
+        if donor.get('buffered'):
+            job.update(relocate_donor=False, buffered_donor_hash=donor['_row']['hash'])
         from merge_publish import plan
         plan(api, sources, ident, output.name)
         from merge_sources import plan as plan_donor
-        plan_donor(api, sources, ident, output.name)
+        if job['relocate_donor']:
+            plan_donor(api, sources, ident, output.name)
         jobs.append(job); save(jobs)
     return {'ok': True, 'id': ident, 'output': output.name}
 
@@ -380,6 +421,8 @@ def dispatch(api, action, data):
     if action == 'list':
         result = library.inventory(api)
         return {'items': [public(i) for i in result['items']], 'truncated': result['truncated']}
+    if action == 'buffered':
+        return {'items': [public(i) for i in buffered_items(api)]}
     if action == 'details': return details(api, data.get('id'))
     if action == 'queue': return enqueue(api, data)
     if action == 'jobs': return jobs_for(data['owner'])

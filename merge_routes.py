@@ -39,6 +39,9 @@ def register(app, runtime, stop, testing=False):
     @app.get('/api/merge/library/<ident>')
     def merge_details(ident): return call('details', {'id': ident})
 
+    @app.get('/api/merge/buffered')
+    def merge_buffered(): return call('buffered')
+
     @app.get('/api/merge/jobs')
     def merge_jobs(): return call('jobs')
 
