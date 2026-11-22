@@ -59,9 +59,13 @@ def _write_seed_health(ready, session):
                   and previous.get('boot') == BOOT_ID and type(stamp) in (int, float)
                   and math.isfinite(stamp) and 0 <= tick-stamp < SEED_HEALTH_TTL)
     epoch = previous.get('epoch') if continuous else None
+    ready_since = previous.get('ready_since') if continuous else None
+    if ready and not isinstance(ready_since, (int, float)):
+        ready_since = time.time()
     atomic(path, json.dumps({
         'ready': bool(ready), 'session': session, 'boot': BOOT_ID,
-        'epoch': epoch or uuid.uuid4().hex, 'monotonic': tick}), mode=0o644)
+        'epoch': epoch or uuid.uuid4().hex, 'monotonic': tick,
+        'ready_since': ready_since}), mode=0o644)
 
 
 def pause_seed_health():

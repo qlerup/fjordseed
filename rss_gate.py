@@ -113,13 +113,13 @@ def fetch_metadata(url):
     raise ValueError('Too many metadata redirects')
 
 
-def gate_rpc(action,data,api,root=Path('/config')):
+def gate_rpc(action,data,api,root=Path('/config'),*,since=None):
     from rss_budget import admission_lock
     with admission_lock(root):
-        return _gate_rpc(action, data, api, root)
+        return _gate_rpc(action, data, api, root, since)
 
 
-def _gate_rpc(action,data,api,root):
+def _gate_rpc(action,data,api,root,since):
     ident=data.get('feed_id','')
     if not isinstance(ident,str) or not re.fullmatch('[a-f0-9]{32}',ident):
         raise ValueError('Invalid feed')
@@ -144,11 +144,13 @@ def _gate_rpc(action,data,api,root):
             atomic(history_path,json.dumps(history))
 
     def after_resume(article):
-        cutoff=history.get('resumed_after')
         stamp=article_timestamp(article.get('date'))
-        return cutoff is None or (stamp is not None and stamp>=cutoff)
+        return all(cutoff is None or (stamp is not None and stamp>=cutoff)
+                   for cutoff in (since,history.get('resumed_after')))
+
     now=time.time()
-    if pending and (pending['revision']!=data['revision'] or not 0<=now-pending['created_at']<600):
+    if pending and (pending['revision']!=data['revision'] or not 0<=now-pending['created_at']<600
+                    or not after_resume(pending)):
         pending_path.unlink(missing_ok=True)
         pending={}
     if action=='rss_prepare':
@@ -306,6 +308,7 @@ class RssGate:
         self.benefits=benefits
         self.reports={}
         self.storage_paused=set()
+        self.started_at=time.time()
 
     def tick(self):
         with self.rss.lock:
@@ -330,7 +333,8 @@ class RssGate:
                     if not provider or urlsplit(feed['url']).hostname not in provider['hosts']:
                         self.reports[feed['id']]='RSS-feedet og den valgte tracker passer ikke sammen. Ret trackerkontoen før download.'
                         continue
-                candidate=self.runtime.rpc('rss_prepare',{'feed_id':feed['id'],'revision':fingerprint(feed)})
+                request={'feed_id':feed['id'],'revision':fingerprint(feed),'app_started_at':self.started_at}
+                candidate=self.runtime.rpc('rss_prepare',request)
                 if candidate and candidate.get('storage_blocked'):
                     self.reports[feed['id']]=budget_message(candidate['storage_budget'])
                     continue
@@ -376,11 +380,11 @@ class RssGate:
                                 continue
                             if approved:
                                 self.benefits.remember(candidate['meta'],result)
-                            resolved=self.runtime.rpc('rss_resolve',{'feed_id':feed['id'],'revision':fingerprint(feed),
+                            resolved=self.runtime.rpc('rss_resolve',{**request,
                                 'token':candidate['token'],'hashes':candidate['meta']['hashes'],
                                 'approved':approved,'benefits':result})
                     else:
-                        resolved=self.runtime.rpc('rss_resolve',{'feed_id':feed['id'],'revision':fingerprint(feed),
+                        resolved=self.runtime.rpc('rss_resolve',{**request,
                             'token':candidate['token'],'hashes':candidate['meta']['hashes'],'approved':True})
                 self.reports[feed['id']]=(budget_message(resolved['storage_budget']) if resolved.get('storage_blocked') else
                     'Feedpost tilføjet.' if approved else 'Valgte badges er ikke alle bekræftet. Torrenten springes over og kontrolleres igen senere.')

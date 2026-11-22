@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 import re
 import sys
+import time
 
 import requests
 from green_credit import CreditLedger, initial_ratio_limit, real_ratio
@@ -263,10 +264,18 @@ def execute(action, data):
                                     call(path, payload, client=search_client))
             return {**result, '_search_session': search_client.cookies.get_dict()}
     if action in ('rss_prepare','rss_resolve'):
+        from green_credit import BOOT_ID, SEED_HEALTH_TTL, seed_health
         from rss_gate import gate_rpc
         from qbit_worker import ready
         ready()
-        return gate_rpc(action,data,call)
+        health=seed_health()
+        checked=health.get('monotonic')
+        since=health.get('ready_since')
+        if (health.get('ready') is not True or health.get('boot')!=BOOT_ID
+                or type(checked) not in (int,float) or not 0<=time.monotonic()-checked<SEED_HEALTH_TTL
+                or type(since) not in (int,float) or not math.isfinite(since)):
+            raise ValueError('RSS afventer en klar qBittorrent-forbindelse.')
+        return gate_rpc(action,data,call,since=max(since,data.get('app_started_at',since)))
     if action == 'rss_sync':
         from rss import sync_snapshot
         sync_snapshot()

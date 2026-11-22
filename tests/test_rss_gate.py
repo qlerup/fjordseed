@@ -86,12 +86,29 @@ def gate(tmp_path,monkeypatch,request):
     monkeypatch.setattr(rss_gate,'fetch_metadata',metadata)
     monkeypatch.setattr(rss_gate,'folder_path',lambda _:tmp_path/'downloads')
     request={'feed_id':entry['id'],'revision':rss_gate.fingerprint(entry)}
-    def invoke(action,**kwargs):return rss_gate.gate_rpc(action,{**request,**kwargs},api,tmp_path)
+    def invoke(action,*,since=None,**kwargs):
+        return rss_gate.gate_rpc(action,{**request,**kwargs},api,tmp_path,since=since)
     return invoke,calls,fetched,articles,tmp_path,entry
 
 
 def resolve(invoke,candidate):
     return invoke('rss_resolve',token=candidate['token'],hashes=candidate['meta']['hashes'],approved=True)
+
+
+def test_recovery_discards_prepared_backlog_and_admits_new_articles(gate):
+    invoke,calls,fetched,_,_,_=gate
+    old=invoke('rss_prepare')
+    cutoff=rss.article_timestamp('2026-10-08T12:00:00Z')
+
+    with pytest.raises(ValueError,match='Candidate expired'):
+        invoke('rss_resolve',since=cutoff,token=old['token'],hashes=old['meta']['hashes'],approved=True)
+    assert not any(path=='torrents/add' for path,_ in calls)
+
+    new=invoke('rss_prepare',since=cutoff)
+    assert new['token']!=old['token']
+    assert fetched==['https://tracker.example/3','https://tracker.example/4']
+    invoke('rss_resolve',since=cutoff,token=new['token'],hashes=new['meta']['hashes'],approved=True)
+    assert sum(path=='torrents/add' for path,_ in calls)==1
 
 
 @pytest.mark.parametrize('gate',[{'convert':True}],indirect=True)
