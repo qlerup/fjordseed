@@ -15,6 +15,7 @@ from torrent_port import internal_port
 
 OWNER = 'dk.fjordseed.owner'
 PROFILE = 'dk.fjordvpn.profile'
+PATCHED_GLUETUN = 'fjordvpn-gluetun:3.41.3-fjord1'
 GLUETUN = 'qmcgaw/gluetun@sha256:fa19cc76b2af13d57a8d3dc3066f2ada061b1c761b8aecf989b3877c0486e027'
 
 
@@ -168,7 +169,7 @@ class Runtime:
                 vpn.labels.get('com.docker.compose.project') != manager.labels.get('com.docker.compose.project')):
             raise ValueError('VPN-containeren er ikke klar eller tilhører en anden installation.')
         env = dict(item.split('=',1) for item in vpn.attrs['Config']['Env'])
-        if (vpn.attrs['Config']['Image'] != GLUETUN or env.get('FIREWALL','on') != 'on'
+        if (vpn.attrs['Config']['Image'] not in (GLUETUN, PATCHED_GLUETUN) or env.get('FIREWALL','on') != 'on'
                 or env.get('VPN_TYPE') != 'wireguard' or env.get('VPN_PORT_FORWARDING') != 'on'):
             raise ValueError('VPN-containeren har ikke den forventede firewall og WireGuard-opsætning.')
         # One torrent client per forwarded port. Never take over another seedbox.

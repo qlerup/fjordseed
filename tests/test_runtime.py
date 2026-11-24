@@ -145,3 +145,23 @@ def test_conversion_failure_does_not_stop_seedbox(runtime, monkeypatch):
     runtime.sync_conversion()
     runtime.stop.assert_not_called()
     assert runtime.conversion_error
+
+
+@pytest.mark.parametrize('image', [GLUETUN, 'fjordvpn-gluetun:3.41.3-fjord1', 'untrusted:latest'])
+def test_only_supported_vpn_images_are_accepted(runtime, image):
+    runtime.vpn.attrs['Config']['Image'] = image
+    if image == 'untrusted:latest':
+        with pytest.raises(ValueError, match='firewall'):
+            runtime.reconcile()
+        runtime.client.containers.create.assert_not_called()
+    else:
+        runtime.reconcile()
+        runtime.client.containers.create.assert_called_once()
+
+
+def test_patched_vpn_still_requires_firewall(runtime):
+    runtime.vpn.attrs['Config']['Image'] = 'fjordvpn-gluetun:3.41.3-fjord1'
+    runtime.vpn.attrs['Config']['Env'].append('FIREWALL=off')
+    with pytest.raises(ValueError, match='firewall'):
+        runtime.reconcile()
+    runtime.client.containers.create.assert_not_called()
