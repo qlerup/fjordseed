@@ -31,8 +31,8 @@ def test_allocated_bytes_rss_subset_links_sparse_and_old_locations(tmp_path):
     result=temporary_usage([a,b],{'rss_stages':[['.incomplete/rss'],['.incomplete/old']],'selected':0})
     assert result['rss_temporary_bytes']==expected_rss
     assert result['current_rss_bytes']==expected_rss
-    assert len(result['rss_stage_usage'])==2
-    current=next(r for r in result['rss_stage_usage'] if r['stage']=='.incomplete/rss')
+    assert len(result['download_stage_usage'])==2
+    current=next(r for r in result['download_stage_usage'] if r['stage']=='.incomplete/rss')
     assert current['bytes']==allocated(rss/'episode')
     assert current['reclaimable_bytes']==0  # Another hardlink keeps the disk blocks alive.
     assert result['temporary_bytes']==expected_rss+allocated(manual/'other')+allocated(manual/'sparse')+allocated(a/'.fjordseed-buffer/legacy')
@@ -60,18 +60,25 @@ def test_stage_mapping_uses_rss_history_and_all_storage_locations(tmp_path):
     args=storage.helper.call_args
     config=json.loads(args.args[1])
     assert config['rss_stages']==[[],['.incomplete/episode']]
+    assert config['download_stages']==[['.incomplete/manual'],['.incomplete/episode']]
     assert config['selected']==1
 
 
 def test_endpoint_requires_login_and_caches_scans(tmp_path,monkeypatch):
     app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
-    app.extensions['runtime'].host_downloads='/mnt/media'
+    runtime=app.extensions['runtime']
+    runtime.host_downloads='/mnt/media'
+    runtime.rpc=Mock(return_value={'torrents':[{'hash':'manual','progress':1,'state':'stalledUP',
+        'share_limit_action':'RemoveWithContent','seeding_time':3600,'seeding_time_limit':3000}]})
     assert app.test_client().get('/api/storage/temporary-usage').status_code==401
-    measure=Mock(return_value={'temporary_bytes':123,'current_temporary_bytes':123,'rss_temporary_bytes':100,'current_rss_bytes':100})
+    measure=Mock(return_value={'temporary_bytes':123,'current_temporary_bytes':0,'rss_temporary_bytes':None,'current_rss_bytes':None,
+        '_release_sources':[{'hashes':['manual'],'bytes':123,'reclaimable_bytes':123}]})
     monkeypatch.setattr(Storage,'temporary_usage',measure)
     client,_=login(app)
     for _ in range(2):
         response=client.get('/api/storage/temporary-usage')
         assert response.status_code==200 and response.json['temporary_bytes']==123
-        assert response.json['current_temporary_bytes']==123
+        assert response.json['current_temporary_bytes']==0
+        assert response.json['release_schedule']['count']==1
+        assert response.json['release_schedule']['scheduled_bytes']==123
     assert measure.call_count==1

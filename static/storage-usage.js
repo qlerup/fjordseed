@@ -6,6 +6,7 @@
  const units=['B','KiB','MiB','GiB','TiB'];
  const unitFor=(bytes,max)=>Math.min(max,Math.floor(Math.log2(Math.max(1,bytes))/10));
  const formatBytes=(bytes,unit)=>new Intl.NumberFormat('da-DK',{minimumFractionDigits:unit?2:0,maximumFractionDigits:unit?2:0}).format(bytes/1024**unit)+' '+units[unit];
+ const formatAmount=bytes=>formatBytes(bytes,unitFor(bytes,4));
  function releaseBuckets(points){
   if(!points.length)return [];
   const steps=[1,2,3,6,12,24,48,168,720];
@@ -31,12 +32,14 @@
   }
   return [...buckets.values()].sort((a,b)=>a.start-b.start);
  }
- function releases(card,schedule,format){
+ function releases(card,schedule){
   const summary=field(card,'release-summary'),list=field(card,'release-list');
   if(!schedule){text(summary,'Oprydningsoversigten kunne ikke hentes.');if(list.children.length)list.replaceChildren();delete list.dataset.snapshot;return;}
-  text(summary,schedule.count===0?'Ingen midlertidige RSS-filer registreret på dette lager.':
-   (schedule.scheduled_bytes>0?format(schedule.scheduled_bytes)+' forventes frigivet i alt. ':'')+
-   schedule.count+' midlertidige downloads.'+(!schedule.available?' Afventer forbindelse til FjordSeed.':''));
+  text(summary,!schedule.available?'Afventer forbindelse til torrentklienten.':
+   schedule.count===0?'Ingen downloads med automatisk filsletning.':
+   (schedule.scheduled_bytes>0?'Ca. '+formatAmount(schedule.scheduled_bytes)+' forventes frigivet i alt. ':'')+
+   schedule.count+' downloads med automatisk filsletning.'+
+   (schedule.estimated_sizes?' For nogle downloads er pladsen anslået ud fra den hentede datamængde.':''));
   const date=d=>new Intl.DateTimeFormat('da-DK',{day:'numeric',month:'short'}).format(d);
   const hour=d=>String(d.getHours()).padStart(2,'0');
   const rows=releaseBuckets(schedule.timeline||[]).map(b=>{
@@ -53,13 +56,28 @@
   list.replaceChildren(...rows.map(item=>{
    const row=document.createElement('li'),label=document.createElement('strong'),amount=document.createElement('span');
    label.textContent=item.label;label.className='storage-release-name';
-   amount.textContent=(item.pending?'':'Ca. ')+format(item.bytes)+(item.pending?' afventer':' frigives');amount.className='storage-release-amount';
+   amount.textContent=(item.pending?'':'Ca. ')+formatAmount(item.bytes)+(item.pending?' afventer':' frigives');amount.className='storage-release-amount';
    row.append(label,amount);return row;
   }));
+ }
+ async function loadTemporary(id){
+  let temporary;
+  try{
+   temporary=await api('/api/storage/temporary-usage');
+  }catch(e){temporary=null;}
+  if(id!==requestId)return;
+  const total=temporary?.temporary_bytes;
+  const totalMessage=Number.isFinite(total)&&total>=0?'Midlertidige downloadmapper bruger '+formatAmount(total)+' i alt.':
+   'Samlet midlertidigt forbrug kunne ikke måles.';
+  for(const card of cards){
+   text(field(card,'temporary-total'),totalMessage);
+   releases(card,temporary?.release_schedule);
+  }
  }
  async function load(reset=false){
   if(!['#storage','#streaming'].includes(location.hash))return;
   const id=++requestId;
+  loadTemporary(id);
   if(reset)hasData=false;
   if(!hasData)for(const card of cards){
    field(card,'details').hidden=true;field(card,'percent').textContent='';field(card,'path').textContent='';
@@ -87,30 +105,6 @@
     if(field(card,'details').hidden)field(card,'details').hidden=false;
    }
    hasData=true;
-   let totalMessage='Samlet midlertidigt forbrug kunne ikke måles.';
-   try{
-    const temporary=await api('/api/storage/temporary-usage');
-    if(id!==requestId)return;
-    const total=temporary.temporary_bytes;
-    if(Number.isFinite(total)&&total>=0){
-     totalMessage='Midlertidigt brugt i alt: '+formatBytes(total,unitFor(total,4))+' på tværs af downloadlagre, inkl. manuelle downloads.';
-    }
-    const bytes=temporary.current_temporary_bytes;
-    if(temporary.path!==data.path||!Number.isFinite(bytes)||bytes<0)throw Error('Midlertidig plads ukendt');
-    const width=Math.min(data.used_bytes,bytes)/data.total_bytes*100;
-    for(const card of cards){
-     const segment=field(card,'temporary-segment');
-     for(const [key,value] of Object.entries({left:(percent-width)+'%',width:width+'%'}))if(segment.style[key]!==value)segment.style[key]=value;
-     if(segment.hidden!==(width===0))segment.hidden=width===0;
-     text(field(card,'temporary-label'),'Heraf midlertidigt forbrug på dette lager: '+format(bytes)+' · indgår i Brugt');
-     text(field(card,'used-temporary'),'('+format(bytes)+' midlertidigt)');
-     releases(card,temporary.current_rss_bytes===null?null:temporary.release_schedule,format);
-    }
-   }catch(e){
-    if(id!==requestId)return;
-    for(const card of cards){field(card,'temporary-segment').hidden=true;text(field(card,'temporary-label'),'Midlertidigt forbrug på dette lager kunne ikke måles.');text(field(card,'used-temporary'),'(midlertidig plads ukendt)');releases(card,null,format);}
-   }
-   for(const card of cards)text(field(card,'temporary-total'),totalMessage);
   }catch(e){
    if(id!==requestId)return;
    for(const card of cards){

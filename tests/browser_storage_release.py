@@ -46,7 +46,7 @@ with sync_playwright() as p:
         assert page.locator('.storage-release-amount').all_text_contents()[:-1]==['Ca. 2,00 GiB frigives']*24
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
         page.evaluate('payload.release_schedule={items:[],count:0,scheduled_bytes:0,available:true};poll()')
-        expect(page.locator('[data-usage-release-summary]')).to_contain_text('Ingen midlertidige RSS-filer')
+        expect(page.locator('[data-usage-release-summary]')).to_contain_text('Ingen downloads med automatisk filsletning')
         expect(page.locator('.storage-release-list li')).to_have_count(0)
         assert not errors
         page.close()

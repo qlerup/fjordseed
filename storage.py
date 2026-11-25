@@ -73,24 +73,25 @@ class Storage:
         mappings={'/downloads':str(self.runtime.host_downloads)}
         mappings.update({v['bind']:k for k,v in self.mounts().items()})
         stages=[[] for _ in paths]
+        download_stages=[[] for _ in paths]
         records={}
         for key,entry in entries.items():
-            if key not in hashes:continue
             stage=PurePosixPath(entry.get('stage',''))
             for worker,host in mappings.items():
                 try:relative=stage.relative_to(worker)
                 except ValueError:continue
                 if relative.parts and relative.parts[0] in ('.incomplete','.fjordseed-buffer') and '..' not in relative.parts:
                     index=paths.index(host)
-                    stages[index].append(str(relative))
+                    if key in hashes:stages[index].append(str(relative))
                     record=records.setdefault((index,str(relative)),{'hashes':[],'converted':bool(entry.get('convert')),
                         'published':bool(entry.get('published'))})
+                    if not record['hashes']:download_stages[index].append(str(relative))
                     record['hashes'].append(key)
-        result=self.helper('temporary_usage',json.dumps({'rss_stages':stages,
+        result=self.helper('temporary_usage',json.dumps({'rss_stages':stages,'download_stages':download_stages,
             'selected':paths.index(self.public()['path']),
             'rss_known':bool(ledger) or not entries}),source=paths)
         result['_release_sources']=[{**item,**records.get((item['root'],item['stage']),{})}
-                                   for item in result.pop('rss_stage_usage',[])]
+                                   for item in result.pop('download_stage_usage',[])]
         return result
 
     def select(self, path):

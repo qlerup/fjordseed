@@ -1,4 +1,4 @@
-"""Read-only cleanup forecast based on allocated blocks and the worker's policies."""
+"""Read-only cleanup forecast for torrents with automatic file deletion."""
 import math
 import time
 
@@ -41,25 +41,30 @@ def forecast(row, source, now):
 
 def schedule(sources, runtime, now=None):
     now=time.time() if now is None else now
-    if not sources:
-        return dict(items=[],count=0,scheduled_bytes=0,available=True,timeline=[],soon_bytes=0,unplaced_bytes=0)
     try:
-        rows=runtime.rpc('status',{}).get('torrents',[])
+        rows=runtime.rpc('status',{}).get('torrents')
         if not isinstance(rows,list):raise ValueError()
         available=True
     except Exception:
         rows=[];available=False
-    by_hash={r.get(key):r for r in rows for key in ('hash','infohash_v1','infohash_v2') if r.get(key)}
+    by_hash={hash_:source for source in sources for hash_ in source.get('hashes',())}
     items=[]
-    for source in sources:
-        row=next((by_hash[h] for h in source.get('hashes',[]) if h in by_hash),None)
-        item=dict(name=row.get('name') if row else source['stage'].rsplit('/',1)[-1],
-                  bytes=source['bytes'],reclaimable_bytes=source['reclaimable_bytes'],
-                  **forecast(row,source,now))
-        if item['state']=='retained':item['reclaimable_bytes']=0
-        items.append(item)
+    estimated_sizes=False
+    for row in rows:
+        source=next((by_hash[row[key]] for key in ('hash','infohash_v1','infohash_v2') if row.get(key) in by_hash),None)
+        if row.get('files_deleted') or (row.get('share_limit_action')!='RemoveWithContent' and not (source and source.get('converted'))):
+            continue
+        if source is None:
+            # Direct and older downloads may have no measurable stage. Use downloaded payload, never the full torrent size.
+            completed=row.get('completed')
+            if not number(completed) or completed==0:
+                continue
+            source={'bytes':completed,'reclaimable_bytes':completed}
+            estimated_sizes=True
+        items.append(dict(name=row.get('name'),bytes=source['bytes'],reclaimable_bytes=source['reclaimable_bytes'],
+                          **forecast(row,source,now)))
     items.sort(key=lambda item:(item['state']!='soon',item['release_at'] is None,item['release_at'] or 0,-item['bytes']))
-    return dict(items=items[:10],count=len(items),available=available,
+    return dict(items=items[:10],count=len(items),available=available,estimated_sizes=estimated_sizes,
                 timeline=[dict(at=i['release_at'],bytes=i['reclaimable_bytes']) for i in items
                           if i['state']=='estimated' and i['reclaimable_bytes']>0],
                 soon_bytes=sum(i['reclaimable_bytes'] for i in items if i['state']=='soon'),

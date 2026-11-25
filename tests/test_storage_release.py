@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from unittest.mock import Mock
 
 import pytest
@@ -44,11 +45,11 @@ def test_schedule_excludes_retained_bytes_and_survives_offline_worker():
     runtime=Mock();runtime.rpc.return_value={'torrents':[row,keep]}
     result=schedule(sources,runtime,100)
     assert result['scheduled_bytes']==4096
-    assert len(result['items'])==2
+    assert len(result['items'])==1
     runtime.rpc.side_effect=ValueError('private error')
     result=schedule(sources,runtime,100)
     assert not result['available'] and result['scheduled_bytes']==0
-    assert all(i['state']=='unknown' for i in result['items'])
+    assert result['items']==[]
     assert 'private error' not in str(result)
 
 
@@ -63,3 +64,21 @@ def test_schedule_is_bounded_and_prioritises_next_cleanup():
     assert len(result['timeline'])==12  # The summary includes downloads beyond the detail limit.
     assert sum(p['bytes'] for p in result['timeline'])==12*4096
     assert result['items'][0]['release_at']<result['items'][-1]['release_at']
+
+
+def test_schedule_includes_manual_and_legacy_torrents_across_three_days():
+    now=datetime(2026,11,25,14,tzinfo=timezone.utc).timestamp()
+    rss=torrent()
+    manual={**torrent(),'hash':'manual','seeding_time':24*3600}
+    legacy={**torrent(),'hash':'legacy','seeding_time':3600,'completed':16384,'size':32768}
+    deleted={**legacy,'hash':'deleted','files_deleted':True}
+    keep={**legacy,'hash':'keep','share_limit_action':'Stop'}
+    sources=[{'root':0,'hashes':['rss'],'bytes':8192,'reclaimable_bytes':4096},
+             {'root':2,'hashes':['manual'],'bytes':12288,'reclaimable_bytes':8192}]
+    runtime=Mock();runtime.rpc.return_value={'torrents':[rss,manual,legacy,deleted,keep]}
+    result=schedule(sources,runtime,now)
+    assert result['count']==3
+    assert result['estimated_sizes']
+    assert [datetime.fromtimestamp(p['at'],timezone.utc).day for p in result['timeline']]==[25,26,27]
+    assert [p['bytes'] for p in result['timeline']]==[4096,8192,16384]
+    assert schedule([],runtime,now)['count']==1

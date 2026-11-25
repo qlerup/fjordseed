@@ -26,8 +26,8 @@ with sync_playwright() as p:
         data={'path':'/mnt/media','total_bytes':1000,'used_bytes':750,'free_bytes':250}
         page.evaluate('data=>pending.shift().resolve(data)',data)
         expect(card.locator('[data-usage-percent]')).to_have_text('75 % brugt')
-        expect(card.locator('[data-usage-used-temporary]')).to_have_text('(0 B midlertidigt)')
         expect(card.locator('[data-usage-temporary-total]')).to_contain_text('1,00 TiB')
+        expect(card).not_to_contain_text('0 B midlertidigt')
         page.evaluate("""() => {
             window.mutations=[];
             window.observer=new MutationObserver(rows=>mutations.push(...rows));
