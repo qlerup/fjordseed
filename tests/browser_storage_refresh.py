@@ -16,7 +16,8 @@ with sync_playwright() as p:
         page.evaluate("""() => {
             location.hash='#streaming';
             window.pending=[];
-            window.api=url=>url.endsWith('temporary-usage')?Promise.resolve({path:'/mnt/media',current_temporary_bytes:0,temporary_bytes:1024**4}):new Promise((resolve,reject)=>pending.push({resolve,reject}));
+            window.api=url=>url.endsWith('temporary-usage')?Promise.resolve({path:'/mnt/media',temporary_bytes:1024**4,
+                buffer_usage:{path:'/mnt/downloads/.incomplete',total_bytes:4*1024**4,used_bytes:3*1024**4,temporary_bytes:1024**4,on_selected_filesystem:false}}):new Promise((resolve,reject)=>pending.push({resolve,reject}));
             window.size=n=>String(n)+' B';
             window.setInterval=callback=>{window.poll=callback;};
         }""")
@@ -27,7 +28,9 @@ with sync_playwright() as p:
         page.evaluate('data=>pending.shift().resolve(data)',data)
         expect(card.locator('[data-usage-percent]')).to_have_text('75 % brugt')
         expect(card.locator('[data-usage-temporary-total]')).to_contain_text('1,00 TiB')
-        expect(card).not_to_contain_text('0 B midlertidigt')
+        expect(card.locator('[data-usage-temporary-segment]')).to_be_hidden()
+        expect(card.locator('[data-usage-buffer-label]')).to_have_text('Heraf 1,00 TiB midlertidigt brugt · 3,00 TiB brugt af 4,00 TiB')
+        assert card.locator('[data-usage-buffer-segment]').evaluate('e => [e.style.left, e.style.width]')==['50%', '25%']
         page.evaluate("""() => {
             window.mutations=[];
             window.observer=new MutationObserver(rows=>mutations.push(...rows));

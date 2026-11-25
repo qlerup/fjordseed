@@ -7,6 +7,38 @@
  const unitFor=(bytes,max)=>Math.min(max,Math.floor(Math.log2(Math.max(1,bytes))/10));
  const formatBytes=(bytes,unit)=>new Intl.NumberFormat('da-DK',{minimumFractionDigits:unit?2:0,maximumFractionDigits:unit?2:0}).format(bytes/1024**unit)+' '+units[unit];
  const formatAmount=bytes=>formatBytes(bytes,unitFor(bytes,4));
+ const percentUsed=data=>Math.min(100,data.used_bytes/data.total_bytes*100);
+ const hide=(element,hidden)=>{if(element.hidden!==hidden)element.hidden=hidden;};
+ function segment(element,data,temporaryBytes){
+  const width=Math.min(data.used_bytes,temporaryBytes)/data.total_bytes*100;
+  const left=+((percentUsed(data)-width).toFixed(5))+'%',size=+(width.toFixed(5))+'%';
+  if(element.style.left!==left)element.style.left=left;
+  if(element.style.width!==size)element.style.width=size;
+  hide(element,width===0);
+ }
+ function bufferBars(card,capacity,temporary){
+  const buffer=temporary?.buffer_usage;
+  const valid=buffer&&typeof buffer.path==='string'&&buffer.total_bytes>0&&
+   [buffer.total_bytes,buffer.used_bytes,buffer.temporary_bytes].every(n=>Number.isFinite(n)&&n>=0);
+  const shared=valid&&capacity&&capacity.path===temporary.path&&buffer.on_selected_filesystem;
+  const selectedSegment=field(card,'temporary-segment'),selectedLabel=field(card,'temporary-label');
+  if(shared){
+   segment(selectedSegment,capacity,buffer.temporary_bytes);
+   text(selectedLabel,'Heraf '+formatAmount(buffer.temporary_bytes)+' midlertidigt brugt');
+   hide(selectedLabel,selectedSegment.hidden);
+  }else{
+   hide(selectedSegment,true);
+   hide(selectedLabel,true);
+  }
+  hide(field(card,'buffer'),!valid||!!shared);
+  if(!valid||shared)return;
+  const bar=field(card,'buffer-bar'),percent=percentUsed(buffer);
+  if(bar.value!==percent)bar.value=percent;
+  segment(field(card,'buffer-segment'),buffer,buffer.temporary_bytes);
+  text(field(card,'buffer-path'),buffer.path);
+  text(field(card,'buffer-label'),'Heraf '+formatAmount(buffer.temporary_bytes)+' midlertidigt brugt · '+
+   formatAmount(buffer.used_bytes)+' brugt af '+formatAmount(buffer.total_bytes));
+ }
  function releaseBuckets(points){
   if(!points.length)return [];
   const steps=[1,2,3,6,12,24,48,168,720];
@@ -73,11 +105,9 @@
    text(field(card,'temporary-total'),totalMessage);
    releases(card,temporary?.release_schedule);
   }
+  return temporary;
  }
- async function load(reset=false){
-  if(!['#storage','#streaming'].includes(location.hash))return;
-  const id=++requestId;
-  loadTemporary(id);
+ async function loadCapacity(id,reset){
   if(reset)hasData=false;
   if(!hasData)for(const card of cards){
    field(card,'details').hidden=true;field(card,'percent').textContent='';field(card,'path').textContent='';
@@ -86,7 +116,7 @@
   try{
    const data=await api('/api/storage/usage');if(id!==requestId)return;
    if(![data.total_bytes,data.used_bytes,data.free_bytes].every(n=>Number.isFinite(n)&&n>=0)||data.total_bytes===0)throw Error('Ingen lagertal');
-   const percent=Math.min(100,Math.max(0,data.used_bytes/data.total_bytes*100));
+   const percent=percentUsed(data);
    const reserved=Math.max(0,data.total_bytes-data.used_bytes-data.free_bytes);
    // Use the same binary unit for every figure, with explicit IEC labels.
    const unit=unitFor(data.total_bytes,3);
@@ -105,6 +135,7 @@
     if(field(card,'details').hidden)field(card,'details').hidden=false;
    }
    hasData=true;
+   return data;
   }catch(e){
    if(id!==requestId)return;
    for(const card of cards){
@@ -112,6 +143,12 @@
     field(card,'status').hidden=false;
    }
   }
+ }
+ async function load(reset=false){
+  if(!['#storage','#streaming'].includes(location.hash))return;
+  const id=++requestId;
+  const [capacity,temporary]=await Promise.all([loadCapacity(id,reset),loadTemporary(id)]);
+  if(id===requestId)for(const card of cards)bufferBars(card,capacity,temporary);
  }
  window.addEventListener('hashchange',()=>load());
  window.addEventListener('storage-changed',()=>load(true));

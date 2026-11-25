@@ -14,7 +14,9 @@ from test_app import FakeRuntime
 
 
 def helper(self,action,value='',source='/'):
-    if action=='temporary_usage':return {'temporary_bytes':1024**4,'current_temporary_bytes':1024**4,'rss_temporary_bytes':0,'current_rss_bytes':0}
+    if action=='temporary_usage':return {'temporary_bytes':1024**4,'current_temporary_bytes':1024**4,'rss_temporary_bytes':0,'current_rss_bytes':0,
+        'buffer_usage':{'total_bytes':4*1024**4,'used_bytes':3*1024**4,'temporary_bytes':1024**4,
+                        'on_selected_filesystem':json.loads(value)['selected']==0}}
     if action=='usage':return {'total_bytes':4*1024**4,'used_bytes':3*1024**4,'free_bytes':1024**4}
     if action=='mount':return {'ready':True}
     if action=='writable':return {'writable':True}
@@ -49,6 +51,9 @@ with tempfile.TemporaryDirectory() as folder, patch.object(Storage,'helper',help
                 expect(card.locator('[data-usage-free]')).to_have_text('1.024,00 GiB')
                 expect(card.locator('[data-usage-bar]')).to_have_attribute('value','75')
                 expect(card.locator('[data-usage-temporary-total]')).to_contain_text('1,00 TiB')
+                expect(card.locator('[data-usage-temporary-label]')).to_have_text('Heraf 1,00 TiB midlertidigt brugt')
+                expect(card.locator('[data-usage-temporary-segment]')).to_be_visible()
+                expect(card.locator('[data-usage-buffer]')).to_be_hidden()
             page.goto(base+'/#streaming')
             page.locator('#streaming-enabled').uncheck()
             page.locator('#streaming-buffer').check()

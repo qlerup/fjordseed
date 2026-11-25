@@ -174,13 +174,25 @@ def temporary_usage(roots, config=None):
                     if owner is not None:
                         stage_files.setdefault((index,owner),{})[identity]=(info.st_blocks*512,info.st_nlink==1)
     known=config.get('rss_known',True)
-    return {'temporary_bytes':sum(n for n,rss in seen.values()),
+    result={'temporary_bytes':sum(n for n,rss in seen.values()),
             'current_temporary_bytes':sum(n for (device,inode),(n,rss) in seen.items() if device==selected_device),
             'rss_temporary_bytes':sum(n for n,rss in seen.values() if rss) if known else None,
             'current_rss_bytes':sum(n for (device,inode),(n,rss) in seen.items() if rss and device==selected_device) if known else None,
             'download_stage_usage':[{'root':index,'stage':stage,'bytes':sum(n for n,_ in files.values()),
                 'reclaimable_bytes':sum(n for n,exclusive in files.values() if exclusive)}
                 for (index,stage),files in stage_files.items()]}
+    if roots and config.get('include_buffer_usage'):
+        root=Path(roots[0])
+        buffer=root/'.incomplete'
+        directory=buffer if buffer.is_dir() else root
+        try:
+            device=directory.stat().st_dev
+            result['buffer_usage']={**usage(directory),
+                'temporary_bytes':sum(n for (dev,_),(n,rss) in seen.items() if dev==device),
+                'on_selected_filesystem':device==selected_device}
+        except OSError:
+            result['buffer_usage']=None
+    return result
 
 
 if __name__ == '__main__':

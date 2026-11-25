@@ -88,10 +88,13 @@ class Storage:
                     if not record['hashes']:download_stages[index].append(str(relative))
                     record['hashes'].append(key)
         result=self.helper('temporary_usage',json.dumps({'rss_stages':stages,'download_stages':download_stages,
+            'include_buffer_usage':True,
             'selected':paths.index(self.public()['path']),
             'rss_known':bool(ledger) or not entries}),source=paths)
         result['_release_sources']=[{**item,**records.get((item['root'],item['stage']),{})}
                                    for item in result.pop('download_stage_usage',[])]
+        if result.get('buffer_usage'):
+            result['buffer_usage']['path']=str(PurePosixPath(paths[0])/'.incomplete')
         return result
 
     def select(self, path):

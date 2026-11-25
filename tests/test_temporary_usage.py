@@ -28,7 +28,7 @@ def test_allocated_bytes_rss_subset_links_sparse_and_old_locations(tmp_path):
     (rss/'directory-link').symlink_to(b,target_is_directory=True)
     allocated=lambda p:p.stat().st_blocks*512
     expected_rss=allocated(rss/'episode')+allocated(b/'.incomplete'/'old'/'episode')
-    result=temporary_usage([a,b],{'rss_stages':[['.incomplete/rss'],['.incomplete/old']],'selected':0})
+    result=temporary_usage([a,b],{'rss_stages':[['.incomplete/rss'],['.incomplete/old']],'selected':0,'include_buffer_usage':True})
     assert result['rss_temporary_bytes']==expected_rss
     assert result['current_rss_bytes']==expected_rss
     assert len(result['download_stage_usage'])==2
@@ -37,6 +37,8 @@ def test_allocated_bytes_rss_subset_links_sparse_and_old_locations(tmp_path):
     assert current['reclaimable_bytes']==0  # Another hardlink keeps the disk blocks alive.
     assert result['temporary_bytes']==expected_rss+allocated(manual/'other')+allocated(manual/'sparse')+allocated(a/'.fjordseed-buffer/legacy')
     assert result['current_temporary_bytes']==result['temporary_bytes']
+    assert result['buffer_usage']['on_selected_filesystem']
+    assert result['buffer_usage']['temporary_bytes']==result['temporary_bytes']
     unknown_rss=temporary_usage([a,b],{'selected':0,'rss_known':False})
     assert unknown_rss['current_rss_bytes'] is None
     assert unknown_rss['current_temporary_bytes']==result['temporary_bytes']
@@ -54,9 +56,10 @@ def test_stage_mapping_uses_rss_history_and_all_storage_locations(tmp_path):
     (root/'green-credit.json').write_text(json.dumps({'rss':{'rss_feed_id':'feed'}}))
     storage=Storage(Mock(state=state,host_downloads='/mnt/original'))
     storage.settings=Mock(return_value={'selected':'a','locations':[{'id':'a','path':'/mnt/media'}]})
-    storage.helper=Mock(return_value={'temporary_bytes':50})
+    storage.helper=Mock(return_value={'temporary_bytes':50,'buffer_usage':{'temporary_bytes':50}})
     paths=('/mnt/original','/mnt/media')
-    assert storage.temporary_usage(paths)['temporary_bytes']==50
+    result=storage.temporary_usage(paths)
+    assert result['buffer_usage']=={'temporary_bytes':50,'path':'/mnt/original/.incomplete'}
     args=storage.helper.call_args
     config=json.loads(args.args[1])
     assert config['rss_stages']==[[],['.incomplete/episode']]
