@@ -73,7 +73,7 @@ with tempfile.TemporaryDirectory() as folder:
             page.route('**/api/conversion/dolby-vision', lambda route:route.fulfill(json={'items':[]}))
             page.route('**/api/storage', lambda route:route.fulfill(json={'path':'/downloads','buffer':'/downloads/.incomplete','fjordflix_enabled':False,'streaming_enabled':True}))
             page.route('**/api/storage/usage', lambda route:route.fulfill(json={'path':'/downloads','total_bytes':2*1024**4,'used_bytes':.7*1024**4,'free_bytes':1.3*1024**4}))
-            page.route('**/api/storage/temporary-usage', lambda route:route.fulfill(json={'path':'/downloads','current_rss_bytes':128*1024**3,'release_schedule':{'count':0,'available':True,'timeline':[]}}))
+            page.route('**/api/storage/temporary-usage', lambda route:route.fulfill(json={'path':'/downloads','current_temporary_bytes':128*1024**3,'temporary_bytes':128*1024**3,'release_schedule':{'count':0,'available':True,'timeline':[]}}))
             base = f'http://127.0.0.1:{server.server_port}'
             page.goto(base)
             page.locator('[name=username]').fill('admin')

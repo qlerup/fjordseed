@@ -16,7 +16,7 @@ with sync_playwright() as p:
         page.evaluate("""() => {
             location.hash='#streaming';
             window.pending=[];
-            window.api=url=>url.endsWith('temporary-usage')?Promise.resolve({path:'/mnt/media',current_rss_bytes:100}):new Promise((resolve,reject)=>pending.push({resolve,reject}));
+            window.api=url=>url.endsWith('temporary-usage')?Promise.resolve({path:'/mnt/media',current_temporary_bytes:0,temporary_bytes:1024**4}):new Promise((resolve,reject)=>pending.push({resolve,reject}));
             window.size=n=>String(n)+' B';
             window.setInterval=callback=>{window.poll=callback;};
         }""")
@@ -26,6 +26,8 @@ with sync_playwright() as p:
         data={'path':'/mnt/media','total_bytes':1000,'used_bytes':750,'free_bytes':250}
         page.evaluate('data=>pending.shift().resolve(data)',data)
         expect(card.locator('[data-usage-percent]')).to_have_text('75 % brugt')
+        expect(card.locator('[data-usage-used-temporary]')).to_have_text('(0 B midlertidigt)')
+        expect(card.locator('[data-usage-temporary-total]')).to_contain_text('1,00 TiB')
         page.evaluate("""() => {
             window.mutations=[];
             window.observer=new MutationObserver(rows=>mutations.push(...rows));

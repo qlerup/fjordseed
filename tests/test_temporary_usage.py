@@ -36,6 +36,10 @@ def test_allocated_bytes_rss_subset_links_sparse_and_old_locations(tmp_path):
     assert current['bytes']==allocated(rss/'episode')
     assert current['reclaimable_bytes']==0  # Another hardlink keeps the disk blocks alive.
     assert result['temporary_bytes']==expected_rss+allocated(manual/'other')+allocated(manual/'sparse')+allocated(a/'.fjordseed-buffer/legacy')
+    assert result['current_temporary_bytes']==result['temporary_bytes']
+    unknown_rss=temporary_usage([a,b],{'selected':0,'rss_known':False})
+    assert unknown_rss['current_rss_bytes'] is None
+    assert unknown_rss['current_temporary_bytes']==result['temporary_bytes']
     (rss/'episode').unlink()
     (manual/'duplicate').unlink()
     assert temporary_usage([a,b])['temporary_bytes']==result['temporary_bytes']-allocated(b/'.incomplete/old/episode')
@@ -63,10 +67,11 @@ def test_endpoint_requires_login_and_caches_scans(tmp_path,monkeypatch):
     app=create_app(tmp_path,testing=True,runtime_factory=FakeRuntime)
     app.extensions['runtime'].host_downloads='/mnt/media'
     assert app.test_client().get('/api/storage/temporary-usage').status_code==401
-    measure=Mock(return_value={'temporary_bytes':123,'rss_temporary_bytes':100,'current_rss_bytes':100})
+    measure=Mock(return_value={'temporary_bytes':123,'current_temporary_bytes':123,'rss_temporary_bytes':100,'current_rss_bytes':100})
     monkeypatch.setattr(Storage,'temporary_usage',measure)
     client,_=login(app)
     for _ in range(2):
         response=client.get('/api/storage/temporary-usage')
         assert response.status_code==200 and response.json['temporary_bytes']==123
+        assert response.json['current_temporary_bytes']==123
     assert measure.call_count==1

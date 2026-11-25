@@ -20,7 +20,7 @@ with sync_playwright() as p:
             location.hash='#storage';window.payload=data;
             window.api=url=>Promise.resolve(url.endsWith('temporary-usage')?payload:{path:'/mnt/media',total_bytes:2000*1024**3,used_bytes:1500*1024**3,free_bytes:500*1024**3});
             window.setInterval=callback=>{window.poll=callback;};
-        }""",dict(path='/mnt/media',current_rss_bytes=9*gib,release_schedule=dict(items=[],count=12,scheduled_bytes=12*gib,available=True,timeline=points,soon_bytes=0,unplaced_bytes=2*gib)))
+        }""",dict(path='/mnt/media',current_temporary_bytes=9*gib,temporary_bytes=9*gib,release_schedule=dict(items=[],count=12,scheduled_bytes=12*gib,available=True,timeline=points,soon_bytes=0,unplaced_bytes=2*gib)))
         page.add_script_tag(content=script)
         expect(page.locator('.storage-release-list li')).to_have_count(8)
         expect(page.locator('.storage-release-amount').first).to_have_text('Ca. 1,00 GiB frigives')

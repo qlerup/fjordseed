@@ -171,6 +171,7 @@ def temporary_usage(roots, config=None):
                         stage_files.setdefault((index,owner),{})[identity]=(info.st_blocks*512,info.st_nlink==1)
     known=config.get('rss_known',True)
     return {'temporary_bytes':sum(n for n,rss in seen.values()),
+            'current_temporary_bytes':sum(n for (device,inode),(n,rss) in seen.items() if device==selected_device),
             'rss_temporary_bytes':sum(n for n,rss in seen.values() if rss) if known else None,
             'current_rss_bytes':sum(n for (device,inode),(n,rss) in seen.items() if rss and device==selected_device) if known else None,
             'rss_stage_usage':[{'root':index,'stage':stage,'bytes':sum(n for n,_ in files.values()),

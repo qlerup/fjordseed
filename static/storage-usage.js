@@ -3,6 +3,9 @@
  const cards=[...document.querySelectorAll('[data-storage-usage]')];
  const field=(card,name)=>card.querySelector('[data-usage-'+name+']');
  const text=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
+ const units=['B','KiB','MiB','GiB','TiB'];
+ const unitFor=(bytes,max)=>Math.min(max,Math.floor(Math.log2(Math.max(1,bytes))/10));
+ const formatBytes=(bytes,unit)=>new Intl.NumberFormat('da-DK',{minimumFractionDigits:unit?2:0,maximumFractionDigits:unit?2:0}).format(bytes/1024**unit)+' '+units[unit];
  function releaseBuckets(points){
   if(!points.length)return [];
   const steps=[1,2,3,6,12,24,48,168,720];
@@ -68,9 +71,8 @@
    const percent=Math.min(100,Math.max(0,data.used_bytes/data.total_bytes*100));
    const reserved=Math.max(0,data.total_bytes-data.used_bytes-data.free_bytes);
    // Use the same binary unit for every figure, with explicit IEC labels.
-   const units=['B','KiB','MiB','GiB'];
-   const unit=Math.min(3,Math.max(0,Math.floor(Math.log(data.total_bytes)/Math.log(1024))));
-   const format=n=>new Intl.NumberFormat('da-DK',{minimumFractionDigits:unit?2:0,maximumFractionDigits:unit?2:0}).format(n/1024**unit)+' '+units[unit];
+   const unit=unitFor(data.total_bytes,3);
+   const format=n=>formatBytes(n,unit);
    for(const card of cards){
     text(field(card,'path'),data.path);
     text(field(card,'percent'),new Intl.NumberFormat('da-DK',{maximumFractionDigits:1}).format(percent)+' % brugt');
@@ -85,23 +87,30 @@
     if(field(card,'details').hidden)field(card,'details').hidden=false;
    }
    hasData=true;
+   let totalMessage='Samlet midlertidigt forbrug kunne ikke måles.';
    try{
     const temporary=await api('/api/storage/temporary-usage');
     if(id!==requestId)return;
-    if(temporary.path!==data.path||!Number.isFinite(temporary.current_rss_bytes)||temporary.current_rss_bytes<0)throw Error('RSS-plads ukendt');
-    const bytes=Math.min(data.used_bytes,temporary.current_rss_bytes),width=bytes/data.total_bytes*100;
+    const total=temporary.temporary_bytes;
+    if(Number.isFinite(total)&&total>=0){
+     totalMessage='Midlertidigt brugt i alt: '+formatBytes(total,unitFor(total,4))+' på tværs af downloadlagre, inkl. manuelle downloads.';
+    }
+    const bytes=temporary.current_temporary_bytes;
+    if(temporary.path!==data.path||!Number.isFinite(bytes)||bytes<0)throw Error('Midlertidig plads ukendt');
+    const width=Math.min(data.used_bytes,bytes)/data.total_bytes*100;
     for(const card of cards){
      const segment=field(card,'temporary-segment');
      for(const [key,value] of Object.entries({left:(percent-width)+'%',width:width+'%'}))if(segment.style[key]!==value)segment.style[key]=value;
-     if(segment.hidden!==(bytes===0))segment.hidden=bytes===0;
-     text(field(card,'temporary-label'),'Heraf midlertidige RSS-filer: '+format(bytes)+' · indgår i Brugt');
+     if(segment.hidden!==(width===0))segment.hidden=width===0;
+     text(field(card,'temporary-label'),'Heraf midlertidigt forbrug på dette lager: '+format(bytes)+' · indgår i Brugt');
      text(field(card,'used-temporary'),'('+format(bytes)+' midlertidigt)');
-     releases(card,temporary.release_schedule,format);
+     releases(card,temporary.current_rss_bytes===null?null:temporary.release_schedule,format);
     }
    }catch(e){
     if(id!==requestId)return;
-    for(const card of cards){field(card,'temporary-segment').hidden=true;text(field(card,'temporary-label'),'Midlertidig RSS-plads kunne ikke måles.');text(field(card,'used-temporary'),'(midlertidig plads ukendt)');releases(card,null,format);}
+    for(const card of cards){field(card,'temporary-segment').hidden=true;text(field(card,'temporary-label'),'Midlertidigt forbrug på dette lager kunne ikke måles.');text(field(card,'used-temporary'),'(midlertidig plads ukendt)');releases(card,null,format);}
    }
+   for(const card of cards)text(field(card,'temporary-total'),totalMessage);
   }catch(e){
    if(id!==requestId)return;
    for(const card of cards){
